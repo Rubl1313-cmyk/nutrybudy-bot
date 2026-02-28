@@ -80,13 +80,12 @@ async def cmd_progress(message: Message):
             )
 
 @router.message(Command("log_weight"))
-async def cmd_log_weight(message: Message, state):
-    from utils.states import WeightStates
+async def cmd_log_weight(message: Message, state: FSMContext):  # ← укажите тип
     await state.set_state(WeightStates.entering_weight)
     await message.answer("⚖️ Введите ваш вес в кг:")
 
 @router.message(WeightStates.entering_weight, F.text)
-async def process_weight_log(message: Message, state):
+async def process_weight_log(message: Message, state: FSMContext):  # ← и здесь
     try:
         weight = float(message.text)
         async with get_session() as session:

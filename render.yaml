@@ -1,10 +1,10 @@
 services:
   - type: web
     name: nutribudy-bot
-    env: docker  # ← важно: указываем Docker
-    dockerfilePath: ./Dockerfile
-    dockerContext: .
+    runtime: python
     plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python bot.py
     envVars:
       - key: BOT_TOKEN
         sync: false
@@ -16,6 +16,9 @@ services:
         fromDatabase:
           name: nutribudy-db
           property: connectionString
+    # 🔥 Добавьте эту строку для Python 3.11:
+    env:
+      PYTHON_VERSION: "3.11.9"
 
 databases:
   - name: nutribudy-db

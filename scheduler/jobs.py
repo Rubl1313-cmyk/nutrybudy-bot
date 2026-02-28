@@ -1,7 +1,7 @@
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from aiogram import Bot
-from database.db import get_session
+from database.db import async_session  # ← импортируем sessionmaker напрямую
 from database.models import Reminder
 from datetime import datetime
 from sqlalchemy import select
@@ -10,19 +10,22 @@ scheduler = AsyncIOScheduler()
 
 async def send_reminder(bot: Bot, user_id: int, text: str):
     try:
-        await bot.send_message(user_id, f"🔔 <b>{text}</b>", parse_mode="HTML")
+        await bot.send_message(user_id, f"🔔 {text}")
     except Exception as e:
         print(f"Failed to send reminder to {user_id}: {e}")
 
 def setup_scheduler(bot: Bot):
     @scheduler.scheduled_job(CronTrigger(second=0))
     async def check_reminders():
-        async with get_session() as session:
+        # ✅ Используем async_session напрямую
+        async with async_session() as session:
             now = datetime.now().strftime("%H:%M")
             day = datetime.now().strftime("%a").lower()[:3]
             
             result = await session.execute(
-                select(Reminder).where(Reminder.enabled == True)
+                select(Reminder).where(
+                    Reminder.enabled == True
+                )
             )
             
             for rem in result.scalars():

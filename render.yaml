@@ -1,10 +1,10 @@
 services:
   - type: web
     name: nutribudy-bot
-    runtime: python
+    env: docker  # ← важно: указываем Docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
     plan: free
-    buildCommand: pip install -r requirements.txt
-    startCommand: python bot.py
     envVars:
       - key: BOT_TOKEN
         sync: false

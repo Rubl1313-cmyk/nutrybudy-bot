@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 from services.plots import generate_weight_plot, generate_water_plot, generate_calorie_balance_plot
 from services.calculator import calculate_calorie_balance
 from keyboards.reply import get_main_keyboard
+from utils.states import WeightStates
 
 router = Router()
 

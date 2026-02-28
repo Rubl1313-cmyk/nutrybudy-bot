@@ -1,5 +1,6 @@
 from aiogram import Router, F
 from aiogram.types import Message, BufferedInputFile
+from aiogram.fsm.context import FSMContext 
 from aiogram.filters import Command
 from database.db import get_session
 from database.models import User, Meal, Activity, WaterEntry, WeightEntry

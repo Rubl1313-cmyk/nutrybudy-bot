@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: nutribudy-bot
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python bot.py
+    envVars:
+      - key: BOT_TOKEN
+        sync: false
+      - key: CLOUDFLARE_ACCOUNT_ID
+        sync: false
+      - key: CLOUDFLARE_API_TOKEN
+        sync: false
+      - key: DATABASE_URL
+        fromDatabase:
+          name: nutribudy-db
+          property: connectionString
+
+databases:
+  - name: nutribudy-db
+    plan: free

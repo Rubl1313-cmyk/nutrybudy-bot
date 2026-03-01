@@ -11,7 +11,7 @@ from utils.states import WaterStates
 
 router = Router()
 
-@router.message(Command("log_water"))
+@router.message(WaterStates.entering_amount, F.text.regexp(r'^\s*\d+([.,]\d+)?\s*$'))
 @router.message(F.text == "💧 Вода")
 async def cmd_water(message: Message, state: FSMContext):
     await state.set_state(WaterStates.entering_amount)

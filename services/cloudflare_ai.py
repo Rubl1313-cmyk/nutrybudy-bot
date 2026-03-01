@@ -196,102 +196,74 @@ async def _process_response(resp: aiohttp.ClientResponse) -> Optional[Dict]:
 
 async def analyze_food_image(
     image_bytes: bytes,
-    prompt: str = "Опиши еду на этом изображении. Укажи название блюда и основные ингредиенты. Отвечай кратко на русском, 2-3 слова.",
-    max_tokens: int = 150,
-    model: str = "uform_gen2"
+    prompt: str = "What food is in this image? Describe briefly in Russian.",
+    max_tokens: int = 150
 ) -> Optional[str]:
     """
-    Анализирует изображение еды через Cloudflare Vision AI.
-    
-    🔑 КЛЮЧЕВОЕ: image отправляется как array of bytes (List[int]), НЕ base64!
-    
-    Args:
-        image_bytes: Сырые байты изображения (JPEG/PNG)
-        prompt: Промпт для модели (по умолчанию требует краткий ответ на русском)
-        max_tokens: Максимальная длина ответа
-        model: Название модели из MODELS (по умолчанию "uform_gen2")
-        
-    Returns:
-        str: Описание еды или None при ошибке
-        
-    Example:
-        >>> with open("food.jpg", "rb") as f:
-        ...     result = await analyze_food_image(f.read())
-        >>> print(result)  # "жареная курица с овощами"
+    Анализирует изображение через Cloudflare AI.
+    🔑 image отправляется как array of bytes, НЕ base64!
     """
     try:
-        if not _validate_credentials():
+        if not CLOUDFLARE_ACCOUNT_ID or not CLOUDFLARE_API_TOKEN:
+            logger.error("❌ Cloudflare credentials not set")
             return None
         
-        # 🔥 Конвертируем bytes → array of integers 0-255
-        image_array = _bytes_to_array(image_bytes)
+        # Конвертируем bytes → array
+        image_array = list(image_bytes)
         logger.info(f"📊 Image converted: {len(image_array)} bytes → array")
         
-        # Формат payload для UForm-Gen2 и подобных vision-моделей
         payload = {
             "image": image_array,  # ← МАССИВ, не base64!
             "prompt": prompt,
             "max_tokens": max_tokens
         }
         
-        model_endpoint = MODELS.get(model, MODELS["uform_gen2"])
-        logger.info(f"📤 Sending to {model_endpoint}")
+        headers = {
+            "Authorization": f"Bearer {CLOUDFLARE_API_TOKEN}",
+            "Content-Type": "application/json"
+        }
         
-        result = await _make_request(
-            model_endpoint,
-            payload,
-            timeout=DEFAULT_TIMEOUTS["vision"]
-        )
+        model = "@cf/unum/uform-gen2-qwen-500m"
+        url = f"{BASE_URL}{model}"
         
-        if result:
-            # Разные модели могут возвращать разные форматы
-            if "result" in result:
-                description = result["result"].get("description", "")
-            elif "choices" in result:
-                # OpenAI-совместимый формат
-                description = result["choices"][0].get("message", {}).get("content", "")
-            else:
-                description = str(result)
-            
-            if description and len(description.strip()) > 5:
-                logger.info(f"✅ Vision success: {description[:100]}...")
-                return description.strip()
-            
-            logger.warning("⚠️ Empty description in response")
-            return None
+        logger.info(f"📤 Sending to {model}")
         
-        logger.warning("⚠️ No result from Vision API")
-        return None
-        
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                url,
+                headers=headers,
+                json=payload,
+                timeout=aiohttp.ClientTimeout(total=30)
+            ) as resp:
+                
+                logger.info(f"📥 Response: {resp.status}")
+                
+                if resp.status == 200:
+                    result = await resp.json()
+                    
+                    # Разные форматы ответов
+                    if "result" in result:
+                        description = result["result"].get("description", "")
+                    elif "choices" in result:
+                        description = result["choices"][0].get("message", {}).get("content", "")
+                    else:
+                        description = str(result)
+                    
+                    # 🔥 Проверка на валидность
+                    if description and len(description.strip()) > 5 and len(description.strip()) < 200:
+                        logger.info(f"✅ Vision success: {description[:100]}...")
+                        return description.strip()
+                    
+                    logger.warning(f"⚠️ Invalid description: {description}")
+                    return None
+                else:
+                    error_text = await resp.text()
+                    logger.error(f"❌ API error {resp.status}: {error_text[:300]}")
+                    return None
+                    
     except Exception as e:
         logger.exception(f"💥 analyze_food_image error: {e}")
         return None
-
-
-async def analyze_image_with_llava(
-    image_bytes: bytes,
-    prompt: str = "What is in this image?",
-    max_tokens: int = 200
-) -> Optional[str]:
-    """
-    Альтернативный анализ через LLaVA-1.5 модель.
-    Может быть стабильнее для некоторых типов изображений.
-    
-    Args:
-        image_bytes: Сырые байты изображения
-        prompt: Промпт для модели
-        max_tokens: Максимальная длина ответа
-        
-    Returns:
-        str: Описание или None
-    """
-    return await analyze_food_image(
-        image_bytes,
-        prompt=prompt,
-        max_tokens=max_tokens,
-        model="llava"
-    )
-
 
 # =============================================================================
 # 🎤 РАСПОЗНАВАНИЕ ГОЛОСА (Whisper)

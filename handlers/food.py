@@ -107,9 +107,11 @@ async def process_weight(message: Message, state: FSMContext):
 
 @router.callback_query(F.data == "confirm", FoodStates.confirming)
 async def confirm_meal(callback: CallbackQuery, state: FSMContext):
+    """Сохранение приёма пищи в БД"""
     data = await state.get_data()
     user_id = callback.from_user.id
     
+    # ✅ ПРАВИЛЬНО: get_session() без await
     async with get_session() as session:
         meal = Meal(
             user_id=user_id,

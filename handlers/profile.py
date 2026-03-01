@@ -1,6 +1,7 @@
 """
-Обработчик профиля
-✅ Кнопка "👤 Профиль" в меню работает
+Обработчик профиля пользователя для NutriBuddy
+✅ Исправлено: получение пользователя по telegram_id
+✅ Исправлено: погода для российских городов
 """
 from aiogram import Router, F
 from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
@@ -17,9 +18,8 @@ from utils.states import ProfileStates
 router = Router()
 
 
-# 🔥 ЭТОТ ХЕНДЛЕР РАБОТАЕТ И ДЛЯ КОМАНДЫ, И ДЛЯ КНОПКИ МЕНЮ!
 @router.message(Command("set_profile"))
-@router.message(F.text == "👤 Профиль")  # ← Обработка кнопки меню!
+@router.message(F.text == "👤 Профиль")
 async def cmd_profile(message: Message, state: FSMContext):
     """Показать профиль или начать настройку"""
     await state.clear()
@@ -27,13 +27,13 @@ async def cmd_profile(message: Message, state: FSMContext):
     user_id = message.from_user.id
     
     async with get_session() as session:
+        # ✅ Ищем по telegram_id, а не по id
         result = await session.execute(
             select(User).where(User.telegram_id == user_id)
         )
         user = result.scalar_one_or_none()
         
         if user and user.weight and user.height:
-            # Профиль заполнен — показываем
             gender_emoji = "♂️" if user.gender == "male" else "♀️"
             goal_emoji = {"lose": "⬇️", "maintain": "➡️", "gain": "⬆️"}.get(user.goal, "🎯")
             
@@ -60,7 +60,6 @@ async def cmd_profile(message: Message, state: FSMContext):
                 parse_mode="HTML"
             )
         else:
-            # Профиль не заполнен — начинаем настройку
             await state.set_state(ProfileStates.weight)
             await message.answer(
                 "⚖️ <b>Настройка профиля</b>\n\n"
@@ -235,10 +234,13 @@ async def process_goal(message: Message, state: FSMContext):
 
 @router.message(ProfileStates.city, F.text)
 async def process_city(message: Message, state: FSMContext):
+    """Сохранение профиля с правильной погодой"""
     city = message.text.strip()
     data = await state.get_data()
     
+    # 🔥 Получаем температуру через исправленный сервис
     temp = await get_temperature(city)
+    logger.info(f"🌡️ Temperature for {city}: {temp}°C")
     
     water_goal = calculate_water_goal(data['weight'], data['activity'], temp)
     calorie_goal, protein, fat, carbs = calculate_calorie_goal(

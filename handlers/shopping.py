@@ -110,7 +110,9 @@ async def view_list(callback: CallbackQuery):
         list_id = int(callback.data.split("_")[2])
         
         async with get_session() as session:
-            # 🔥 ЯВНАЯ ЗАГРУЗКА отношений через selectinload
+            # 🔥 ЯВНАЯ загрузка отношений через selectinload
+            from sqlalchemy.orm import selectinload
+            
             result = await session.execute(
                 select(ShoppingList)
                 .options(selectinload(ShoppingList.items))
@@ -122,18 +124,17 @@ async def view_list(callback: CallbackQuery):
                 await callback.answer("❌ Список не найден", show_alert=True)
                 return
             
-            # 🔥 Теперь items уже загружены
+            # 🔥 Теперь items уже загружены — можно безопасно использовать
             items = sorted(lst.items, key=lambda x: (x.is_checked, x.added_at))
             
+            # Подсчитываем выполненные
+            checked = sum(1 for i in items if i.is_checked)
+            total = len(items)
+            
             if not items:
-                text = f"📋 <b>{lst.name}</b>\n\n"
-                text += "Пусто. Добавь товары!"
+                text = f"📋 <b>{lst.name}</b>\n\nПусто. Добавь товары!"
             else:
-                text = f"📋 <b>{lst.name}</b>\n\n"
-                checked = sum(1 for i in items if i.is_checked)
-                total = len(items)
-                text += f"✅ {checked}/{total}\n\n"
-                
+                text = f"📋 <b>{lst.name}</b>\n\n✅ {checked}/{total}\n\n"
                 for item in items:
                     status = "✅" if item.is_checked else "⬜"
                     text += f"{status} {item.name}"

@@ -1,10 +1,7 @@
-"""
-AI Handlers для NutriBuddy — ФИНАЛЬНАЯ ИСПРАВЛЕННАЯ ВЕРСИЯ
-"""
-
 from aiogram import Router, F
 from aiogram.types import Message
 from aiogram.fsm.context import FSMContext
+from aiogram.filters import StateFilter
 import logging
 from PIL import Image
 import io
@@ -23,12 +20,10 @@ logger = logging.getLogger(__name__)
 
 
 def _bytes_to_array(image_bytes: bytes) -> List[int]:
-    """Конвертирует bytes в список целых чисел 0-255"""
     return list(image_bytes)
 
 
 def _prepare_image_for_cloudflare(image_bytes: bytes) -> bytes:
-    """Оптимизирует изображение"""
     try:
         img = Image.open(io.BytesIO(image_bytes))
         if img.mode in ('RGBA', 'LA', 'P'):
@@ -45,21 +40,12 @@ def _prepare_image_for_cloudflare(image_bytes: bytes) -> bytes:
 
 @router.message(F.photo)
 async def handle_photo(message: Message, state: FSMContext):
-    """
-    Обработка фото еды.
-    Работает в состояниях: searching_food, None (начальное)
-    """
     try:
         current_state = await state.get_state()
         logger.info(f"📸 Photo in state: {current_state}")
         
-        # 🔥 Разрешаем фото только в нужных состояниях
         if current_state not in [FoodStates.searching_food, None, 'None']:
             logger.info(f"⚠️ Ignoring photo in state: {current_state}")
-            await message.answer(
-                "📸 Сейчас не время для фото.\n"
-                "Нажмите 🍽️ Дневник питания, чтобы начать запись приёма пищи."
-            )
             return
         
         photo = message.photo[-1]
@@ -71,34 +57,22 @@ async def handle_photo(message: Message, state: FSMContext):
         
         await message.answer("🔍 Анализирую изображение...")
         
-        # 🔥 УЛУЧШЕННЫЙ ПРОМПТ для точного распознавания на русском
         description = await analyze_food_image(
             optimized,
-            prompt="""What food is in this image? 
-Return ONLY the dish name in Russian language, 2-4 words maximum.
-Examples:
-- "жареная курица"
-- "греческий салат"  
-- "борщ со сметаной"
-- "омлет с сыром"
-
-Do NOT describe, just name the main dish in Russian."""
+            prompt="What food is in this image? Return ONLY the dish name in Russian, 2-4 words maximum."
         )
         
-        # 🔁 Fallback на английский, если русский не сработал
         if not description or len(description) < 3 or len(description) > 100:
             description = await analyze_food_image(
                 optimized,
                 prompt="Describe this food dish in Russian. Name the main food item only, 2-4 words."
             )
         
-        # 🔥 Проверка на бессмысленный текст
         if not description or any(word in description.lower() for word in ['кусочелом', 'куром', 'садеемошам']):
             logger.warning(f"⚠️ Invalid description: {description}")
             await message.answer(
                 "❌ Не удалось распознать фото.\n\n"
-                "📝 <b>Введите название блюда вручную:</b>\n"
-                "<i>Например: «курица», «гречка», «салат»</i>",
+                "📝 <b>Введите название блюда вручную:</b>",
                 parse_mode="HTML"
             )
             await state.set_state(FoodStates.manual_food_name)
@@ -106,11 +80,9 @@ Do NOT describe, just name the main dish in Russian."""
         
         logger.info(f"✅ Recognized: {description}")
         
-        # 🔥 Умный поиск с несколькими попытками
         foods = await search_food(description)
         
         if not foods:
-            # Пробуем по ключевым словам
             keywords = description.lower().split()
             keywords = [w for w in keywords if len(w) > 3 and w not in 
                        ['с', 'и', 'на', 'в', 'для', 'из', 'the', 'with', 'and', 'on', 'at']]
@@ -147,7 +119,6 @@ Do NOT describe, just name the main dish in Russian."""
 
 @router.message(F.voice)
 async def handle_voice(message: Message, state: FSMContext):
-    """Распознавание голоса"""
     try:
         voice = message.voice
         file_info = await message.bot.get_file(voice.file_id)

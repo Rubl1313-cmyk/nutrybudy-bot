@@ -1,6 +1,6 @@
 """
 Обработчик прогресса и графиков для NutriBuddy
-✅ Полностью функциональный, с правильной индентацией
+✅ Исправлено: правильное получение пользователя по telegram_id
 """
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery, BufferedInputFile
@@ -26,9 +26,13 @@ async def cmd_progress(message: Message):
     user_id = message.from_user.id
     
     async with get_session() as session:
-        # Проверка: есть ли профиль
-        user = await session.get(User, user_id)
+        # ✅ ИСПРАВЛЕНО: ищем по telegram_id, а не по id!
+        result = await session.execute(
+            select(User).where(User.telegram_id == user_id)
+        )
+        user = result.scalar_one_or_none()
         
+        # Проверка: есть ли профиль и заполнен ли
         if not user or not user.weight or not user.height:
             await message.answer(
                 "❌ <b>Сначала настройте профиль!</b>\n\n"

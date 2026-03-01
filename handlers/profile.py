@@ -1,6 +1,6 @@
 """
 Обработчик профиля пользователя
-✅ Исправлено сохранение в БД с правильным commit()
+✅ ИСПРАВЛЕНО: правильное получение пользователя по telegram_id
 """
 from aiogram import Router, F
 from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
@@ -24,7 +24,11 @@ async def cmd_profile(message: Message, state: FSMContext):
     user_id = message.from_user.id
     
     async with get_session() as session:
-        user = await session.get(User, user_id)
+        # ✅ ИСПРАВЛЕНО: ищем по telegram_id, а не по id
+        result = await session.execute(
+            select(User).where(User.telegram_id == user_id)
+        )
+        user = result.scalar_one_or_none()
         
         if user and user.weight and user.height:
             # Профиль заполнен — показываем
@@ -218,18 +222,29 @@ async def process_city(message: Message, state: FSMContext):
         data['gender'], data['activity'], data['goal']
     )
     
-    # ✅ СОХРАНЕНИЕ В БД
+    # ✅ ИСПРАВЛЕНО: правильное получение/создание пользователя
     async with get_session() as session:
-        user = await session.get(User, message.from_user.id)
+        # Ищем пользователя по telegram_id
+        result = await session.execute(
+            select(User).where(User.telegram_id == message.from_user.id)
+        )
+        user = result.scalar_one_or_none()
         
         if not user:
-            user = User(telegram_id=message.from_user.id)
+            # Создаём нового пользователя
+            user = User(
+                telegram_id=message.from_user.id,
+                username=message.from_user.username,
+                first_name=message.from_user.first_name
+            )
             session.add(user)
             await session.flush()  # Получаем ID
+        else:
+            # Обновляем существующего пользователя
+            user.username = message.from_user.username
+            user.first_name = message.from_user.first_name
         
         # Заполняем все поля
-        user.username = message.from_user.username
-        user.first_name = message.from_user.first_name
         user.weight = data['weight']
         user.height = data['height']
         user.age = data['age']
@@ -244,7 +259,6 @@ async def process_city(message: Message, state: FSMContext):
         user.daily_carbs_goal = carbs
         
         await session.commit()  # ✅ ВАЖНО: commit!
-        await session.refresh(user)  # Обновляем объект
     
     await state.clear()
     

@@ -1,9 +1,13 @@
+"""
+Модели базы данных для NutriBuddy
+"""
 from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Boolean, Text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 from datetime import datetime
 
 Base = declarative_base()
+
 
 class User(Base):
     __tablename__ = 'users'
@@ -15,9 +19,9 @@ class User(Base):
     weight = Column(Float)
     height = Column(Float)
     age = Column(Integer)
-    gender = Column(String)
-    activity_level = Column(String)
-    goal = Column(String)
+    gender = Column(String)  # male/female
+    activity_level = Column(String)  # low/medium/high
+    goal = Column(String)  # lose/maintain/gain
     city = Column(String)
     daily_water_goal = Column(Float)
     daily_calorie_goal = Column(Float)
@@ -35,12 +39,13 @@ class User(Base):
     reminders = relationship("Reminder", back_populates="user", cascade="all, delete-orphan")
     activities = relationship("Activity", back_populates="user", cascade="all, delete-orphan")
 
+
 class Meal(Base):
     __tablename__ = 'meals'
     
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey('users.id', ondelete="CASCADE"))
-    meal_type = Column(String)
+    meal_type = Column(String)  # breakfast/lunch/dinner/snack
     datetime = Column(DateTime, default=datetime.utcnow)
     total_calories = Column(Float)
     total_protein = Column(Float)
@@ -51,6 +56,7 @@ class Meal(Base):
     
     user = relationship("User", back_populates="meals")
     foods = relationship("FoodItem", back_populates="meal", cascade="all, delete-orphan")
+
 
 class FoodItem(Base):
     __tablename__ = 'food_items'
@@ -67,6 +73,7 @@ class FoodItem(Base):
     
     meal = relationship("Meal", back_populates="foods")
 
+
 class WaterEntry(Base):
     __tablename__ = 'water_entries'
     
@@ -77,6 +84,7 @@ class WaterEntry(Base):
     
     user = relationship("User", back_populates="water_entries")
 
+
 class WeightEntry(Base):
     __tablename__ = 'weight_entries'
     
@@ -86,6 +94,7 @@ class WeightEntry(Base):
     datetime = Column(DateTime, default=datetime.utcnow)
     
     user = relationship("User", back_populates="weight_entries")
+
 
 class ShoppingList(Base):
     __tablename__ = 'shopping_lists'
@@ -98,6 +107,7 @@ class ShoppingList(Base):
     
     user = relationship("User", back_populates="shopping_lists")
     items = relationship("ShoppingItem", back_populates="list", cascade="all, delete-orphan")
+
 
 class ShoppingItem(Base):
     __tablename__ = 'shopping_items'
@@ -112,31 +122,33 @@ class ShoppingItem(Base):
     
     list = relationship("ShoppingList", back_populates="items")
 
+
 class Reminder(Base):
     __tablename__ = 'reminders'
     
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey('users.id', ondelete="CASCADE"))
-    type = Column(String)
+    type = Column(String)  # meal/water/weight/custom
     title = Column(String)
-    time = Column(String)
-    days = Column(String)
+    time = Column(String)  # "HH:MM"
+    days = Column(String)  # "mon,tue,wed" или "daily"
     enabled = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     
     user = relationship("User", back_populates="reminders")
+
 
 class Activity(Base):
     __tablename__ = 'activities'
     
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey('users.id', ondelete="CASCADE"))
-    activity_type = Column(String)
-    duration = Column(Integer)
-    distance = Column(Float)
+    activity_type = Column(String)  # walking/running/cycling/gym
+    duration = Column(Integer)  # minutes
+    distance = Column(Float)  # km
     calories_burned = Column(Float)
     steps = Column(Integer)
     datetime = Column(DateTime, default=datetime.utcnow)
-    source = Column(String)
+    source = Column(String)  # manual/apple_watch/google_fit
     
     user = relationship("User", back_populates="activities")

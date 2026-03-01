@@ -1,3 +1,7 @@
+"""
+Обработчик профиля пользователя для NutriBuddy
+✅ Исправлено: regexp-фильтры не перехватывают кнопки меню
+"""
 from aiogram import Router, F
 from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
 from aiogram.filters import Command
@@ -73,7 +77,8 @@ async def edit_profile(message: Message, state: FSMContext):
     )
 
 
-@router.message(ProfileStates.weight, F.text)
+# 🔥 ИСПРАВЛЕНО: regexp-фильтр ловит ТОЛЬКО числа
+@router.message(ProfileStates.weight, F.text.regexp(r'^\s*\d+([.,]\d+)?\s*$'))
 async def process_weight(message: Message, state: FSMContext):
     try:
         weight = float(message.text.replace(',', '.').strip())
@@ -95,7 +100,8 @@ async def process_weight(message: Message, state: FSMContext):
         )
 
 
-@router.message(ProfileStates.height, F.text)
+# 🔥 ИСПРАВЛЕНО: regexp-фильтр для роста
+@router.message(ProfileStates.height, F.text.regexp(r'^\s*\d+([.,]\d+)?\s*$'))
 async def process_height(message: Message, state: FSMContext):
     try:
         height = float(message.text.replace(',', '.').strip())
@@ -114,7 +120,8 @@ async def process_height(message: Message, state: FSMContext):
         await message.answer("❌ Введи число от 100 до 250 см", parse_mode="HTML")
 
 
-@router.message(ProfileStates.age, F.text)
+# 🔥 ИСПРАВЛЕНО: regexp-фильтр для возраста (только целые числа)
+@router.message(ProfileStates.age, F.text.regexp(r'^\s*\d+\s*$'))
 async def process_age(message: Message, state: FSMContext):
     try:
         age = int(message.text.strip())

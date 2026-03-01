@@ -420,13 +420,22 @@ async def process_weight_log(message: Message, state: FSMContext):
 
 
 # =============================================================================
-# ❌ ОТМЕНА ДЕЙСТВИЯ
+# ❌ ОТМЕНА ДЕЙСТВИЯ (исправлено для aiogram 3.x)
 # =============================================================================
 
-@router.message(F.text == "❌ Отмена", ProfileStates.weight | ProfileStates.height | ProfileStates.age | 
-                ProfileStates.gender | ProfileStates.activity | ProfileStates.goal | ProfileStates.city)
+from aiogram.filters import StateFilter
+
+@router.message(F.text == "❌ Отмена", StateFilter(
+    ProfileStates.weight, 
+    ProfileStates.height, 
+    ProfileStates.age, 
+    ProfileStates.gender, 
+    ProfileStates.activity, 
+    ProfileStates.goal, 
+    ProfileStates.city
+))
 async def cancel_profile_setup(message: Message, state: FSMContext):
-    """Отмена настройки профиля"""
+    """Отмена настройки профиля на любом шаге"""
     await state.clear()
     await message.answer(
         "❌ Настройка профиля отменена.\n\n"

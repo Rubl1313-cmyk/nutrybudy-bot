@@ -1,6 +1,7 @@
 """
 FSM States для NutriBuddy
 Все состояния для работы с конечным автоматом aiogram
+✅ Синхронизировано со всеми handlers
 """
 from aiogram.fsm.state import State, StatesGroup
 
@@ -82,11 +83,11 @@ class ActivityStates(StatesGroup):
     choosing_source = State()
     
     # Ввод данных (основные состояния)
-    entering_duration = State()      # ← ✅ Добавлено!
-    entering_distance = State()      # ← ✅ Добавлено!
-    entering_calories = State()      # ← ✅ Добавлено!
-    entering_steps = State()         # ← ✅ Добавлено!
-    entering_type = State()          # ← ✅ Добавлено!
+    entering_duration = State()
+    entering_distance = State()
+    entering_calories = State()
+    entering_steps = State()
+    entering_type = State()
     
     # Ручной ввод (альтернативные названия)
     manual_type = State()

@@ -53,12 +53,25 @@ async def process_food_selection(callback: CallbackQuery, state: FSMContext):
     
     index = int(callback.data.split("_")[1])
     data = await state.get_data()
-    foods = data['foods']
+    foods = data.get('foods', [])
+    
+    if index >= len(foods):
+        await callback.answer("❌ Ошибка выбора", show_alert=True)
+        return
+    
     selected = foods[index]
+    
+    # 🔥 ВАЖНО: Сохраняем выбранный продукт
     await state.update_data(selected_food=selected)
+    
+    # 🔥 ВАЖНО: Переходим в состояние ввода веса
     await state.set_state(FoodStates.entering_weight)
+    
     await callback.message.edit_text(
-        f"Выбрано: {selected['name']} ({selected['calories']} ккал/100г)\nВведи вес в граммах:"
+        f"✅ <b>{selected['name']}</b>\n\n"
+        f"📊 На 100г: {selected['calories']} ккал\n"
+        f"⚖️ Введи вес в граммах:",
+        parse_mode="HTML"
     )
     await callback.answer()
 

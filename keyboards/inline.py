@@ -1,6 +1,6 @@
 """
 Inline клавиатуры для NutriBuddy
-✅ Исправлено: нет lazy loading отношений
+✅ Все функции включены
 """
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
@@ -50,13 +50,12 @@ def get_confirmation_keyboard():
 
 def get_shopping_lists_keyboard(lists):
     """
-    Список покупок — БЕЗ доступа к отношениям!
-    ✅ Все данные передаём из handler'а
+    Список покупок — БЕЗ lazy loading!
+    ✅ Не обращаемся к lst.items в клавиатуре
     """
     builder = InlineKeyboardBuilder()
     for lst in lists:
-        # 🔥 НЕ обращаемся к lst.items (это lazy load!)
-        # Просто показываем название списка
+        # 🔥 Просто название, без подсчёта items
         builder.button(
             text=f"📋 {lst.name}",
             callback_data=f"shopping_list_{lst.id}"
@@ -64,6 +63,7 @@ def get_shopping_lists_keyboard(lists):
     builder.button(text="➕ Новый список", callback_data="new_shopping_list")
     builder.adjust(1)
     return builder.as_markup()
+
 
 def get_shopping_items_keyboard(items, list_id):
     """Товары в списке покупок"""
@@ -82,7 +82,7 @@ def get_shopping_items_keyboard(items, list_id):
 
 
 def get_fitness_source_keyboard():
-    """Выбор источника активности"""
+    """Выбор источника активности (только ручной ввод)"""
     builder = InlineKeyboardBuilder()
     builder.button(text="✍️ Ручной ввод", callback_data="fitness_manual")
     builder.adjust(1)
@@ -137,4 +137,29 @@ def get_recipe_options_keyboard():
     builder.button(text="🥑 Кето", callback_data="diet_keto")
     builder.button(text="🍚 Низкоуглеводное", callback_data="diet_lowcarb")
     builder.adjust(2)
+    return builder.as_markup()
+
+
+def get_progress_options_keyboard():
+    """✅ ДОБАВЛЕНО: Опции для просмотра прогресса"""
+    builder = InlineKeyboardBuilder()
+    builder.button(text="📈 Вес", callback_data="progress_weight")
+    builder.button(text="💧 Вода", callback_data="progress_water")
+    builder.button(text="🔥 Калории", callback_data="progress_calories")
+    builder.button(text="🏃 Активность", callback_data="progress_activity")
+    builder.adjust(2)
+    return builder.as_markup()
+
+
+def get_back_keyboard():
+    """Кнопка назад"""
+    builder = InlineKeyboardBuilder()
+    builder.button(text="🔙 Назад", callback_data="back")
+    return builder.as_markup()
+
+
+def get_main_menu_keyboard():
+    """Кнопка главного меню"""
+    builder = InlineKeyboardBuilder()
+    builder.button(text="🏠 Главное меню", callback_data="main_menu")
     return builder.as_markup()

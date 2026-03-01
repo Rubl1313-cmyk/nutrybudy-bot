@@ -109,7 +109,9 @@ async def process_goal(message: Message, state: FSMContext):
     await state.set_state(ProfileStates.city)
     await message.answer("🌆 Твой город (для учёта погоды):", reply_markup=get_cancel_keyboard())
 
-@router.message(ProfileStates.city)
+# В handlers/profile.py (конец функции process_city):
+
+@router.message(ProfileStates.city, F.text)
 async def process_city(message: Message, state: FSMContext):
     city = message.text.strip()
     data = await state.get_data()
@@ -120,10 +122,13 @@ async def process_city(message: Message, state: FSMContext):
         data['gender'], data['activity'], data['goal']
     )
     
+    # ✅ ПРАВИЛЬНО: get_session() без await
     async with get_session() as session:
         user = await session.get(User, message.from_user.id)
         if not user:
             user = User(telegram_id=message.from_user.id)
+            session.add(user)
+        
         user.weight = data['weight']
         user.height = data['height']
         user.age = data['age']
@@ -136,9 +141,11 @@ async def process_city(message: Message, state: FSMContext):
         user.daily_protein_goal = protein
         user.daily_fat_goal = fat
         user.daily_carbs_goal = carbs
-        await session.commit()
+        
+        await session.commit()  # 🔥 ВАЖНО: commit!
     
     await state.clear()
+    
     await message.answer(
         f"✅ <b>Профиль сохранён!</b>\n\n"
         f"🔥 Калории: {calorie_goal} ккал\n"

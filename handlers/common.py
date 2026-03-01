@@ -1,6 +1,6 @@
 """
-Общие команды: /start, /help, /cancel
-✅ Добавлен сброс состояния при /start
+Общие команды: /start, /help, /cancel, кнопки меню
+✅ Работают в ЛЮБОМ состоянии (приоритет над FSM)
 """
 from aiogram import Router, F
 from aiogram.types import Message
@@ -13,11 +13,7 @@ router = Router()
 
 @router.message(CommandStart())
 async def cmd_start(message: Message, state: FSMContext):
-    """
-    Приветственное сообщение
-    ✅ СБРОС СОСТОЯНИЯ перед показом
-    """
-    # 🔥 ВАЖНО: Сбрасываем ВСЕ состояния
+    """Приветствие — сбрасывает ВСЕ состояния"""
     await state.clear()
     
     await message.answer(
@@ -39,8 +35,7 @@ async def cmd_start(message: Message, state: FSMContext):
 
 @router.message(Command("help"))
 async def cmd_help(message: Message, state: FSMContext):
-    """Справка"""
-    # 🔥 Сброс состояния
+    """Справка — сбрасывает состояние"""
     await state.clear()
     
     await message.answer(
@@ -74,7 +69,7 @@ async def cmd_help(message: Message, state: FSMContext):
 @router.message(Command("cancel"))
 @router.message(F.text == "❌ Отмена")
 async def cmd_cancel(message: Message, state: FSMContext):
-    """Отмена текущего действия"""
+    """Отмена — сбрасывает состояние"""
     await state.clear()
     await message.answer(
         "❌ <b>Действие отменено</b>\n\n"
@@ -86,7 +81,7 @@ async def cmd_cancel(message: Message, state: FSMContext):
 
 @router.message(F.text == "🏠 Главное меню")
 async def cmd_main_menu(message: Message, state: FSMContext):
-    """Возврат в главное меню"""
+    """Главное меню — сбрасывает состояние"""
     await state.clear()
     await message.answer(
         "🏠 <b>Главное меню</b>",
@@ -96,12 +91,14 @@ async def cmd_main_menu(message: Message, state: FSMContext):
 
 
 # =============================================================================
-# 🎯 ОБРАБОТЧИКИ КНОПОК ГЛАВНОГО МЕНЮ (сброс состояния)
+# 🎯 КНОПКИ ГЛАВНОГО МЕНЮ (работают в ЛЮБОМ состоянии!)
 # =============================================================================
+# 🔥 ВАЖНО: Эти хендлеры должны быть ПОСЛЕ CommandStart и Command("cancel")
+# но ДО специфичных FSM хендлеров в других файлах
 
 @router.message(F.text == "🍽️ Дневник питания")
-async def cmd_food_log(message: Message, state: FSMContext):
-    """Сброс состояния и переход к дневнику питания"""
+async def menu_food(message: Message, state: FSMContext):
+    """Дневник питания — сбрасывает состояние"""
     await state.clear()
     await message.answer(
         "🍽️ <b>Дневник питания</b>\n\n"
@@ -111,8 +108,8 @@ async def cmd_food_log(message: Message, state: FSMContext):
 
 
 @router.message(F.text == "💧 Вода")
-async def cmd_water(message: Message, state: FSMContext):
-    """Сброс состояния и переход к воде"""
+async def menu_water(message: Message, state: FSMContext):
+    """Вода — сбрасывает состояние"""
     await state.clear()
     await message.answer(
         "💧 <b>Водный баланс</b>\n\n"
@@ -123,54 +120,52 @@ async def cmd_water(message: Message, state: FSMContext):
 
 
 @router.message(F.text == "📊 Прогресс")
-async def cmd_progress_menu(message: Message, state: FSMContext):
-    """Сброс состояния и переход к прогрессу"""
+async def menu_progress(message: Message, state: FSMContext):
+    """Прогресс — сбрасывает состояние"""
     await state.clear()
     await message.answer(
         "📊 <b>Прогресс</b>\n\n"
-        "Здесь будут ваши графики и статистика.\n"
-        "Сначала настройте профиль, чтобы видеть данные.",
+        "Здесь будут ваши графики и статистика.",
         reply_markup=get_main_keyboard()
     )
 
 
 @router.message(F.text == "📋 Списки покупок")
-async def cmd_shopping_menu(message: Message, state: FSMContext):
-    """Сброс состояния и переход к спискам"""
+async def menu_shopping(message: Message, state: FSMContext):
+    """Списки покупок — сбрасывает состояние"""
     await state.clear()
     await message.answer(
         "📋 <b>Списки покупок</b>\n\n"
-        "Управление списками покупок.\n"
-        "Создавайте списки и отмечайте товары.",
+        "Управление списками покупок.",
         reply_markup=get_main_keyboard()
     )
 
 
 @router.message(F.text == "🔔 Напоминания")
-async def cmd_reminders_menu(message: Message, state: FSMContext):
-    """Сброс состояния и переход к напоминаниям"""
+async def menu_reminders(message: Message, state: FSMContext):
+    """Напоминания — сбрасывает состояние"""
     await state.clear()
     await message.answer(
         "🔔 <b>Напоминания</b>\n\n"
-        "Настройте напоминания о приёмах пищи, воде и других делах.",
+        "Настройте напоминания о приёмах пищи и воде.",
         reply_markup=get_main_keyboard()
     )
 
 
 @router.message(F.text == "👤 Профиль")
-async def cmd_profile_menu(message: Message, state: FSMContext):
-    """Сброс состояния и переход к профилю"""
+async def menu_profile(message: Message, state: FSMContext):
+    """Профиль — сбрасывает состояние"""
     await state.clear()
     await message.answer(
         "👤 <b>Профиль</b>\n\n"
-        "Нажмите /set_profile для настройки или просмотра профиля.",
+        "Нажмите /set_profile для настройки или просмотра.",
         reply_markup=get_main_keyboard()
     )
 
 
 @router.message(F.text == "📖 Рецепты")
-async def cmd_recipes_menu(message: Message, state: FSMContext):
-    """Сброс состояния и переход к рецептам"""
+async def menu_recipes(message: Message, state: FSMContext):
+    """Рецепты — сбрасывает состояние"""
     await state.clear()
     await message.answer(
         "📖 <b>Рецепты</b>\n\n"
@@ -180,12 +175,11 @@ async def cmd_recipes_menu(message: Message, state: FSMContext):
 
 
 @router.message(F.text == "🏋️ Активность")
-async def cmd_activity_menu(message: Message, state: FSMContext):
-    """Сброс состояния и переход к активности"""
+async def menu_activity(message: Message, state: FSMContext):
+    """Активность — сбрасывает состояние"""
     await state.clear()
     await message.answer(
         "🏋️ <b>Активность</b>\n\n"
-        "Записывайте тренировки и отслеживайте прогресс.\n"
-        "Введите /fitness для начала.",
+        "Записывайте тренировки и отслеживайте прогресс.",
         reply_markup=get_main_keyboard()
     )

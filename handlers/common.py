@@ -1,6 +1,6 @@
 """
 Общие команды: /start, /help, /cancel
-✅ Все кнопки меню функциональны
+✅ Убраны заглушки кнопок меню
 """
 from aiogram import Router, F
 from aiogram.types import Message
@@ -74,17 +74,6 @@ async def cmd_cancel(message: Message, state: FSMContext):
     await message.answer(
         "❌ <b>Действие отменено</b>\n\n"
         "Используй кнопки меню для навигации.",
-        reply_markup=get_main_keyboard(),
-        parse_mode="HTML"
-    )
-
-
-@router.message(F.text == "🏠 Главное меню")
-async def cmd_main_menu(message: Message, state: FSMContext):
-    """Главное меню"""
-    await state.clear()
-    await message.answer(
-        "🏠 <b>Главное меню</b>",
         reply_markup=get_main_keyboard(),
         parse_mode="HTML"
     )

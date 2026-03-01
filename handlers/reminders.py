@@ -1,7 +1,7 @@
 """
 Обработчик напоминаний для NutriBuddy
-✅ Добавлена кнопка создания напоминания
-✅ Добавлена поддержка голосовых сообщений
+✅ Можно создавать сколько угодно напоминаний
+✅ Кнопка "➕ Создать" всегда доступна
 """
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery, ReplyKeyboardMarkup, KeyboardButton
@@ -38,23 +38,23 @@ async def cmd_reminders(message: Message, state: FSMContext):
         )
         reminders = result.scalars().all()
         
+        # 🔥 КНОПКА СОЗДАНИЯ ВСЕГДА ЕСТЬ!
+        keyboard = ReplyKeyboardMarkup(
+            keyboard=[
+                [KeyboardButton(text="➕ Создать напоминание")],
+                [KeyboardButton(text="🏠 Главное меню")]
+            ],
+            resize_keyboard=True
+        )
+        
         if not reminders:
-            # 🔥 КНОПКА СОЗДАНИЯ!
-            keyboard = ReplyKeyboardMarkup(
-                keyboard=[
-                    [KeyboardButton(text="➕ Создать напоминание")],
-                    [KeyboardButton(text="🏠 Главное меню")]
-                ],
-                resize_keyboard=True
-            )
-            
             await message.answer(
                 "🔔 <b>Напоминания</b>\n\n"
                 "У тебя пока нет активных напоминаний.\n\n"
                 "💡 <b>Как создать:</b>\n"
                 "• Нажмите ➕ Создать напоминание\n"
-                "• Или отправьте <b>голосовое</b> (например: «напомни пить воду в 15:00»)\n"
-                "• Или используйте команду /add_reminder",
+                "• Или отправьте <b>голосовое</b>\n"
+                "• Или используйте /add_reminder",
                 reply_markup=keyboard,
                 parse_mode="HTML"
             )
@@ -64,12 +64,18 @@ async def cmd_reminders(message: Message, state: FSMContext):
         for rem in reminders:
             text += f"• {rem.title} — {rem.time} ({rem.days})\n"
         
-        await message.answer(text, parse_mode="HTML")
+        text += "\n<i>Нажми ➕ чтобы добавить ещё</i>"
+        
+        await message.answer(
+            text,
+            reply_markup=keyboard,
+            parse_mode="HTML"
+        )
 
 
 @router.message(F.text == "➕ Создать напоминание")
 async def create_reminder_button(message: Message, state: FSMContext):
-    """Обработка кнопки создания напоминания"""
+    """Кнопка создания напоминания"""
     await state.set_state(ReminderStates.choosing_type)
     await message.answer(
         "🔔 <b>Новое напоминание</b>\n\n"
@@ -80,7 +86,7 @@ async def create_reminder_button(message: Message, state: FSMContext):
 
 @router.callback_query(F.data == "new_reminder")
 async def new_reminder(callback: CallbackQuery, state: FSMContext):
-    """Создание нового напоминания (callback)"""
+    """Callback создания"""
     await state.set_state(ReminderStates.choosing_type)
     await callback.message.edit_text(
         "🔔 <b>Новое напоминание</b>\n\n"
@@ -92,7 +98,7 @@ async def new_reminder(callback: CallbackQuery, state: FSMContext):
 
 @router.callback_query(F.data.startswith("reminder_"), ReminderStates.choosing_type)
 async def process_reminder_type(callback: CallbackQuery, state: FSMContext):
-    """Выбор типа напоминания"""
+    """Выбор типа"""
     rem_type = callback.data.split("_")[1]
     await state.update_data(type=rem_type)
     
@@ -121,7 +127,7 @@ async def process_reminder_type(callback: CallbackQuery, state: FSMContext):
 
 @router.message(ReminderStates.entering_title, F.text)
 async def process_title(message: Message, state: FSMContext):
-    """Ввод текста напоминания"""
+    """Ввод текста"""
     title = message.text.strip()
     await state.update_data(title=title)
     await state.set_state(ReminderStates.entering_time)
@@ -137,7 +143,6 @@ async def process_time(message: Message, state: FSMContext):
     """Ввод времени"""
     time = message.text.strip()
     
-    # Простая валидация формата ЧЧ:ММ
     try:
         hours, minutes = map(int, time.split(":"))
         if not (0 <= hours <= 23 and 0 <= minutes <= 59):
@@ -205,16 +210,36 @@ async def confirm_reminder(callback: CallbackQuery, state: FSMContext):
     
     await state.clear()
     
+    # 🔥 ВОЗВРАЩАЕМ К СПИСКУ НАПОМИНАНИЙ (не очищаем состояние полностью)
     await callback.message.edit_text(
         f"✅ <b>Напоминание создано!</b>\n\n"
-        f"🔔 {data['title']} в {data['time']} ({data['days']})"
+        f"🔔 {data['title']} в {data['time']} ({data['days']})\n\n"
+        f"Хотите создать ещё одно?",
+        reply_markup=ReplyKeyboardMarkup(
+            keyboard=[
+                [KeyboardButton(text="➕ Создать ещё")],
+                [KeyboardButton(text="🏠 Главное меню")]
+            ],
+            resize_keyboard=True
+        )
     )
     await callback.answer()
 
 
+@router.message(F.text == "➕ Создать ещё")
+async def create_another(message: Message, state: FSMContext):
+    """Создать ещё одно напоминание"""
+    await state.set_state(ReminderStates.choosing_type)
+    await message.answer(
+        "🔔 <b>Новое напоминание</b>\n\n"
+        "Выберите тип:",
+        reply_markup=get_reminder_type_keyboard()
+    )
+
+
 @router.callback_query(F.data == "cancel", ReminderStates.confirming)
 async def cancel_reminder(callback: CallbackQuery, state: FSMContext):
-    """Отмена создания напоминания"""
+    """Отмена"""
     await state.clear()
     await callback.message.edit_text("❌ Создание отменено.")
     await callback.answer()

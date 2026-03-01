@@ -1,5 +1,5 @@
 """
-AI Handlers для NutriBuddy — ИСПРАВЛЕННАЯ ВЕРСИЯ
+AI Handlers для NutriBuddy — ФИНАЛЬНАЯ ИСПРАВЛЕННАЯ ВЕРСИЯ
 """
 
 from aiogram import Router, F
@@ -45,14 +45,21 @@ def _prepare_image_for_cloudflare(image_bytes: bytes) -> bytes:
 
 @router.message(F.photo)
 async def handle_photo(message: Message, state: FSMContext):
-    """Обработка фото еды"""
+    """
+    Обработка фото еды.
+    Работает в состояниях: searching_food, None (начальное)
+    """
     try:
         current_state = await state.get_state()
         logger.info(f"📸 Photo in state: {current_state}")
         
-        # Если не в режиме поиска еды — игнорируем
-        if current_state not in [FoodStates.searching_food, None]:
+        # 🔥 Разрешаем фото только в нужных состояниях
+        if current_state not in [FoodStates.searching_food, None, 'None']:
             logger.info(f"⚠️ Ignoring photo in state: {current_state}")
+            await message.answer(
+                "📸 Сейчас не время для фото.\n"
+                "Нажмите 🍽️ Дневник питания, чтобы начать запись приёма пищи."
+            )
             return
         
         photo = message.photo[-1]
@@ -64,41 +71,54 @@ async def handle_photo(message: Message, state: FSMContext):
         
         await message.answer("🔍 Анализирую изображение...")
         
-        # 🔥 Улучшенный промпт
+        # 🔥 УЛУЧШЕННЫЙ ПРОМПТ для точного распознавания на русском
         description = await analyze_food_image(
             optimized,
-            prompt="What food is in this image? Return ONLY the dish name in Russian, 2-3 words."
+            prompt="""What food is in this image? 
+Return ONLY the dish name in Russian language, 2-4 words maximum.
+Examples:
+- "жареная курица"
+- "греческий салат"  
+- "борщ со сметаной"
+- "омлет с сыром"
+
+Do NOT describe, just name the main dish in Russian."""
         )
         
-        if not description:
+        # 🔁 Fallback на английский, если русский не сработал
+        if not description or len(description) < 3 or len(description) > 100:
             description = await analyze_food_image(
                 optimized,
-                prompt="Describe this food in Russian, 2-3 words only."
+                prompt="Describe this food dish in Russian. Name the main food item only, 2-4 words."
             )
         
-        if not description:
+        # 🔥 Проверка на бессмысленный текст
+        if not description or any(word in description.lower() for word in ['кусочелом', 'куром', 'садеемошам']):
+            logger.warning(f"⚠️ Invalid description: {description}")
             await message.answer(
-                "❌ Не удалось распознать.\n\n"
-                "📝 Введите название вручную:"
+                "❌ Не удалось распознать фото.\n\n"
+                "📝 <b>Введите название блюда вручную:</b>\n"
+                "<i>Например: «курица», «гречка», «салат»</i>",
+                parse_mode="HTML"
             )
             await state.set_state(FoodStates.manual_food_name)
             return
         
         logger.info(f"✅ Recognized: {description}")
         
-        # Ищем в базе
+        # 🔥 Умный поиск с несколькими попытками
         foods = await search_food(description)
         
-        # Fallback поиск
         if not foods:
+            # Пробуем по ключевым словам
             keywords = description.lower().split()
             keywords = [w for w in keywords if len(w) > 3 and w not in 
-                       ['с', 'и', 'на', 'в', 'для', 'из', 'the', 'with', 'and']]
+                       ['с', 'и', 'на', 'в', 'для', 'из', 'the', 'with', 'and', 'on', 'at']]
             
             for keyword in keywords[:3]:
                 foods = await search_food(keyword)
                 if foods:
-                    logger.info(f"✅ Found via: {keyword}")
+                    logger.info(f"✅ Found via keyword: {keyword}")
                     break
         
         await state.update_data(ai_description=description)
@@ -141,6 +161,8 @@ async def handle_voice(message: Message, state: FSMContext):
         if not text:
             await message.answer("❌ Не удалось распознать.")
             return
+        
+        logger.info(f"✅ Whisper: {text[:100]}...")
         
         await message.answer(f"📝 <b>Распознано:</b>\n<i>{text}</i>", parse_mode="HTML")
         await state.update_data(voice_text=text)

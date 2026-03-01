@@ -1,3 +1,7 @@
+"""
+NutriBuddy Telegram Bot - Webhook Version for Render
+✅ Правильный порядок подключения роутеров
+"""
 import asyncio
 import logging
 import os
@@ -167,16 +171,17 @@ async def main():
     global dp
     dp = Dispatcher(storage=storage)
     
-    dp.include_router(common.router)
-    dp.include_router(profile.router)
-    dp.include_router(food.router)
-    dp.include_router(water.router)
-    dp.include_router(shopping.router)
-    dp.include_router(reminders.router)
-    dp.include_router(recipes.router)
-    dp.include_router(activity.router)
-    dp.include_router(progress.router)
-    dp.include_router(ai_handlers.router)
+    # ✅ ВАЖНО: common.router ПЕРВЫМ!
+    dp.include_router(common.router)      # 1
+    dp.include_router(profile.router)     # 2
+    dp.include_router(food.router)        # 3
+    dp.include_router(water.router)       # 4
+    dp.include_router(shopping.router)    # 5
+    dp.include_router(reminders.router)   # 6
+    dp.include_router(recipes.router)     # 7
+    dp.include_router(activity.router)    # 8
+    dp.include_router(progress.router)    # 9
+    dp.include_router(ai_handlers.router) # 10
     
     logging.info("✅ All routers included")
     

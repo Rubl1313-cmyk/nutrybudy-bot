@@ -1,10 +1,12 @@
 """
-AI Handlers для NutriBuddy - ИСПРАВЛЕННАЯ ВЕРСИЯ
+AI Handlers для NutriBuddy
+Обработка фото и голоса с учётом состояний FSM
 """
 
 from aiogram import Router, F
 from aiogram.types import Message
 from aiogram.fsm.context import FSMContext
+from aiogram.filters import StateFilter
 import logging
 from PIL import Image
 import io
@@ -21,9 +23,6 @@ from datetime import datetime
 router = Router()
 logger = logging.getLogger(__name__)
 
-# 🔥 Хранилище для предотвращения дубликатов (в памяти)
-processed_photos = {}
-
 
 def _bytes_to_array(image_bytes: bytes) -> List[int]:
     """Конвертирует bytes в список целых чисел 0-255"""
@@ -31,7 +30,7 @@ def _bytes_to_array(image_bytes: bytes) -> List[int]:
 
 
 def _prepare_image_for_cloudflare(image_bytes: bytes) -> bytes:
-    """Оптимизирует изображение"""
+    """Оптимизирует изображение для Cloudflare AI"""
     try:
         img = Image.open(io.BytesIO(image_bytes))
         if img.mode in ('RGBA', 'LA', 'P'):
@@ -46,48 +45,35 @@ def _prepare_image_for_cloudflare(image_bytes: bytes) -> bytes:
         return image_bytes
 
 
-def _extract_keywords(description: str) -> str:
-    """
-    Извлекает ключевые слова из описания для поиска.
-    Пример: "A roasted chicken with herbs" → "roasted chicken"
-    """
-    # Простая эвристика: берём первые 2-3 слова
-    words = description.lower().split()
-    # Убираем артикли и предлоги
-    stopwords = {'a', 'an', 'the', 'with', 'on', 'in', 'at', 'to', 'and', 'or'}
-    keywords = [w for w in words if w not in stopwords and len(w) > 2]
-    return ' '.join(keywords[:3])  # Первые 3 ключевых слова
+# =============================================================================
+# 📸 ОБРАБОТКА ФОТО (с учётом состояний FSM)
+# =============================================================================
 
-
+@router.message(F.photo)
 async def handle_photo(message: Message, state: FSMContext):
     """
-    Обработка фото еды с улучшенным поиском.
+    Обработка фото еды.
+    Работает в любом состоянии, но особенно важна в FoodStates.searching_food
     """
     try:
+        # Получаем текущее состояние
+        current_state = await state.get_state()
+        logger.info(f"📸 Photo received in state: {current_state}")
+        
         photo = message.photo[-1]
-        file_id = photo.file_id
-        
-        # 🔥 Проверка на дубликат (последние 10 фото)
-        user_id = message.from_user.id
-        if user_id in processed_photos:
-            if processed_photos[user_id].get(file_id):
-                logger.info(f"⚠️ Duplicate photo from user {user_id}")
-                await message.answer("🔄 Я уже анализировал это фото. Если хотите записать блюдо, введите название вручную.")
-                return
-        
-        file_info = await message.bot.get_file(file_id)
+        file_info = await message.bot.get_file(photo.file_id)
         file_bytes = await message.bot.download_file(file_info.file_path)
         file_data = file_bytes.read()
         
-        # Оптимизация
+        # Оптимизируем изображение
         optimized = _prepare_image_for_cloudflare(file_data)
         
         await message.answer("🔍 Анализирую изображение через Cloudflare AI...")
         
-        # 🔥 Улучшенный промпт для получения короткого названия
+        # 🔥 Улучшенный промпт для получения названия на русском
         description = await analyze_food_image(
             optimized,
-            prompt="What food is in this image? Return ONLY the main dish/product name in Russian, 2-3 words maximum. Example: 'жареная курица' or 'греческий салат'. No descriptions, just the name."
+            prompt="What food is in this image? Return ONLY the dish name in Russian, 2-3 words maximum. Example: 'жареная курица' or 'греческий салат'."
         )
         
         if not description:
@@ -102,59 +88,64 @@ async def handle_photo(message: Message, state: FSMContext):
                 "❌ Не удалось распознать фото.\n\n"
                 "Попробуйте:\n"
                 "• Отправить более чёткое фото\n"
-                "• Ввести название блюда вручную через /log_food"
+                "• Ввести название блюда вручную"
             )
             return
         
         logger.info(f"✅ AI description: {description}")
         
-        # 🔥 Извлекаем ключевые слова для поиска
-        keywords = _extract_keywords(description)
-        logger.info(f"🔍 Search keywords: {keywords}")
+        # Сохраняем описание
+        await state.update_data(ai_description=description, photo_file_id=photo.file_id)
         
         # Ищем в OpenFoodFacts
-        foods = await search_food(keywords)
+        foods = await search_food(description)
         
-        # 🔥 Если не нашли, пробуем перевести/упростить
-        if not foods and 'chicken' in description.lower():
-            foods = await search_food("курица")
-        elif not foods and 'salad' in description.lower():
-            foods = await search_food("салат")
-        elif not foods and 'rice' in description.lower():
-            foods = await search_food("рис")
+        # 🔁 Если не нашли, пробуем упростить поиск
+        if not foods:
+            # Извлекаем ключевые слова
+            keywords = description.lower().split()
+            keywords = [w for w in keywords if len(w) > 3 and w not in ['with', 'and', 'the', 'на', 'из', 'для']]
+            
+            if keywords:
+                simple_search = await search_food(keywords[0])  # Первое ключевое слово
+                if simple_search:
+                    foods = simple_search
         
-        # Сохраняем в state
-        await state.update_data(ai_description=description, photo_file_id=file_id)
-        
-        if foods:
-            await message.answer(
-                f"🧠 <b>Распознано:</b> {description}\n\n"
-                f"Выберите продукт:",
-                reply_markup=get_food_selection_keyboard(foods),
-                parse_mode="HTML"
-            )
-            await state.set_state(FoodStates.selecting_food)
-            await state.update_data(foods=foods)
+        # Если пользователь в состоянии поиска еды — продолжаем flow
+        if current_state == FoodStates.searching_food:
+            if foods:
+                await message.answer(
+                    f"🧠 <b>Распознано:</b> {description}\n\n"
+                    f"Выберите продукт:",
+                    reply_markup=get_food_selection_keyboard(foods),
+                    parse_mode="HTML"
+                )
+                await state.set_state(FoodStates.selecting_food)
+                await state.update_data(foods=foods)
+            else:
+                # Предлагаем ручной ввод
+                await message.answer(
+                    f"🧠 <b>Описание:</b> <i>{description}</i>\n\n"
+                    f"❌ Не найдено в базе.\n\n"
+                    f"📝 <b>Введите название вручную:</b>",
+                    parse_mode="HTML"
+                )
+                await state.set_state(FoodStates.manual_food_name)
         else:
-            # 🔁 Предлагаем ручной ввод
-            await message.answer(
-                f"🧠 <b>Описание:</b> <i>{description}</i>\n\n"
-                f"❌ Не найдено в базе продуктов.\n\n"
-                f"📝 <b>Введите название блюда вручную:</b>\n"
-                f"<i>Например: «курица жареная», «гречка с мясом»</i>",
-                parse_mode="HTML"
-            )
-            await state.set_state(FoodStates.manual_food_name)
-        
-        # 🔥 Запоминаем, что обработали это фото
-        if user_id not in processed_photos:
-            processed_photos[user_id] = {}
-        processed_photos[user_id][file_id] = True
-        
-        # Очищаем старые записи (храним последние 10)
-        if len(processed_photos[user_id]) > 10:
-            oldest_key = list(processed_photos[user_id].keys())[0]
-            del processed_photos[user_id][oldest_key]
+            # Пользователь не в flow поиска еды — просто показываем результат
+            if foods:
+                await message.answer(
+                    f"🧠 Распознано: {description}\n\n"
+                    f"Найдено продуктов: {len(foods)}\n\n"
+                    f"Если хотите записать это как приём пищи, нажмите 🍽️ Дневник питания",
+                    reply_markup=get_food_selection_keyboard(foods),
+                    parse_mode="HTML"
+                )
+            else:
+                await message.answer(
+                    f"🧠 Описание: {description}\n\n"
+                    f"Не найдено в базе продуктов."
+                )
             
     except Exception as e:
         logger.error(f"❌ Photo handling error: {e}", exc_info=True)
@@ -164,10 +155,17 @@ async def handle_photo(message: Message, state: FSMContext):
         )
 
 
+# =============================================================================
+# 🎤 ОБРАБОТКА ГОЛОСА
+# =============================================================================
+
 @router.message(F.voice)
 async def handle_voice(message: Message, state: FSMContext):
-    """Распознавание голоса"""
+    """Распознавание голоса через Whisper"""
     try:
+        current_state = await state.get_state()
+        logger.info(f"🎤 Voice received in state: {current_state}")
+        
         voice = message.voice
         file_info = await message.bot.get_file(voice.file_id)
         file_bytes = await message.bot.download_file(file_info.file_path)
@@ -181,6 +179,8 @@ async def handle_voice(message: Message, state: FSMContext):
             await message.answer("❌ Не удалось распознать речь.")
             return
         
+        logger.info(f"✅ Whisper: {text[:100]}...")
+        
         await message.answer(
             f"📝 <b>Распознано:</b>\n<i>{text}</i>",
             parse_mode="HTML"
@@ -188,6 +188,7 @@ async def handle_voice(message: Message, state: FSMContext):
         
         await state.update_data(voice_text=text)
         
+        # Предлагаем действия
         from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
         kb = ReplyKeyboardMarkup(
             keyboard=[

@@ -1,6 +1,6 @@
 """
-Обработчик профиля пользователя для NutriBuddy
-✅ Исправлено: regexp-фильтры не перехватывают кнопки меню
+Обработчик профиля
+✅ Кнопка "👤 Профиль" в меню работает
 """
 from aiogram import Router, F
 from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
@@ -17,9 +17,11 @@ from utils.states import ProfileStates
 router = Router()
 
 
+# 🔥 ЭТОТ ХЕНДЛЕР РАБОТАЕТ И ДЛЯ КОМАНДЫ, И ДЛЯ КНОПКИ МЕНЮ!
 @router.message(Command("set_profile"))
-@router.message(F.text == "👤 Профиль")
+@router.message(F.text == "👤 Профиль")  # ← Обработка кнопки меню!
 async def cmd_profile(message: Message, state: FSMContext):
+    """Показать профиль или начать настройку"""
     await state.clear()
     
     user_id = message.from_user.id
@@ -31,6 +33,7 @@ async def cmd_profile(message: Message, state: FSMContext):
         user = result.scalar_one_or_none()
         
         if user and user.weight and user.height:
+            # Профиль заполнен — показываем
             gender_emoji = "♂️" if user.gender == "male" else "♀️"
             goal_emoji = {"lose": "⬇️", "maintain": "➡️", "gain": "⬆️"}.get(user.goal, "🎯")
             
@@ -57,6 +60,7 @@ async def cmd_profile(message: Message, state: FSMContext):
                 parse_mode="HTML"
             )
         else:
+            # Профиль не заполнен — начинаем настройку
             await state.set_state(ProfileStates.weight)
             await message.answer(
                 "⚖️ <b>Настройка профиля</b>\n\n"
@@ -77,7 +81,6 @@ async def edit_profile(message: Message, state: FSMContext):
     )
 
 
-# 🔥 ИСПРАВЛЕНО: regexp-фильтр ловит ТОЛЬКО числа
 @router.message(ProfileStates.weight, F.text.regexp(r'^\s*\d+([.,]\d+)?\s*$'))
 async def process_weight(message: Message, state: FSMContext):
     try:
@@ -100,7 +103,6 @@ async def process_weight(message: Message, state: FSMContext):
         )
 
 
-# 🔥 ИСПРАВЛЕНО: regexp-фильтр для роста
 @router.message(ProfileStates.height, F.text.regexp(r'^\s*\d+([.,]\d+)?\s*$'))
 async def process_height(message: Message, state: FSMContext):
     try:
@@ -120,7 +122,6 @@ async def process_height(message: Message, state: FSMContext):
         await message.answer("❌ Введи число от 100 до 250 см", parse_mode="HTML")
 
 
-# 🔥 ИСПРАВЛЕНО: regexp-фильтр для возраста (только целые числа)
 @router.message(ProfileStates.age, F.text.regexp(r'^\s*\d+\s*$'))
 async def process_age(message: Message, state: FSMContext):
     try:

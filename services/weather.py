@@ -1,11 +1,9 @@
-"""
-Сервис погоды через Open-Meteo (бесплатно, без ключа)
-✅ Исправлено: поддержка русских названий городов
-"""
 import aiohttp
+import logging
 from typing import Optional
 
-# Словарь популярных российских городов для точного поиска
+logger = logging.getLogger(__name__)
+
 RUSSIAN_CITIES = {
     'москва': 'Moscow',
     'санкт-петербург': 'Saint Petersburg',
@@ -26,7 +24,7 @@ RUSSIAN_CITIES = {
     'краснодар': 'Krasnodar',
     'саратов': 'Saratov',
     'тюмень': 'Tyumen',
-    'мурманск': 'Murmansk',  # ✅ Ваш город!
+    'мурманск': 'Murmansk',
     'архангельск': 'Arkhangelsk',
     'петрозаводск': 'Petrozavodsk',
     'калининград': 'Kaliningrad',
@@ -39,16 +37,11 @@ RUSSIAN_CITIES = {
 
 
 def transliterate_city(city: str) -> str:
-    """
-    Преобразует русское название города в английское для API.
-    """
     city_lower = city.lower().strip()
     
-    # Проверяем словарь известных городов
     if city_lower in RUSSIAN_CITIES:
         return RUSSIAN_CITIES[city_lower]
     
-    # Простая транслитерация для остальных
     translit_map = {
         'а': 'a', 'б': 'b', 'в': 'v', 'г': 'g', 'д': 'd',
         'е': 'e', 'ё': 'yo', 'ж': 'zh', 'з': 'z', 'и': 'i',
@@ -64,15 +57,9 @@ def transliterate_city(city: str) -> str:
 
 
 async def get_temperature(city: str) -> float:
-    """
-    Получает текущую температуру в городе через Open-Meteo.
-    Возвращает 20.0 по умолчанию при ошибке.
-    """
     try:
-        # Преобразуем название города
         city_en = transliterate_city(city)
         
-        # 1. Геокодинг: получаем координаты
         geocode_url = "https://geocoding-api.open-meteo.com/v1/search"
         params = {
             "name": city_en,
@@ -88,7 +75,6 @@ async def get_temperature(city: str) -> float:
                     
                 data = await resp.json()
                 if not data.get("results"):
-                    # Пробуем поиск по оригинальному названию (на случай, если API поймёт)
                     params["name"] = city
                     params["language"] = "ru"
                     async with session.get(geocode_url, params=params, timeout=10) as resp2:
@@ -102,7 +88,6 @@ async def get_temperature(city: str) -> float:
                 lat = result["latitude"]
                 lon = result["longitude"]
                 
-                # 2. Получаем погоду по координатам
                 weather_url = "https://api.open-meteo.com/v1/forecast"
                 weather_params = {
                     "latitude": lat,
@@ -123,38 +108,31 @@ async def get_temperature(city: str) -> float:
                     return 20.0
                     
     except Exception as e:
-        import logging
-        logging.warning(f"⚠️ Weather API error for '{city}': {e}")
-        return 20.0  # Дефолтное значение при ошибке
+        logger.warning(f"⚠️ Weather API error for '{city}': {e}")
+        return 20.0
 
 
 async def get_weather_details(city: str) -> dict:
-    """
-    Получает расширенную информацию о погоде.
-    Returns: {'temp': float, 'condition': str, 'humidity': int, 'city_name': str}
-    """
     try:
         city_en = transliterate_city(city)
         
         async with aiohttp.ClientSession() as session:
-            # Геокодинг
             geocode_url = "https://geocoding-api.open-meteo.com/v1/search"
             params = {"name": city_en, "count": 1, "language": "en"}
             
             async with session.get(geocode_url, params=params, timeout=10) as resp:
                 if resp.status != 200:
-                    return {'temp': 20.0, 'condition': 'unknown', 'humidity': None, 'city_name': city}
+                    return {'temp': 20.0, 'condition': 'unknown', 'city_name': city}
                     
                 data = await resp.json()
                 if not data.get("results"):
-                    return {'temp': 20.0, 'condition': 'unknown', 'humidity': None, 'city_name': city}
+                    return {'temp': 20.0, 'condition': 'unknown', 'city_name': city}
                 
                 result = data["results"][0]
                 lat = result["latitude"]
                 lon = result["longitude"]
                 city_name = result.get("name", city)
                 
-                # Погода с дополнительными параметрами
                 weather_url = "https://api.open-meteo.com/v1/forecast"
                 weather_params = {
                     "latitude": lat,
@@ -166,19 +144,15 @@ async def get_weather_details(city: str) -> dict:
                 
                 async with session.get(weather_url, params=weather_params, timeout=10) as resp:
                     if resp.status != 200:
-                        return {'temp': 20.0, 'condition': 'unknown', 'humidity': None, 'city_name': city_name}
+                        return {'temp': 20.0, 'condition': 'unknown', 'city_name': city_name}
                         
                     weather_data = await resp.json()
                     current = weather_data.get("current_weather", {})
                     
-                    # Коды погоды WMO: https://open-meteo.com/en/docs
                     weather_codes = {
                         0: "☀️ Ясно", 1: "🌤️ Преим. ясно", 2: "⛅ Переменно", 3: "☁️ Облачно",
-                        45: "🌫️ Туман", 48: "🌫️ Туман с изморозью",
-                        51: "🌦️ Морось", 53: "🌦️ Морось", 55: "🌧️ Сильная морось",
-                        61: "🌧️ Дождь", 63: "🌧️ Дождь", 65: "🌧️ Сильный дождь",
-                        71: "🌨️ Снег", 73: "🌨️ Снег", 75: "❄️ Сильный снег",
-                        95: "⛈️ Гроза", 96: "⛈️ Гроза с градом", 99: "⛈️ Сильная гроза"
+                        45: "🌫️ Туман", 51: "🌦️ Морось", 61: "🌧️ Дождь",
+                        71: "🌨️ Снег", 95: "⛈️ Гроза"
                     }
                     
                     code = current.get("weather_code", 0)
@@ -187,11 +161,9 @@ async def get_weather_details(city: str) -> dict:
                     return {
                         'temp': round(current.get("temperature", 20.0), 1),
                         'condition': condition,
-                        'humidity': weather_data.get("current", {}).get("relative_humidity_2m"),
                         'city_name': city_name
                     }
                     
     except Exception as e:
-        import logging
-        logging.warning(f"⚠️ Weather details error: {e}")
-        return {'temp': 20.0, 'condition': 'unknown', 'humidity': None, 'city_name': city}
+        logger.warning(f"⚠️ Weather details error: {e}")
+        return {'temp': 20.0, 'condition': 'unknown', 'city_name': city}

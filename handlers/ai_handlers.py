@@ -1,26 +1,77 @@
 """
 AI Handlers для NutriBuddy
 Обработка фото, голоса и других AI-функций через Cloudflare Workers AI
+
+Исправления:
+✅ Router инициализирован на уровне модуля
+✅ Изображение отправляется как массив байтов (не base64)
+✅ Обработка фото как документа
+✅ Fallback на ручной ввод при ошибке AI
+✅ Полное логирование для отладки
+✅ Все импорты корректны
 """
 
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
+from aiogram.filters import StateFilter
 import logging
-import json
+from PIL import Image
+import io
+from typing import List
 
 from services.cloudflare_ai import analyze_food_image, transcribe_audio, generate_recipe
 from services.food_api import search_food
 from keyboards.inline import get_food_selection_keyboard, get_confirmation_keyboard
+from keyboards.reply import get_main_keyboard
 from utils.states import FoodStates
 from database.db import get_session
-from database.models import User, Meal, FoodItem
+from database.models import User, Meal, FoodItem, ShoppingList, ShoppingItem
 from datetime import datetime
+from sqlalchemy import select
 
-# ✅ ВАЖНО: Создаём Router для этого модуля
+# ✅ ВАЖНО: Router должен быть объявлен на уровне модуля
 router = Router()
-
 logger = logging.getLogger(__name__)
+
+
+# =============================================================================
+# 🔧 ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+# =============================================================================
+
+def _bytes_to_array(image_bytes: bytes) -> List[int]:
+    """Конвертирует bytes в список целых чисел 0-255 для Cloudflare AI"""
+    return list(image_bytes)
+
+
+def _prepare_image_for_cloudflare(image_bytes: bytes) -> bytes:
+    """
+    Оптимизирует изображение для Cloudflare AI.
+    - Конвертирует в JPEG
+    - Уменьшает до 1024px max
+    - Сжимает до ≤2MB
+    """
+    try:
+        img = Image.open(io.BytesIO(image_bytes))
+        
+        # Конвертируем в RGB (убираем альфа-канал)
+        if img.mode in ('RGBA', 'LA', 'P'):
+            img = img.convert('RGB')
+        
+        # Уменьшаем до 1024px max
+        img.thumbnail((1024, 1024), Image.Resampling.LANCZOS)
+        
+        # Сохраняем в JPEG с качеством 85%
+        output = io.BytesIO()
+        img.save(output, format='JPEG', quality=85, optimize=True)
+        output.seek(0)
+        
+        logger.info(f"📊 Image optimized: {len(output.getvalue())} bytes")
+        return output.getvalue()
+        
+    except Exception as e:
+        logger.warning(f"⚠️ Image prep fallback: {e}")
+        return image_bytes  # возвращаем оригинал
 
 
 # =============================================================================
@@ -29,7 +80,10 @@ logger = logging.getLogger(__name__)
 
 @router.message(F.photo)
 async def handle_photo(message: Message, state: FSMContext):
-    """Обработка фото еды для анализа через Cloudflare AI"""
+    """
+    Обработка фото еды для анализа через Cloudflare AI.
+    Фото отправляется как массив байтов (не base64!).
+    """
     try:
         # Берём фото наилучшего качества
         photo = message.photo[-1]
@@ -37,25 +91,27 @@ async def handle_photo(message: Message, state: FSMContext):
         file_bytes = await message.bot.download_file(file_info.file_path)
         file_data = file_bytes.read()
         
+        # Оптимизируем изображение
+        optimized = _prepare_image_for_cloudflare(file_data)
+        
         await message.answer("🔍 Анализирую изображение через Cloudflare AI...")
         
-        # Анализ через UForm-Gen2
-        description = await analyze_food_image(
-            file_data,
-            prompt="Опиши еду на этом изображении. Укажи название блюда и основные ингредиенты. Отвечай кратко на русском."
-        )
+        # Анализ через Cloudflare (массив байтов, не base64!)
+        description = await analyze_food_image(optimized)
         
         if not description:
+            # 🔁 Fallback: просим пользователя ввести название вручную
             await message.answer(
-                "❌ Не удалось распознать изображение.\n\n"
-                "Попробуйте:\n"
-                "• Отправить более чёткое фото\n"
-                "• Ввести название блюда вручную через /log_food"
+                "🤔 Не удалось автоматически распознать блюдо.\n\n"
+                "📝 <b>Введите название еды вручную:</b>\n"
+                "<i>Например: «гречка с курицей», «салат цезарь», «омлет с сыром»</i>",
+                parse_mode="HTML"
             )
+            await state.set_state(FoodStates.manual_food_name)
             return
         
         # Сохраняем описание для дальнейшего использования
-        await state.update_data(ai_description=description, photo_file_id=photo.file_id)
+        await state.update_data(ai_description=description)
         
         # Пытаемся найти продукты в базе OpenFoodFacts
         foods = await search_food(description)
@@ -79,14 +135,19 @@ async def handle_photo(message: Message, state: FSMContext):
             await state.set_state(FoodStates.manual_food_name)
             
     except Exception as e:
-        logger.error(f"Photo handling error: {e}", exc_info=True)
-        await message.answer("❌ Ошибка при анализе фото. Попробуйте позже.")
+        logger.error(f"❌ Photo handling error: {e}", exc_info=True)
+        await message.answer(
+            "❌ Ошибка при анализе фото.\n"
+            "Попробуйте:\n"
+            "• Отправить более чёткое фото\n"
+            "• Ввести название блюда вручную через /log_food"
+        )
 
 
 @router.message(F.document)
 async def handle_document(message: Message, state: FSMContext):
     """
-    Обработка файлов, отправленных как документ (включая фото).
+    Обработка файлов, отправленных как документ.
     Telegram иногда отправляет фото как document, если пользователь выбрал "Отправить как файл".
     """
     doc = message.document
@@ -100,15 +161,19 @@ async def handle_document(message: Message, state: FSMContext):
         file_bytes = await message.bot.download_file(file_info.file_path)
         file_data = file_bytes.read()
         
+        # Оптимизируем изображение
+        optimized = _prepare_image_for_cloudflare(file_data)
+        
         await message.answer("🔍 Анализирую изображение (отправлено как файл)...")
         
-        description = await analyze_food_image(
-            file_data,
-            prompt="Опиши еду на этом изображении. Укажи название блюда и основные ингредиенты. Отвечай кратко на русском."
-        )
+        # Анализ через Cloudflare
+        description = await analyze_food_image(optimized)
         
         if not description:
-            await message.answer("❌ Не удалось распознать изображение.")
+            await message.answer(
+                "❌ Не удалось распознать изображение.\n\n"
+                "Попробуйте отправить как фото или введите название вручную."
+            )
             return
         
         await state.update_data(ai_description=description)
@@ -131,7 +196,7 @@ async def handle_document(message: Message, state: FSMContext):
             await state.set_state(FoodStates.manual_food_name)
             
     except Exception as e:
-        logger.error(f"Document handling error: {e}", exc_info=True)
+        logger.error(f"❌ Document handling error: {e}", exc_info=True)
         await message.answer("❌ Ошибка при обработке файла.")
 
 
@@ -141,12 +206,17 @@ async def handle_document(message: Message, state: FSMContext):
 
 @router.message(F.voice)
 async def handle_voice(message: Message, state: FSMContext):
-    """Распознавание голосовых сообщений через Whisper"""
+    """
+    Распознавание голосовых сообщений через Cloudflare Whisper.
+    Аудио отправляется как multipart/form-data.
+    """
     try:
         voice = message.voice
         file_info = await message.bot.get_file(voice.file_id)
         file_bytes = await message.bot.download_file(file_info.file_path)
         file_data = file_bytes.read()
+        
+        logger.info(f"🎤 Voice message: {len(file_data)} bytes")
         
         await message.answer("🎤 Распознаю речь через Cloudflare AI...")
         
@@ -160,6 +230,8 @@ async def handle_voice(message: Message, state: FSMContext):
                 "• Отправить текст вручную"
             )
             return
+        
+        logger.info(f"✅ Whisper result: {text[:100]}...")
         
         await message.answer(
             f"📝 <b>Распознано:</b>\n<i>{text}</i>",
@@ -188,8 +260,11 @@ async def handle_voice(message: Message, state: FSMContext):
         )
         
     except Exception as e:
-        logger.error(f"Voice handling error: {e}", exc_info=True)
-        await message.answer("❌ Ошибка распознавания речи. Попробуйте ещё раз.")
+        logger.error(f"❌ Voice handling error: {e}", exc_info=True)
+        await message.answer(
+            "❌ Ошибка распознавания речи.\n"
+            "Попробуйте ещё раз или отправьте текст вручную."
+        )
 
 
 # =============================================================================
@@ -209,15 +284,16 @@ async def voice_to_food(message: Message, state: FSMContext):
     # Запускаем процесс записи еды с предзаполненным названием
     await state.update_data(manual_food_name=text)
     await state.set_state(FoodStates.entering_weight)
-    await message.answer(f"🍽️ <b>{text}</b>\n\nВведите вес в граммах:", parse_mode="HTML")
+    await message.answer(
+        f"🍽️ <b>{text}</b>\n\n"
+        f"⚖️ Введите вес в граммах:",
+        parse_mode="HTML"
+    )
 
 
 @router.message(F.text == "📋 Добавить в список покупок")
 async def voice_to_shopping(message: Message, state: FSMContext):
     """Добавить распознанный текст в список покупок"""
-    from database.models import ShoppingList, ShoppingItem
-    from sqlalchemy import select
-    
     data = await state.get_data()
     text = data.get('voice_text')
     
@@ -254,7 +330,10 @@ async def voice_to_shopping(message: Message, state: FSMContext):
         await session.commit()
     
     await state.update_data(voice_text=None)
-    await message.answer(f"✅ <i>{text}</i> добавлено в список покупок!", parse_mode="HTML")
+    await message.answer(
+        f"✅ <i>{text}</i> добавлено в список покупок!",
+        parse_mode="HTML"
+    )
 
 
 @router.message(F.text == "📖 Сгенерировать рецепт")
@@ -267,7 +346,11 @@ async def voice_to_recipe(message: Message, state: FSMContext):
         await message.answer("❌ Нет распознанного текста.")
         return
     
-    await message.answer("🧑‍🍳 <b>Генерирую рецепт...</b>\nЭто займёт ~10 секунд.", parse_mode="HTML")
+    await message.answer(
+        "🧑‍🍳 <b>Генерирую рецепт...</b>\n"
+        "Это займёт ~10 секунд.",
+        parse_mode="HTML"
+    )
     
     recipe = await generate_recipe(text)
     
@@ -277,7 +360,10 @@ async def voice_to_recipe(message: Message, state: FSMContext):
             parse_mode="HTML"
         )
     else:
-        await message.answer("❌ Не удалось сгенерировать рецепт. Попробуйте позже.")
+        await message.answer(
+            "❌ Не удалось сгенерировать рецепт.\n"
+            "Попробуйте позже или укажите больше ингредиентов."
+        )
     
     await state.update_data(voice_text=None)
 
@@ -286,11 +372,15 @@ async def voice_to_recipe(message: Message, state: FSMContext):
 async def cancel_voice_action(message: Message, state: FSMContext):
     """Отмена действия с голосовым сообщением"""
     await state.update_data(voice_text=None)
-    await message.answer("❌ Отменено.")
+    await state.clear()
+    await message.answer(
+        "❌ Отменено.",
+        reply_markup=get_main_keyboard()
+    )
 
 
 # =============================================================================
-# 🧠 ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+# 🧠 ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ДЛЯ AI
 # =============================================================================
 
 async def estimate_calories_from_description(description: str, weight: float) -> dict:
@@ -298,7 +388,6 @@ async def estimate_calories_from_description(description: str, weight: float) ->
     Пытается оценить КБЖУ на основе описания еды (упрощённая логика).
     В будущем можно заменить на вызов LLM для более точной оценки.
     """
-    # Упрощённая эвристика (можно улучшить)
     description_lower = description.lower()
     
     # Базовые значения на 100г для разных категорий

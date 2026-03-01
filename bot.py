@@ -1,16 +1,16 @@
 """
 NutriBuddy Telegram Bot - Webhook Version for Render
-Оптимизировано для работы на Render с webhook вместо polling
+Полностью исправленная версия для aiogram 3.x
 """
 
 import asyncio
 import logging
 import os
-from aiogram import Bot, Dispatcher, WebhookInfo
+from aiogram import Bot, Dispatcher
+from aiogram.types import WebhookInfo, Update, BotCommand  # ✅ WebhookInfo отсюда!
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
-from aiogram.types import Update, BotCommand
 from dotenv import load_dotenv
 from aiohttp import web
 from database.db import init_db
@@ -60,69 +60,49 @@ async def set_bot_commands(bot: Bot):
 
 
 async def webhook_handler(request):
-    """
-    Обработчик вебхуков от Telegram
-    Получает updates и передаёт их в Dispatcher
-    """
+    """Обработчик вебхуков от Telegram"""
     try:
         bot = request.app['bot']
         update = await request.json()
-        
-        # Преобразуем JSON в Update объект
         update_obj = Update(**update)
-        
-        # Передаём update в Dispatcher
         await dp.feed_update(bot, update_obj)
-        
         return web.Response(status=200)
-        
     except Exception as e:
         logger.error(f"❌ Webhook handler error: {e}", exc_info=True)
         return web.Response(status=500, text="Internal Server Error")
 
 
 async def health_handler(request):
-    """
-    Health check endpoint для Render
-    Используется для проверки работоспособности сервиса
-    """
+    """Health check endpoint для Render"""
     return web.Response(text="OK", content_type="text/plain")
 
 
 async def on_startup(app):
-    """
-    Выполняется при запуске приложения
-    Устанавливает вебхук и инициализирует планировщик
-    """
+    """Выполняется при запуске приложения"""
     bot = app['bot']
     
     try:
-        # Проверяем информацию о боте
         bot_info = await bot.get_me()
         logger.info(f"🤖 Bot started: @{bot_info.username} (ID: {bot_info.id})")
         
-        # Формируем полный URL вебхука
         webhook_full_url = f"{WEBHOOK_URL}{WEBHOOK_PATH}"
         
-        # Получаем текущую информацию о вебхуке
-        webhook_info = await bot.get_webhook_info()
+        # Проверяем и устанавливаем вебхук
+        webhook_info: WebhookInfo = await bot.get_webhook_info()
         
-        # Если вебхук отличается - обновляем
         if webhook_info.url != webhook_full_url:
             logger.info(f"🔗 Setting webhook to: {webhook_full_url}")
             await bot.set_webhook(
                 url=webhook_full_url,
                 allowed_updates=dp.resolve_used_update_types(),
-                drop_pending_updates=True  # Отбрасываем старые обновления
+                drop_pending_updates=True
             )
             logger.info("✅ Webhook set successfully")
         else:
             logger.info("✅ Webhook already configured correctly")
         
-        # Устанавливаем команды бота
         await set_bot_commands(bot)
         
-        # Инициализируем и запускаем планировщик
         global scheduler
         scheduler = setup_scheduler(bot)
         scheduler.start()
@@ -134,23 +114,16 @@ async def on_startup(app):
 
 
 async def on_shutdown(app):
-    """
-    Выполняется при остановке приложения
-    Удаляет вебхук для корректного завершения
-    """
+    """Выполняется при остановке приложения"""
     try:
         bot = app['bot']
         
-        # Останавливаем планировщик
         if scheduler:
             scheduler.shutdown(wait=False)
             logger.info("⏰ Scheduler stopped")
         
-        # Удаляем вебхук
         await bot.delete_webhook(drop_pending_updates=True)
         logger.info("🔌 Webhook deleted")
-        
-        # Закрываем сессию бота
         await bot.session.close()
         logger.info("🔒 Bot session closed")
         
@@ -159,58 +132,26 @@ async def on_shutdown(app):
 
 
 def create_app():
-    """
-    Создаёт и настраивает aiohttp приложение
-    """
+    """Создаёт и настраивает aiohttp приложение"""
     app = web.Application()
-    
-    # Регистрируем роуты
     app.router.add_post(WEBHOOK_PATH, webhook_handler)
     app.router.add_get("/", health_handler)
     app.router.add_get("/health", health_handler)
-    app.router.add_get("/webhook_info", webhook_info_handler)
-    
-    # Регистрируем хуки запуска/остановки
     app.on_startup.append(on_startup)
     app.on_shutdown.append(on_shutdown)
-    
     return app
 
 
-async def webhook_info_handler(request):
-    """
-    Эндпоинт для проверки информации о вебхуке
-    Доступен только для отладки
-    """
-    try:
-        bot = request.app['bot']
-        info = await bot.get_webhook_info()
-        return web.json_response({
-            "url": info.url,
-            "has_custom_certificate": info.has_custom_certificate,
-            "pending_update_count": info.pending_update_count,
-            "last_error_date": info.last_error_date,
-            "last_error_message": info.last_error_message
-        })
-    except Exception as e:
-        return web.json_response({"error": str(e)}, status=500)
-
-
 async def main():
-    """
-    Точка входа приложения
-    """
-    # Инициализация базы данных
+    """Точка входа приложения"""
     await init_db()
     logger.info("💾 Database initialized")
     
-    # Создаём бота
     bot = Bot(
         token=TOKEN,
         default=DefaultBotProperties(parse_mode=ParseMode.HTML)
     )
     
-    # Создаём Dispatcher
     storage = MemoryStorage()
     global dp
     dp = Dispatcher(storage=storage)
@@ -229,11 +170,10 @@ async def main():
     
     logger.info("✅ All routers included")
     
-    # Создаём приложение
+    # Создаём и запускаем приложение
     app = create_app()
     app['bot'] = bot
     
-    # Запускаем сервер
     runner = web.AppRunner(app)
     await runner.setup()
     
@@ -242,7 +182,6 @@ async def main():
     
     logger.info(f"🚀 Server started on port {PORT}")
     logger.info(f"🌐 Webhook URL: {WEBHOOK_URL}{WEBHOOK_PATH}")
-    logger.info(f"❤️ Health check: {WEBHOOK_URL}/health")
     
     # Держим процесс активным
     try:

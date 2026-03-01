@@ -15,8 +15,6 @@ router = Router()
 @router.message(Command("shopping"))
 @router.message(F.text == "📋 Списки покупок")
 async def cmd_shopping(message: Message, state: FSMContext):
-    """Показать списки покупок"""
-    # 🔥 СБРОС СОСТОЯНИЯ
     await state.clear()
     
     user_id = message.from_user.id
@@ -49,18 +47,15 @@ async def cmd_shopping(message: Message, state: FSMContext):
 
 @router.callback_query(F.data == "new_shopping_list")
 async def new_list(callback: CallbackQuery, state: FSMContext):
-    """Создание нового списка"""
     await state.set_state(ShoppingStates.creating_list)
     await callback.message.edit_text(
-        "📝 <b>Новый список</b>\n\n"
-        "Введи название:"
+        "📝 <b>Новый список</b>\n\nВведи название:"
     )
     await callback.answer()
 
 
 @router.message(ShoppingStates.creating_list, F.text)
 async def create_list(message: Message, state: FSMContext):
-    """Сохранение нового списка"""
     name = message.text.strip()
     user_id = message.from_user.id
     
@@ -72,8 +67,7 @@ async def create_list(message: Message, state: FSMContext):
     await state.clear()
     
     await message.answer(
-        f"✅ <b>Список '{name}' создан!</b>\n\n"
-        f"Теперь добавляй товары.",
+        f"✅ <b>Список '{name}' создан!</b>",
         reply_markup=get_main_keyboard(),
         parse_mode="HTML"
     )
@@ -81,7 +75,6 @@ async def create_list(message: Message, state: FSMContext):
 
 @router.callback_query(F.data.startswith("shopping_list_"))
 async def view_list(callback: CallbackQuery):
-    """Просмотр списка"""
     try:
         list_id = int(callback.data.split("_")[2])
         
@@ -100,7 +93,6 @@ async def view_list(callback: CallbackQuery):
             )
             items = items_result.scalars().all()
             
-            # Формируем текст
             if not items:
                 text = f"📋 <b>{lst.name}</b>\n\nПусто. Добавь товары!"
             else:
@@ -115,7 +107,7 @@ async def view_list(callback: CallbackQuery):
                 parse_mode="HTML"
             )
             
-    except (IndexError, ValueError) as e:
+    except (IndexError, ValueError):
         await callback.answer("❌ Ошибка", show_alert=True)
     
     await callback.answer()
@@ -123,7 +115,6 @@ async def view_list(callback: CallbackQuery):
 
 @router.callback_query(F.data.startswith("toggle_item_"))
 async def toggle_item(callback: CallbackQuery):
-    """Отметить товар"""
     try:
         item_id = int(callback.data.split("_")[2])
         
@@ -133,7 +124,6 @@ async def toggle_item(callback: CallbackQuery):
                 item.is_checked = not item.is_checked
                 await session.commit()
         
-        # Обновляем список
         await view_list(callback)
         
     except (IndexError, ValueError):
@@ -144,7 +134,6 @@ async def toggle_item(callback: CallbackQuery):
 
 @router.callback_query(F.data.startswith("delete_list_"))
 async def delete_list(callback: CallbackQuery):
-    """Удалить список"""
     try:
         list_id = int(callback.data.split("_")[2])
         

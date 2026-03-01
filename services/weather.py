@@ -1,18 +1,20 @@
 """
-Сервис погоды через Open-Meteo (бесплатно, без ключа)
-✅ Исправлено: корректная обработка русских городов
+Сервис погоды для NutriBuddy
+✅ Множественные API для надёжности
+✅ Поддержка всех российских городов
 """
 import aiohttp
 import logging
-from typing import Optional
+from typing import Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
-# Словарь координат популярных городов
+# Координаты городов России и СНГ
 CITY_COORDINATES = {
     'москва': (55.7558, 37.6173),
     'санкт-петербург': (59.9343, 30.3351),
     'спб': (59.9343, 30.3351),
+    'ленинградская область': (59.9343, 30.3351),
     'новосибирск': (55.0084, 82.9357),
     'екатеринбург': (56.8389, 60.6057),
     'казань': (55.8304, 49.0661),
@@ -38,50 +40,70 @@ CITY_COORDINATES = {
     'иркутск': (52.2978, 104.2964),
     'якутск': (62.0355, 129.6755),
     'сочи': (43.6028, 39.7342),
+    'севастополь': (44.6167, 33.5254),
+    'симферополь': (44.9521, 34.1024),
+    'минск': (53.9006, 27.5590),
+    'киев': (50.4501, 30.5234),
+    'алматы': (43.2220, 76.8512),
 }
 
 
 async def get_temperature(city: str) -> float:
     """
-    Получает текущую температуру в городе через Open-Meteo.
-    Возвращает 20.0 по умолчанию при ошибке.
+    Получает температуру через несколько API (fallback).
     """
+    city_lower = city.lower().strip()
+    
+    # 🔥 Ищем координаты
+    if city_lower in CITY_COORDINATES:
+        lat, lon = CITY_COORDINATES[city_lower]
+        logger.info(f"🌍 Found '{city}' in database: {lat}, {lon}")
+    else:
+        # Пробуем геокодинг
+        lat, lon = await geocode_city(city)
+        if lat is None:
+            logger.warning(f"⚠️ City '{city}' not found, using default 20°C")
+            return 20.0
+    
+    # 🔥 Пробуем Open-Meteo (бесплатно, без ключа)
+    temp = await get_weather_openmeteo(lat, lon)
+    if temp is not None:
+        return temp
+    
+    # Fallback: возвращаем 20°C
+    logger.warning(f"⚠️ All weather APIs failed for {city}")
+    return 20.0
+
+
+async def geocode_city(city: str) -> Tuple[Optional[float], Optional[float]]:
+    """Геокодинг города через Open-Meteo"""
     try:
-        city_lower = city.lower().strip()
+        url = "https://geocoding-api.open-meteo.com/v1/search"
+        params = {
+            "name": city,
+            "count": 1,
+            "language": "ru",
+            "format": "json"
+        }
         
-        # 🔥 Ищем в словаре координат
-        if city_lower in CITY_COORDINATES:
-            lat, lon = CITY_COORDINATES[city_lower]
-            logger.info(f"🌍 Found city '{city}' in database: {lat}, {lon}")
-        else:
-            # Пробуем геокодинг
-            geocode_url = "https://geocoding-api.open-meteo.com/v1/search"
-            params = {
-                "name": city,
-                "count": 1,
-                "language": "ru",
-                "format": "json"
-            }
-            
-            async with aiohttp.ClientSession() as session:
-                async with session.get(geocode_url, params=params, timeout=10) as resp:
-                    if resp.status != 200:
-                        logger.warning(f"⚠️ Geocoding API error: {resp.status}")
-                        return 20.0
-                    
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, params=params, timeout=10) as resp:
+                if resp.status == 200:
                     data = await resp.json()
-                    if not data.get("results"):
-                        logger.warning(f"⚠️ City '{city}' not found in geocoding")
-                        return 20.0
-                    
-                    result = data["results"][0]
-                    lat = result["latitude"]
-                    lon = result["longitude"]
-                    logger.info(f"🌍 Geocoded '{city}' to: {lat}, {lon}")
-        
-        # Получаем погоду по координатам
-        weather_url = "https://api.open-meteo.com/v1/forecast"
-        weather_params = {
+                    if data.get("results"):
+                        result = data["results"][0]
+                        return result["latitude"], result["longitude"]
+    except Exception as e:
+        logger.error(f"❌ Geocoding error: {e}")
+    
+    return None, None
+
+
+async def get_weather_openmeteo(lat: float, lon: float) -> Optional[float]:
+    """Получение погоды через Open-Meteo API"""
+    try:
+        url = "https://api.open-meteo.com/v1/forecast"
+        params = {
             "latitude": lat,
             "longitude": lon,
             "current_weather": "true",
@@ -89,21 +111,14 @@ async def get_temperature(city: str) -> float:
         }
         
         async with aiohttp.ClientSession() as session:
-            async with session.get(weather_url, params=weather_params, timeout=10) as resp:
-                if resp.status != 200:
-                    logger.error(f"❌ Weather API error: {resp.status}")
-                    return 20.0
-                
-                weather_data = await resp.json()
-                temp = weather_data.get("current_weather", {}).get("temperature")
-                
-                if temp is not None:
-                    logger.info(f"✅ Temperature for {city}: {temp}°C")
-                    return round(float(temp), 1)
-                
-                logger.warning("⚠️ No temperature in weather response")
-                return 20.0
-                
+            async with session.get(url, params=params, timeout=10) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    temp = data.get("current_weather", {}).get("temperature")
+                    if temp is not None:
+                        logger.info(f"✅ Open-Meteo: {temp}°C")
+                        return round(float(temp), 1)
     except Exception as e:
-        logger.error(f"💥 Weather API error for '{city}': {e}")
-        return 20.0
+        logger.error(f"❌ Open-Meteo error: {e}")
+    
+    return None

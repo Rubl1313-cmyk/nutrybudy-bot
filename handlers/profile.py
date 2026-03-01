@@ -3,6 +3,7 @@
 ✅ Исправлено: получение пользователя по telegram_id
 ✅ Исправлено: погода для российских городов
 """
+import logging  # ← ДОБАВЛЕНО!
 from aiogram import Router, F
 from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
 from aiogram.filters import Command
@@ -14,6 +15,8 @@ from services.calculator import calculate_water_goal, calculate_calorie_goal
 from services.weather import get_temperature
 from keyboards.reply import get_cancel_keyboard, get_main_keyboard, get_edit_profile_keyboard
 from utils.states import ProfileStates
+
+logger = logging.getLogger(__name__)  # ← ДОБАВЛЕНО!
 
 router = Router()
 

@@ -1,15 +1,12 @@
 """
-Cloudflare Workers AI Integration для NutriBuddy
-Исправленная версия с поддержкой разных форматов изображений
+Cloudflare Workers AI Integration — ИСПРАВЛЕННАЯ ВЕРСИЯ
+Ключевое: image отправляется как array of bytes (List[int]), НЕ base64!
 """
 
 import aiohttp
 import os
-import base64
 import logging
-from typing import Optional, Dict
-from PIL import Image
-import io
+from typing import Optional, List
 
 logger = logging.getLogger(__name__)
 
@@ -17,40 +14,10 @@ CLOUDFLARE_ACCOUNT_ID = os.getenv("CLOUDFLARE_ACCOUNT_ID")
 CLOUDFLARE_API_TOKEN = os.getenv("CLOUDFLARE_API_TOKEN")
 BASE_URL = f"https://api.cloudflare.com/client/v4/accounts/{CLOUDFLARE_ACCOUNT_ID}/ai/run/"
 
-# 🔥 Альтернативные модели для анализа изображений
-VISION_MODELS = [
-    "@cf/llava-hf/llava-1.5-7b-hf",      # Более стабильная модель
-    "@cf/unum/uform-gen2-qwen-500m",     # Оригинальная (проблемная)
-    "@cf/meta/llama-3.2-11b-vision-instruct",  # Новая модель с vision
-]
 
-
-async def _prepare_image(image_bytes: bytes) -> tuple[str, str]:
-    """
-    Конвертирует изображение в совместимый формат.
-    Returns: (base64_string, mime_type)
-    """
-    try:
-        img = Image.open(io.BytesIO(image_bytes))
-        
-        # Конвертируем в RGB для совместимости
-        if img.mode in ('RGBA', 'LA', 'P'):
-            img = img.convert('RGB')
-        
-        # Сохраняем в JPEG с оптимизацией
-        img_byte_arr = io.BytesIO()
-        img.save(img_byte_arr, format='JPEG', quality=85, optimize=True)
-        img_byte_arr.seek(0)
-        
-        # Кодируем в base64
-        image_base64 = base64.b64encode(img_byte_arr.getvalue()).decode('utf-8')
-        
-        return image_base64, 'image/jpeg'
-        
-    except Exception as e:
-        logger.error(f"Image preparation error: {e}")
-        # Fallback: попробуем исходные байты
-        return base64.b64encode(image_bytes).decode('utf-8'), 'image/jpeg'
+def _bytes_to_array(image_bytes: bytes) -> List[int]:
+    """Конвертирует bytes в список целых чисел 0-255 для Cloudflare AI"""
+    return list(image_bytes)
 
 
 async def analyze_food_image(
@@ -59,98 +26,67 @@ async def analyze_food_image(
     max_tokens: int = 200
 ) -> Optional[str]:
     """
-    Анализирует изображение еды через Cloudflare AI с fallback на другие модели.
+    Анализирует изображение через Cloudflare Vision AI.
+    
+    🔑 КЛЮЧЕВОЕ: image отправляется как array of bytes, НЕ base64!
+    Документация: https://developers.cloudflare.com/workers-ai/models/uform-gen2-qwen-500m/
     """
     try:
-        image_base64, mime_type = await _prepare_image(image_bytes)
-        logger.info(f"📊 Prepared image: {len(image_base64)} chars base64, mime: {mime_type}")
+        # 🔥 Конвертируем bytes → array of integers 0-255
+        image_array = _bytes_to_array(image_bytes)
+        logger.info(f"📊 Image converted: {len(image_array)} bytes → array")
         
-        # 🔁 Пробуем модели по очереди
-        for model in VISION_MODELS:
-            try:
-                logger.info(f"🔄 Trying model: {model}")
+        # Формат payload для UForm-Gen2
+        payload = {
+            "image": image_array,  # ← МАССИВ, не base64!
+            "prompt": prompt,
+            "max_tokens": max_tokens
+        }
+        
+        headers = {
+            "Authorization": f"Bearer {CLOUDFLARE_API_TOKEN}",
+            "Content-Type": "application/json"
+        }
+        
+        model = "@cf/unum/uform-gen2-qwen-500m"
+        url = f"{BASE_URL}{model}"
+        
+        logger.info(f"📤 Sending to {model}")
+        
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                url,
+                headers=headers,
+                json=payload,
+                timeout=aiohttp.ClientTimeout(total=30)
+            ) as resp:
                 
-                # Формат payload зависит от модели
-                if "llava" in model or "vision" in model:
-                    # Модели с поддержкой vision через messages API
-                    payload = {
-                        "messages": [
-                            {
-                                "role": "user",
-                                "content": [
-                                    {"type": "text", "text": prompt},
-                                    {"type": "image_url", "image_url": {
-                                        "url": f"data:{mime_type};base64,{image_base64}"
-                                    }}
-                                ]
-                            }
-                        ],
-                        "max_tokens": max_tokens
-                    }
-                    endpoint = model
+                logger.info(f"📥 Response: {resp.status}")
+                
+                if resp.status == 200:
+                    result = await resp.json()
+                    # UForm-Gen2 возвращает {"result": {"description": "..."}}
+                    description = result.get("result", {}).get("description", "")
+                    if description and len(description.strip()) > 10:
+                        logger.info(f"✅ Success: {description[:100]}...")
+                        return description.strip()
+                    logger.warning("⚠️ Empty description in response")
+                    return None
                 else:
-                    # Старый формат для UForm-Gen2
-                    payload = {
-                        "image": image_base64,
-                        "prompt": prompt,
-                        "max_tokens": max_tokens
-                    }
-                    endpoint = model
-                
-                headers = {
-                    "Authorization": f"Bearer {CLOUDFLARE_API_TOKEN}",
-                    "Content-Type": "application/json"
-                }
-                
-                async with aiohttp.ClientSession() as session:
-                    async with session.post(
-                        f"{BASE_URL}{endpoint}",
-                        headers=headers,
-                        json=payload,
-                        timeout=aiohttp.ClientTimeout(total=30)
-                    ) as resp:
-                        
-                        logger.info(f"📥 {model} response: {resp.status}")
-                        
-                        if resp.status == 200:
-                            result = await resp.json()
-                            
-                            # Разные форматы ответов
-                            if "result" in result:
-                                # UForm-Gen2 формат
-                                description = result["result"].get("description", "")
-                            elif "response" in result.get("result", {}):
-                                # Llama формат
-                                description = result["result"]["response"]
-                            elif "choices" in result:
-                                # OpenAI-совместимый формат
-                                description = result["choices"][0]["message"]["content"]
-                            else:
-                                description = str(result)
-                            
-                            if description and len(description.strip()) > 10:
-                                logger.info(f"✅ Success with {model}: {description[:100]}...")
-                                return description.strip()
-                        
-                        # Если ошибка - пробуем следующую модель
-                        error_text = await resp.text()
-                        logger.warning(f"⚠️ {model} failed: {resp.status} - {error_text[:200]}")
-                        
-            except Exception as model_error:
-                logger.warning(f"⚠️ Model {model} exception: {model_error}")
-                continue
-        
-        # Все модели не сработали
-        logger.error("❌ All vision models failed")
-        return None
-        
+                    error_text = await resp.text()
+                    logger.error(f"❌ API error {resp.status}: {error_text[:300]}")
+                    return None
+                    
     except Exception as e:
-        logger.exception(f"💥 analyze_food_image critical error: {e}")
+        logger.exception(f"💥 analyze_food_image error: {e}")
         return None
 
 
 async def transcribe_audio(audio_bytes: bytes, language: str = "ru") -> Optional[str]:
-    """Распознавание речи через Whisper"""
+    """
+    Распознавание речи через Whisper.
+    Здесь формат не менялся — отправляем как multipart/form-data.
+    """
     try:
         from aiohttp import FormData
         
@@ -183,13 +119,22 @@ async def transcribe_audio(audio_bytes: bytes, language: str = "ru") -> Optional
 
 
 async def generate_recipe(ingredients: str, max_tokens: int = 800) -> Optional[str]:
-    """Генерация рецепта через Llama 3"""
-    prompt = f"""Ты — шеф-повар. Составь рецепт блюда из: {ingredients}.
-Формат: 1) Название 2) Ингредиенты с количеством 3) Пошаговое приготовление 4) КБЖУ на порцию.
+    """
+    Генерация рецепта через Llama 3 (текстовая модель).
+    Здесь используем messages API.
+    """
+    prompt = f"""Ты — шеф-повар. Составь подробный рецепт блюда из: {ingredients}.
+
+Формат:
+1. 🍽️ Название
+2. 🛒 Ингредиенты с количеством
+3. 👨‍🍳 Пошаговое приготовление
+4. 📊 КБЖУ на порцию
+
 Отвечай на русском, используй эмодзи."""
 
     payload = {
-        "messages": [
+        "messages": [  # ← Llama 3 требует messages array
             {"role": "system", "content": "Ты полезный ассистент-повар."},
             {"role": "user", "content": prompt}
         ],
@@ -213,13 +158,14 @@ async def generate_recipe(ingredients: str, max_tokens: int = 800) -> Optional[s
                 
                 if resp.status == 200:
                     result = await resp.json()
+                    # Llama 3 возвращает {"result": {"response": "..."}}
                     recipe = result.get("result", {}).get("response", "")
                     if recipe:
-                        logger.info(f"✅ Recipe generated: {len(recipe)} chars")
+                        logger.info(f"✅ Recipe: {len(recipe)} chars")
                         return recipe
                 else:
                     error_text = await resp.text()
-                    logger.error(f"❌ Recipe error {resp.status}: {error_text}")
+                    logger.error(f"❌ Recipe error {resp.status}: {error_text[:300]}")
                     return None
                     
     except Exception as e:

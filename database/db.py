@@ -1,6 +1,6 @@
 """
 Подключение к базе данных
-Исправлено: get_session() теперь синхронная функция
+ИСПРАВЛЕНО: get_session() теперь синхронная функция
 """
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
@@ -36,6 +36,7 @@ async def init_db():
 def get_session() -> AsyncSession:
     """
     Возвращает сессию БД.
-    ⚠️ ВАЖНО: Это синхронная функция! Используется как: async with get_session() as session:
+    ⚠️ ВАЖНО: Это СИНХРОННАЯ функция!
+    Используется как: async with get_session() as session:
     """
     return async_session()

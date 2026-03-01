@@ -50,13 +50,13 @@ def get_confirmation_keyboard():
 
 def get_shopping_lists_keyboard(lists):
     """
-    Список покупок - БЕЗ lazy loading!
-    ✅ Передаём уже посчитанные данные
+    Список покупок — БЕЗ доступа к отношениям!
+    ✅ Все данные передаём из handler'а
     """
     builder = InlineKeyboardBuilder()
     for lst in lists:
-        # 🔥 Не обращаемся к lst.items (lazy load), а используем 0
-        # Подсчёт будет в handler'е
+        # 🔥 НЕ обращаемся к lst.items (это lazy load!)
+        # Просто показываем название списка
         builder.button(
             text=f"📋 {lst.name}",
             callback_data=f"shopping_list_{lst.id}"
@@ -64,7 +64,6 @@ def get_shopping_lists_keyboard(lists):
     builder.button(text="➕ Новый список", callback_data="new_shopping_list")
     builder.adjust(1)
     return builder.as_markup()
-
 
 def get_shopping_items_keyboard(items, list_id):
     """Товары в списке покупок"""

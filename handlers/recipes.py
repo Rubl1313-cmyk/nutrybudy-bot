@@ -120,4 +120,4 @@ async def process_difficulty(message: Message, state: FSMContext):
             reply_markup=get_main_keyboard()
         )
     
-    await state.clear()
+    await state.clear()  # ✅ ВАЖНО: очистка состояния!

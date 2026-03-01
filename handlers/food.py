@@ -161,26 +161,32 @@ async def process_manual_food(message: Message, state: FSMContext):
     )
 
 
-@router.message(FoodStates.entering_weight, F.text)
+@router.message(FoodStates.entering_weight)
 async def process_weight(message: Message, state: FSMContext):
-    """Обработка ввода веса порции"""
-    text = message.text.strip()
-    
+    """Ввод веса - БЕЗ строгой валидации"""
     try:
+        text = message.text.strip()
+        
+        # 🔥 Простое извлечение числа
         import re
         numbers = re.findall(r'\d+([.,]\d+)?', text)
+        
         if numbers:
-            weight = float(numbers[0].replace(',', '.') if isinstance(numbers[0], str) else numbers[0])
+            num_str = numbers[0]
+            if isinstance(num_str, str):
+                weight = float(num_str.replace(',', '.'))
+            else:
+                weight = float(num_str)
         else:
             weight = float(text.replace(',', '.'))
-            
+        
         if weight <= 0 or weight > 10000:
-            raise ValueError("Вес вне допустимого диапазона")
+            raise ValueError
             
-    except (ValueError, IndexError):
+    except (ValueError, IndexError, AttributeError, TypeError):
         await message.answer(
-            "❌ <b>Некорректный вес</b>\n\n"
-            "Введи положительное число от 1 до 10000 грамм.",
+            "❌ Введи число от 1 до 10000 г\n"
+            "<i>Пример: 150, 200, 300</i>",
             parse_mode="HTML"
         )
         return

@@ -3,7 +3,6 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 
 def get_meal_type_keyboard():
-    """Выбор типа приёма пищи"""
     builder = InlineKeyboardBuilder()
     builder.button(text="🥐 Завтрак", callback_data="meal_breakfast")
     builder.button(text="🥗 Обед", callback_data="meal_lunch")
@@ -14,7 +13,6 @@ def get_meal_type_keyboard():
 
 
 def get_water_preset_keyboard():
-    """Быстрый ввод воды"""
     builder = InlineKeyboardBuilder()
     for amount in [200, 300, 500, 1000]:
         builder.button(text=f"{amount} мл 💧", callback_data=f"water_{amount}")
@@ -23,7 +21,6 @@ def get_water_preset_keyboard():
 
 
 def get_food_selection_keyboard(foods):
-    """Выбор продукта из поиска"""
     builder = InlineKeyboardBuilder()
     for i, food in enumerate(foods[:5]):
         builder.button(
@@ -36,7 +33,6 @@ def get_food_selection_keyboard(foods):
 
 
 def get_confirmation_keyboard():
-    """Подтверждение действия"""
     builder = InlineKeyboardBuilder()
     builder.button(text="✅ Да", callback_data="confirm")
     builder.button(text="❌ Нет", callback_data="cancel")
@@ -45,7 +41,6 @@ def get_confirmation_keyboard():
 
 
 def get_shopping_lists_keyboard(lists):
-    """Списки покупок"""
     builder = InlineKeyboardBuilder()
     for lst in lists:
         unchecked = len([i for i in lst.items if not i.is_checked])
@@ -59,7 +54,6 @@ def get_shopping_lists_keyboard(lists):
 
 
 def get_shopping_items_keyboard(items, list_id):
-    """Товары в списке"""
     builder = InlineKeyboardBuilder()
     for item in items[:10]:
         status = "✅" if item.is_checked else "⬜"
@@ -75,7 +69,6 @@ def get_shopping_items_keyboard(items, list_id):
 
 
 def get_fitness_source_keyboard():
-    """Выбор источника фитнес-данных"""
     builder = InlineKeyboardBuilder()
     builder.button(text="⌚ Apple Watch", callback_data="fitness_apple")
     builder.button(text="📱 Google Fit", callback_data="fitness_google")
@@ -86,7 +79,6 @@ def get_fitness_source_keyboard():
 
 
 def get_activity_type_keyboard():
-    """Выбор типа активности"""
     builder = InlineKeyboardBuilder()
     builder.button(text="🚶 Ходьба", callback_data="activity_walking")
     builder.button(text="🏃 Бег", callback_data="activity_running")
@@ -100,7 +92,6 @@ def get_activity_type_keyboard():
 
 
 def get_days_keyboard():
-    """Выбор дней недели для напоминаний"""
     builder = InlineKeyboardBuilder()
     builder.button(text="Пн", callback_data="day_mon")
     builder.button(text="Вт", callback_data="day_tue")
@@ -115,7 +106,6 @@ def get_days_keyboard():
 
 
 def get_reminder_type_keyboard():
-    """Выбор типа напоминания"""
     builder = InlineKeyboardBuilder()
     builder.button(text="🍽️ Приём пищи", callback_data="reminder_meal")
     builder.button(text="💧 Вода", callback_data="reminder_water")
@@ -126,7 +116,6 @@ def get_reminder_type_keyboard():
 
 
 def get_recipe_options_keyboard():
-    """Опции для генерации рецептов"""
     builder = InlineKeyboardBuilder()
     builder.button(text="🥗 Вегетарианское", callback_data="diet_vegetarian")
     builder.button(text="🥩 Белковое", callback_data="diet_protein")
@@ -137,7 +126,6 @@ def get_recipe_options_keyboard():
 
 
 def get_profile_edit_keyboard():
-    """Редактирование профиля"""
     builder = InlineKeyboardBuilder()
     builder.button(text="✏️ Изменить вес", callback_data="edit_weight")
     builder.button(text="✏️ Изменить цель", callback_data="edit_goal")
@@ -148,7 +136,6 @@ def get_profile_edit_keyboard():
 
 
 def get_progress_options_keyboard():
-    """Опции для просмотра прогресса"""
     builder = InlineKeyboardBuilder()
     builder.button(text="📈 Вес", callback_data="progress_weight")
     builder.button(text="💧 Вода", callback_data="progress_water")
@@ -159,14 +146,12 @@ def get_progress_options_keyboard():
 
 
 def get_back_keyboard():
-    """Кнопка назад"""
     builder = InlineKeyboardBuilder()
     builder.button(text="🔙 Назад", callback_data="back")
     return builder.as_markup()
 
 
 def get_main_menu_keyboard():
-    """Главное меню"""
     builder = InlineKeyboardBuilder()
     builder.button(text="🏠 Главное меню", callback_data="main_menu")
     return builder.as_markup()

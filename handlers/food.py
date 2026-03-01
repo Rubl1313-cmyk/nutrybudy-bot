@@ -26,8 +26,13 @@ async def cmd_log_food(message: Message, state: FSMContext):
     """Начало процесса записи приёма пищи"""
     await state.clear()
     
+    # ✅ Ищем по telegram_id, а не по id
     async with get_session() as session:
-        user = await session.get(User, message.from_user.id)
+        result = await session.execute(
+            select(User).where(User.telegram_id == message.from_user.id)
+        )
+        user = result.scalar_one_or_none()
+        
         if not user or not user.weight:
             await message.answer(
                 "❌ Сначала настрой профиль через /set_profile",
@@ -40,7 +45,6 @@ async def cmd_log_food(message: Message, state: FSMContext):
         "🍽️ <b>Выбери тип приёма пищи:</b>",
         reply_markup=get_meal_type_keyboard()
     )
-
 
 @router.callback_query(F.data.startswith("meal_"), FoodStates.choosing_meal_type)
 async def process_meal_type(callback: CallbackQuery, state: FSMContext):

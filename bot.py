@@ -1,16 +1,18 @@
 """
 NutriBuddy Telegram Bot - Webhook Version for Render
-Полностью исправленная версия для aiogram 3.x
+✅ С приветственным сообщением при запуске
 """
 
 import asyncio
 import logging
 import os
+import sys
+from datetime import datetime
 from aiogram import Bot, Dispatcher
-from aiogram.types import WebhookInfo, Update, BotCommand  # ✅ WebhookInfo отсюда!
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
+from aiogram.types import Update, BotCommand
 from dotenv import load_dotenv
 from aiohttp import web
 from database.db import init_db
@@ -20,12 +22,15 @@ from handlers import (
 )
 from scheduler.jobs import setup_scheduler
 
+# Загрузка переменных окружения
 load_dotenv()
+
+# Настройка логирования
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
 )
-
 logger = logging.getLogger(__name__)
 
 # Константы
@@ -59,6 +64,61 @@ async def set_bot_commands(bot: Bot):
     logger.info("✅ Bot commands set")
 
 
+async def send_startup_notification(bot: Bot, admin_id: int = None):
+    """
+    Отправляет уведомление о запуске бота
+    """
+    try:
+        bot_info = await bot.get_me()
+        startup_message = (
+            f"🟢 <b>NutriBuddy запущен!</b>\n\n"
+            f"🤖 Бот: @{bot_info.username}\n"
+            f"📅 Время: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+            f"🌐 Webhook: {WEBHOOK_URL}{WEBHOOK_PATH}\n"
+            f"✅ Статус: готов к работе"
+        )
+        
+        # Если указан admin_id - отправляем сообщение в Telegram
+        if admin_id:
+            try:
+                await bot.send_message(admin_id, startup_message, parse_mode="HTML")
+                logger.info(f"📬 Startup notification sent to admin {admin_id}")
+            except Exception as e:
+                logger.warning(f"⚠️ Could not send startup message to admin: {e}")
+        
+        # Всегда логируем
+        logger.info("=" * 60)
+        logger.info("🚀 " + "=" * 58)
+        logger.info("🟢 NutriBuddy Bot Successfully Started!")
+        logger.info("🚀 " + "=" * 58)
+        logger.info(f"🤖 Bot Username: @{bot_info.username}")
+        logger.info(f"🤖 Bot ID: {bot_info.id}")
+        logger.info(f"🌐 Webhook URL: {WEBHOOK_URL}{WEBHOOK_PATH}")
+        logger.info(f"🔌 Health Check: {WEBHOOK_URL}/health")
+        logger.info(f"⏰ Server Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        logger.info("🚀 " + "=" * 58)
+        
+    except Exception as e:
+        logger.error(f"❌ Error in startup notification: {e}")
+
+
+async def check_environment():
+    """Проверяет наличие всех необходимых переменных окружения"""
+    required_vars = ["BOT_TOKEN", "CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_API_TOKEN"]
+    missing = []
+    
+    for var in required_vars:
+        if not os.getenv(var):
+            missing.append(var)
+    
+    if missing:
+        logger.error(f"❌ Missing environment variables: {', '.join(missing)}")
+        return False
+    
+    logger.info("✅ All environment variables present")
+    return True
+
+
 async def webhook_handler(request):
     """Обработчик вебхуков от Telegram"""
     try:
@@ -82,13 +142,18 @@ async def on_startup(app):
     bot = app['bot']
     
     try:
+        # Проверка переменных окружения
+        if not await check_environment():
+            logger.error("❌ Environment check failed. Exiting...")
+            sys.exit(1)
+        
+        # Проверка подключения к Telegram
         bot_info = await bot.get_me()
-        logger.info(f"🤖 Bot started: @{bot_info.username} (ID: {bot_info.id})")
+        logger.info(f"🤖 Connected to Telegram as @{bot_info.username}")
         
+        # Установка вебхука
         webhook_full_url = f"{WEBHOOK_URL}{WEBHOOK_PATH}"
-        
-        # Проверяем и устанавливаем вебхук
-        webhook_info: WebhookInfo = await bot.get_webhook_info()
+        webhook_info = await bot.get_webhook_info()
         
         if webhook_info.url != webhook_full_url:
             logger.info(f"🔗 Setting webhook to: {webhook_full_url}")
@@ -101,12 +166,21 @@ async def on_startup(app):
         else:
             logger.info("✅ Webhook already configured correctly")
         
+        # Установка команд бота
         await set_bot_commands(bot)
         
+        # Запуск планировщика
         global scheduler
         scheduler = setup_scheduler(bot)
         scheduler.start()
         logger.info("⏰ Scheduler started")
+        
+        # Отправка уведомления о запуске
+        admin_id = os.getenv("ADMIN_ID")
+        if admin_id:
+            await send_startup_notification(bot, int(admin_id))
+        else:
+            await send_startup_notification(bot)
         
     except Exception as e:
         logger.error(f"❌ Startup error: {e}", exc_info=True)
@@ -126,6 +200,7 @@ async def on_shutdown(app):
         logger.info("🔌 Webhook deleted")
         await bot.session.close()
         logger.info("🔒 Bot session closed")
+        logger.info("🔴 NutriBuddy Bot Stopped")
         
     except Exception as e:
         logger.error(f"❌ Shutdown error: {e}", exc_info=True)
@@ -144,19 +219,26 @@ def create_app():
 
 async def main():
     """Точка входа приложения"""
+    logger.info("=" * 60)
+    logger.info("🔧 Initializing NutriBuddy Bot...")
+    logger.info("=" * 60)
+    
+    # Инициализация БД
     await init_db()
     logger.info("💾 Database initialized")
     
+    # Создание бота
     bot = Bot(
         token=TOKEN,
         default=DefaultBotProperties(parse_mode=ParseMode.HTML)
     )
     
+    # Создание Dispatcher
     storage = MemoryStorage()
     global dp
     dp = Dispatcher(storage=storage)
     
-    # Подключаем роутеры
+    # Подключение роутеров
     dp.include_router(common.router)
     dp.include_router(profile.router)
     dp.include_router(food.router)
@@ -170,7 +252,7 @@ async def main():
     
     logger.info("✅ All routers included")
     
-    # Создаём и запускаем приложение
+    # Создание и запуск приложения
     app = create_app()
     app['bot'] = bot
     
@@ -182,6 +264,7 @@ async def main():
     
     logger.info(f"🚀 Server started on port {PORT}")
     logger.info(f"🌐 Webhook URL: {WEBHOOK_URL}{WEBHOOK_PATH}")
+    logger.info(f"❤️ Health check: {WEBHOOK_URL}/health")
     
     # Держим процесс активным
     try:
@@ -195,6 +278,7 @@ async def main():
 
 if __name__ == "__main__":
     try:
+        logger.info("🔵 Starting NutriBuddy Bot...")
         asyncio.run(main())
     except KeyboardInterrupt:
         logger.info("👋 Keyboard interrupt received")

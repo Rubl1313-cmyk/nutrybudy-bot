@@ -51,108 +51,85 @@ def _prepare_image_for_cloudflare(image_bytes: bytes) -> bytes:
 
 @router.message(F.photo)
 async def handle_photo(message: Message, state: FSMContext):
-    """
-    Обработка фото еды.
-    Работает в любом состоянии, но особенно важна в FoodStates.searching_food
-    """
+    """Обработка фото еды с улучшенным промптом"""
     try:
-        # Получаем текущее состояние
-        current_state = await state.get_state()
-        logger.info(f"📸 Photo received in state: {current_state}")
-        
         photo = message.photo[-1]
         file_info = await message.bot.get_file(photo.file_id)
         file_bytes = await message.bot.download_file(file_info.file_path)
         file_data = file_bytes.read()
         
-        # Оптимизируем изображение
+        # Оптимизация изображения
         optimized = _prepare_image_for_cloudflare(file_data)
         
         await message.answer("🔍 Анализирую изображение через Cloudflare AI...")
         
-        # 🔥 Улучшенный промпт для получения названия на русском
+        # 🔥 УЛУЧШЕННЫЙ ПРОМПТ для лучшего распознавания
         description = await analyze_food_image(
             optimized,
-            prompt="What food is in this image? Return ONLY the dish name in Russian, 2-3 words maximum. Example: 'жареная курица' or 'греческий салат'."
+            prompt="""Опиши еду на этом изображении НА РУССКОМ ЯЗЫКЕ.
+Укажи:
+1. Основное блюдо (например, "жареная курица с овощами")
+2. Гарнир (например, "картофель", "рис")
+3. Овощи или соусы если видны
+
+Отвечай кратко, 5-10 слов, только название блюда без описаний."""
         )
         
         if not description:
-            # Пробуем английский промпт как fallback
+            # Fallback на английский
             description = await analyze_food_image(
                 optimized,
-                prompt="What food is in this image? Return ONLY the main dish name in English, 2-3 words."
+                prompt="Describe this food dish in Russian. Name the main dish, side dish, and vegetables. 5-10 words only."
             )
         
         if not description:
             await message.answer(
                 "❌ Не удалось распознать фото.\n\n"
-                "Попробуйте:\n"
-                "• Отправить более чёткое фото\n"
-                "• Ввести название блюда вручную"
+                "📝 Введите название блюда вручную:"
             )
+            await state.set_state(FoodStates.manual_food_name)
             return
         
         logger.info(f"✅ AI description: {description}")
         
-        # Сохраняем описание
-        await state.update_data(ai_description=description, photo_file_id=photo.file_id)
-        
-        # Ищем в OpenFoodFacts
+        # 🔥 Улучшенный поиск: пробуем несколько вариантов
         foods = await search_food(description)
         
-        # 🔁 Если не нашли, пробуем упростить поиск
         if not foods:
             # Извлекаем ключевые слова
             keywords = description.lower().split()
-            keywords = [w for w in keywords if len(w) > 3 and w not in ['with', 'and', 'the', 'на', 'из', 'для']]
+            keywords = [w for w in keywords if len(w) > 3 and w not in 
+                       ['с', 'и', 'на', 'в', 'для', 'из', 'the', 'with', 'and', 'on']]
             
-            if keywords:
-                simple_search = await search_food(keywords[0])  # Первое ключевое слово
-                if simple_search:
-                    foods = simple_search
+            # Пробуем поиск по каждому ключевому слову
+            for keyword in keywords[:3]:
+                foods = await search_food(keyword)
+                if foods:
+                    logger.info(f"✅ Found via keyword: {keyword}")
+                    break
         
-        # Если пользователь в состоянии поиска еды — продолжаем flow
-        if current_state == FoodStates.searching_food:
-            if foods:
-                await message.answer(
-                    f"🧠 <b>Распознано:</b> {description}\n\n"
-                    f"Выберите продукт:",
-                    reply_markup=get_food_selection_keyboard(foods),
-                    parse_mode="HTML"
-                )
-                await state.set_state(FoodStates.selecting_food)
-                await state.update_data(foods=foods)
-            else:
-                # Предлагаем ручной ввод
-                await message.answer(
-                    f"🧠 <b>Описание:</b> <i>{description}</i>\n\n"
-                    f"❌ Не найдено в базе.\n\n"
-                    f"📝 <b>Введите название вручную:</b>",
-                    parse_mode="HTML"
-                )
-                await state.set_state(FoodStates.manual_food_name)
+        await state.update_data(ai_description=description)
+        
+        if foods:
+            await message.answer(
+                f"🧠 <b>Распознано:</b> {description}\n\n"
+                f"Выберите продукт:",
+                reply_markup=get_food_selection_keyboard(foods),
+                parse_mode="HTML"
+            )
+            await state.set_state(FoodStates.selecting_food)
+            await state.update_data(foods=foods)
         else:
-            # Пользователь не в flow поиска еды — просто показываем результат
-            if foods:
-                await message.answer(
-                    f"🧠 Распознано: {description}\n\n"
-                    f"Найдено продуктов: {len(foods)}\n\n"
-                    f"Если хотите записать это как приём пищи, нажмите 🍽️ Дневник питания",
-                    reply_markup=get_food_selection_keyboard(foods),
-                    parse_mode="HTML"
-                )
-            else:
-                await message.answer(
-                    f"🧠 Описание: {description}\n\n"
-                    f"Не найдено в базе продуктов."
-                )
+            await message.answer(
+                f"🧠 <b>Описание:</b> <i>{description}</i>\n\n"
+                f"📝 <b>Введите название вручную:</b>",
+                parse_mode="HTML"
+            )
+            await state.set_state(FoodStates.manual_food_name)
             
     except Exception as e:
-        logger.error(f"❌ Photo handling error: {e}", exc_info=True)
-        await message.answer(
-            "❌ Ошибка при анализе фото.\n"
-            "Попробуйте позже или введите название вручную."
-        )
+        logger.error(f"❌ Photo error: {e}", exc_info=True)
+        await message.answer("❌ Ошибка при анализе. Попробуйте позже.")
 
 
 # =============================================================================

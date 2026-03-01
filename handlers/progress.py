@@ -9,7 +9,7 @@ from database.models import User, Meal, Activity, WaterEntry, WeightEntry
 from services.plots import generate_weight_plot, generate_water_plot, generate_calorie_balance_plot
 from services.calculator import calculate_calorie_balance
 from keyboards.reply import get_main_keyboard, get_cancel_keyboard
-from utils.states import WeightStates
+from utils.states import WeightStates, ProgressStates  # ✅ Добавлен ProgressStates
 
 router = Router()
 
@@ -122,3 +122,21 @@ async def process_weight_log(message: Message, state: FSMContext):
         )
     except ValueError:
         await message.answer("❌ Введите корректное число")
+        @router.callback_query(F.data.startswith("progress_"))
+
+@router.callback_query(F.data.startswith("progress_"))
+async def process_progress_option(callback: CallbackQuery, state: FSMContext):
+    """Обработка выбора типа прогресса"""
+    option = callback.data.split("_")[1]
+    
+    if option == "weight":
+        await callback.message.edit_text("📈 График веса будет доступен после 3+ записей")
+    elif option == "water":
+        await callback.message.edit_text("💧 График воды будет доступен после 3+ записей")
+    elif option == "calories":
+        await callback.message.edit_text("🔥 График калорий будет доступен после 3+ дней")
+    elif option == "activity":
+        await callback.message.edit_text("🏃 График активности будет доступен после 3+ тренировок")
+    
+    await callback.answer()
+    await state.clear()

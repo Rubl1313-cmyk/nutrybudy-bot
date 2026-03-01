@@ -1,7 +1,3 @@
-"""
-Обработчик прогресса и графиков
-✅ Исправлено: добавлен импорт WeightStates
-"""
 from aiogram import Router, F
 from aiogram.types import Message, BufferedInputFile
 from aiogram.filters import Command
@@ -13,7 +9,7 @@ from database.models import User, Meal, Activity, WaterEntry, WeightEntry
 from services.plots import generate_weight_plot, generate_water_plot, generate_calorie_balance_plot
 from services.calculator import calculate_calorie_balance
 from keyboards.reply import get_main_keyboard, get_cancel_keyboard
-from utils.states import WeightStates  # ✅ ВАЖНО: импорт состояния для веса!
+from utils.states import WeightStates
 
 router = Router()
 
@@ -21,18 +17,15 @@ router = Router()
 @router.message(Command("progress"))
 @router.message(F.text == "📊 Прогресс")
 async def cmd_progress(message: Message):
-    """Показать прогресс и графики"""
     user_id = message.from_user.id
     
     async with get_session() as session:
-        # ✅ ПРОВЕРКА: есть ли профиль
         user = await session.get(User, user_id)
         
         if not user or not user.weight or not user.height:
             await message.answer(
                 "❌ <b>Сначала настройте профиль!</b>\n\n"
-                "Нажмите 👤 Профиль или введите /set_profile\n"
-                "Это нужно для расчёта ваших индивидуальных норм.",
+                "Нажмите 👤 Профиль или введите /set_profile",
                 reply_markup=get_main_keyboard(),
                 parse_mode="HTML"
             )
@@ -40,7 +33,6 @@ async def cmd_progress(message: Message):
         
         today = datetime.now().date()
         
-        # Считаем потреблённые калории за сегодня
         meals_result = await session.execute(
             select(func.sum(Meal.total_calories)).where(
                 Meal.user_id == user_id,
@@ -49,7 +41,6 @@ async def cmd_progress(message: Message):
         )
         consumed = meals_result.scalar() or 0
         
-        # Считаем сожжённые калории за сегодня
         activities_result = await session.execute(
             select(func.sum(Activity.calories_burned)).where(
                 Activity.user_id == user_id,
@@ -58,7 +49,6 @@ async def cmd_progress(message: Message):
         )
         burned = activities_result.scalar() or 0
         
-        # Считаем выпитую воду за сегодня
         water_result = await session.execute(
             select(func.sum(WaterEntry.amount)).where(
                 WaterEntry.user_id == user_id,
@@ -67,10 +57,8 @@ async def cmd_progress(message: Message):
         )
         water = water_result.scalar() or 0
         
-        # Рассчитываем баланс
         balance = calculate_calorie_balance(consumed, burned, user.daily_calorie_goal)
         
-        # Формируем сообщение
         text = (
             f"📊 <b>Прогресс за сегодня</b>\n\n"
             f"🔥 <b>Калории:</b>\n"
@@ -84,7 +72,6 @@ async def cmd_progress(message: Message):
         
         await message.answer(text, reply_markup=get_main_keyboard(), parse_mode="HTML")
         
-        # Генерируем графики
         weight_plot = await generate_weight_plot(user_id, session)
         if weight_plot:
             await message.answer_photo(
@@ -102,22 +89,20 @@ async def cmd_progress(message: Message):
 
 @router.message(Command("log_weight"))
 async def cmd_log_weight(message: Message, state: FSMContext):
-    """Быстрая запись веса"""
     await state.set_state(WeightStates.entering_weight)
     await message.answer(
-        "⚖️ Введите ваш вес в кг:",
-        reply_markup=get_cancel_keyboard()
+        "⚖️ <b>Запись веса</b>\n\nВведи свой вес в кг:",
+        reply_markup=get_cancel_keyboard(),
+        parse_mode="HTML"
     )
 
 
-@router.message(WeightStates.entering_weight, F.text)  # ✅ Теперь WeightStates определён!
+@router.message(WeightStates.entering_weight, F.text)
 async def process_weight_log(message: Message, state: FSMContext):
-    """Сохранение веса"""
     try:
         weight = float(message.text.replace(',', '.'))
         
         async with get_session() as session:
-            # Записываем в историю
             entry = WeightEntry(
                 user_id=message.from_user.id,
                 weight=weight,
@@ -125,7 +110,6 @@ async def process_weight_log(message: Message, state: FSMContext):
             )
             session.add(entry)
             
-            # Обновляем текущий вес пользователя
             user = await session.get(User, message.from_user.id)
             if user:
                 user.weight = weight

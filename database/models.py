@@ -1,4 +1,8 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Boolean, Text
+"""
+Модели базы данных для NutriBuddy
+✅ Все связи и индексы
+"""
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Boolean, Text, Index
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 from datetime import datetime
@@ -9,17 +13,17 @@ Base = declarative_base()
 class User(Base):
     __tablename__ = 'users'
     
-    id = Column(Integer, primary_key=True)
-    telegram_id = Column(Integer, unique=True, nullable=False)
-    username = Column(String)
-    first_name = Column(String)
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    telegram_id = Column(Integer, unique=True, nullable=False, index=True)
+    username = Column(String(255))
+    first_name = Column(String(255))
     weight = Column(Float)
     height = Column(Float)
     age = Column(Integer)
-    gender = Column(String)
-    activity_level = Column(String)
-    goal = Column(String)
-    city = Column(String)
+    gender = Column(String(10))  # male/female
+    activity_level = Column(String(20))  # low/medium/high
+    goal = Column(String(20))  # lose/maintain/gain
+    city = Column(String(100))
     daily_water_goal = Column(Float)
     daily_calorie_goal = Column(Float)
     daily_protein_goal = Column(Float)
@@ -29,44 +33,53 @@ class User(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, onupdate=datetime.utcnow)
     
+    # Связи
     meals = relationship("Meal", back_populates="user", cascade="all, delete-orphan")
     water_entries = relationship("WaterEntry", back_populates="user", cascade="all, delete-orphan")
     weight_entries = relationship("WeightEntry", back_populates="user", cascade="all, delete-orphan")
     shopping_lists = relationship("ShoppingList", back_populates="user", cascade="all, delete-orphan")
     reminders = relationship("Reminder", back_populates="user", cascade="all, delete-orphan")
     activities = relationship("Activity", back_populates="user", cascade="all, delete-orphan")
+    
+    __table_args__ = (
+        Index('idx_telegram_id', 'telegram_id'),
+    )
 
 
 class Meal(Base):
     __tablename__ = 'meals'
     
-    id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey('users.id', ondelete="CASCADE"))
-    meal_type = Column(String)
-    datetime = Column(DateTime, default=datetime.utcnow)
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey('users.id', ondelete="CASCADE"), nullable=False, index=True)
+    meal_type = Column(String(20))  # breakfast/lunch/dinner/snack
+    datetime = Column(DateTime, default=datetime.utcnow, index=True)
     total_calories = Column(Float)
     total_protein = Column(Float)
     total_fat = Column(Float)
     total_carbs = Column(Float)
-    photo_url = Column(String)
+    photo_url = Column(String(500))
     ai_description = Column(Text)
     
     user = relationship("User", back_populates="meals")
     foods = relationship("FoodItem", back_populates="meal", cascade="all, delete-orphan")
+    
+    __table_args__ = (
+        Index('idx_user_datetime', 'user_id', 'datetime'),
+    )
 
 
 class FoodItem(Base):
     __tablename__ = 'food_items'
     
-    id = Column(Integer, primary_key=True)
-    meal_id = Column(Integer, ForeignKey('meals.id', ondelete="CASCADE"))
-    name = Column(String)
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    meal_id = Column(Integer, ForeignKey('meals.id', ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String(255), nullable=False)
     weight = Column(Float)
     calories = Column(Float)
     protein = Column(Float)
     fat = Column(Float)
     carbs = Column(Float)
-    barcode = Column(String)
+    barcode = Column(String(50))
     
     meal = relationship("Meal", back_populates="foods")
 
@@ -74,21 +87,25 @@ class FoodItem(Base):
 class WaterEntry(Base):
     __tablename__ = 'water_entries'
     
-    id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey('users.id', ondelete="CASCADE"))
-    amount = Column(Float)
-    datetime = Column(DateTime, default=datetime.utcnow)
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey('users.id', ondelete="CASCADE"), nullable=False, index=True)
+    amount = Column(Float, nullable=False)
+    datetime = Column(DateTime, default=datetime.utcnow, index=True)
     
     user = relationship("User", back_populates="water_entries")
+    
+    __table_args__ = (
+        Index('idx_user_date', 'user_id', 'datetime'),
+    )
 
 
 class WeightEntry(Base):
     __tablename__ = 'weight_entries'
     
-    id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey('users.id', ondelete="CASCADE"))
-    weight = Column(Float)
-    datetime = Column(DateTime, default=datetime.utcnow)
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey('users.id', ondelete="CASCADE"), nullable=False, index=True)
+    weight = Column(Float, nullable=False)
+    datetime = Column(DateTime, default=datetime.utcnow, index=True)
     
     user = relationship("User", back_populates="weight_entries")
 
@@ -96,9 +113,9 @@ class WeightEntry(Base):
 class ShoppingList(Base):
     __tablename__ = 'shopping_lists'
     
-    id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey('users.id', ondelete="CASCADE"))
-    name = Column(String)
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey('users.id', ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String(255), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     is_archived = Column(Boolean, default=False)
     
@@ -109,10 +126,10 @@ class ShoppingList(Base):
 class ShoppingItem(Base):
     __tablename__ = 'shopping_items'
     
-    id = Column(Integer, primary_key=True)
-    list_id = Column(Integer, ForeignKey('shopping_lists.id', ondelete="CASCADE"))
-    name = Column(String)
-    quantity = Column(String)
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    list_id = Column(Integer, ForeignKey('shopping_lists.id', ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String(255), nullable=False)
+    quantity = Column(String(100))
     is_checked = Column(Boolean, default=False)
     added_by = Column(Integer)
     added_at = Column(DateTime, default=datetime.utcnow)
@@ -123,12 +140,12 @@ class ShoppingItem(Base):
 class Reminder(Base):
     __tablename__ = 'reminders'
     
-    id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey('users.id', ondelete="CASCADE"))
-    type = Column(String)
-    title = Column(String)
-    time = Column(String)
-    days = Column(String)
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey('users.id', ondelete="CASCADE"), nullable=False, index=True)
+    type = Column(String(20))  # meal/water/weight/custom
+    title = Column(String(255), nullable=False)
+    time = Column(String(5))  # HH:MM
+    days = Column(String(50))  # mon,tue,wed или daily
     enabled = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     
@@ -138,14 +155,18 @@ class Reminder(Base):
 class Activity(Base):
     __tablename__ = 'activities'
     
-    id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey('users.id', ondelete="CASCADE"))
-    activity_type = Column(String)
-    duration = Column(Integer)
-    distance = Column(Float)
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey('users.id', ondelete="CASCADE"), nullable=False, index=True)
+    activity_type = Column(String(50), nullable=False)
+    duration = Column(Integer)  # minutes
+    distance = Column(Float)  # km
     calories_burned = Column(Float)
-    steps = Column(Integer)
-    datetime = Column(DateTime, default=datetime.utcnow)
-    source = Column(String)
+    steps = Column(Integer, default=0)
+    datetime = Column(DateTime, default=datetime.utcnow, index=True)
+    source = Column(String(20), default='manual')  # manual/apple_watch/google_fit
     
     user = relationship("User", back_populates="activities")
+    
+    __table_args__ = (
+        Index('idx_user_activity_date', 'user_id', 'datetime'),
+    )

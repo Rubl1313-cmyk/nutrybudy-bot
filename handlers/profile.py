@@ -16,8 +16,6 @@ router = Router()
 @router.message(Command("set_profile"))
 @router.message(F.text == "👤 Профиль")
 async def cmd_profile(message: Message, state: FSMContext):
-    """Показать профиль или начать редактирование"""
-    # 🔥 СБРОС СОСТОЯНИЯ перед проверкой
     await state.clear()
     
     user_id = message.from_user.id
@@ -29,18 +27,16 @@ async def cmd_profile(message: Message, state: FSMContext):
         user = result.scalar_one_or_none()
         
         if user and user.weight and user.height:
-            # Профиль заполнен — показываем с опциями
             gender_emoji = "♂️" if user.gender == "male" else "♀️"
             goal_emoji = {"lose": "⬇️", "maintain": "➡️", "gain": "⬆️"}.get(user.goal, "🎯")
-            activity_emoji = {"low": "🪑", "medium": "🚶", "high": "🏃"}.get(user.activity_level, "🏃")
             
             text = (
                 f"👤 <b>Твой профиль</b>\n\n"
                 f"⚖️ <b>Вес:</b> {user.weight} кг\n"
                 f"📏 <b>Рост:</b> {user.height} см\n"
                 f"🎂 <b>Возраст:</b> {user.age} лет\n"
-                f"🚻 <b>Пол:</b> {gender_emoji} {'Мужской' if user.gender == 'male' else 'Женский'}\n"
-                f"🏃 <b>Активность:</b> {activity_emoji} {user.activity_level}\n"
+                f"🚻 <b>Пол:</b> {gender_emoji}\n"
+                f"🏃 <b>Активность:</b> {user.activity_level}\n"
                 f"🎯 <b>Цель:</b> {goal_emoji} {user.goal}\n"
                 f"🌆 <b>Город:</b> {user.city}\n\n"
                 f"📊 <b>Дневные нормы:</b>\n"
@@ -57,12 +53,10 @@ async def cmd_profile(message: Message, state: FSMContext):
                 parse_mode="HTML"
             )
         else:
-            # Профиль не заполнен — начинаем настройку
             await state.set_state(ProfileStates.weight)
             await message.answer(
                 "⚖️ <b>Настройка профиля</b>\n\n"
-                "Введи свой вес в килограммах:\n"
-                "<i>Пример: 75.5</i>",
+                "Введи свой вес (кг):\n<i>Пример: 75.5</i>",
                 reply_markup=get_cancel_keyboard(),
                 parse_mode="HTML"
             )
@@ -70,12 +64,10 @@ async def cmd_profile(message: Message, state: FSMContext):
 
 @router.message(F.text == "✏️ Изменить профиль")
 async def edit_profile(message: Message, state: FSMContext):
-    """Начать редактирование профиля"""
     await state.clear()
     await state.set_state(ProfileStates.weight)
     await message.answer(
-        "⚖️ <b>Изменение веса</b>\n\n"
-        "Введи новый вес (кг):",
+        "⚖️ <b>Изменение веса</b>\n\nВведи новый вес (кг):",
         reply_markup=get_cancel_keyboard(),
         parse_mode="HTML"
     )
@@ -83,62 +75,52 @@ async def edit_profile(message: Message, state: FSMContext):
 
 @router.message(ProfileStates.weight, F.text)
 async def process_weight(message: Message, state: FSMContext):
-    """Обработка ввода веса"""
     try:
         weight = float(message.text.replace(',', '.').strip())
         
         if not 30 <= weight <= 300:
-            raise ValueError("Вес вне диапазона")
+            raise ValueError
             
         await state.update_data(weight=weight)
         await state.set_state(ProfileStates.height)
         
         await message.answer(
-            f"✅ Вес: <b>{weight} кг</b>\n\n"
-            "📏 Введи рост (см):",
+            f"✅ Вес: <b>{weight} кг</b>\n\n📏 Введи рост (см):",
             parse_mode="HTML"
         )
     except ValueError:
         await message.answer(
-            "❌ <b>Некорректное значение</b>\n\n"
-            "Введи число от 30 до 300 кг.\n"
-            "<i>Примеры: 75, 75.5, 75,5</i>",
+            "❌ Введи число от 30 до 300 кг\n<i>Примеры: 75, 75.5, 75,5</i>",
             parse_mode="HTML"
         )
 
 
 @router.message(ProfileStates.height, F.text)
 async def process_height(message: Message, state: FSMContext):
-    """Обработка ввода роста"""
     try:
         height = float(message.text.replace(',', '.').strip())
         
         if not 100 <= height <= 250:
-            raise ValueError("Рост вне диапазона")
+            raise ValueError
             
         await state.update_data(height=height)
         await state.set_state(ProfileStates.age)
         
         await message.answer(
-            f"✅ Рост: <b>{height} см</b>\n\n"
-            "🎂 Введи возраст:",
+            f"✅ Рост: <b>{height} см</b>\n\n🎂 Введи возраст:",
             parse_mode="HTML"
         )
     except ValueError:
-        await message.answer(
-            "❌ Введи число от 100 до 250 см",
-            parse_mode="HTML"
-        )
+        await message.answer("❌ Введи число от 100 до 250 см", parse_mode="HTML")
 
 
 @router.message(ProfileStates.age, F.text)
 async def process_age(message: Message, state: FSMContext):
-    """Обработка ввода возраста"""
     try:
         age = int(message.text.strip())
         
         if not 10 <= age <= 120:
-            raise ValueError("Возраст вне диапазона")
+            raise ValueError
             
         await state.update_data(age=age)
         await state.set_state(ProfileStates.gender)
@@ -153,8 +135,7 @@ async def process_age(message: Message, state: FSMContext):
         )
         
         await message.answer(
-            f"✅ Возраст: <b>{age} лет</b>\n\n"
-            "🚻 Выбери пол:",
+            f"✅ Возраст: <b>{age} лет</b>\n\n🚻 Выбери пол:",
             reply_markup=keyboard,
             parse_mode="HTML"
         )
@@ -164,11 +145,10 @@ async def process_age(message: Message, state: FSMContext):
 
 @router.message(ProfileStates.gender, F.text)
 async def process_gender(message: Message, state: FSMContext):
-    """Обработка выбора пола"""
     gender_map = {"♂️ Мужской": "male", "♀️ Женский": "female"}
     
     if message.text not in gender_map:
-        await message.answer("❌ Выбери из кнопок ниже")
+        await message.answer("❌ Выбери из кнопок")
         return
         
     await state.update_data(gender=gender_map[message.text])
@@ -185,8 +165,7 @@ async def process_gender(message: Message, state: FSMContext):
     )
     
     await message.answer(
-        f"✅ Пол: <b>{message.text}</b>\n\n"
-        "🏋️ Выбери активность:",
+        f"✅ Пол: <b>{message.text}</b>\n\n🏋️ Выбери активность:",
         reply_markup=keyboard,
         parse_mode="HTML"
     )
@@ -194,7 +173,6 @@ async def process_gender(message: Message, state: FSMContext):
 
 @router.message(ProfileStates.activity, F.text)
 async def process_activity(message: Message, state: FSMContext):
-    """Обработка выбора активности"""
     act_map = {
         "🪑 Сидячий": "low",
         "🚶 Средний": "medium", 
@@ -219,8 +197,7 @@ async def process_activity(message: Message, state: FSMContext):
     )
     
     await message.answer(
-        f"✅ Активность: <b>{message.text}</b>\n\n"
-        "🎯 Выбери цель:",
+        f"✅ Активность: <b>{message.text}</b>\n\n🎯 Выбери цель:",
         reply_markup=keyboard,
         parse_mode="HTML"
     )
@@ -228,7 +205,6 @@ async def process_activity(message: Message, state: FSMContext):
 
 @router.message(ProfileStates.goal, F.text)
 async def process_goal(message: Message, state: FSMContext):
-    """Обработка выбора цели"""
     goal_map = {
         "⬇️ Похудение": "lose",
         "➡️ Поддержание": "maintain",
@@ -243,8 +219,7 @@ async def process_goal(message: Message, state: FSMContext):
     await state.set_state(ProfileStates.city)
     
     await message.answer(
-        f"✅ Цель: <b>{message.text}</b>\n\n"
-        "🌆 Введи город (для расчёта нормы воды):",
+        f"✅ Цель: <b>{message.text}</b>\n\n🌆 Введи город:",
         reply_markup=get_cancel_keyboard(),
         parse_mode="HTML"
     )
@@ -252,21 +227,17 @@ async def process_goal(message: Message, state: FSMContext):
 
 @router.message(ProfileStates.city, F.text)
 async def process_city(message: Message, state: FSMContext):
-    """Сохранение профиля"""
     city = message.text.strip()
     data = await state.get_data()
     
-    # Получаем температуру
     temp = await get_temperature(city)
     
-    # Рассчитываем нормы
     water_goal = calculate_water_goal(data['weight'], data['activity'], temp)
     calorie_goal, protein, fat, carbs = calculate_calorie_goal(
         data['weight'], data['height'], data['age'],
         data['gender'], data['activity'], data['goal']
     )
     
-    # Сохраняем в БД
     async with get_session() as session:
         result = await session.execute(
             select(User).where(User.telegram_id == message.from_user.id)

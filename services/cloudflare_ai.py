@@ -1,3 +1,7 @@
+"""
+Cloudflare Workers AI Integration для NutriBuddy
+✅ Полная версия с поддержкой всех параметров
+"""
 import aiohttp
 import os
 import logging
@@ -23,6 +27,7 @@ MODELS = {
 
 
 def _bytes_to_array(image_bytes: bytes) -> List[int]:
+    """Конвертирует bytes в список целых чисел 0-255"""
     return list(image_bytes)
 
 
@@ -31,12 +36,12 @@ async def analyze_food_image(
     prompt: str = "What food is in this image? Describe briefly in Russian.",
     max_tokens: int = 150
 ) -> Optional[str]:
+    """Анализ изображения еды"""
     try:
         if not CLOUDFLARE_ACCOUNT_ID or not CLOUDFLARE_API_TOKEN:
             return None
         
         image_array = _bytes_to_array(image_bytes)
-        logger.info(f"📊 Image converted: {len(image_array)} bytes → array")
         
         payload = {
             "image": image_array,
@@ -52,8 +57,6 @@ async def analyze_food_image(
         model = "@cf/unum/uform-gen2-qwen-500m"
         url = f"{BASE_URL}{model}"
         
-        logger.info(f"📤 Sending to {model}")
-        
         async with aiohttp.ClientSession() as session:
             async with session.post(
                 url,
@@ -61,8 +64,6 @@ async def analyze_food_image(
                 json=payload,
                 timeout=aiohttp.ClientTimeout(total=30)
             ) as resp:
-                
-                logger.info(f"📥 Response: {resp.status}")
                 
                 if resp.status == 200:
                     result = await resp.json()
@@ -74,11 +75,9 @@ async def analyze_food_image(
                     else:
                         description = str(result)
                     
-                    if description and len(description.strip()) > 5 and len(description.strip()) < 200:
-                        logger.info(f"✅ Vision success: {description[:100]}...")
+                    if description and len(description.strip()) > 5 and len(description.strip()) < 500:
                         return description.strip()
                     
-                    logger.warning(f"⚠️ Invalid description: {description}")
                     return None
                 else:
                     error_text = await resp.text()
@@ -91,6 +90,7 @@ async def analyze_food_image(
 
 
 async def transcribe_audio(audio_bytes: bytes, language: str = "ru") -> Optional[str]:
+    """Распознавание голоса через Whisper"""
     try:
         from aiohttp import FormData
         
@@ -111,7 +111,6 @@ async def transcribe_audio(audio_bytes: bytes, language: str = "ru") -> Optional
                     result = await resp.json()
                     text = result.get("result", {}).get("text", "")
                     if text:
-                        logger.info(f"✅ Whisper success: {text[:100]}...")
                         return text.strip()
                     return None
                 else:
@@ -124,26 +123,62 @@ async def transcribe_audio(audio_bytes: bytes, language: str = "ru") -> Optional
         return None
 
 
-async def generate_recipe(ingredients: str, max_tokens: int = 800) -> Optional[str]:
-    prompt = f"""Ты — шеф-повар. Составь подробный рецепт блюда из: {ingredients}.
+async def generate_recipe(
+    ingredients: str,
+    diet_type: str = "обычное",
+    difficulty: str = "средняя",
+    max_tokens: int = 800
+) -> Optional[str]:
+    """
+    Генерация рецепта через Llama 3.
+    
+    Args:
+        ingredients: Список ингредиентов через запятую
+        diet_type: Тип питания (обычное/вегетарианское/веганское/кето/палео)
+        difficulty: Сложность (лёгкая/средняя/сложная)
+        max_tokens: Максимальная длина ответа
+        
+    Returns:
+        str: Сформированный рецепт или None
+    """
+    # Перевод difficulty на английский для промпта
+    difficulty_map = {
+        "лёгкая": "quick (~15 min)",
+        "легкая": "quick (~15 min)",
+        "средняя": "medium (~30 min)",
+        "сложная": "advanced (~60 min)"
+    }
+    difficulty_en = difficulty_map.get(difficulty, "medium (~30 min)")
+    
+    prompt = f"""Ты — профессиональный шеф-повар и нутрициолог.
+Составь подробный рецепт блюда на русском языке.
 
-Формат:
-1. 🍽️ Название
-2. 🛒 Ингредиенты с количеством
-3. 👨‍🍳 Пошаговое приготовление
-4. 📊 КБЖУ на порцию
+🥘 Ингредиенты: {ingredients}
+🥗 Тип питания: {diet_type}
+⏱️ Сложность: {difficulty} ({difficulty_en})
 
-Отвечай на русском, используй эмодзи."""
+📋 Формат ответа (используй эмодзи):
+1. 🍽️ Название блюда
+2. ⏱️ Время приготовления и количество порций
+3. 🛒 Ингредиенты с точными количествами
+4. 👨‍🍳 Пошаговое приготовление (нумерованный список)
+5. 📊 КБЖУ на порцию (калории, белки, жиры, углеводы)
+6. 💡 Советы по подаче и хранению
+
+Отвечай только рецептом, без лишних вступлений."""
 
     payload = {
         "messages": [
-            {"role": "system", "content": "Ты полезный ассистент-повар."},
+            {"role": "system", "content": "Ты полезный ассистент-повар. Отвечай на русском."},
             {"role": "user", "content": prompt}
         ],
         "max_tokens": max_tokens,
-        "temperature": 0.7
+        "temperature": 0.7,
+        "top_p": 0.9
     }
     
+    model = "@cf/meta/llama-3-8b-instruct"
+    url = f"{BASE_URL}{model}"
     headers = {
         "Authorization": f"Bearer {CLOUDFLARE_API_TOKEN}",
         "Content-Type": "application/json"
@@ -152,7 +187,7 @@ async def generate_recipe(ingredients: str, max_tokens: int = 800) -> Optional[s
     try:
         async with aiohttp.ClientSession() as session:
             async with session.post(
-                f"{BASE_URL}@cf/meta/llama-3-8b-instruct",
+                url,
                 headers=headers,
                 json=payload,
                 timeout=aiohttp.ClientTimeout(total=45)
@@ -161,9 +196,9 @@ async def generate_recipe(ingredients: str, max_tokens: int = 800) -> Optional[s
                 if resp.status == 200:
                     result = await resp.json()
                     recipe = result.get("result", {}).get("response", "")
-                    if recipe:
-                        logger.info(f"✅ Recipe: {len(recipe)} chars")
-                        return recipe
+                    if recipe and len(recipe.strip()) > 50:
+                        return recipe.strip()
+                    return None
                 else:
                     error_text = await resp.text()
                     logger.error(f"❌ Recipe error {resp.status}: {error_text[:300]}")

@@ -1,17 +1,19 @@
 """
 Обработчик прогресса и графиков
-✅ Добавлена проверка профиля перед показом
+✅ Исправлено: добавлен импорт WeightStates
 """
 from aiogram import Router, F
 from aiogram.types import Message, BufferedInputFile
 from aiogram.filters import Command
+from aiogram.fsm.context import FSMContext
 from sqlalchemy import select, func
 from datetime import datetime, timedelta
 from database.db import get_session
 from database.models import User, Meal, Activity, WaterEntry, WeightEntry
 from services.plots import generate_weight_plot, generate_water_plot, generate_calorie_balance_plot
 from services.calculator import calculate_calorie_balance
-from keyboards.reply import get_main_keyboard
+from keyboards.reply import get_main_keyboard, get_cancel_keyboard
+from utils.states import WeightStates  # ✅ ВАЖНО: импорт состояния для веса!
 
 router = Router()
 
@@ -99,9 +101,8 @@ async def cmd_progress(message: Message):
 
 
 @router.message(Command("log_weight"))
-async def cmd_log_weight(message: Message, state):
+async def cmd_log_weight(message: Message, state: FSMContext):
     """Быстрая запись веса"""
-    from utils.states import WeightStates
     await state.set_state(WeightStates.entering_weight)
     await message.answer(
         "⚖️ Введите ваш вес в кг:",
@@ -109,8 +110,8 @@ async def cmd_log_weight(message: Message, state):
     )
 
 
-@router.message(WeightStates.entering_weight, F.text)
-async def process_weight_log(message: Message, state):
+@router.message(WeightStates.entering_weight, F.text)  # ✅ Теперь WeightStates определён!
+async def process_weight_log(message: Message, state: FSMContext):
     """Сохранение веса"""
     try:
         weight = float(message.text.replace(',', '.'))

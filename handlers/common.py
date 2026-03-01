@@ -1,6 +1,6 @@
 """
-Общие команды: /start, /help, /cancel, кнопки меню
-✅ Работают в ЛЮБОМ состоянии (приоритет над FSM)
+Общие команды: /start, /help, /cancel
+✅ Все кнопки меню функциональны
 """
 from aiogram import Router, F
 from aiogram.types import Message
@@ -35,7 +35,7 @@ async def cmd_start(message: Message, state: FSMContext):
 
 @router.message(Command("help"))
 async def cmd_help(message: Message, state: FSMContext):
-    """Справка — сбрасывает состояние"""
+    """Справка"""
     await state.clear()
     
     await message.answer(
@@ -69,7 +69,7 @@ async def cmd_help(message: Message, state: FSMContext):
 @router.message(Command("cancel"))
 @router.message(F.text == "❌ Отмена")
 async def cmd_cancel(message: Message, state: FSMContext):
-    """Отмена — сбрасывает состояние"""
+    """Отмена"""
     await state.clear()
     await message.answer(
         "❌ <b>Действие отменено</b>\n\n"
@@ -81,105 +81,10 @@ async def cmd_cancel(message: Message, state: FSMContext):
 
 @router.message(F.text == "🏠 Главное меню")
 async def cmd_main_menu(message: Message, state: FSMContext):
-    """Главное меню — сбрасывает состояние"""
+    """Главное меню"""
     await state.clear()
     await message.answer(
         "🏠 <b>Главное меню</b>",
         reply_markup=get_main_keyboard(),
         parse_mode="HTML"
-    )
-
-
-# =============================================================================
-# 🎯 КНОПКИ ГЛАВНОГО МЕНЮ (работают в ЛЮБОМ состоянии!)
-# =============================================================================
-# 🔥 ВАЖНО: Эти хендлеры должны быть ПОСЛЕ CommandStart и Command("cancel")
-# но ДО специфичных FSM хендлеров в других файлах
-
-@router.message(F.text == "🍽️ Дневник питания")
-async def menu_food(message: Message, state: FSMContext):
-    """Дневник питания — сбрасывает состояние"""
-    await state.clear()
-    await message.answer(
-        "🍽️ <b>Дневник питания</b>\n\n"
-        "Выберите тип приёма пищи или отправьте фото еды:",
-        reply_markup=get_main_keyboard()
-    )
-
-
-@router.message(F.text == "💧 Вода")
-async def menu_water(message: Message, state: FSMContext):
-    """Вода — сбрасывает состояние"""
-    await state.clear()
-    await message.answer(
-        "💧 <b>Водный баланс</b>\n\n"
-        "Сколько воды вы выпили?\n"
-        "Выберите из предложенных или введите вручную:",
-        reply_markup=get_main_keyboard()
-    )
-
-
-@router.message(F.text == "📊 Прогресс")
-async def menu_progress(message: Message, state: FSMContext):
-    """Прогресс — сбрасывает состояние"""
-    await state.clear()
-    await message.answer(
-        "📊 <b>Прогресс</b>\n\n"
-        "Здесь будут ваши графики и статистика.",
-        reply_markup=get_main_keyboard()
-    )
-
-
-@router.message(F.text == "📋 Списки покупок")
-async def menu_shopping(message: Message, state: FSMContext):
-    """Списки покупок — сбрасывает состояние"""
-    await state.clear()
-    await message.answer(
-        "📋 <b>Списки покупок</b>\n\n"
-        "Управление списками покупок.",
-        reply_markup=get_main_keyboard()
-    )
-
-
-@router.message(F.text == "🔔 Напоминания")
-async def menu_reminders(message: Message, state: FSMContext):
-    """Напоминания — сбрасывает состояние"""
-    await state.clear()
-    await message.answer(
-        "🔔 <b>Напоминания</b>\n\n"
-        "Настройте напоминания о приёмах пищи и воде.",
-        reply_markup=get_main_keyboard()
-    )
-
-
-@router.message(F.text == "👤 Профиль")
-async def menu_profile(message: Message, state: FSMContext):
-    """Профиль — сбрасывает состояние"""
-    await state.clear()
-    await message.answer(
-        "👤 <b>Профиль</b>\n\n"
-        "Нажмите /set_profile для настройки или просмотра.",
-        reply_markup=get_main_keyboard()
-    )
-
-
-@router.message(F.text == "📖 Рецепты")
-async def menu_recipes(message: Message, state: FSMContext):
-    """Рецепты — сбрасывает состояние"""
-    await state.clear()
-    await message.answer(
-        "📖 <b>Рецепты</b>\n\n"
-        "Введите /recipe и ингредиенты для генерации рецепта.",
-        reply_markup=get_main_keyboard()
-    )
-
-
-@router.message(F.text == "🏋️ Активность")
-async def menu_activity(message: Message, state: FSMContext):
-    """Активность — сбрасывает состояние"""
-    await state.clear()
-    await message.answer(
-        "🏋️ <b>Активность</b>\n\n"
-        "Записывайте тренировки и отслеживайте прогресс.",
-        reply_markup=get_main_keyboard()
     )

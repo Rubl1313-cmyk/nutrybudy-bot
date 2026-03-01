@@ -1,6 +1,3 @@
-"""
-Модели базы данных для NutriBuddy
-"""
 from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Boolean, Text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
@@ -19,9 +16,9 @@ class User(Base):
     weight = Column(Float)
     height = Column(Float)
     age = Column(Integer)
-    gender = Column(String)  # male/female
-    activity_level = Column(String)  # low/medium/high
-    goal = Column(String)  # lose/maintain/gain
+    gender = Column(String)
+    activity_level = Column(String)
+    goal = Column(String)
     city = Column(String)
     daily_water_goal = Column(Float)
     daily_calorie_goal = Column(Float)
@@ -45,7 +42,7 @@ class Meal(Base):
     
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey('users.id', ondelete="CASCADE"))
-    meal_type = Column(String)  # breakfast/lunch/dinner/snack
+    meal_type = Column(String)
     datetime = Column(DateTime, default=datetime.utcnow)
     total_calories = Column(Float)
     total_protein = Column(Float)
@@ -128,10 +125,10 @@ class Reminder(Base):
     
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey('users.id', ondelete="CASCADE"))
-    type = Column(String)  # meal/water/weight/custom
+    type = Column(String)
     title = Column(String)
-    time = Column(String)  # "HH:MM"
-    days = Column(String)  # "mon,tue,wed" или "daily"
+    time = Column(String)
+    days = Column(String)
     enabled = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     
@@ -143,12 +140,12 @@ class Activity(Base):
     
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey('users.id', ondelete="CASCADE"))
-    activity_type = Column(String)  # walking/running/cycling/gym
-    duration = Column(Integer)  # minutes
-    distance = Column(Float)  # km
+    activity_type = Column(String)
+    duration = Column(Integer)
+    distance = Column(Float)
     calories_burned = Column(Float)
     steps = Column(Integer)
     datetime = Column(DateTime, default=datetime.utcnow)
-    source = Column(String)  # manual/apple_watch/google_fit
+    source = Column(String)
     
     user = relationship("User", back_populates="activities")

@@ -163,49 +163,57 @@ async def process_manual_food(message: Message, state: FSMContext):
 
 @router.message(FoodStates.entering_weight)
 async def process_weight(message: Message, state: FSMContext):
-    """Ввод веса - БЕЗ строгой валидации"""
+    """Ввод веса - МАКСИМАЛЬНО ПРОСТОЙ"""
+    text = message.text.strip()
+    
+    # 🔥 Максимально простое извлечение числа
     try:
-        text = message.text.strip()
-        
-        # 🔥 Простое извлечение числа
+        # Удаляем всё кроме цифр, точек и запятых
         import re
-        numbers = re.findall(r'\d+([.,]\d+)?', text)
+        # Ищем первое число в тексте
+        match = re.search(r'(\d+([.,]\d+)?)', text)
         
-        if numbers:
-            num_str = numbers[0]
-            if isinstance(num_str, str):
-                weight = float(num_str.replace(',', '.'))
-            else:
-                weight = float(num_str)
+        if match:
+            weight_str = match.group(1).replace(',', '.')
+            weight = float(weight_str)
         else:
+            # Если regexp не сработал, пробуем просто float
             weight = float(text.replace(',', '.'))
         
+        # Проверка диапазона
         if weight <= 0 or weight > 10000:
-            raise ValueError
+            raise ValueError("Вес вне диапазона")
             
-    except (ValueError, IndexError, AttributeError, TypeError):
+    except (ValueError, IndexError, AttributeError, TypeError) as e:
+        logger.error(f"❌ Weight parse error: {e}, text: {text}")
         await message.answer(
-            "❌ Введи число от 1 до 10000 г\n"
-            "<i>Пример: 150, 200, 300</i>",
+            "❌ <b>Некорректный вес</b>\n\n"
+            "Введи число от 1 до 10000 грамм.\n"
+            "<i>Примеры: 150, 200, 300</i>",
             parse_mode="HTML"
         )
         return
     
+    # Получаем данные
     data = await state.get_data()
     food = data.get('selected_food')
     
     if not food:
-        await message.answer("❌ Ошибка: продукт не выбран. Начните заново.")
+        await message.answer(
+            "❌ Ошибка: продукт не выбран.\n"
+            "Начните заново: /log_food"
+        )
         await state.clear()
         return
     
-    # Рассчитываем КБЖУ для указанного веса
+    # Рассчитываем КБЖУ
     multiplier = weight / 100
-    calories = food.get('calories', 0) * multiplier
-    protein = food.get('protein', 0) * multiplier
-    fat = food.get('fat', 0) * multiplier
-    carbs = food.get('carbs', 0) * multiplier
+    calories = float(food.get('calories', 0)) * multiplier
+    protein = float(food.get('protein', 0)) * multiplier
+    fat = float(food.get('fat', 0)) * multiplier
+    carbs = float(food.get('carbs', 0)) * multiplier
     
+    # Сохраняем
     await state.update_data(
         weight=weight,
         calories=calories,
@@ -215,6 +223,7 @@ async def process_weight(message: Message, state: FSMContext):
     )
     await state.set_state(FoodStates.confirming)
     
+    # Показываем подтверждение
     await message.answer(
         f"✅ <b>Подтверждение</b>\n\n"
         f"🍽️ {food['name']}\n"
@@ -226,8 +235,8 @@ async def process_weight(message: Message, state: FSMContext):
         reply_markup=get_confirmation_keyboard(),
         parse_mode="HTML"
     )
-
-
+    
+  
 @router.callback_query(F.data == "confirm", FoodStates.confirming)
 async def confirm_meal(callback: CallbackQuery, state: FSMContext):
     """Сохранение приёма пищи в БД"""

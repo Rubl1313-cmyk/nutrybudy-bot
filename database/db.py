@@ -1,6 +1,6 @@
 """
 Подключение к базе данных
-ИСПРАВЛЕНО: get_session() теперь синхронная функция
+✅ ИСПРАВЛЕНО: get_session() теперь синхронная функция
 """
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
@@ -16,7 +16,7 @@ if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
 # Создание движка
 engine = create_async_engine(
     DATABASE_URL or "sqlite+aiosqlite:///nutribudy.db",
-    echo=False  # Отключить логирование SQL запросов
+    echo=False
 )
 
 # Session maker
@@ -35,7 +35,7 @@ async def init_db():
 
 def get_session() -> AsyncSession:
     """
-    Возвращает сессию БД.
+    ✅ Возвращает сессию БД.
     ⚠️ ВАЖНО: Это СИНХРОННАЯ функция!
     Используется как: async with get_session() as session:
     """

@@ -1,12 +1,10 @@
 """
-AI Handlers для NutriBuddy
-Обработка фото и голоса с учётом состояний FSM
+AI Handlers для NutriBuddy — ИСПРАВЛЕННАЯ ВЕРСИЯ
 """
 
 from aiogram import Router, F
 from aiogram.types import Message
 from aiogram.fsm.context import FSMContext
-from aiogram.filters import StateFilter
 import logging
 from PIL import Image
 import io
@@ -30,7 +28,7 @@ def _bytes_to_array(image_bytes: bytes) -> List[int]:
 
 
 def _prepare_image_for_cloudflare(image_bytes: bytes) -> bytes:
-    """Оптимизирует изображение для Cloudflare AI"""
+    """Оптимизирует изображение"""
     try:
         img = Image.open(io.BytesIO(image_bytes))
         if img.mode in ('RGBA', 'LA', 'P'):
@@ -45,67 +43,62 @@ def _prepare_image_for_cloudflare(image_bytes: bytes) -> bytes:
         return image_bytes
 
 
-# =============================================================================
-# 📸 ОБРАБОТКА ФОТО (с учётом состояний FSM)
-# =============================================================================
-
 @router.message(F.photo)
 async def handle_photo(message: Message, state: FSMContext):
-    """Обработка фото еды с улучшенным промптом"""
+    """Обработка фото еды"""
     try:
+        current_state = await state.get_state()
+        logger.info(f"📸 Photo in state: {current_state}")
+        
+        # Если не в режиме поиска еды — игнорируем
+        if current_state not in [FoodStates.searching_food, None]:
+            logger.info(f"⚠️ Ignoring photo in state: {current_state}")
+            return
+        
         photo = message.photo[-1]
         file_info = await message.bot.get_file(photo.file_id)
         file_bytes = await message.bot.download_file(file_info.file_path)
         file_data = file_bytes.read()
         
-        # Оптимизация изображения
         optimized = _prepare_image_for_cloudflare(file_data)
         
-        await message.answer("🔍 Анализирую изображение через Cloudflare AI...")
+        await message.answer("🔍 Анализирую изображение...")
         
-        # 🔥 УЛУЧШЕННЫЙ ПРОМПТ для лучшего распознавания
+        # 🔥 Улучшенный промпт
         description = await analyze_food_image(
             optimized,
-            prompt="""Опиши еду на этом изображении НА РУССКОМ ЯЗЫКЕ.
-Укажи:
-1. Основное блюдо (например, "жареная курица с овощами")
-2. Гарнир (например, "картофель", "рис")
-3. Овощи или соусы если видны
-
-Отвечай кратко, 5-10 слов, только название блюда без описаний."""
+            prompt="What food is in this image? Return ONLY the dish name in Russian, 2-3 words."
         )
         
         if not description:
-            # Fallback на английский
             description = await analyze_food_image(
                 optimized,
-                prompt="Describe this food dish in Russian. Name the main dish, side dish, and vegetables. 5-10 words only."
+                prompt="Describe this food in Russian, 2-3 words only."
             )
         
         if not description:
             await message.answer(
-                "❌ Не удалось распознать фото.\n\n"
-                "📝 Введите название блюда вручную:"
+                "❌ Не удалось распознать.\n\n"
+                "📝 Введите название вручную:"
             )
             await state.set_state(FoodStates.manual_food_name)
             return
         
-        logger.info(f"✅ AI description: {description}")
+        logger.info(f"✅ Recognized: {description}")
         
-        # 🔥 Улучшенный поиск: пробуем несколько вариантов
+        # Ищем в базе
         foods = await search_food(description)
         
+        # Fallback поиск
         if not foods:
-            # Извлекаем ключевые слова
             keywords = description.lower().split()
             keywords = [w for w in keywords if len(w) > 3 and w not in 
-                       ['с', 'и', 'на', 'в', 'для', 'из', 'the', 'with', 'and', 'on']]
+                       ['с', 'и', 'на', 'в', 'для', 'из', 'the', 'with', 'and']]
             
-            # Пробуем поиск по каждому ключевому слову
             for keyword in keywords[:3]:
                 foods = await search_food(keyword)
                 if foods:
-                    logger.info(f"✅ Found via keyword: {keyword}")
+                    logger.info(f"✅ Found via: {keyword}")
                     break
         
         await state.update_data(ai_description=description)
@@ -129,20 +122,13 @@ async def handle_photo(message: Message, state: FSMContext):
             
     except Exception as e:
         logger.error(f"❌ Photo error: {e}", exc_info=True)
-        await message.answer("❌ Ошибка при анализе. Попробуйте позже.")
+        await message.answer("❌ Ошибка анализа. Попробуйте позже.")
 
-
-# =============================================================================
-# 🎤 ОБРАБОТКА ГОЛОСА
-# =============================================================================
 
 @router.message(F.voice)
 async def handle_voice(message: Message, state: FSMContext):
-    """Распознавание голоса через Whisper"""
+    """Распознавание голоса"""
     try:
-        current_state = await state.get_state()
-        logger.info(f"🎤 Voice received in state: {current_state}")
-        
         voice = message.voice
         file_info = await message.bot.get_file(voice.file_id)
         file_bytes = await message.bot.download_file(file_info.file_path)
@@ -153,19 +139,12 @@ async def handle_voice(message: Message, state: FSMContext):
         text = await transcribe_audio(file_data)
         
         if not text:
-            await message.answer("❌ Не удалось распознать речь.")
+            await message.answer("❌ Не удалось распознать.")
             return
         
-        logger.info(f"✅ Whisper: {text[:100]}...")
-        
-        await message.answer(
-            f"📝 <b>Распознано:</b>\n<i>{text}</i>",
-            parse_mode="HTML"
-        )
-        
+        await message.answer(f"📝 <b>Распознано:</b>\n<i>{text}</i>", parse_mode="HTML")
         await state.update_data(voice_text=text)
         
-        # Предлагаем действия
         from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
         kb = ReplyKeyboardMarkup(
             keyboard=[

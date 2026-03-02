@@ -1,28 +1,27 @@
 """
 AI Handlers для NutriBuddy
-✅ Распознавание нескольких продуктов с фото
-✅ Пошаговый ввод веса для каждого
-✅ Автоматический расчёт калорий
-✅ Улучшенное логирование и обработка ошибок
+Обработка фото, голоса, множественных продуктов, интеграция со списком покупок.
 """
 from aiogram import Router, F
-from aiogram.types import Message, CallbackQuery
+from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.fsm.context import FSMContext
 import logging
 from PIL import Image
 import io
 import traceback
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
+from sqlalchemy import select
+from datetime import datetime
 
-from services.cloudflare_ai import analyze_food_image
+from services.cloudflare_ai import analyze_food_image, transcribe_audio
 from services.food_api import search_food
 from services.translator import translate_to_russian, extract_food_items
-from keyboards.inline import get_food_selection_keyboard, get_confirmation_keyboard
+from keyboards.inline import get_food_selection_keyboard
 from utils.states import FoodStates
 from database.db import get_session
-from database.models import Meal, FoodItem, User
-from datetime import datetime
-from sqlalchemy import select
+from database.models import User, Meal, FoodItem, ShoppingList, ShoppingItem
+from utils.parsers import parse_shopping_items
+from handlers.shopping import get_or_create_default_list  # функция для работы со списком покупок
 
 router = Router()
 logger = logging.getLogger(__name__)
@@ -43,6 +42,15 @@ def _prepare_image(image_bytes: bytes) -> bytes:
         return image_bytes
 
 
+def _bytes_to_array(image_bytes: bytes) -> List[int]:
+    """Конвертирует bytes в список целых чисел 0-255 (для Cloudflare)"""
+    return list(image_bytes)
+
+
+# =============================================================================
+# 📸 Обработка фото
+# =============================================================================
+
 @router.message(F.photo)
 async def handle_photo(message: Message, state: FSMContext):
     """
@@ -57,175 +65,136 @@ async def handle_photo(message: Message, state: FSMContext):
         optimized = _prepare_image(file_data)
         await message.answer("🔍 Анализирую изображение через Cloudflare AI...")
 
-        # Распознаём описание (на английском, подробно)
         description_en = await analyze_food_image(
             optimized,
             prompt="List all food items visible in this image. Be specific. Return as a comma-separated list of main ingredients and dishes."
         )
 
         if not description_en:
-            await message.answer(
-                "❌ Не удалось распознать фото. Попробуйте ввести название вручную."
-            )
+            await message.answer("❌ Не удалось распознать фото. Попробуйте ввести название вручную.")
             return
 
         logger.info(f"✅ Raw description: {description_en}")
 
-        # Переводим на русский
         description_ru = await translate_to_russian(description_en)
         logger.info(f"✅ Translated description: {description_ru}")
 
-        # Извлекаем отдельные продукты
         items = await extract_food_items(description_en)
-        if not items or len(items) == 0:
-            items = [description_ru]  # fallback
+        if not items:
+            items = [description_ru]
         logger.info(f"✅ Extracted food items: {items}")
 
-        # Инициализируем состояние для пошагового ввода
         await state.update_data(
-            pending_items=items,          # список продуктов для обработки
-            current_index=0,               # индекс текущего продукта
-            selected_foods=[],              # уже выбранные продукты (с весом)
+            pending_items=items,
+            current_index=0,
+            selected_foods=[],
             ai_description=description_ru
         )
 
-        # Запускаем обработку первого продукта
         await process_next_food(message, state)
 
     except Exception as e:
         logger.error(f"❌ Unhandled exception in handle_photo: {e}\n{traceback.format_exc()}")
-        await message.answer(
-            "❌ Произошла внутренняя ошибка. Пожалуйста, попробуйте позже или введите продукты вручную."
-        )
+        await message.answer("❌ Произошла внутренняя ошибка. Попробуйте позже или введите вручную.")
         await state.clear()
 
 
 async def process_next_food(message: Message, state: FSMContext):
-    """Запрашивает у пользователя выбор продукта для следующего элемента."""
-    try:
-        data = await state.get_data()
-        items = data.get('pending_items', [])
-        idx = data.get('current_index', 0)
+    """Запрашивает следующий продукт из списка pending_items."""
+    data = await state.get_data()
+    items = data.get('pending_items', [])
+    idx = data.get('current_index', 0)
 
-        if idx >= len(items):
-            # Все продукты обработаны
-            await finish_meal(message, state)
-            return
+    if idx >= len(items):
+        await finish_meal(message, state)
+        return
 
-        current_food = items[idx].strip()
-        logger.info(f"🔄 Processing item {idx+1}/{len(items)}: {current_food}")
+    current_food = items[idx].strip().lower()
+    logger.info(f"🔄 Processing item {idx+1}/{len(items)}: {current_food}")
 
-        # Очищаем от возможных артефактов
-        current_food = current_food.strip(' ,.').lower()
+    await state.update_data(current_food_name=current_food)
 
-        await state.update_data(current_food_name=current_food)
-
-        # Ищем в локальной базе и FatSecret
-        foods = await search_food(current_food)
-        if not foods:
-            logger.warning(f"⚠️ No food found for '{current_food}', suggesting manual input")
-            await message.answer(
-                f"🔍 Для «{current_food}» ничего не найдено в базе.\n"
-                f"Введите название вручную (или нажмите «❌ Отмена»):"
-            )
-            await state.set_state(FoodStates.manual_food_name)
-            return
-
-        # Показываем варианты
+    foods = await search_food(current_food)
+    if not foods:
         await message.answer(
-            f"🔍 Продукт {idx+1}/{len(items)}: «{current_food}»\n"
-            f"Выберите подходящий вариант:",
-            reply_markup=get_food_selection_keyboard(foods)
+            f"🔍 Для «{current_food}» ничего не найдено.\nВведите название вручную:"
         )
-        await state.set_state(FoodStates.selecting_food)
-        await state.update_data(foods=foods)
+        await state.set_state(FoodStates.manual_food_name)
+        return
 
-    except Exception as e:
-        logger.error(f"❌ Error in process_next_food: {e}\n{traceback.format_exc()}")
-        await message.answer("❌ Ошибка обработки. Попробуйте начать заново.")
-        await state.clear()
+    await state.update_data(foods=foods)
+    await state.set_state(FoodStates.selecting_food)
+
+    await message.answer(
+        f"🔍 Продукт {idx+1}/{len(items)}: «{current_food}»\nВыберите подходящий вариант:",
+        reply_markup=get_food_selection_keyboard(foods)
+    )
 
 
 @router.callback_query(F.data.startswith("food_"), FoodStates.selecting_food)
 async def process_food_selection(callback: CallbackQuery, state: FSMContext):
-    """Обработка выбора продукта из списка."""
-    try:
-        data = await state.get_data()
-        foods = data.get('foods', [])
+    """Выбор продукта из списка."""
+    data = await state.get_data()
+    foods = data.get('foods', [])
 
-        if callback.data == "food_manual":
-            await state.set_state(FoodStates.manual_food_name)
-            await callback.message.edit_text(
-                f"📝 Введите название продукта вручную (для «{data.get('current_food_name', '')}»):"
-            )
-            await callback.answer()
-            return
-
-        try:
-            index = int(callback.data.split("_")[1])
-            if index >= len(foods):
-                raise ValueError
-            selected = foods[index]
-        except (ValueError, IndexError):
-            await callback.answer("❌ Ошибка выбора", show_alert=True)
-            return
-
-        await state.update_data(selected_food=selected)
-        await state.set_state(FoodStates.entering_weight)
-
+    if callback.data == "food_manual":
+        await state.set_state(FoodStates.manual_food_name)
         await callback.message.edit_text(
-            f"✅ {selected['name']} ({selected['calories']} ккал/100г)\n\n"
-            f"⚖️ Введите вес в граммах:"
+            f"📝 Введите название продукта вручную (для «{data.get('current_food_name', '')}»):"
         )
         await callback.answer()
+        return
 
-    except Exception as e:
-        logger.error(f"❌ Error in process_food_selection: {e}\n{traceback.format_exc()}")
-        await callback.message.answer("❌ Ошибка. Попробуйте заново.")
-        await state.clear()
+    try:
+        index = int(callback.data.split("_")[1])
+        if index >= len(foods):
+            raise ValueError
+        selected = foods[index]
+    except (ValueError, IndexError):
+        await callback.answer("❌ Ошибка выбора", show_alert=True)
+        return
+
+    await state.update_data(selected_food=selected)
+    await state.set_state(FoodStates.entering_weight)
+
+    await callback.message.edit_text(
+        f"✅ {selected['name']} ({selected['calories']} ккал/100г)\n\n⚖️ Введите вес в граммах:"
+    )
+    await callback.answer()
 
 
 @router.message(FoodStates.manual_food_name, F.text)
 async def process_manual_food(message: Message, state: FSMContext):
     """Ручной ввод названия продукта (если не найден в базе)."""
-    try:
-        name = message.text.strip()
-        if not name:
-            await message.answer("❌ Название не может быть пустым.")
-            return
+    name = message.text.strip()
+    if not name:
+        await message.answer("❌ Название не может быть пустым.")
+        return
 
-        # Создаём пустой продукт
-        selected = {
-            'name': name,
-            'calories': 0,
-            'protein': 0,
-            'fat': 0,
-            'carbs': 0
-        }
-        await state.update_data(selected_food=selected)
-        await state.set_state(FoodStates.entering_weight)
+    selected = {
+        'name': name,
+        'calories': 0,
+        'protein': 0,
+        'fat': 0,
+        'carbs': 0
+    }
+    await state.update_data(selected_food=selected)
+    await state.set_state(FoodStates.entering_weight)
 
-        await message.answer(
-            f"✅ Продукт: {name}\n\n"
-            f"⚖️ Введите вес в граммах (будет сохранён с нулевой калорийностью):"
-        )
-
-    except Exception as e:
-        logger.error(f"❌ Error in process_manual_food: {e}\n{traceback.format_exc()}")
-        await message.answer("❌ Ошибка. Начните заново.")
-        await state.clear()
+    await message.answer(
+        f"✅ Продукт: {name}\n\n⚖️ Введите вес в граммах (будет сохранён с нулевой калорийностью):"
+    )
 
 
 @router.message(FoodStates.entering_weight, F.text)
 async def process_weight(message: Message, state: FSMContext):
-    """Обработка ввода веса для текущего продукта."""
-    try:
-        text = message.text.strip()
-        if not text:
-            await message.answer("❌ Введите число.")
-            return
+    """Обработка ввода веса."""
+    text = message.text.strip()
+    if not text:
+        await message.answer("❌ Введите число.")
+        return
 
-        # Извлекаем число из текста
+    try:
         import re
         match = re.search(r'\d+([.,]\d+)?', text)
         if match:
@@ -234,122 +203,196 @@ async def process_weight(message: Message, state: FSMContext):
             weight = float(text.replace(',', '.'))
         if weight <= 0 or weight > 10000:
             raise ValueError
-
     except (ValueError, AttributeError):
-        await message.answer("❌ Введите корректное число (1-10000 грамм).")
+        await message.answer("❌ Введите число от 1 до 10000 г")
         return
 
-    try:
-        data = await state.get_data()
-        selected = data.get('selected_food')
-        if not selected:
-            await message.answer("❌ Ошибка состояния. Начните заново.")
-            await state.clear()
-            return
-
-        # Рассчитываем КБЖУ
-        multiplier = weight / 100
-        calories = selected['calories'] * multiplier
-        protein = selected.get('protein', 0) * multiplier
-        fat = selected.get('fat', 0) * multiplier
-        carbs = selected.get('carbs', 0) * multiplier
-
-        # Сохраняем выбранный продукт с весом
-        selected_foods = data.get('selected_foods', [])
-        selected_foods.append({
-            'name': selected['name'],
-            'weight': weight,
-            'calories': calories,
-            'protein': protein,
-            'fat': fat,
-            'carbs': carbs
-        })
-
-        # Увеличиваем индекс и переходим к следующему продукту
-        idx = data.get('current_index', 0) + 1
-        await state.update_data(
-            selected_foods=selected_foods,
-            current_index=idx
-        )
-
-        # Запрашиваем следующий продукт
-        await process_next_food(message, state)
-
-    except Exception as e:
-        logger.error(f"❌ Error in process_weight: {e}\n{traceback.format_exc()}")
-        await message.answer("❌ Ошибка при сохранении. Попробуйте заново.")
+    data = await state.get_data()
+    selected = data.get('selected_food')
+    if not selected:
+        await message.answer("❌ Ошибка. Начните заново.")
         await state.clear()
+        return
+
+    multiplier = weight / 100
+    calories = selected.get('calories', 0) * multiplier
+    protein = selected.get('protein', 0) * multiplier
+    fat = selected.get('fat', 0) * multiplier
+    carbs = selected.get('carbs', 0) * multiplier
+
+    selected_foods = data.get('selected_foods', [])
+    selected_foods.append({
+        'name': selected['name'],
+        'weight': weight,
+        'calories': calories,
+        'protein': protein,
+        'fat': fat,
+        'carbs': carbs
+    })
+
+    idx = data.get('current_index', 0) + 1
+    await state.update_data(selected_foods=selected_foods, current_index=idx)
+
+    await process_next_food(message, state)
 
 
 async def finish_meal(message: Message, state: FSMContext):
-    """Завершение ввода, сохранение приёма пищи в БД."""
-    try:
-        data = await state.get_data()
-        selected_foods = data.get('selected_foods', [])
-        ai_description = data.get('ai_description', '')
+    """Завершение ввода, сохранение приёма пищи."""
+    data = await state.get_data()
+    selected_foods = data.get('selected_foods', [])
+    ai_description = data.get('ai_description', '')
 
-        if not selected_foods:
-            await message.answer("❌ Ни одного продукта не добавлено.")
+    if not selected_foods:
+        await message.answer("❌ Ни одного продукта не добавлено.")
+        await state.clear()
+        return
+
+    total_cal = sum(f['calories'] for f in selected_foods)
+    total_prot = sum(f['protein'] for f in selected_foods)
+    total_fat = sum(f['fat'] for f in selected_foods)
+    total_carbs = sum(f['carbs'] for f in selected_foods)
+
+    user_id = message.from_user.id
+    meal_type = data.get('meal_type', 'snack')
+
+    async with get_session() as session:
+        user_result = await session.execute(
+            select(User).where(User.telegram_id == user_id)
+        )
+        user = user_result.scalar_one_or_none()
+        if not user:
+            await message.answer("❌ Пользователь не найден. Сначала настройте профиль.")
             await state.clear()
             return
 
-        # Суммируем КБЖУ
-        total_cal = sum(f['calories'] for f in selected_foods)
-        total_prot = sum(f['protein'] for f in selected_foods)
-        total_fat = sum(f['fat'] for f in selected_foods)
-        total_carbs = sum(f['carbs'] for f in selected_foods)
+        meal = Meal(
+            user_id=user.id,
+            meal_type=meal_type,
+            datetime=datetime.now(),
+            total_calories=total_cal,
+            total_protein=total_prot,
+            total_fat=total_fat,
+            total_carbs=total_carbs,
+            ai_description=ai_description
+        )
+        session.add(meal)
+        await session.flush()
 
-        user_id = message.from_user.id
-        meal_type = data.get('meal_type', 'snack')  # по умолчанию перекус
-
-        async with get_session() as session:
-            # Проверяем существование пользователя
-            user_result = await session.execute(
-                select(User).where(User.telegram_id == user_id)
-            )
-            user = user_result.scalar_one_or_none()
-            if not user:
-                await message.answer("❌ Пользователь не найден. Сначала настройте профиль.")
-                await state.clear()
-                return
-
-            meal = Meal(
-                user_id=user.id,
-                meal_type=meal_type,
-                datetime=datetime.now(),
-                total_calories=total_cal,
-                total_protein=total_prot,
-                total_fat=total_fat,
-                total_carbs=total_carbs,
-                ai_description=ai_description
-            )
-            session.add(meal)
-            await session.flush()  # чтобы получить meal.id
-
-            for f in selected_foods:
-                item = FoodItem(
-                    meal_id=meal.id,
-                    name=f['name'],
-                    weight=f['weight'],
-                    calories=f['calories'],
-                    protein=f['protein'],
-                    fat=f['fat'],
-                    carbs=f['carbs']
-                )
-                session.add(item)
-            await session.commit()
-
-        # Формируем отчёт
-        lines = [f"🍽️ Записан приём пищи ({meal_type}):"]
         for f in selected_foods:
-            lines.append(f"• {f['name']}: {f['weight']}г — {f['calories']:.0f} ккал")
-        lines.append(f"\n🔥 Всего: {total_cal:.0f} ккал")
-        lines.append(f"🥩 {total_prot:.1f}г | 🥑 {total_fat:.1f}г | 🍚 {total_carbs:.1f}г")
+            item = FoodItem(
+                meal_id=meal.id,
+                name=f['name'],
+                weight=f['weight'],
+                calories=f['calories'],
+                protein=f['protein'],
+                fat=f['fat'],
+                carbs=f['carbs']
+            )
+            session.add(item)
+        await session.commit()
 
-        await message.answer("\n".join(lines))
+    lines = [f"🍽️ Записан приём пищи ({meal_type}):"]
+    for f in selected_foods:
+        lines.append(f"• {f['name']}: {f['weight']}г — {f['calories']:.0f} ккал")
+    lines.append(f"\n🔥 Всего: {total_cal:.0f} ккал")
+    lines.append(f"🥩 {total_prot:.1f}г | 🥑 {total_fat:.1f}г | 🍚 {total_carbs:.1f}г")
+
+    await message.answer("\n".join(lines))
+    await state.clear()
+
+
+# =============================================================================
+# 🎤 Обработка голосовых сообщений
+# =============================================================================
+
+@router.message(F.voice)
+async def handle_voice(message: Message, state: FSMContext):
+    """
+    Распознавание голоса через Whisper.
+    Если в тексте есть ключевые слова "список" или "купить", предлагает добавить в список покупок.
+    """
+    try:
+        voice = message.voice
+        file_info = await message.bot.get_file(voice.file_id)
+        file_bytes = await message.bot.download_file(file_info.file_path)
+        file_data = file_bytes.read()
+
+        await message.answer("🎤 Распознаю речь...")
+        text = await transcribe_audio(file_data)
+
+        if not text:
+            await message.answer("❌ Не удалось распознать.")
+            return
+
+        logger.info(f"✅ Whisper recognized: {text}")
+        await message.answer(f"📝 <b>Распознано:</b>\n<i>{text}</i>", parse_mode="HTML")
+
+        # Если текст содержит слова, связанные с покупками
+        if any(word in text.lower() for word in ["список", "купить", "магазин", "продукты"]):
+            kb = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="✅ Добавить в список покупок", callback_data=f"voice_shopping_{text}")],
+                [InlineKeyboardButton(text="🍽️ Записать как еду", callback_data=f"voice_food_{text}")]
+            ])
+            await message.answer("Что сделать с этим текстом?", reply_markup=kb)
+        else:
+            # Обычный текст – предлагаем действия
+            from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
+            kb = ReplyKeyboardMarkup(
+                keyboard=[
+                    [KeyboardButton(text="🍽️ Записать как еду")],
+                    [KeyboardButton(text="📋 В список покупок")],
+                    [KeyboardButton(text="📖 Рецепт из этого")],
+                    [KeyboardButton(text="❌ Отмена")]
+                ],
+                resize_keyboard=True
+            )
+            await state.update_data(voice_text=text)
+            await message.answer("💡 Что сделать с текстом?", reply_markup=kb)
 
     except Exception as e:
-        logger.error(f"❌ Error in finish_meal: {e}\n{traceback.format_exc()}")
-        await message.answer("❌ Ошибка при сохранении приёма пищи. Данные не потеряны, но обратитесь к логам.")
-    finally:
-        await state.clear()
+        logger.error(f"❌ Voice handler error: {e}", exc_info=True)
+        await message.answer("❌ Ошибка распознавания.")
+
+
+@router.callback_query(F.data.startswith("voice_shopping_"))
+async def voice_shopping(callback: CallbackQuery):
+    """Добавить распознанный голосовой текст в список покупок."""
+    text = callback.data.split("_", 2)[2]  # всё после voice_shopping_
+    user_id = callback.from_user.id
+
+    async with get_session() as session:
+        # Импортируем функцию get_or_create_default_list из handlers.shopping
+        from handlers.shopping import get_or_create_default_list
+        shopping_list = await get_or_create_default_list(user_id, session)
+        if not shopping_list:
+            await callback.answer("❌ Не удалось создать список", show_alert=True)
+            return
+
+        parsed = parse_shopping_items(text)
+        added = []
+        for name, qty, unit in parsed:
+            item = ShoppingItem(
+                list_id=shopping_list.id,
+                name=name,
+                quantity=qty,
+                unit=unit,
+                added_by=user_id
+            )
+            session.add(item)
+            added.append(f"{name} — {qty} {unit}")
+        await session.commit()
+
+    await callback.answer(f"✅ Добавлено: {', '.join(added)}", show_alert=True)
+    # Можно перенаправить к списку покупок
+    from handlers.shopping import back_to_lists
+    await back_to_lists(callback)
+
+
+@router.callback_query(F.data.startswith("voice_food_"))
+async def voice_food(callback: CallbackQuery, state: FSMContext):
+    """Добавить распознанный текст как приём пищи."""
+    text = callback.data.split("_", 2)[2]
+    await state.update_data(manual_food_name=text)
+    await state.set_state(FoodStates.entering_weight)
+    await callback.message.edit_text(f"🍽️ <b>{text}</b>\n\n⚖️ Введите вес в граммах:", parse_mode="HTML")
+    await callback.answer()

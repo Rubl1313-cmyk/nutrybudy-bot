@@ -96,8 +96,14 @@ async def cmd_shopping(message: Message, state: FSMContext):
         )
 
 
-# Обработка любого текстового сообщения как добавления товаров
-@router.message(F.text, ~F.text.startswith("/"), ~F.text.in_({"🏠 Главное меню", "❌ Отмена"}))
+@router.message(F.text, ~F.text.startswith("/"), 
+                ~F.text.in_({
+                    "🏠 Главное меню", 
+                    "❌ Отмена", 
+                    "📖 План питания", 
+                    "🔄 Предложить другой вариант", 
+                    "🍽️ Показать рецепты"
+                }))
 async def add_items_from_text(message: Message, state: FSMContext):
     """Добавляет товары в основной список из произвольного текста."""
     user_id = message.from_user.id
@@ -112,7 +118,6 @@ async def add_items_from_text(message: Message, state: FSMContext):
             await message.answer("❌ Ошибка: не удалось создать список.")
             return
 
-        # Парсим товары
         parsed = parse_shopping_items(text)
         added = []
         for name, qty, unit in parsed:
@@ -127,8 +132,7 @@ async def add_items_from_text(message: Message, state: FSMContext):
             added.append(f"{name} — {qty} {unit}")
         await session.commit()
 
-        # Показываем обновлённый список
-        # Перезагружаем товары для отображения
+        # Обновляем отображение списка
         items_result = await session.execute(
             select(ShoppingItem)
             .where(ShoppingItem.list_id == shopping_list.id)
@@ -149,7 +153,6 @@ async def add_items_from_text(message: Message, state: FSMContext):
             reply_markup=get_shopping_items_keyboard(items, shopping_list.id),
             parse_mode="HTML"
         )
-
 
 @router.callback_query(F.data.startswith("item_incr_"))
 async def increase_quantity(callback: CallbackQuery):

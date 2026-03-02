@@ -174,3 +174,11 @@ def get_progress_options_keyboard():
     builder.button(text="📆 Месяц", callback_data="progress_month")
     builder.adjust(3)
     return builder.as_markup()
+
+def get_meal_plan_keyboard():
+    """Кнопки для выбора плана питания."""
+    builder = InlineKeyboardBuilder()
+    builder.button(text="📅 Сегодня", callback_data="plan_today")
+    builder.button(text="📆 Неделя", callback_data="plan_week")
+    builder.adjust(2)
+    return builder.as_markup()

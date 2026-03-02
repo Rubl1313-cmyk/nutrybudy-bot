@@ -1,83 +1,60 @@
 """
-Подключение к базе данных для NutriBuddy
-✅ Полностью асинхронное создание таблиц
-✅ PostgreSQL + надёжная инициализация
+Планировщик задач для NutriBuddy
+✅ Обработка ошибок при отсутствии таблиц
+✅ Простые SQL-запросы без ORM (избегает lazy loading)
 """
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
-from sqlalchemy.orm import declarative_base
-import os
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.cron import CronTrigger
+from aiogram import Bot
+from database.db import async_session
+from sqlalchemy import text
+from sqlalchemy.exc import ProgrammingError
+from datetime import datetime
 import logging
 
 logger = logging.getLogger(__name__)
 
-# 🔥 Создаём Base здесь — единый источник для всех моделей
-Base = declarative_base()
-
-DATABASE_URL = os.getenv("DATABASE_URL")
-
-# Конвертация URL для asyncpg
-if DATABASE_URL:
-    if DATABASE_URL.startswith("postgres://"):
-        DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+asyncpg://", 1)
-    elif DATABASE_URL.startswith("postgresql://") and "postgresql+asyncpg://" not in DATABASE_URL:
-        DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
-    logger.info(f"🗄️ Using PostgreSQL")
-else:
-    DATABASE_URL = "sqlite+aiosqlite:///nutribudy.db"
-    logger.warning("⚠️ Using SQLite")
-
-engine = create_async_engine(
-    DATABASE_URL,
-    echo=False,
-    pool_pre_ping=True,
-    pool_recycle=3600,
-    connect_args={
-        "server_settings": {"application_name": "nutribudy-bot"},
-    } if "postgresql" in DATABASE_URL else {}
-)
-
-async_session = async_sessionmaker(
-    engine,
-    class_=AsyncSession,
-    expire_on_commit=False,
-    autocommit=False,
-    autoflush=False
-)
+scheduler = AsyncIOScheduler()
 
 
-async def init_db():
-    """
-    🔥 Создаёт все таблицы, если их нет.
-    ✅ Полностью асинхронная реализация
-    """
+async def send_reminder(bot: Bot, user_id: int, title: str):
+    """Отправка напоминания"""
     try:
-        logger.info("🔍 Initializing database tables...")
-        
-        # 🔥 КРИТИЧЕСКИ ВАЖНО: импортировать модели ДО create_all()
-        from database import models  # noqa: F401
-
-        async with engine.begin() as conn:
-            # Создаём таблицы
-            await conn.run_sync(Base.metadata.create_all)
-            logger.info("✅ Tables created via create_all()")
-
-        logger.info("✅ Database initialized successfully")
-        return True
-
+        await bot.send_message(user_id, f"🔔 {title}")
     except Exception as e:
-        logger.error(f"❌ Database init failed: {e}", exc_info=True)
-        return False
+        logger.error(f"❌ Failed to send reminder: {e}")
 
 
-def get_session() -> AsyncSession:
-    """
-    Возвращает сессию БД.
-    ⚠️ Синхронная функция! Используйте: async with get_session() as session:
-    """
-    return async_session()
-
-
-async def close_db():
-    """Закрытие соединений"""
-    await engine.dispose()
-    logger.info("🔌 Database connections closed")
+def setup_scheduler(bot: Bot):
+    """Настройка планировщика"""
+    
+    @scheduler.scheduled_job(CronTrigger(second=0))
+    async def check_reminders():
+        """Проверка напоминаний каждую минуту"""
+        try:
+            async with async_session() as session:
+                now = datetime.now().strftime("%H:%M")
+                day = datetime.now().strftime("%a").lower()[:3]
+                
+                # 🔥 Простой SQL-запрос без ORM (избегает lazy loading)
+                result = await session.execute(
+                    text("SELECT id, user_id, title, time, days, enabled FROM reminders WHERE enabled = true")
+                )
+                rows = result.fetchall()
+                
+                for row in rows:
+                    rem_id, user_id, title, rem_time, rem_days, enabled = row
+                    
+                    if rem_time == now and (rem_days == 'daily' or day in rem_days):
+                        await send_reminder(bot, user_id, title)
+                        
+        except ProgrammingError as e:
+            # 🔥 Игнорируем, если таблица ещё не создана
+            if "does not exist" in str(e).lower():
+                logger.warning("⚠️ Reminders table not ready yet — skipping check")
+            else:
+                logger.error(f"❌ Reminder check error: {e}")
+        except Exception as e:
+            logger.error(f"❌ Unexpected error in check_reminders: {e}")
+    
+    return scheduler

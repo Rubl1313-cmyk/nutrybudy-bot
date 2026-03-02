@@ -29,14 +29,24 @@ async def cmd_profile(message: Message, state: FSMContext):
     
     user_id = message.from_user.id
     
+@router.message(Command("set_profile"))
+@router.message(F.text == "👤 Профиль")
+async def cmd_profile(message: Message, state: FSMContext):
+    await state.clear()
+    
+    user_id = message.from_user.id
+    logger.info(f"🔍 Profile request from telegram_id={user_id}")
+    
     async with get_session() as session:
-        # ✅ Ищем по telegram_id, а не по id
-        result = await session.execute(
-            select(User).where(User.telegram_id == user_id)
-        )
-        user = result.scalar_one_or_none()
-        
-        if user and user.weight and user.height:
+        try:
+            result = await session.execute(
+                select(User).where(User.telegram_id == user_id)
+            )
+            user = result.scalar_one_or_none()
+            
+            logger.info(f"🔍 User found: {user is not None}")
+            if user:
+                logger.info(f"  - weight={user.weight}, height={user.height}")
             gender_emoji = "♂️" if user.gender == "male" else "♀️"
             goal_emoji = {"lose": "⬇️", "maintain": "➡️", "gain": "⬆️"}.get(user.goal, "🎯")
             
@@ -70,7 +80,10 @@ async def cmd_profile(message: Message, state: FSMContext):
                 reply_markup=get_cancel_keyboard(),
                 parse_mode="HTML"
             )
-
+ except Exception as e:
+            logger.error(f"❌ Profile query error: {e}", exc_info=True)
+            await message.answer("❌ Ошибка загрузки профиля. Попробуйте позже.")
+            return
 
 @router.message(F.text == "✏️ Изменить профиль")
 async def edit_profile(message: Message, state: FSMContext):

@@ -1,7 +1,7 @@
 """
-Обработчик профиля пользователя для NutriBuddy
-✅ Исправлено: правильный синтаксис try-except
-✅ Исправлено: получение пользователя по telegram_id
+Обработчик профиля пользователя
+✅ Все запросы к БД — асинхронные
+✅ Нет lazy loading в клавиатурах
 """
 import logging
 from aiogram import Router, F
@@ -27,62 +27,52 @@ async def cmd_profile(message: Message, state: FSMContext):
     await state.clear()
     
     user_id = message.from_user.id
-    logger.info(f"🔍 Profile request from telegram_id={user_id}")
     
     async with get_session() as session:
-        try:
-            result = await session.execute(
-                select(User).where(User.telegram_id == user_id)
+        result = await session.execute(
+            select(User).where(User.telegram_id == user_id)
+        )
+        user = result.scalar_one_or_none()
+        
+        if user and user.weight and user.height:
+            gender_emoji = "♂️" if user.gender == "male" else "♀️"
+            goal_emoji = {"lose": "⬇️", "maintain": "➡️", "gain": "⬆️"}.get(user.goal, "🎯")
+            
+            text = (
+                f"👤 <b>Твой профиль</b>\n\n"
+                f"⚖️ Вес: {user.weight} кг\n"
+                f"📏 Рост: {user.height} см\n"
+                f"🎂 Возраст: {user.age} лет\n"
+                f"🚻 Пол: {gender_emoji}\n"
+                f"🏃 Активность: {user.activity_level}\n"
+                f"🎯 Цель: {goal_emoji} {user.goal}\n"
+                f"🌆 Город: {user.city}\n\n"
+                f"📊 <b>Нормы:</b>\n"
+                f"🔥 Калории: {user.daily_calorie_goal:.0f} ккал\n"
+                f"🥩 Белки: {user.daily_protein_goal:.1f} г\n"
+                f"🥑 Жиры: {user.daily_fat_goal:.1f} г\n"
+                f"🍚 Углеводы: {user.daily_carbs_goal:.1f} г\n"
+                f"💧 Вода: {user.daily_water_goal:.0f} мл"
             )
-            user = result.scalar_one_or_none()
             
-            logger.info(f"🔍 User found: {user is not None}")
-            if user:
-                logger.info(f"  - weight={user.weight}, height={user.height}")
+            keyboard = ReplyKeyboardMarkup(
+                keyboard=[
+                    [KeyboardButton(text="✏️ Изменить профиль")],
+                    [KeyboardButton(text="📊 Прогресс")],
+                    [KeyboardButton(text="🏠 Главное меню")]
+                ],
+                resize_keyboard=True
+            )
             
-            if user and user.weight and user.height:
-                gender_emoji = "♂️" if user.gender == "male" else "♀️"
-                goal_emoji = {"lose": "⬇️", "maintain": "➡️", "gain": "⬆️"}.get(user.goal, "🎯")
-                
-                text = (
-                    f"👤 <b>Твой профиль</b>\n\n"
-                    f"⚖️ Вес: {user.weight} кг\n"
-                    f"📏 Рост: {user.height} см\n"
-                    f"🎂 Возраст: {user.age} лет\n"
-                    f"🚻 Пол: {gender_emoji}\n"
-                    f"🏃 Активность: {user.activity_level}\n"
-                    f"🎯 Цель: {goal_emoji} {user.goal}\n"
-                    f"🌆 Город: {user.city}\n\n"
-                    f"📊 <b>Нормы:</b>\n"
-                    f"🔥 Калории: {user.daily_calorie_goal:.0f} ккал\n"
-                    f"🥩 Белки: {user.daily_protein_goal:.1f} г\n"
-                    f"🥑 Жиры: {user.daily_fat_goal:.1f} г\n"
-                    f"🍚 Углеводы: {user.daily_carbs_goal:.1f} г\n"
-                    f"💧 Вода: {user.daily_water_goal:.0f} мл"
-                )
-                
-                keyboard = ReplyKeyboardMarkup(
-                    keyboard=[
-                        [KeyboardButton(text="✏️ Изменить профиль")],
-                        [KeyboardButton(text="📊 Прогресс")],
-                        [KeyboardButton(text="🏠 Главное меню")]
-                    ],
-                    resize_keyboard=True
-                )
-                
-                await message.answer(text, reply_markup=keyboard, parse_mode="HTML")
-            else:
-                await state.set_state(ProfileStates.weight)
-                await message.answer(
-                    "⚖️ <b>Настройка профиля</b>\n\n"
-                    "Введи вес (кг):",
-                    reply_markup=get_cancel_keyboard(),
-                    parse_mode="HTML"
-                )
-                
-        except Exception as e:
-            logger.error(f"❌ Profile query error: {e}", exc_info=True)
-            await message.answer("❌ Ошибка загрузки профиля. Попробуйте позже.")
+            await message.answer(text, reply_markup=keyboard, parse_mode="HTML")
+        else:
+            await state.set_state(ProfileStates.weight)
+            await message.answer(
+                "⚖️ <b>Настройка профиля</b>\n\n"
+                "Введи вес (кг):",
+                reply_markup=get_cancel_keyboard(),
+                parse_mode="HTML"
+            )
 
 
 @router.message(F.text == "✏️ Изменить профиль")
@@ -97,18 +87,15 @@ async def edit_profile(message: Message, state: FSMContext):
 
 @router.message(ProfileStates.weight)
 async def process_weight(message: Message, state: FSMContext):
-    """Ввод веса"""
+    """Ввод веса — надёжный парсинг"""
     try:
         text = message.text.strip()
         import re
-        numbers = re.findall(r'\d+([.,]\d+)?', text)
+        match = re.search(r'(\d+([.,]\d+)?)', text)
         
-        if numbers:
-            num_str = numbers[0]
-            if isinstance(num_str, str):
-                weight = float(num_str.replace(',', '.'))
-            else:
-                weight = float(num_str)
+        if match:
+            weight_str = match.group(1).replace(',', '.')
+            weight = float(weight_str)
         else:
             weight = float(text.replace(',', '.'))
         
@@ -121,7 +108,11 @@ async def process_weight(message: Message, state: FSMContext):
         
     except (ValueError, IndexError, AttributeError, TypeError) as e:
         logger.warning(f"⚠️ Weight parse error: {e}")
-        await message.answer("❌ Введи число от 30 до 300")
+        await message.answer(
+            "❌ Введи число от 30 до 300 кг\n"
+            "<i>Примеры: 75, 75.5, 75,5</i>",
+            parse_mode="HTML"
+        )
 
 
 @router.message(ProfileStates.height)
@@ -130,14 +121,11 @@ async def process_height(message: Message, state: FSMContext):
     try:
         text = message.text.strip()
         import re
-        numbers = re.findall(r'\d+([.,]\d+)?', text)
+        match = re.search(r'(\d+([.,]\d+)?)', text)
         
-        if numbers:
-            num_str = numbers[0]
-            if isinstance(num_str, str):
-                height = float(num_str.replace(',', '.'))
-            else:
-                height = float(num_str)
+        if match:
+            height_str = match.group(1).replace(',', '.')
+            height = float(height_str)
         else:
             height = float(text.replace(',', '.'))
         

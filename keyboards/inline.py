@@ -103,3 +103,19 @@ def get_progress_options_keyboard():
     builder.button(text="📆 Месяц", callback_data="progress_month")
     builder.adjust(3)
     return builder.as_markup()
+
+def get_activity_type_keyboard():
+    """
+    Клавиатура для выбора типа активности.
+    Используется в handlers/activity.py
+    """
+    builder = InlineKeyboardBuilder()
+    builder.button(text="🚶 Ходьба", callback_data="activity_walking")
+    builder.button(text="🏃 Бег", callback_data="activity_running")
+    builder.button(text="🚴 Велосипед", callback_data="activity_cycling")
+    builder.button(text="🏋️ Тренажёрный зал", callback_data="activity_gym")
+    builder.button(text="🧘 Йога", callback_data="activity_yoga")
+    builder.button(text="🏊 Плавание", callback_data="activity_swimming")
+    builder.button(text="🎾 Другое", callback_data="activity_other")
+    builder.adjust(2)  # по две кнопки в ряд
+    return builder.as_markup()

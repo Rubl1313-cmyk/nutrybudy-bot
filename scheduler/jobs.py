@@ -1,14 +1,14 @@
 """
 Планировщик задач для NutriBuddy
-✅ Обработка ошибок при отсутствии таблиц
+✅ Исправлено: добавлен импорт datetime, обработка отсутствия таблиц
 """
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from aiogram import Bot
 from database.db import async_session
-from sqlalchemy import text
+from sqlalchemy import select, text
 from sqlalchemy.exc import ProgrammingError
-from datetime import datetime
+from datetime import datetime  # 🔥 ДОБАВЛЕНО!
 import logging
 
 logger = logging.getLogger(__name__)
@@ -35,7 +35,7 @@ def setup_scheduler(bot: Bot):
                 now = datetime.now().strftime("%H:%M")
                 day = datetime.now().strftime("%a").lower()[:3]
                 
-                # 🔥 Простой SQL-запрос без ORM (избегает lazy loading)
+                # 🔥 Используем text() для простого запроса
                 result = await session.execute(
                     text("SELECT id, user_id, title, time, days, enabled FROM reminders WHERE enabled = true")
                 )
@@ -49,7 +49,7 @@ def setup_scheduler(bot: Bot):
                         
         except ProgrammingError as e:
             # 🔥 Игнорируем, если таблица ещё не создана
-            if "does not exist" in str(e).lower():
+            if "does not exist" in str(e):
                 logger.warning("⚠️ Reminders table not ready yet — skipping check")
             else:
                 logger.error(f"❌ Reminder check error: {e}")

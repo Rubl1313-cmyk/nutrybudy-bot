@@ -1,8 +1,11 @@
 """
 Модели базы данных для NutriBuddy
-✅ Все связи и индексы
+✅ Все связи и индексы для PostgreSQL
 """
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Boolean, Text, Index
+from sqlalchemy import (
+    Column, Integer, String, Float, DateTime, ForeignKey, 
+    Boolean, Text, Index, func
+)
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 from datetime import datetime
@@ -20,9 +23,9 @@ class User(Base):
     weight = Column(Float)
     height = Column(Float)
     age = Column(Integer)
-    gender = Column(String(10))  # male/female
-    activity_level = Column(String(20))  # low/medium/high
-    goal = Column(String(20))  # lose/maintain/gain
+    gender = Column(String(10))
+    activity_level = Column(String(20))
+    goal = Column(String(20))
     city = Column(String(100))
     daily_water_goal = Column(Float)
     daily_calorie_goal = Column(Float)
@@ -31,9 +34,8 @@ class User(Base):
     daily_carbs_goal = Column(Float)
     reminder_enabled = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, onupdate=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
-    # Связи
     meals = relationship("Meal", back_populates="user", cascade="all, delete-orphan")
     water_entries = relationship("WaterEntry", back_populates="user", cascade="all, delete-orphan")
     weight_entries = relationship("WeightEntry", back_populates="user", cascade="all, delete-orphan")
@@ -42,7 +44,7 @@ class User(Base):
     activities = relationship("Activity", back_populates="user", cascade="all, delete-orphan")
     
     __table_args__ = (
-        Index('idx_telegram_id', 'telegram_id'),
+        Index('idx_users_telegram_id', 'telegram_id'),
     )
 
 
@@ -51,7 +53,7 @@ class Meal(Base):
     
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(Integer, ForeignKey('users.id', ondelete="CASCADE"), nullable=False, index=True)
-    meal_type = Column(String(20))  # breakfast/lunch/dinner/snack
+    meal_type = Column(String(20))
     datetime = Column(DateTime, default=datetime.utcnow, index=True)
     total_calories = Column(Float)
     total_protein = Column(Float)
@@ -64,7 +66,7 @@ class Meal(Base):
     foods = relationship("FoodItem", back_populates="meal", cascade="all, delete-orphan")
     
     __table_args__ = (
-        Index('idx_user_datetime', 'user_id', 'datetime'),
+        Index('idx_meals_user_datetime', 'user_id', 'datetime'),
     )
 
 
@@ -95,7 +97,7 @@ class WaterEntry(Base):
     user = relationship("User", back_populates="water_entries")
     
     __table_args__ = (
-        Index('idx_user_date', 'user_id', 'datetime'),
+        Index('idx_water_user_date', 'user_id', 'datetime'),
     )
 
 
@@ -142,10 +144,10 @@ class Reminder(Base):
     
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(Integer, ForeignKey('users.id', ondelete="CASCADE"), nullable=False, index=True)
-    type = Column(String(20))  # meal/water/weight/custom
+    type = Column(String(20))
     title = Column(String(255), nullable=False)
-    time = Column(String(5))  # HH:MM
-    days = Column(String(50))  # mon,tue,wed или daily
+    time = Column(String(5))
+    days = Column(String(50))
     enabled = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     
@@ -158,15 +160,15 @@ class Activity(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(Integer, ForeignKey('users.id', ondelete="CASCADE"), nullable=False, index=True)
     activity_type = Column(String(50), nullable=False)
-    duration = Column(Integer)  # minutes
-    distance = Column(Float)  # km
+    duration = Column(Integer)
+    distance = Column(Float)
     calories_burned = Column(Float)
     steps = Column(Integer, default=0)
     datetime = Column(DateTime, default=datetime.utcnow, index=True)
-    source = Column(String(20), default='manual')  # manual/apple_watch/google_fit
+    source = Column(String(20), default='manual')
     
     user = relationship("User", back_populates="activities")
     
     __table_args__ = (
-        Index('idx_user_activity_date', 'user_id', 'datetime'),
+        Index('idx_activities_user_date', 'user_id', 'datetime'),
     )

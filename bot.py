@@ -1,7 +1,3 @@
-"""
-NutriBuddy Telegram Bot - Webhook Version for Render
-✅ Инициализация БД перед обработкой запросов
-"""
 import asyncio
 import logging
 import os
@@ -13,14 +9,12 @@ from aiogram.enums import ParseMode
 from aiogram.types import Update, BotCommand
 from dotenv import load_dotenv
 from aiohttp import web
+from database.db import init_db, close_db
 from handlers import (
     common, profile, food, water, shopping,
-    reminders, recipes, activity, progress, ai_handlers
+    reminders, activity, progress, media_handlers, ai_assistant
 )
 from scheduler.jobs import setup_scheduler
-from handlers import meal_plan
-from database.db import init_db, close_db
-from handlers import ai_assistant
 
 load_dotenv()
 
@@ -49,8 +43,7 @@ async def set_bot_commands(bot: Bot):
         BotCommand(command="log_weight", description="⚖️ Вес"),
         BotCommand(command="fitness", description="🏋️ Активность"),
         BotCommand(command="progress", description="📊 Прогресс"),
-        BotCommand(command="recipe", description="📖 Рецепт"),
-        BotCommand(command="plan", description="📖 План питания"),   # новая команда
+        BotCommand(command="ask", description="💬 AI Помощник"),
         BotCommand(command="shopping", description="📋 Покупки"),
         BotCommand(command="reminders", description="🔔 Напоминания"),
         BotCommand(command="cancel", description="❌ Отмена")
@@ -60,10 +53,8 @@ async def set_bot_commands(bot: Bot):
 
 
 async def send_startup_notification(bot: Bot):
-    """Отправка уведомления о запуске"""
     if not ADMIN_ID:
         return
-    
     try:
         bot_info = await bot.get_me()
         startup_message = (
@@ -79,7 +70,6 @@ async def send_startup_notification(bot: Bot):
 
 
 async def webhook_handler(request):
-    """Обработчик вебхуков"""
     try:
         bot = request.app['bot']
         update = await request.json()
@@ -92,34 +82,25 @@ async def webhook_handler(request):
 
 
 async def health_handler(request):
-    """Health check endpoint"""
     return web.Response(text="OK")
 
 
 async def on_startup(app):
-    """Выполняется при запуске"""
     bot = app['bot']
-    
     try:
-        # 🔥 1. Инициализация БД (ОБЯЗАТЕЛЬНО первой!)
         logger = logging.getLogger(__name__)
         logger.info("🔧 Starting database initialization...")
-        
         db_ok = await init_db()
         if not db_ok:
             logger.error("❌ Database initialization failed")
-            # Не выходим — пробуем продолжить, возможно таблицы уже есть
         else:
             logger.info("💾 Database ready")
-        
-        # 🔥 2. Проверка подключения к Telegram
+
         bot_info = await bot.get_me()
         logger.info(f"🤖 Connected as @{bot_info.username}")
-        
-        # 🔥 3. Установка вебхука
+
         webhook_full_url = f"{WEBHOOK_URL}{WEBHOOK_PATH}"
         webhook_info = await bot.get_webhook_info()
-        
         if webhook_info.url != webhook_full_url:
             await bot.set_webhook(
                 url=webhook_full_url,
@@ -127,26 +108,21 @@ async def on_startup(app):
                 drop_pending_updates=True
             )
             logger.info("✅ Webhook set")
-        
-        # 🔥 4. Установка команд
+
         await set_bot_commands(bot)
-        
-        # 🔥 5. Запуск планировщика
+
         global scheduler
         scheduler = setup_scheduler(bot)
         scheduler.start()
         logger.info("⏰ Scheduler started")
-        
-        # 🔥 6. Уведомление о запуске
+
         await send_startup_notification(bot)
-        
     except Exception as e:
         logger.error(f"❌ Startup error: {e}", exc_info=True)
         raise
 
 
 async def on_shutdown(app):
-    """Выполняется при остановке"""
     try:
         bot = app['bot']
         if scheduler:
@@ -160,7 +136,6 @@ async def on_shutdown(app):
 
 
 def create_app():
-    """Создание aiohttp приложения"""
     app = web.Application()
     app.router.add_post(WEBHOOK_PATH, webhook_handler)
     app.router.add_get("/", health_handler)
@@ -171,48 +146,37 @@ def create_app():
 
 
 async def main():
-    """Точка входа"""
     logging.info("🔵 Starting NutriBuddy Bot...")
-    
-    # Создание бота
     bot = Bot(
         token=TOKEN,
         default=DefaultBotProperties(parse_mode=ParseMode.HTML)
     )
-    
-    # Dispatcher
     storage = MemoryStorage()
     global dp
     dp = Dispatcher(storage=storage)
-    
-    # 🔥 Подключение роутеров (common.router первым!)
+
+    # Подключение роутеров
     dp.include_router(common.router)
     dp.include_router(profile.router)
     dp.include_router(food.router)
     dp.include_router(water.router)
     dp.include_router(shopping.router)
     dp.include_router(reminders.router)
-    dp.include_router(recipes.router)
     dp.include_router(activity.router)
     dp.include_router(progress.router)
-    dp.include_router(ai_handlers.router)
-    dp.include_router(meal_plan.router)
+    dp.include_router(media_handlers.router)
     dp.include_router(ai_assistant.router)
-    
+
     logging.info("✅ All routers included")
-    
-    # Web server
+
     app = create_app()
     app['bot'] = bot
-    
     runner = web.AppRunner(app)
     await runner.setup()
-    
     site = web.TCPSite(runner, "0.0.0.0", PORT)
     await site.start()
-    
     logging.info(f"🚀 Server started on port {PORT}")
-    
+
     try:
         while True:
             await asyncio.sleep(3600)

@@ -256,18 +256,32 @@ async def add_item_manual(message: Message, state: FSMContext):
 
 @router.callback_query(F.data.startswith("delete_list_"))
 async def delete_list(callback: CallbackQuery):
-    """Архивировать текущий список."""
-    list_id = int(callback.data.split("_")[2])
-    async with get_session() as session:
-        lst = await session.get(ShoppingList, list_id)
-        if lst:
-            lst.is_archived = True
-            await session.commit()
-    await callback.message.edit_text(
-        "🗑️ Список архивирован.\n"
-        "Для создания нового просто добавьте товары.",
-        reply_markup=get_main_keyboard()
-    )
+    """Удалить список и показать главное меню новым сообщением."""
+    try:
+        list_id = int(callback.data.split("_")[2])
+
+        async with get_session() as session:
+            lst = await session.get(ShoppingList, list_id)
+            if lst:
+                lst.is_archived = True
+                await session.commit()
+
+        # ✅ Отправляем новое сообщение с главным меню вместо редактирования старого
+        await callback.message.answer(
+            "🗑️ Список архивирован.\n\n"
+            "Для создания нового просто добавьте товары.",
+            reply_markup=get_main_keyboard()
+        )
+        # Пытаемся удалить старое сообщение со списком (опционально)
+        try:
+            await callback.message.delete()
+        except:
+            pass
+
+    except (IndexError, ValueError, Exception) as e:
+        logger.error(f"Error deleting list: {e}")
+        await callback.answer("❌ Ошибка при удалении", show_alert=True)
+
     await callback.answer()
 
 

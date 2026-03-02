@@ -39,7 +39,6 @@ scheduler = None
 
 
 async def set_bot_commands(bot: Bot):
-    """Установка команд бота"""
     commands = [
         BotCommand(command="start", description="🚀 Запустить бота"),
         BotCommand(command="help", description="📚 Помощь"),
@@ -50,6 +49,7 @@ async def set_bot_commands(bot: Bot):
         BotCommand(command="fitness", description="🏋️ Активность"),
         BotCommand(command="progress", description="📊 Прогресс"),
         BotCommand(command="recipe", description="📖 Рецепт"),
+        BotCommand(command="plan", description="📖 План питания"),   # новая команда
         BotCommand(command="shopping", description="📋 Покупки"),
         BotCommand(command="reminders", description="🔔 Напоминания"),
         BotCommand(command="cancel", description="❌ Отмена")

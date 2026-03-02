@@ -1,15 +1,9 @@
-"""
-Inline клавиатуры для NutriBuddy
-✅ Исправлено: НЕТ доступа к отношениям (lazy loading)
-✅ Все данные передаются из handler'ов
-"""
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
-from typing import List, Optional
+from typing import List
 
 
 def get_meal_type_keyboard():
-    """Выбор типа приёма пищи"""
     builder = InlineKeyboardBuilder()
     builder.button(text="🥐 Завтрак", callback_data="meal_breakfast")
     builder.button(text="🥗 Обед", callback_data="meal_lunch")
@@ -20,7 +14,6 @@ def get_meal_type_keyboard():
 
 
 def get_water_preset_keyboard():
-    """Быстрый выбор количества воды"""
     builder = InlineKeyboardBuilder()
     for amount in [200, 300, 500, 1000]:
         builder.button(text=f"{amount} мл 💧", callback_data=f"water_{amount}")
@@ -28,8 +21,7 @@ def get_water_preset_keyboard():
     return builder.as_markup()
 
 
-def get_food_selection_keyboard(foods):
-    """Выбор продукта из поиска — foods передаётся из handler'а"""
+def get_food_selection_keyboard(foods: List[dict]):
     builder = InlineKeyboardBuilder()
     for i, food in enumerate(foods[:5]):
         builder.button(
@@ -41,24 +33,21 @@ def get_food_selection_keyboard(foods):
     return builder.as_markup()
 
 
-def get_confirmation_keyboard():
-    """Клавиатура подтверждения"""
+def get_confirmation_keyboard(action: str = ""):
     builder = InlineKeyboardBuilder()
-    builder.button(text="✅ Да", callback_data="confirm")
-    builder.button(text="❌ Нет", callback_data="cancel")
+    if action:
+        builder.button(text="✅ Да", callback_data=f"confirm_{action}")
+        builder.button(text="❌ Нет", callback_data=f"cancel_{action}")
+    else:
+        builder.button(text="✅ Да", callback_data="confirm")
+        builder.button(text="❌ Нет", callback_data="cancel")
     builder.adjust(2)
     return builder.as_markup()
 
 
 def get_shopping_lists_keyboard(lists):
-    """
-    Список покупок — БЕЗ lazy loading!
-    ✅ Не обращаемся к lst.items в клавиатуре
-    ✅ Подсчёт товаров делается в handler'е
-    """
     builder = InlineKeyboardBuilder()
     for lst in lists:
-        # 🔥 Просто название, БЕЗ подсчёта items (это lazy load!)
         builder.button(
             text=f"📋 {lst.name}",
             callback_data=f"shopping_list_{lst.id}"
@@ -68,60 +57,22 @@ def get_shopping_lists_keyboard(lists):
     return builder.as_markup()
 
 
-def get_shopping_items_keyboard(items: list, list_id: int):
-    """
-    Клавиатура для отображения товаров с кнопками изменения количества.
-    items: список объектов ShoppingItem (передаётся из handler'а)
-    """
+def get_shopping_items_keyboard(items, list_id):
     builder = InlineKeyboardBuilder()
-    for item in items:
-        # статус и название
+    for item in items[:10]:
         status = "✅" if item.is_checked else "⬜"
-        btn_text = f"{status} {item.name} — {item.quantity} {item.unit}"
-        builder.row(
-            InlineKeyboardButton(text=btn_text, callback_data=f"item_info_{item.id}"),
+        builder.button(
+            text=f"{status} {item.name}",
+            callback_data=f"toggle_item_{item.id}"
         )
-        # кнопки управления
-        builder.row(
-            InlineKeyboardButton(text="➖", callback_data=f"item_decr_{item.id}"),
-            InlineKeyboardButton(text="➕", callback_data=f"item_incr_{item.id}"),
-            InlineKeyboardButton(text="✅" if not item.is_checked else "↩️", callback_data=f"toggle_item_{item.id}"),
-            InlineKeyboardButton(text="🗑️", callback_data=f"delete_item_{item.id}"),
-            width=4
-        )
-    builder.row(
-        InlineKeyboardButton(text="➕ Добавить товар", callback_data=f"add_item_{list_id}"),
-        InlineKeyboardButton(text="🗑️ Удалить список", callback_data=f"delete_list_{list_id}"),
-        InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_lists"),
-        width=2
-    )
-    return builder.as_markup()
-
-
-def get_fitness_source_keyboard():
-    """Выбор источника активности (только ручной ввод)"""
-    builder = InlineKeyboardBuilder()
-    builder.button(text="✍️ Ручной ввод", callback_data="fitness_manual")
+    builder.button(text="➕ Добавить товар", callback_data=f"add_item_{list_id}")
+    builder.button(text="🗑️ Удалить список", callback_data=f"delete_list_{list_id}")
+    builder.button(text="🔙 Назад", callback_data="back_to_lists")
     builder.adjust(1)
     return builder.as_markup()
 
 
-def get_activity_type_keyboard():
-    """Типы активности"""
-    builder = InlineKeyboardBuilder()
-    builder.button(text="🚶 Ходьба", callback_data="activity_walking")
-    builder.button(text="🏃 Бег", callback_data="activity_running")
-    builder.button(text="🚴 Велосипед", callback_data="activity_cycling")
-    builder.button(text="🏋️ Тренажёрный зал", callback_data="activity_gym")
-    builder.button(text="🧘 Йога", callback_data="activity_yoga")
-    builder.button(text="🏊 Плавание", callback_data="activity_swimming")
-    builder.button(text="🎾 Другое", callback_data="activity_other")
-    builder.adjust(2)
-    return builder.as_markup()
-
-
 def get_days_keyboard():
-    """Выбор дней для напоминаний"""
     builder = InlineKeyboardBuilder()
     builder.button(text="Пн", callback_data="day_mon")
     builder.button(text="Вт", callback_data="day_tue")
@@ -136,7 +87,6 @@ def get_days_keyboard():
 
 
 def get_reminder_type_keyboard():
-    """Типы напоминаний"""
     builder = InlineKeyboardBuilder()
     builder.button(text="🍽️ Приём пищи", callback_data="reminder_meal")
     builder.button(text="💧 Вода", callback_data="reminder_water")
@@ -146,54 +96,10 @@ def get_reminder_type_keyboard():
     return builder.as_markup()
 
 
-def get_recipe_options_keyboard():
-    """Опции рецептов"""
-    builder = InlineKeyboardBuilder()
-    builder.button(text="🥗 Вегетарианское", callback_data="diet_vegetarian")
-    builder.button(text="🥩 Белковое", callback_data="diet_protein")
-    builder.button(text="🥑 Кето", callback_data="diet_keto")
-    builder.button(text="🍚 Низкоуглеводное", callback_data="diet_lowcarb")
-    builder.adjust(2)
-    return builder.as_markup()
-
-
 def get_progress_options_keyboard():
-    """Опции для просмотра прогресса"""
-    builder = InlineKeyboardBuilder()
-    builder.button(text="📈 Вес", callback_data="progress_weight")
-    builder.button(text="💧 Вода", callback_data="progress_water")
-    builder.button(text="🔥 Калории", callback_data="progress_calories")
-    builder.button(text="🏃 Активность", callback_data="progress_activity")
-    builder.adjust(2)
-    return builder.as_markup()
-
-
-def get_back_keyboard():
-    """Кнопка назад"""
-    builder = InlineKeyboardBuilder()
-    builder.button(text="🔙 Назад", callback_data="back")
-    return builder.as_markup()
-
-
-def get_main_menu_keyboard():
-    """Кнопка главного меню"""
-    builder = InlineKeyboardBuilder()
-    builder.button(text="🏠 Главное меню", callback_data="main_menu")
-    return builder.as_markup()
-    
-def get_progress_options_keyboard():
-    """Кнопки выбора периода для прогресса."""
     builder = InlineKeyboardBuilder()
     builder.button(text="📅 Сегодня", callback_data="progress_day")
     builder.button(text="📆 Неделя", callback_data="progress_week")
     builder.button(text="📆 Месяц", callback_data="progress_month")
     builder.adjust(3)
-    return builder.as_markup()
-
-def get_meal_plan_keyboard():
-    """Кнопки для выбора плана питания."""
-    builder = InlineKeyboardBuilder()
-    builder.button(text="📅 Сегодня", callback_data="plan_today")
-    builder.button(text="📆 Неделя", callback_data="plan_week")
-    builder.adjust(2)
     return builder.as_markup()

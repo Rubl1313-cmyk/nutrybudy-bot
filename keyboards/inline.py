@@ -1,6 +1,6 @@
 """
 Inline клавиатуры для NutriBuddy
-✅ Исправлено: нет доступа к отношениям (lazy loading)
+✅ Исправлено: НЕТ доступа к отношениям (lazy loading)
 """
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
@@ -55,7 +55,7 @@ def get_shopping_lists_keyboard(lists):
     """
     builder = InlineKeyboardBuilder()
     for lst in lists:
-        # 🔥 Просто название, без подсчёта items (это lazy load!)
+        # 🔥 Просто название, БЕЗ подсчёта items (это lazy load!)
         builder.button(
             text=f"📋 {lst.name}",
             callback_data=f"shopping_list_{lst.id}"
@@ -66,7 +66,7 @@ def get_shopping_lists_keyboard(lists):
 
 
 def get_shopping_items_keyboard(items, list_id):
-    """Товары в списке покупок"""
+    """Товары в списке покупок — items передаются из handler'а"""
     builder = InlineKeyboardBuilder()
     for item in items[:10]:
         status = "✅" if item.is_checked else "⬜"

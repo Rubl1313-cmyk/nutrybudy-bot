@@ -1,6 +1,7 @@
 """
 Обработчик списков покупок
 ✅ Исправлено: явная загрузка отношений через selectinload
+✅ Все запросы к БД — асинхронные
 """
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery, ReplyKeyboardMarkup, KeyboardButton

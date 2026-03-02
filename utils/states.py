@@ -50,12 +50,7 @@ class WaterStates(StatesGroup):
 # =============================================================================
 
 class ShoppingStates(StatesGroup):
-    """Состояния для списков покупок"""
-    creating_list = State()
-    renaming_list = State()
     adding_item = State()
-    editing_item = State()
-
 
 # =============================================================================
 # 🔔 НАПОМИНАНИЯ

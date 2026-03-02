@@ -1,29 +1,27 @@
 """
-Cloudflare Workers AI Integration для NutriBuddy
-✅ Полная версия с поддержкой всех параметров
+Cloudflare Workers AI Integration для NutriBuddy.
+Поддержка анализа изображений и распознавания речи.
 """
 import aiohttp
 import os
+import base64
 import logging
 from typing import Optional, Dict, List
+from PIL import Image
+import io
 
 logger = logging.getLogger(__name__)
 
 CLOUDFLARE_ACCOUNT_ID = os.getenv("CLOUDFLARE_ACCOUNT_ID")
 CLOUDFLARE_API_TOKEN = os.getenv("CLOUDFLARE_API_TOKEN")
-
-if not CLOUDFLARE_ACCOUNT_ID or not CLOUDFLARE_API_TOKEN:
-    logger.warning("⚠️ Cloudflare credentials not set")
-
 BASE_URL = f"https://api.cloudflare.com/client/v4/accounts/{CLOUDFLARE_ACCOUNT_ID}/ai/run/"
 
-MODELS = {
-    "uform_gen2": "@cf/unum/uform-gen2-qwen-500m",
-    "llava": "@cf/llava-hf/llava-1.5-7b-hf",
-    "whisper": "@openai/whisper",
-    "llama3": "@cf/meta/llama-3-8b-instruct",
-    "tinyllama": "@cf/tinyllama/tinyllama-1.1b-chat-v1.0",
-}
+# Доступные модели (из скриншота)
+WHISPER_MODELS = [
+    "@cf/openai/whisper",                # базовая модель
+    "@cf/openai/whisper-large-v3-turbo", # быстрая версия
+    "@cf/openai/whisper-tiny-en",        # маленькая английская
+]
 
 
 def _bytes_to_array(image_bytes: bytes) -> List[int]:
@@ -36,12 +34,15 @@ async def analyze_food_image(
     prompt: str = "What food is in this image? Describe briefly in Russian.",
     max_tokens: int = 150
 ) -> Optional[str]:
-    """Анализ изображения еды"""
+    """Анализирует изображение еды через Cloudflare Vision."""
     try:
         if not CLOUDFLARE_ACCOUNT_ID or not CLOUDFLARE_API_TOKEN:
+            logger.error("❌ Cloudflare credentials not set")
             return None
         
+        # Конвертируем в массив байтов
         image_array = _bytes_to_array(image_bytes)
+        logger.info(f"📊 Image converted: {len(image_array)} bytes → array")
         
         payload = {
             "image": image_array,
@@ -54,8 +55,11 @@ async def analyze_food_image(
             "Content-Type": "application/json"
         }
         
+        # Используем модель для анализа изображений
         model = "@cf/unum/uform-gen2-qwen-500m"
         url = f"{BASE_URL}{model}"
+        
+        logger.info(f"📤 Sending to {model}")
         
         async with aiohttp.ClientSession() as session:
             async with session.post(
@@ -65,23 +69,19 @@ async def analyze_food_image(
                 timeout=aiohttp.ClientTimeout(total=30)
             ) as resp:
                 
+                logger.info(f"📥 Response: {resp.status}")
+                
                 if resp.status == 200:
                     result = await resp.json()
-                    
-                    if "result" in result:
-                        description = result["result"].get("description", "")
-                    elif "choices" in result:
-                        description = result["choices"][0].get("message", {}).get("content", "")
-                    else:
-                        description = str(result)
-                    
-                    if description and len(description.strip()) > 5 and len(description.strip()) < 500:
+                    description = result.get("result", {}).get("description", "")
+                    if description:
+                        logger.info(f"✅ Vision success: {description[:100]}...")
                         return description.strip()
-                    
+                    logger.warning("⚠️ Empty description")
                     return None
                 else:
                     error_text = await resp.text()
-                    logger.error(f"❌ API error {resp.status}: {error_text[:300]}")
+                    logger.error(f"❌ Vision API error {resp.status}: {error_text[:300]}")
                     return None
                     
     except Exception as e:
@@ -92,135 +92,54 @@ async def analyze_food_image(
 async def transcribe_audio(audio_bytes: bytes, language: str = "ru") -> Optional[str]:
     """
     Распознаёт речь в аудиофайле через Cloudflare Whisper.
-    Аудио должно быть в формате .ogg (как отправляет Telegram).
+    Пробует несколько моделей по очереди.
     """
     try:
         from aiohttp import FormData
         
-        # Убедимся, что учётные данные заданы
         if not CLOUDFLARE_ACCOUNT_ID or not CLOUDFLARE_API_TOKEN:
             logger.error("❌ Cloudflare credentials not set")
             return None
         
+        # Формируем данные для отправки
         data = FormData()
         data.add_field('file', audio_bytes, filename='voice.ogg', content_type='audio/ogg')
         
         headers = {"Authorization": f"Bearer {CLOUDFLARE_API_TOKEN}"}
         
-        # Формируем URL для модели Whisper
-        # Правильный формат: /accounts/{account_id}/ai/run/@cf/openai/whisper
-        # Заметьте: полный путь включает /run/
-        url = f"{BASE_URL}@cf/openai/whisper"  # ← исправлено: добавлен cf/
+        # Пробуем каждую модель по очереди
+        for model in WHISPER_MODELS:
+            url = f"{BASE_URL}{model}"
+            logger.info(f"🎤 Trying Whisper model: {model}")
+            
+            async with aiohttp.ClientSession() as session:
+                try:
+                    async with session.post(
+                        url,
+                        headers=headers,
+                        data=data,
+                        timeout=aiohttp.ClientTimeout(total=60)
+                    ) as resp:
+                        
+                        if resp.status == 200:
+                            result = await resp.json()
+                            text = result.get("result", {}).get("text", "")
+                            if text:
+                                logger.info(f"✅ Whisper success with {model}: {text[:100]}...")
+                                return text.strip()
+                            else:
+                                logger.warning(f"⚠️ Whisper {model} returned empty text")
+                        else:
+                            error_text = await resp.text()
+                            logger.warning(f"❌ Whisper {model} error {resp.status}: {error_text[:200]}")
+                except Exception as e:
+                    logger.warning(f"⚠️ Whisper {model} exception: {e}")
+                    continue
         
-        logger.info(f"🎤 Sending audio to Whisper ({len(audio_bytes)} bytes) via URL: {url}")
-        
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                url,
-                headers=headers,
-                data=data,
-                timeout=aiohttp.ClientTimeout(total=60)
-            ) as resp:
-                
-                if resp.status == 200:
-                    result = await resp.json()
-                    text = result.get("result", {}).get("text", "")
-                    if text:
-                        logger.info(f"✅ Whisper success: {text[:100]}...")
-                        return text.strip()
-                    logger.warning("⚠️ Empty text from Whisper")
-                    return None
-                else:
-                    error_text = await resp.text()
-                    logger.error(f"❌ Whisper error {resp.status}: {error_text}")
-                    return None
-                    
-    except Exception as e:
-        logger.exception(f"💥 transcribe_audio error: {e}")
+        # Если ни одна модель не сработала
+        logger.error("❌ All Whisper models failed")
         return None
-
-
-async def generate_recipe(
-    ingredients: str,
-    diet_type: str = "обычное",
-    difficulty: str = "средняя",
-    max_tokens: int = 800
-) -> Optional[str]:
-    """
-    Генерация рецепта через Llama 3.
-    
-    Args:
-        ingredients: Список ингредиентов через запятую
-        diet_type: Тип питания (обычное/вегетарианское/веганское/кето/палео)
-        difficulty: Сложность (лёгкая/средняя/сложная)
-        max_tokens: Максимальная длина ответа
         
-    Returns:
-        str: Сформированный рецепт или None
-    """
-    # Перевод difficulty на английский для промпта
-    difficulty_map = {
-        "лёгкая": "quick (~15 min)",
-        "легкая": "quick (~15 min)",
-        "средняя": "medium (~30 min)",
-        "сложная": "advanced (~60 min)"
-    }
-    difficulty_en = difficulty_map.get(difficulty, "medium (~30 min)")
-    
-    prompt = f"""Ты — профессиональный шеф-повар и нутрициолог.
-Составь подробный рецепт блюда на русском языке.
-
-🥘 Ингредиенты: {ingredients}
-🥗 Тип питания: {diet_type}
-⏱️ Сложность: {difficulty} ({difficulty_en})
-
-📋 Формат ответа (используй эмодзи):
-1. 🍽️ Название блюда
-2. ⏱️ Время приготовления и количество порций
-3. 🛒 Ингредиенты с точными количествами
-4. 👨‍🍳 Пошаговое приготовление (нумерованный список)
-5. 📊 КБЖУ на порцию (калории, белки, жиры, углеводы)
-6. 💡 Советы по подаче и хранению
-
-Отвечай только рецептом, без лишних вступлений."""
-
-    payload = {
-        "messages": [
-            {"role": "system", "content": "Ты полезный ассистент-повар. Отвечай на русском."},
-            {"role": "user", "content": prompt}
-        ],
-        "max_tokens": max_tokens,
-        "temperature": 0.7,
-        "top_p": 0.9
-    }
-    
-    model = "@cf/meta/llama-3-8b-instruct"
-    url = f"{BASE_URL}{model}"
-    headers = {
-        "Authorization": f"Bearer {CLOUDFLARE_API_TOKEN}",
-        "Content-Type": "application/json"
-    }
-    
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                url,
-                headers=headers,
-                json=payload,
-                timeout=aiohttp.ClientTimeout(total=45)
-            ) as resp:
-                
-                if resp.status == 200:
-                    result = await resp.json()
-                    recipe = result.get("result", {}).get("response", "")
-                    if recipe and len(recipe.strip()) > 50:
-                        return recipe.strip()
-                    return None
-                else:
-                    error_text = await resp.text()
-                    logger.error(f"❌ Recipe error {resp.status}: {error_text[:300]}")
-                    return None
-                    
     except Exception as e:
-        logger.exception(f"💥 generate_recipe error: {e}")
+        logger.exception(f"💥 transcribe_audio critical error: {e}")
         return None

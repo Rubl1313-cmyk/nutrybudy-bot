@@ -211,12 +211,12 @@ def create_app():
 
 
 async def main():
-    """Точка входа приложения"""
     logging.info("🔧 Initializing NutriBuddy...")
     
-    # Инициализация БД
+    # 🔥 Инициализация БД (создаёт таблицы, если нет)
     await init_db()
     logging.info("💾 Database initialized")
+    
     
     # Создание бота
     bot = Bot(

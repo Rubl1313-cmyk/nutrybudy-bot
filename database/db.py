@@ -62,12 +62,6 @@ async def init_db():
             await conn.run_sync(Base.metadata.create_all)
             logger.info("✅ Tables created via create_all()")
 
-            try:
-                await conn.execute(text("ALTER TABLE shopping_items ADD COLUMN IF NOT EXISTS unit VARCHAR(20) DEFAULT 'шт';"))
-                logger.info("✅ Column 'unit' added successfully")
-            except Exception as e:
-                logger.warning(f"Column 'unit' might already exist or error: {e}")
-
         logger.info("✅ Database initialized successfully")
         return True
 

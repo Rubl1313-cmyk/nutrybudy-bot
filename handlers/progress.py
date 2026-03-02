@@ -2,7 +2,7 @@
 Обработчик прогресса и графиков.
 ✅ Выбор периода (сегодня/неделя/месяц)
 ✅ Progress bar для воды и калорий
-✅ Графики воды, активности и баланса
+✅ Графики воды, активности и баланса с учётом периода
 """
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery, BufferedInputFile
@@ -15,12 +15,12 @@ from database.models import User, Meal, Activity, WaterEntry, WeightEntry
 from services.plots import (
     generate_weight_plot,
     generate_water_plot,
-    generate_calorie_balance_plot,
+    generate_calorie_plot,
     generate_activity_plot,
 )
 from services.calculator import calculate_calorie_balance
 from keyboards.reply import get_main_keyboard
-from keyboards.inline import get_progress_options_keyboard, get_back_keyboard
+from keyboards.inline import get_progress_options_keyboard
 from utils.states import ProgressStates
 
 router = Router()
@@ -43,7 +43,6 @@ async def cmd_progress(message: Message, state: FSMContext):
     user_id = message.from_user.id
 
     async with get_session() as session:
-        # Проверяем существование пользователя
         result = await session.execute(
             select(User).where(User.telegram_id == user_id)
         )
@@ -54,12 +53,19 @@ async def cmd_progress(message: Message, state: FSMContext):
                 reply_markup=get_main_keyboard(),
             )
             return
+        # Сохраним цель воды для последующего использования
+        daily_water_goal = user.daily_water_goal
+        daily_calorie_goal = user.daily_calorie_goal
 
     await message.answer(
         "📊 Выберите период для отображения прогресса:",
         reply_markup=get_progress_options_keyboard(),
     )
     await state.set_state(ProgressStates.selecting_period)
+    await state.update_data(
+        daily_water_goal=daily_water_goal,
+        daily_calorie_goal=daily_calorie_goal
+    )
 
 
 @router.callback_query(F.data.startswith("progress_"), ProgressStates.selecting_period)
@@ -67,126 +73,129 @@ async def process_period_selection(callback: CallbackQuery, state: FSMContext):
     """Обработка выбора периода."""
     period = callback.data.split("_")[1]  # day / week / month
     user_id = callback.from_user.id
+    data = await state.get_data()
+    daily_water_goal = data.get('daily_water_goal', 2000)
+    daily_calorie_goal = data.get('daily_calorie_goal', 2000)
 
     await callback.message.delete()
     await state.clear()
 
     async with get_session() as session:
-        # Получаем пользователя
+        # Получаем пользователя для проверки существования (необязательно, но оставим)
         result = await session.execute(
             select(User).where(User.telegram_id == user_id)
         )
         user = result.scalar_one_or_none()
         if not user:
             await callback.message.answer(
-                "❌ Ошибка: пользователь не найден.", reply_markup=get_main_keyboard()
+                "❌ Пользователь не найден.",
+                reply_markup=get_main_keyboard()
             )
             return
 
-        # Определяем диапазон дат
-        today = datetime.now().date()
-        if period == "day":
-            start_date = today
-        elif period == "week":
-            start_date = today - timedelta(days=7)
-        else:  # month
-            start_date = today - timedelta(days=30)
-
-        # Статистика за период
-        meals_result = await session.execute(
-            select(Meal).where(
-                Meal.user_id == user.id,
-                func.date(Meal.datetime) >= start_date,
+    # Генерируем графики в зависимости от периода
+    if period == 'day':
+        # График воды за день
+        water_plot = await generate_water_plot(user_id, session, period='day', daily_goal=daily_water_goal)
+        if water_plot:
+            await callback.message.answer_photo(
+                BufferedInputFile(water_plot, filename="water_day.png"),
+                caption="💧 Потребление воды (почасово + итоги)"
             )
-        )
-        meals = meals_result.scalars().all()
+        else:
+            await callback.message.answer("💧 Нет данных о воде за сегодня.")
 
-        activities_result = await session.execute(
-            select(Activity).where(
-                Activity.user_id == user.id,
-                func.date(Activity.datetime) >= start_date,
+        # График калорий за день
+        calorie_plot = await generate_calorie_plot(user_id, session, period='day', daily_goal=daily_calorie_goal)
+        if calorie_plot:
+            await callback.message.answer_photo(
+                BufferedInputFile(calorie_plot, filename="calories_day.png"),
+                caption="🔥 Потребление калорий (почасово + итоги)"
             )
-        )
-        activities = activities_result.scalars().all()
+        else:
+            await callback.message.answer("🔥 Нет данных о питании за сегодня.")
 
-        water_result = await session.execute(
-            select(WaterEntry).where(
-                WaterEntry.user_id == user.id,
-                func.date(WaterEntry.datetime) >= start_date,
+        # График активности за день
+        activity_plot = await generate_activity_plot(user_id, session, period='day')
+        if activity_plot:
+            await callback.message.answer_photo(
+                BufferedInputFile(activity_plot, filename="activity_day.png"),
+                caption="🏃 Активность (почасово)"
             )
-        )
-        water_entries = water_result.scalars().all()
+        else:
+            await callback.message.answer("🏃 Нет данных об активности за сегодня.")
 
-        weight_result = await session.execute(
-            select(WeightEntry).where(
-                WeightEntry.user_id == user.id,
-                func.date(WeightEntry.datetime) >= start_date,
+    elif period == 'week':
+        # График воды за неделю
+        water_plot = await generate_water_plot(user_id, session, period='week')
+        if water_plot:
+            await callback.message.answer_photo(
+                BufferedInputFile(water_plot, filename="water_week.png"),
+                caption="💧 Потребление воды за 7 дней"
             )
-        )
-        weight_entries = weight_result.scalars().all()
+        else:
+            await callback.message.answer("💧 Нет данных о воде за неделю.")
 
-    # Суммируем за период
-    total_cal_consumed = sum(m.total_calories or 0 for m in meals)
-    total_cal_burned = sum(a.calories_burned or 0 for a in activities)
-    total_water = sum(w.amount or 0 for w in water_entries)
+        # График калорий за неделю
+        calorie_plot = await generate_calorie_plot(user_id, session, period='week')
+        if calorie_plot:
+            await callback.message.answer_photo(
+                BufferedInputFile(calorie_plot, filename="calories_week.png"),
+                caption="🔥 Потребление калорий за 7 дней"
+            )
+        else:
+            await callback.message.answer("🔥 Нет данных о питании за неделю.")
 
-    # Расчёт средних
-    days_count = (datetime.now().date() - start_date).days + 1
-    avg_cal_consumed = total_cal_consumed / days_count if days_count else 0
-    avg_cal_burned = total_cal_burned / days_count if days_count else 0
-    avg_water = total_water / days_count if days_count else 0
+        # График активности за неделю
+        activity_plot = await generate_activity_plot(user_id, session, period='week')
+        if activity_plot:
+            await callback.message.answer_photo(
+                BufferedInputFile(activity_plot, filename="activity_week.png"),
+                caption="🏃 Активность за 7 дней"
+            )
+        else:
+            await callback.message.answer("🏃 Нет данных об активности за неделю.")
 
-    # Прогресс-бары (на основе цели пользователя)
-    water_bar = _progress_bar(avg_water, user.daily_water_goal)
-    calorie_bar = _progress_bar(avg_cal_consumed, user.daily_calorie_goal)
+    else:  # month
+        # График воды за месяц
+        water_plot = await generate_water_plot(user_id, session, period='month')
+        if water_plot:
+            await callback.message.answer_photo(
+                BufferedInputFile(water_plot, filename="water_month.png"),
+                caption="💧 Потребление воды за 30 дней"
+            )
+        else:
+            await callback.message.answer("💧 Нет данных о воде за месяц.")
 
-    period_names = {"day": "сегодня", "week": "за 7 дней", "month": "за 30 дней"}
+        # График калорий за месяц
+        calorie_plot = await generate_calorie_plot(user_id, session, period='month')
+        if calorie_plot:
+            await callback.message.answer_photo(
+                BufferedInputFile(calorie_plot, filename="calories_month.png"),
+                caption="🔥 Потребление калорий за 30 дней"
+            )
+        else:
+            await callback.message.answer("🔥 Нет данных о питании за месяц.")
 
-    text = (
-        f"📊 <b>Прогресс {period_names[period]}</b>\n\n"
-        f"🔥 <b>Калории:</b>\n"
-        f"   Потреблено: {total_cal_consumed:.0f} ккал\n"
-        f"   Сожжено: {total_cal_burned:.0f} ккал\n"
-        f"   Баланс: {total_cal_consumed - total_cal_burned:.0f} ккал\n"
-        f"   Среднее потребление: {avg_cal_consumed:.0f} ккал/день\n"
-        f"   {calorie_bar} {avg_cal_consumed:.0f}/{user.daily_calorie_goal:.0f} ккал\n\n"
-        f"💧 <b>Вода:</b>\n"
-        f"   Всего: {total_water:.0f} мл\n"
-        f"   Среднее: {avg_water:.0f} мл/день\n"
-        f"   {water_bar} {avg_water:.0f}/{user.daily_water_goal:.0f} мл\n"
-    )
+        # График активности за месяц
+        activity_plot = await generate_activity_plot(user_id, session, period='month')
+        if activity_plot:
+            await callback.message.answer_photo(
+                BufferedInputFile(activity_plot, filename="activity_month.png"),
+                caption="🏃 Активность за 30 дней"
+            )
+        else:
+            await callback.message.answer("🏃 Нет данных об активности за месяц.")
 
-    await callback.message.answer(text, reply_markup=get_main_keyboard(), parse_mode="HTML")
-
-    # Генерация графиков (если есть данные)
-    # График веса (все записи, не только за период)
-    weight_plot = await generate_weight_plot(user.id, session)
+    # График веса (всегда все записи)
+    weight_plot = await generate_weight_plot(user_id, session)
     if weight_plot:
         await callback.message.answer_photo(
             BufferedInputFile(weight_plot, filename="weight.png"),
-            caption="📈 Динамика веса (все записи)",
+            caption="📈 Динамика веса (все записи)"
         )
 
-    # График воды за период
-    water_plot = await generate_water_plot(user.id, session, days=30 if period == "month" else 7)
-    if water_plot:
-        await callback.message.answer_photo(
-            BufferedInputFile(water_plot, filename="water.png"),
-            caption=f"💧 Потребление воды {period_names[period]}",
-        )
-
-    # График баланса калорий за период
-    calorie_plot = await generate_calorie_balance_plot(user.id, session, days=30 if period == "month" else 7)
-    if calorie_plot:
-        await callback.message.answer_photo(
-            BufferedInputFile(calorie_plot, filename="calories.png"),
-            caption=f"🔥 Баланс калорий {period_names[period]}",
-        )
-
-    # График активности за период
-    activity_plot = await generate_activity_plot(user.id, session, days=30 if period == "month" else 7)
-    if activity_plot:
-        await callback.message.answer_photo(
-            BufferedInputFile(activity_plot, filename="activity.png"),
-            caption=f"🏃 Активность {period_names[period]}",
-        )
+    await callback.message.answer(
+        "📊 Выберите другой период или вернитесь в меню.",
+        reply_markup=get_main_keyboard()
+    )

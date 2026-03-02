@@ -107,7 +107,7 @@ async def menu_water(message: Message, state: FSMContext):
 @router.message(F.text == "📊 Прогресс")
 async def menu_progress(message: Message, state: FSMContext):
     await state.clear()
-    await cmd_progress(message)  # cmd_progress не принимает state
+    await cmd_progress(message)  # ← ВАЖНО: без state
 
 
 @router.message(F.text == "📋 Списки покупок")

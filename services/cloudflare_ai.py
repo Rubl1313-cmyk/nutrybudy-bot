@@ -90,18 +90,33 @@ async def analyze_food_image(
 
 
 async def transcribe_audio(audio_bytes: bytes, language: str = "ru") -> Optional[str]:
-    """Распознавание голоса через Whisper"""
+    """
+    Распознаёт речь в аудиофайле через Cloudflare Whisper.
+    Аудио должно быть в формате .ogg (как отправляет Telegram).
+    """
     try:
         from aiohttp import FormData
+        
+        # Убедимся, что учётные данные заданы
+        if not CLOUDFLARE_ACCOUNT_ID or not CLOUDFLARE_API_TOKEN:
+            logger.error("❌ Cloudflare credentials not set")
+            return None
         
         data = FormData()
         data.add_field('file', audio_bytes, filename='voice.ogg', content_type='audio/ogg')
         
         headers = {"Authorization": f"Bearer {CLOUDFLARE_API_TOKEN}"}
         
+        # Формируем URL для модели Whisper
+        # Правильный формат: /accounts/{account_id}/ai/run/@cf/openai/whisper
+        # Заметьте: полный путь включает /run/
+        url = f"{BASE_URL}@cf/openai/whisper"  # ← исправлено: добавлен cf/
+        
+        logger.info(f"🎤 Sending audio to Whisper ({len(audio_bytes)} bytes) via URL: {url}")
+        
         async with aiohttp.ClientSession() as session:
             async with session.post(
-                f"{BASE_URL}@openai/whisper",
+                url,
                 headers=headers,
                 data=data,
                 timeout=aiohttp.ClientTimeout(total=60)
@@ -111,7 +126,9 @@ async def transcribe_audio(audio_bytes: bytes, language: str = "ru") -> Optional
                     result = await resp.json()
                     text = result.get("result", {}).get("text", "")
                     if text:
+                        logger.info(f"✅ Whisper success: {text[:100]}...")
                         return text.strip()
+                    logger.warning("⚠️ Empty text from Whisper")
                     return None
                 else:
                     error_text = await resp.text()

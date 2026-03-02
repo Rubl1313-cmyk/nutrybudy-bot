@@ -136,6 +136,4 @@ class ProgressStates(StatesGroup):
     selecting_period = State()
 
 class MealPlanStates(StatesGroup):
-    """Состояния для планировщика питания."""
     viewing_plan = State()
-    waiting_for_action = State()

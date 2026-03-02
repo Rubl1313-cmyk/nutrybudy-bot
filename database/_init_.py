@@ -1,12 +1,15 @@
 """
 Database package for NutriBuddy
-✅ Экспортирует все необходимые функции и модели
+✅ Экспортирует Base, модели и функции
 """
-from database.models import Base, User, Meal, FoodItem, WaterEntry, WeightEntry, ShoppingList, ShoppingItem, Reminder, Activity
-from database.db import init_db, get_session, close_db
+from database.db import Base, init_db, get_session, close_db, engine
+from database.models import (
+    User, Meal, FoodItem, WaterEntry, WeightEntry,
+    ShoppingList, ShoppingItem, Reminder, Activity
+)
 
 __all__ = [
-    'Base',
+    'Base', 'engine',
     'User', 'Meal', 'FoodItem', 'WaterEntry', 'WeightEntry',
     'ShoppingList', 'ShoppingItem', 'Reminder', 'Activity',
     'init_db', 'get_session', 'close_db'

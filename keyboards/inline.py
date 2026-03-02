@@ -67,19 +67,30 @@ def get_shopping_lists_keyboard(lists):
     return builder.as_markup()
 
 
-def get_shopping_items_keyboard(items, list_id):
-    """Товары в списке — items передаются из handler'а"""
+def get_shopping_items_keyboard(items: List[ShoppingItem], list_id: int):
+    """Клавиатура для отображения товаров с кнопками изменения количества."""
     builder = InlineKeyboardBuilder()
-    for item in items[:10]:
+    for item in items:
+        # статус и название
         status = "✅" if item.is_checked else "⬜"
-        builder.button(
-            text=f"{status} {item.name}",
-            callback_data=f"toggle_item_{item.id}"
+        btn_text = f"{status} {item.name} — {item.quantity} {item.unit}"
+        builder.row(
+            InlineKeyboardButton(text=btn_text, callback_data=f"item_info_{item.id}"),
         )
-    builder.button(text="➕ Добавить товар", callback_data=f"add_item_{list_id}")
-    builder.button(text="🗑️ Удалить список", callback_data=f"delete_list_{list_id}")
-    builder.button(text="🔙 Назад", callback_data="back_to_lists")
-    builder.adjust(1)
+        # кнопки управления
+        builder.row(
+            InlineKeyboardButton(text="➖", callback_data=f"item_decr_{item.id}"),
+            InlineKeyboardButton(text="➕", callback_data=f"item_incr_{item.id}"),
+            InlineKeyboardButton(text="✅" if not item.is_checked else "↩️", callback_data=f"toggle_item_{item.id}"),
+            InlineKeyboardButton(text="🗑️", callback_data=f"delete_item_{item.id}"),
+            width=4
+        )
+    builder.row(
+        InlineKeyboardButton(text="➕ Добавить товар", callback_data=f"add_item_{list_id}"),
+        InlineKeyboardButton(text="🗑️ Удалить список", callback_data=f"delete_list_{list_id}"),
+        InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_lists"),
+        width=2
+    )
     return builder.as_markup()
 
 

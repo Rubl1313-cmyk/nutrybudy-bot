@@ -1,6 +1,5 @@
 """
-Общие команды: /start, /help, /cancel
-✅ Убраны заглушки кнопок меню
+Общие команды: /start, /help, /cancel, главное меню
 """
 from aiogram import Router, F
 from aiogram.types import Message
@@ -13,9 +12,7 @@ router = Router()
 
 @router.message(CommandStart())
 async def cmd_start(message: Message, state: FSMContext):
-    """Приветствие — сбрасывает ВСЕ состояния"""
     await state.clear()
-    
     await message.answer(
         "👋 <b>Привет! Я NutriBuddy</b>\n\n"
         "🤖 <b>Твой персональный помощник</b> для:\n"
@@ -35,9 +32,7 @@ async def cmd_start(message: Message, state: FSMContext):
 
 @router.message(Command("help"))
 async def cmd_help(message: Message, state: FSMContext):
-    """Справка"""
     await state.clear()
-    
     await message.answer(
         "📚 <b>Доступные команды:</b>\n\n"
         "<b>🔹 Основные:</b>\n"
@@ -69,11 +64,20 @@ async def cmd_help(message: Message, state: FSMContext):
 @router.message(Command("cancel"))
 @router.message(F.text == "❌ Отмена")
 async def cmd_cancel(message: Message, state: FSMContext):
-    """Отмена"""
     await state.clear()
     await message.answer(
         "❌ <b>Действие отменено</b>\n\n"
         "Используй кнопки меню для навигации.",
         reply_markup=get_main_keyboard(),
         parse_mode="HTML"
+    )
+
+
+@router.message(F.text == "🏠 Главное меню")
+async def cmd_main_menu(message: Message, state: FSMContext):
+    """Возврат в главное меню"""
+    await state.clear()
+    await message.answer(
+        "🏠 Главное меню",
+        reply_markup=get_main_keyboard()
     )

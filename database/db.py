@@ -1,21 +1,18 @@
 """
 Подключение к базе данных для NutriBuddy
-✅ PostgreSQL + надёжное создание таблиц
+✅ Полностью асинхронное создание таблиц
 """
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import declarative_base
-from sqlalchemy import inspect
 import os
 import logging
 
 logger = logging.getLogger(__name__)
 
-# 🔥 Создаём Base ЗДЕСЬ и экспортируем
 Base = declarative_base()
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 
-# Конвертация URL для asyncpg
 if DATABASE_URL:
     if DATABASE_URL.startswith("postgres://"):
         DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+asyncpg://", 1)
@@ -47,46 +44,40 @@ async_session = async_sessionmaker(
 
 async def init_db():
     """
-    🔥 Надёжное создание таблиц.
+    🔥 Создаёт все таблицы, если их нет.
     """
     try:
         logger.info("🔍 Initializing database tables...")
         
-        # 🔥 КРИТИЧЕСКИ ВАЖНО: импортировать модели ДО create_all()
-        # Это регистрирует модели в Base.metadata
+        # Импортируем модели, чтобы они зарегистрировались в Base.metadata
         from database import models  # noqa: F401
-        
+
         async with engine.begin() as conn:
-            # Создаём все таблицы из Base.metadata
+            # Создаём таблицы
             await conn.run_sync(Base.metadata.create_all)
             logger.info("✅ Tables created via create_all()")
-            
-            # 🔥 Проверяем создание
-            inspector = inspect(conn.sync_engine)
-            tables = inspector.get_table_names()
+
+            # 🔥 Асинхронная проверка списка таблиц
+            from sqlalchemy import inspect
+            def get_tables(sync_conn):
+                inspector = inspect(sync_conn)
+                return inspector.get_table_names()
+
+            tables = await conn.run_sync(get_tables)
             logger.info(f"✅ Tables in DB: {tables}")
-            
-            # 🔥 Проверка критических таблиц
-            required = ['users', 'meals', 'reminders', 'shopping_lists', 'activities']
-            missing = [t for t in required if t not in tables]
-            if missing:
-                logger.error(f"❌ Missing required tables: {missing}")
-                return False
-        
+
         logger.info("✅ Database initialized successfully")
         return True
-        
+
     except Exception as e:
         logger.error(f"❌ Database init failed: {e}", exc_info=True)
         return False
 
 
 def get_session() -> AsyncSession:
-    """Возвращает сессию БД"""
     return async_session()
 
 
 async def close_db():
-    """Закрытие соединений"""
     await engine.dispose()
     logger.info("🔌 Database connections closed")

@@ -116,7 +116,8 @@ class ShoppingItem(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     list_id = Column(Integer, ForeignKey('shopping_lists.id', ondelete="CASCADE"), nullable=False, index=True)
     name = Column(String(255), nullable=False)
-    quantity = Column(String(100))
+    quantity = Column(Integer, default=1)          # количество (число)
+    unit = Column(String(20), default="шт")        # единица измерения
     is_checked = Column(Boolean, default=False)
     added_by = Column(Integer)
     added_at = Column(DateTime, default=datetime.utcnow)

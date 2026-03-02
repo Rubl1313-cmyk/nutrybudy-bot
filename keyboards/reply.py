@@ -2,6 +2,7 @@ from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 
 
 def get_main_keyboard():
+    """Главное меню бота."""
     kb = [
         [
             KeyboardButton(text="🍽️ Дневник питания"),
@@ -16,9 +17,11 @@ def get_main_keyboard():
             KeyboardButton(text="👤 Профиль")
         ],
         [
-            KeyboardButton(text="📖 Рецепты"),
-            KeyboardButton(text="📖 План питания"),   # новая кнопка
+            KeyboardButton(text="📖 План питания"),      # вместо «Рецепты» или рядом
             KeyboardButton(text="🏋️ Активность")
+        ],
+        [
+            KeyboardButton(text="❓ Помощь")             # новая кнопка
         ]
     ]
     return ReplyKeyboardMarkup(keyboard=kb, resize_keyboard=True)

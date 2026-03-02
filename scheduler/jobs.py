@@ -1,13 +1,14 @@
 """
 Планировщик задач для NutriBuddy
-✅ Обработка ошибок БД
+✅ Исправлено: добавлен импорт datetime, обработка отсутствия таблиц
 """
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from aiogram import Bot
 from database.db import async_session
-from database.models import Reminder
-from sqlalchemy import select
+from sqlalchemy import select, text
+from sqlalchemy.exc import ProgrammingError
+from datetime import datetime  # 🔥 ДОБАВЛЕНО!
 import logging
 
 logger = logging.getLogger(__name__)
@@ -15,13 +16,12 @@ logger = logging.getLogger(__name__)
 scheduler = AsyncIOScheduler()
 
 
-async def send_reminder(bot: Bot, user_id: int, text: str):
+async def send_reminder(bot: Bot, user_id: int, title: str):
     """Отправка напоминания"""
     try:
-        await bot.send_message(user_id, f"🔔 {text}")
-        logger.info(f"✅ Reminder sent to {user_id}")
+        await bot.send_message(user_id, f"🔔 {title}")
     except Exception as e:
-        logger.error(f"❌ Failed to send reminder to {user_id}: {e}")
+        logger.error(f"❌ Failed to send reminder: {e}")
 
 
 def setup_scheduler(bot: Bot):
@@ -35,20 +35,25 @@ def setup_scheduler(bot: Bot):
                 now = datetime.now().strftime("%H:%M")
                 day = datetime.now().strftime("%a").lower()[:3]
                 
+                # 🔥 Используем text() для простого запроса
                 result = await session.execute(
-                    select(Reminder).where(Reminder.enabled == True)
+                    text("SELECT id, user_id, title, time, days, enabled FROM reminders WHERE enabled = true")
                 )
-                reminders = result.scalars().all()
+                rows = result.fetchall()
                 
-                for rem in reminders:
-                    if rem.time == now and (rem.days == 'daily' or day in rem.days):
-                        await send_reminder(bot, rem.user_id, rem.title)
+                for row in rows:
+                    rem_id, user_id, title, rem_time, rem_days, enabled = row
+                    
+                    if rem_time == now and (rem_days == 'daily' or day in rem_days):
+                        await send_reminder(bot, user_id, title)
                         
-        except Exception as e:
-            # 🔥 Игнорируем ошибки, если таблицы ещё не созданы
+        except ProgrammingError as e:
+            # 🔥 Игнорируем, если таблица ещё не создана
             if "does not exist" in str(e):
-                logger.warning("⚠️ Reminders table not ready yet")
+                logger.warning("⚠️ Reminders table not ready yet — skipping check")
             else:
                 logger.error(f"❌ Reminder check error: {e}")
+        except Exception as e:
+            logger.error(f"❌ Unexpected error in check_reminders: {e}")
     
     return scheduler

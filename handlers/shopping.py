@@ -99,6 +99,7 @@ async def cmd_shopping(message: Message, state: FSMContext):
 @router.message(
     F.text,
     ~F.text.startswith("/"),
+    ~F.text.regexp(r"^(запиши|добавь|что|как|почему|когда|где|сколько|рецепт|погода|ai|помощник|совет)").case(False),
     ~F.text.in_({
         "🏠 Главное меню", "❌ Отмена", "📊 Прогресс", "💧 Вода",
         "📋 Списки покупок", "👤 Профиль", "🔔 Напоминания",
@@ -106,7 +107,7 @@ async def cmd_shopping(message: Message, state: FSMContext):
     })
 )
 async def add_items_from_text(message: Message, state: FSMContext):
-    """Добавляет товары в основной список из произвольного текста."""
+    """Добавляет товары в список покупок из произвольного текста."""
     user_id = message.from_user.id
     text = message.text.strip()
 
@@ -116,10 +117,13 @@ async def add_items_from_text(message: Message, state: FSMContext):
     async with get_session() as session:
         shopping_list = await get_or_create_default_list(user_id, session)
         if not shopping_list:
-            await message.answer("❌ Ошибка: не удалось создать список.")
+            await message.answer("❌ Ошибка: не удалось получить список покупок.")
             return
 
         parsed = parse_shopping_items(text)
+        if not parsed:
+            return  # Ничего не распарсилось — возможно, это запрос к AI
+
         added = []
         for name, qty, unit in parsed:
             item = ShoppingItem(
@@ -133,7 +137,7 @@ async def add_items_from_text(message: Message, state: FSMContext):
             added.append(f"{name} — {qty} {unit}")
         await session.commit()
 
-        # Обновляем отображение списка
+        # Перезагружаем список для отображения
         items_result = await session.execute(
             select(ShoppingItem)
             .where(ShoppingItem.list_id == shopping_list.id)

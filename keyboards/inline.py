@@ -5,6 +5,7 @@ Inline клавиатуры для NutriBuddy
 """
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
+from typing import List, Optional
 
 
 def get_meal_type_keyboard():
@@ -67,8 +68,11 @@ def get_shopping_lists_keyboard(lists):
     return builder.as_markup()
 
 
-def get_shopping_items_keyboard(items: List[ShoppingItem], list_id: int):
-    """Клавиатура для отображения товаров с кнопками изменения количества."""
+def get_shopping_items_keyboard(items: list, list_id: int):
+    """
+    Клавиатура для отображения товаров с кнопками изменения количества.
+    items: список объектов ShoppingItem (передаётся из handler'а)
+    """
     builder = InlineKeyboardBuilder()
     for item in items:
         # статус и название

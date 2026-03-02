@@ -1,6 +1,7 @@
 """
 Inline клавиатуры для NutriBuddy
 ✅ Исправлено: НЕТ доступа к отношениям (lazy loading)
+✅ Все данные передаются из handler'ов
 """
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
@@ -27,7 +28,7 @@ def get_water_preset_keyboard():
 
 
 def get_food_selection_keyboard(foods):
-    """Выбор продукта из поиска"""
+    """Выбор продукта из поиска — foods передаётся из handler'а"""
     builder = InlineKeyboardBuilder()
     for i, food in enumerate(foods[:5]):
         builder.button(
@@ -52,6 +53,7 @@ def get_shopping_lists_keyboard(lists):
     """
     Список покупок — БЕЗ lazy loading!
     ✅ Не обращаемся к lst.items в клавиатуре
+    ✅ Подсчёт товаров делается в handler'е
     """
     builder = InlineKeyboardBuilder()
     for lst in lists:
@@ -66,7 +68,7 @@ def get_shopping_lists_keyboard(lists):
 
 
 def get_shopping_items_keyboard(items, list_id):
-    """Товары в списке покупок — items передаются из handler'а"""
+    """Товары в списке — items передаются из handler'а"""
     builder = InlineKeyboardBuilder()
     for item in items[:10]:
         status = "✅" if item.is_checked else "⬜"

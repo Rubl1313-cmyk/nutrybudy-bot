@@ -1,6 +1,6 @@
 """
 Подключение к базе данных для NutriBuddy
-✅ PostgreSQL + надёжное создание таблиц при старте
+✅ PostgreSQL + надёжное создание таблиц
 """
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import declarative_base
@@ -20,7 +20,7 @@ if DATABASE_URL:
         DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+asyncpg://", 1)
     elif DATABASE_URL.startswith("postgresql://") and "postgresql+asyncpg://" not in DATABASE_URL:
         DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
-    logger.info(f"🗄️ Using PostgreSQL: {DATABASE_URL[:50]}...")
+    logger.info(f"🗄️ Using PostgreSQL")
 else:
     DATABASE_URL = "sqlite+aiosqlite:///nutribudy.db"
     logger.warning("⚠️ Using SQLite")
@@ -53,7 +53,7 @@ async def init_db():
         
         # 🔥 КРИТИЧЕСКИ ВАЖНО: импортировать модели ДО create_all()
         # Это регистрирует модели в Base.metadata
-        from database import models  # noqa: F401 - импорт регистрирует модели
+        from database import models  # noqa: F401
         
         async with engine.begin() as conn:
             # Создаём все таблицы из Base.metadata

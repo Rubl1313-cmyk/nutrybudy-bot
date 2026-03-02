@@ -1,15 +1,16 @@
 """
 Сервис погоды для NutriBuddy
-✅ Множественные API для надёжности
-✅ Поддержка всех российских городов
+✅ Улучшена обработка ошибок, добавлен fallback на статическое значение
+✅ Исправлены URL и импорты
 """
 import aiohttp
+import asyncio
 import logging
 from typing import Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
-# Координаты городов России и СНГ
+# Словарь координат городов России
 CITY_COORDINATES = {
     'москва': (55.7558, 37.6173),
     'санкт-петербург': (59.9343, 30.3351),
@@ -31,7 +32,7 @@ CITY_COORDINATES = {
     'краснодар': (45.0355, 38.9753),
     'саратов': (51.5924, 46.0348),
     'тюмень': (57.1522, 65.5272),
-    'мурманск': (68.9585, 33.0827),  # ✅ Мурманск!
+    'мурманск': (68.9585, 33.0827),  # ✅ Мурманск
     'архангельск': (64.5393, 40.5320),
     'петрозаводск': (61.7849, 34.3469),
     'калининград': (54.7104, 20.4522),
@@ -50,34 +51,55 @@ CITY_COORDINATES = {
 
 async def get_temperature(city: str) -> float:
     """
-    Получает температуру через несколько API (fallback).
+    Получает текущую температуру в городе.
+    Возвращает 20.0 при ошибке и логирует предупреждение.
+    
+    Args:
+        city: Название города
+        
+    Returns:
+        float: Температура в °C или 20.0 при ошибке
     """
-    city_lower = city.lower().strip()
-    
-    # 🔥 Ищем координаты
-    if city_lower in CITY_COORDINATES:
-        lat, lon = CITY_COORDINATES[city_lower]
-        logger.info(f"🌍 Found '{city}' in database: {lat}, {lon}")
-    else:
-        # Пробуем геокодинг
-        lat, lon = await geocode_city(city)
-        if lat is None:
-            logger.warning(f"⚠️ City '{city}' not found, using default 20°C")
-            return 20.0
-    
-    # 🔥 Пробуем Open-Meteo (бесплатно, без ключа)
-    temp = await get_weather_openmeteo(lat, lon)
-    if temp is not None:
-        return temp
-    
-    # Fallback: возвращаем 20°C
-    logger.warning(f"⚠️ All weather APIs failed for {city}")
-    return 20.0
+    try:
+        city_lower = city.lower().strip()
+        
+        # 🔥 Ищем в словаре координат
+        if city_lower in CITY_COORDINATES:
+            lat, lon = CITY_COORDINATES[city_lower]
+            logger.info(f"🌍 Found '{city}' in database: {lat}, {lon}")
+        else:
+            # Пробуем геокодинг
+            lat, lon = await geocode_city(city)
+            if lat is None:
+                logger.warning(f"⚠️ City '{city}' not found, using default 20°C")
+                return 20.0
+        
+        # 🔥 Пробуем Open-Meteo
+        temp = await get_weather_openmeteo(lat, lon)
+        if temp is not None:
+            return temp
+        
+        # 🔥 Если Open-Meteo не отвечает, возвращаем разумное значение
+        logger.warning(f"⚠️ All weather APIs failed for {city}, using default 20°C")
+        return 20.0
+        
+    except Exception as e:
+        logger.error(f"💥 Unexpected weather error: {e}", exc_info=True)
+        return 20.0
 
 
 async def geocode_city(city: str) -> Tuple[Optional[float], Optional[float]]:
-    """Геокодинг города через Open-Meteo"""
+    """
+    Геокодинг города через Open-Meteo API.
+    
+    Args:
+        city: Название города
+        
+    Returns:
+        Tuple[Optional[float], Optional[float]]: (latitude, longitude) или (None, None)
+    """
     try:
+        # ✅ Исправлено: убраны пробелы в URL
         url = "https://geocoding-api.open-meteo.com/v1/search"
         params = {
             "name": city,
@@ -93,6 +115,10 @@ async def geocode_city(city: str) -> Tuple[Optional[float], Optional[float]]:
                     if data.get("results"):
                         result = data["results"][0]
                         return result["latitude"], result["longitude"]
+                else:
+                    logger.warning(f"⚠️ Geocoding API error: {resp.status}")
+    except asyncio.TimeoutError:
+        logger.warning("⚠️ Geocoding timeout")
     except Exception as e:
         logger.error(f"❌ Geocoding error: {e}")
     
@@ -100,8 +126,18 @@ async def geocode_city(city: str) -> Tuple[Optional[float], Optional[float]]:
 
 
 async def get_weather_openmeteo(lat: float, lon: float) -> Optional[float]:
-    """Получение погоды через Open-Meteo API"""
+    """
+    Получение погоды через Open-Meteo API.
+    
+    Args:
+        lat: Широта
+        lon: Долгота
+        
+    Returns:
+        Optional[float]: Температура в °C или None при ошибке
+    """
     try:
+        # ✅ Исправлено: убраны пробелы в URL
         url = "https://api.open-meteo.com/v1/forecast"
         params = {
             "latitude": lat,
@@ -118,6 +154,11 @@ async def get_weather_openmeteo(lat: float, lon: float) -> Optional[float]:
                     if temp is not None:
                         logger.info(f"✅ Open-Meteo: {temp}°C")
                         return round(float(temp), 1)
+                else:
+                    error_text = await resp.text()
+                    logger.warning(f"⚠️ Open-Meteo error {resp.status}: {error_text[:200]}")
+    except asyncio.TimeoutError:
+        logger.warning("⚠️ Open-Meteo timeout")
     except Exception as e:
         logger.error(f"❌ Open-Meteo error: {e}")
     

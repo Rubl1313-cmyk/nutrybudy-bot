@@ -1,7 +1,6 @@
 """
 Генерация графиков для прогресса.
-✅ Поддержка любого количества дней
-✅ Красивые заголовки с эмодзи
+✅ Поддержка периода: день (почасово + итоги), неделя/месяц (подневно)
 """
 import matplotlib
 matplotlib.use('Agg')
@@ -11,7 +10,10 @@ from datetime import datetime, timedelta
 from database.models import WeightEntry, WaterEntry, Meal, Activity
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
-from typing import Optional
+from typing import Optional, Literal
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 async def generate_weight_plot(user_id: int, session: AsyncSession) -> Optional[bytes]:
@@ -42,14 +44,172 @@ async def generate_weight_plot(user_id: int, session: AsyncSession) -> Optional[
     return buf.read()
 
 
-async def generate_water_plot(user_id: int, session: AsyncSession, days: int = 7) -> Optional[bytes]:
-    """График потребления воды за последние N дней."""
-    start_date = datetime.now() - timedelta(days=days)
+async def generate_water_plot(
+    user_id: int,
+    session: AsyncSession,
+    period: Literal['day', 'week', 'month'] = 'week',
+    daily_goal: float = 2000
+) -> Optional[bytes]:
+    """
+    График потребления воды.
+    - day: почасовой (24 часа) + столбцы "Всего" и "Норма"
+    - week / month: подневной
+    """
+    return await _generate_consumption_plot(
+        user_id=user_id,
+        session=session,
+        model=WaterEntry,
+        amount_field='amount',
+        ylabel='Вода (мл)',
+        title_prefix='💧 Потребление воды',
+        period=period,
+        daily_goal=daily_goal
+    )
+
+
+async def generate_calorie_plot(
+    user_id: int,
+    session: AsyncSession,
+    period: Literal['day', 'week', 'month'] = 'week',
+    daily_goal: float = 2000
+) -> Optional[bytes]:
+    """
+    График потребления калорий.
+    - day: почасовой + итоги
+    - week/month: подневной
+    """
+    return await _generate_consumption_plot(
+        user_id=user_id,
+        session=session,
+        model=Meal,
+        amount_field='total_calories',
+        ylabel='Калории (ккал)',
+        title_prefix='🔥 Потребление калорий',
+        period=period,
+        daily_goal=daily_goal
+    )
+
+
+async def generate_activity_plot(
+    user_id: int,
+    session: AsyncSession,
+    period: Literal['day', 'week', 'month'] = 'week',
+    daily_goal: Optional[float] = None
+) -> Optional[bytes]:
+    """
+    График сожжённых калорий.
+    - day: почасовой + итоги
+    - week/month: подневной
+    """
+    return await _generate_consumption_plot(
+        user_id=user_id,
+        session=session,
+        model=Activity,
+        amount_field='calories_burned',
+        ylabel='Сожжено (ккал)',
+        title_prefix='🏃 Активность',
+        period=period,
+        daily_goal=daily_goal
+    )
+
+
+async def _generate_consumption_plot(
+    user_id: int,
+    session: AsyncSession,
+    model,
+    amount_field: str,
+    ylabel: str,
+    title_prefix: str,
+    period: Literal['day', 'week', 'month'] = 'week',
+    daily_goal: Optional[float] = None
+) -> Optional[bytes]:
+    """Общая функция для построения графиков потребления/активности."""
+    now = datetime.now()
+
+    if period == 'day':
+        start_date = now - timedelta(hours=24)
+        # Получаем записи за последние 24 часа
+        result = await session.execute(
+            select(model).where(
+                model.user_id == user_id,
+                model.datetime >= start_date
+            ).order_by(model.datetime)
+        )
+        entries = result.scalars().all()
+        if not entries:
+            return None
+
+        # Группировка по часам
+        hourly = {}
+        for e in entries:
+            hour_key = e.datetime.replace(minute=0, second=0, microsecond=0)
+            amount = getattr(e, amount_field) or 0
+            hourly[hour_key] = hourly.get(hour_key, 0) + amount
+
+        # Сортируем часы
+        hours = sorted(hourly.keys())
+        values = [hourly[h] for h in hours]
+
+        # Подготавливаем метки для оси X (часы)
+        labels = [h.strftime('%H:%M') for h in hours]
+
+        # Добавляем итоговые столбцы: "Всего" и "Норма"
+        total_value = sum(values)
+        labels.append('Всего')
+        values.append(total_value)
+        if daily_goal is not None:
+            labels.append('Норма')
+            values.append(daily_goal)
+
+        # Строим график
+        plt.figure(figsize=(12, 6))
+        bars = plt.bar(range(len(labels)), values, color=['#1f77b4']*len(hours) + ['#ff7f0e', '#2ca02c'])
+        # Окрашиваем последние два столбца в разные цвета
+        if daily_goal is not None:
+            bars[-2].set_color('#ff7f0e')  # всего
+            bars[-1].set_color('#2ca02c')  # норма
+        else:
+            bars[-1].set_color('#ff7f0e')  # всего
+
+        plt.xticks(range(len(labels)), labels, rotation=45, ha='right')
+        plt.title(f'{title_prefix} (последние 24 часа)', fontsize=14, fontweight='bold')
+        plt.xlabel('Время')
+        plt.ylabel(ylabel)
+        plt.grid(True, axis='y', alpha=0.3)
+
+        # Подписи значений на столбцах
+        for bar, val in zip(bars, values):
+            height = bar.get_height()
+            if height > 0:
+                plt.text(bar.get_x() + bar.get_width()/2., height,
+                         f'{int(val)}', ha='center', va='bottom', fontsize=8)
+
+        plt.tight_layout()
+        buf = io.BytesIO()
+        plt.savefig(buf, format='png', bbox_inches='tight', dpi=100)
+        plt.close()
+        buf.seek(0)
+        return buf.read()
+
+    elif period == 'week':
+        start_date = now - timedelta(days=7)
+        date_format = '%d.%m'
+        xlabel = 'День'
+        title = f'{title_prefix} (последние 7 дней)'
+        group_by = 'day'
+    else:  # month
+        start_date = now - timedelta(days=30)
+        date_format = '%d.%m'
+        xlabel = 'День'
+        title = f'{title_prefix} (последние 30 дней)'
+        group_by = 'day'
+
+    # Для недели и месяца
     result = await session.execute(
-        select(WaterEntry).where(
-            WaterEntry.user_id == user_id,
-            WaterEntry.datetime >= start_date
-        ).order_by(WaterEntry.datetime)
+        select(model).where(
+            model.user_id == user_id,
+            model.datetime >= start_date
+        ).order_by(model.datetime)
     )
     entries = result.scalars().all()
     if not entries:
@@ -58,133 +218,28 @@ async def generate_water_plot(user_id: int, session: AsyncSession, days: int = 7
     # Группировка по дням
     daily = {}
     for e in entries:
-        day = e.datetime.date()
-        daily[day] = daily.get(day, 0) + e.amount
+        day_key = e.datetime.date()
+        amount = getattr(e, amount_field) or 0
+        daily[day_key] = daily.get(day_key, 0) + amount
 
-    dates = sorted(daily.keys())
-    amounts = [daily[d] for d in dates]
+    # Сортируем дни
+    days = sorted(daily.keys())
+    values = [daily[d] for d in days]
+    labels = [d.strftime(date_format) for d in days]
 
     plt.figure(figsize=(10, 5))
-    bars = plt.bar(dates, amounts, color='blue', alpha=0.7)
-    plt.title(f'💧 Потребление воды (последние {days} дней)', fontsize=14, fontweight='bold')
-    plt.xlabel('Дата')
-    plt.ylabel('Вода (мл)')
+    bars = plt.bar(range(len(labels)), values, color='blue', alpha=0.7)
+    plt.xticks(range(len(labels)), labels, rotation=45, ha='right')
+    plt.title(title, fontsize=14, fontweight='bold')
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
     plt.grid(True, axis='y', alpha=0.3)
-    plt.xticks(rotation=45)
 
-    # Добавляем подписи значений на столбцы
-    for bar, val in zip(bars, amounts):
+    for bar, val in zip(bars, values):
         height = bar.get_height()
-        plt.text(bar.get_x() + bar.get_width() / 2., height,
-                 f'{int(val)}', ha='center', va='bottom', fontsize=9)
-
-    plt.tight_layout()
-    buf = io.BytesIO()
-    plt.savefig(buf, format='png', bbox_inches='tight', dpi=100)
-    plt.close()
-    buf.seek(0)
-    return buf.read()
-
-
-async def generate_calorie_balance_plot(user_id: int, session: AsyncSession, days: int = 7) -> Optional[bytes]:
-    """График баланса калорий (потребление vs сжигание) за последние N дней."""
-    start_date = datetime.now() - timedelta(days=days)
-
-    meals_result = await session.execute(
-        select(Meal).where(
-            Meal.user_id == user_id,
-            Meal.datetime >= start_date
-        )
-    )
-    meals = meals_result.scalars().all()
-
-    activities_result = await session.execute(
-        select(Activity).where(
-            Activity.user_id == user_id,
-            Activity.datetime >= start_date
-        )
-    )
-    activities = activities_result.scalars().all()
-
-    if not meals and not activities:
-        return None
-
-    daily_consumed = {}
-    daily_burned = {}
-
-    for m in meals:
-        day = m.datetime.date()
-        daily_consumed[day] = daily_consumed.get(day, 0) + (m.total_calories or 0)
-
-    for a in activities:
-        day = a.datetime.date()
-        daily_burned[day] = daily_burned.get(day, 0) + (a.calories_burned or 0)
-
-    all_days = sorted(set(daily_consumed.keys()) | set(daily_burned.keys()))
-    consumed = [daily_consumed.get(d, 0) for d in all_days]
-    burned = [daily_burned.get(d, 0) for d in all_days]
-
-    plt.figure(figsize=(10, 5))
-    x = range(len(all_days))
-    bar_width = 0.35
-    plt.bar([i - bar_width/2 for i in x], consumed, bar_width, label='Потреблено', color='orange', alpha=0.7)
-    plt.bar([i + bar_width/2 for i in x], burned, bar_width, label='Сожжено', color='green', alpha=0.7)
-
-    plt.title(f'🔥 Баланс калорий (последние {days} дней)', fontsize=14, fontweight='bold')
-    plt.xlabel('Дата')
-    plt.ylabel('Калории')
-    plt.xticks(x, [d.strftime('%d.%m') for d in all_days], rotation=45)
-    plt.legend()
-    plt.grid(True, axis='y', alpha=0.3)
-
-    # Подписи значений
-    for i, (c, b) in enumerate(zip(consumed, burned)):
-        if c > 0:
-            plt.text(i - bar_width/2, c + 5, f'{int(c)}', ha='center', va='bottom', fontsize=8)
-        if b > 0:
-            plt.text(i + bar_width/2, b + 5, f'{int(b)}', ha='center', va='bottom', fontsize=8)
-
-    plt.tight_layout()
-    buf = io.BytesIO()
-    plt.savefig(buf, format='png', bbox_inches='tight', dpi=100)
-    plt.close()
-    buf.seek(0)
-    return buf.read()
-
-
-async def generate_activity_plot(user_id: int, session: AsyncSession, days: int = 7) -> Optional[bytes]:
-    """График активности (сожжённые калории) за последние N дней."""
-    start_date = datetime.now() - timedelta(days=days)
-    result = await session.execute(
-        select(Activity).where(
-            Activity.user_id == user_id,
-            Activity.datetime >= start_date
-        ).order_by(Activity.datetime)
-    )
-    activities = result.scalars().all()
-    if not activities:
-        return None
-
-    daily = {}
-    for a in activities:
-        day = a.datetime.date()
-        daily[day] = daily.get(day, 0) + (a.calories_burned or 0)
-
-    dates = sorted(daily.keys())
-    calories = [daily[d] for d in dates]
-
-    plt.figure(figsize=(10, 5))
-    bars = plt.bar(dates, calories, color='green', alpha=0.7)
-    plt.title(f'🏃 Активность (последние {days} дней)', fontsize=14, fontweight='bold')
-    plt.xlabel('Дата')
-    plt.ylabel('Сожжено калорий')
-    plt.grid(True, axis='y', alpha=0.3)
-    plt.xticks(rotation=45)
-
-    for bar, val in zip(bars, calories):
-        height = bar.get_height()
-        plt.text(bar.get_x() + bar.get_width() / 2., height,
-                 f'{int(val)}', ha='center', va='bottom', fontsize=9)
+        if height > 0:
+            plt.text(bar.get_x() + bar.get_width()/2., height,
+                     f'{int(val)}', ha='center', va='bottom', fontsize=8)
 
     plt.tight_layout()
     buf = io.BytesIO()

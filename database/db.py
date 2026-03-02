@@ -4,12 +4,13 @@
 """
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import declarative_base
-from sqlalchemy import text, inspect
+from sqlalchemy import inspect
 import os
 import logging
 
 logger = logging.getLogger(__name__)
 
+# 🔥 Создаём Base ЗДЕСЬ и экспортируем
 Base = declarative_base()
 
 DATABASE_URL = os.getenv("DATABASE_URL")

@@ -37,9 +37,8 @@ def _progress_bar(current: float, goal: float, length: int = 10) -> str:
 
 @router.message(Command("progress"))
 @router.message(F.text == "📊 Прогресс")
-async def cmd_progress(message: Message, state: FSMContext):
-    """Показать меню выбора периода."""
-    await state.clear()
+async def cmd_progress(message: Message):  # ← убрали state
+    """Показать прогресс и графики."""
     user_id = message.from_user.id
 
     async with get_session() as session:

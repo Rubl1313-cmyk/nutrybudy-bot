@@ -18,6 +18,7 @@ from handlers import (
     reminders, recipes, activity, progress, ai_handlers
 )
 from scheduler.jobs import setup_scheduler
+from handlers import meal_plan
 from database.db import init_db, close_db
 
 load_dotenv()
@@ -194,6 +195,7 @@ async def main():
     dp.include_router(activity.router)
     dp.include_router(progress.router)
     dp.include_router(ai_handlers.router)
+    dp.include_router(meal_plan.router)
     
     logging.info("✅ All routers included")
     

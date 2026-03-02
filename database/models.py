@@ -112,7 +112,7 @@ class ShoppingList(Base):
 
 class ShoppingItem(Base):
     __tablename__ = 'shopping_items'
-    
+
     id = Column(Integer, primary_key=True, autoincrement=True)
     list_id = Column(Integer, ForeignKey('shopping_lists.id', ondelete="CASCADE"), nullable=False, index=True)
     name = Column(String(255), nullable=False)
@@ -121,7 +121,7 @@ class ShoppingItem(Base):
     is_checked = Column(Boolean, default=False)
     added_by = Column(Integer)
     added_at = Column(DateTime, default=datetime.utcnow)
-    
+
     list = relationship("ShoppingList", back_populates="items")
 
 

@@ -1,18 +1,29 @@
 """
-Общие команды: /start, /help, /cancel, кнопка "Помощь"
+Общие команды и обработчики кнопок главного меню.
 """
 from aiogram import Router, F
 from aiogram.types import Message
 from aiogram.filters import CommandStart, Command
 from aiogram.fsm.context import FSMContext
-from keyboards.reply import get_main_keyboard
 
-# ✅ ВАЖНО: Создаём router ПЕРЕД использованием в декораторах
+from keyboards.reply import get_main_keyboard, get_cancel_keyboard
+# Импортируем функции-обработчики из соответствующих модулей,
+# чтобы перенаправлять вызовы кнопок.
+from handlers.profile import cmd_profile
+from handlers.food import cmd_log_food
+from handlers.water import cmd_water
+from handlers.progress import cmd_progress
+from handlers.shopping import cmd_shopping
+from handlers.reminders import cmd_reminders
+from handlers.activity import cmd_fitness
+from handlers.ai_assistant import cmd_ask
+
 router = Router()
 
 
 @router.message(CommandStart())
 async def cmd_start(message: Message, state: FSMContext):
+    """Обработчик команды /start."""
     await state.clear()
     await message.answer(
         "👋 <b>Привет! Я NutriBuddy</b>\n\n"
@@ -33,6 +44,7 @@ async def cmd_start(message: Message, state: FSMContext):
 
 @router.message(Command("help"))
 async def cmd_help(message: Message, state: FSMContext):
+    """Краткая справка по командам."""
     await state.clear()
     await message.answer(
         "📚 <b>Доступные команды:</b>\n\n"
@@ -64,6 +76,7 @@ async def cmd_help(message: Message, state: FSMContext):
 @router.message(Command("cancel"))
 @router.message(F.text == "❌ Отмена")
 async def cmd_cancel(message: Message, state: FSMContext):
+    """Отмена текущего действия и сброс состояния."""
     await state.clear()
     await message.answer(
         "❌ <b>Действие отменено</b>\n\n"
@@ -73,9 +86,82 @@ async def cmd_cancel(message: Message, state: FSMContext):
     )
 
 
-# ✅ Новый обработчик для кнопки "❓ Помощь"
+@router.message(F.text == "🏠 Главное меню")
+async def cmd_main_menu(message: Message, state: FSMContext):
+    """Возврат в главное меню."""
+    await state.clear()
+    await message.answer(
+        "🏠 Главное меню",
+        reply_markup=get_main_keyboard()
+    )
+
+
+# ---------- Обработчики кнопок главного меню ----------
+# Каждый обработчик сбрасывает состояние и перенаправляет
+# к соответствующей функции-обработчику.
+
+@router.message(F.text == "🍽️ Дневник питания")
+async def menu_food(message: Message, state: FSMContext):
+    await state.clear()
+    # Вызываем функцию из food.py
+    await cmd_log_food(message, state)
+
+
+@router.message(F.text == "💧 Вода")
+async def menu_water(message: Message, state: FSMContext):
+    await state.clear()
+    await cmd_water(message, state)
+
+
+@router.message(F.text == "📊 Прогресс")
+async def menu_progress(message: Message, state: FSMContext):
+    await state.clear()
+    await cmd_progress(message)
+
+
+@router.message(F.text == "📋 Списки покупок")
+async def menu_shopping(message: Message, state: FSMContext):
+    await state.clear()
+    await cmd_shopping(message, state)
+
+
+@router.message(F.text == "🔔 Напоминания")
+async def menu_reminders(message: Message, state: FSMContext):
+    await state.clear()
+    await cmd_reminders(message, state)
+
+
+@router.message(F.text == "👤 Профиль")
+async def menu_profile(message: Message, state: FSMContext):
+    await state.clear()
+    await cmd_profile(message, state)
+
+
+@router.message(F.text == "📖 Рецепты")
+async def menu_recipes(message: Message, state: FSMContext):
+    await state.clear()
+    # Временно просто сообщение, пока нет отдельного обработчика рецептов,
+    # но можно перенаправить на AI-ассистента с соответствующим контекстом.
+    await message.answer(
+        "🍳 Вы можете попросить AI Помощника предложить рецепт, например: «рецепт из курицы и риса».",
+        reply_markup=get_main_keyboard()
+    )
+
+
+@router.message(F.text == "💬 AI Помощник")
+async def menu_ai_assistant(message: Message, state: FSMContext):
+    await state.clear()
+    await cmd_ask(message, state)
+
+
+@router.message(F.text == "🏋️ Активность")
+async def menu_activity(message: Message, state: FSMContext):
+    await state.clear()
+    await cmd_fitness(message, state)
+
+
 @router.message(F.text == "❓ Помощь")
-async def cmd_help_full(message: Message, state: FSMContext):
+async def menu_help(message: Message, state: FSMContext):
     """Подробная справка по использованию бота."""
     await state.clear()
     help_text = (
@@ -109,13 +195,3 @@ async def cmd_help_full(message: Message, state: FSMContext):
         "💡 <b>Совет:</b> Отправьте фото еды – бот распознает продукты и предложит выбрать."
     )
     await message.answer(help_text, parse_mode="HTML", reply_markup=get_main_keyboard())
-
-
-@router.message(F.text == "🏠 Главное меню")
-async def cmd_main_menu(message: Message, state: FSMContext):
-    """Возврат в главное меню"""
-    await state.clear()
-    await message.answer(
-        "🏠 Главное меню",
-        reply_markup=get_main_keyboard()
-    )

@@ -165,3 +165,12 @@ def get_main_menu_keyboard():
     builder = InlineKeyboardBuilder()
     builder.button(text="🏠 Главное меню", callback_data="main_menu")
     return builder.as_markup()
+    
+def get_progress_options_keyboard():
+    """Кнопки выбора периода для прогресса."""
+    builder = InlineKeyboardBuilder()
+    builder.button(text="📅 Сегодня", callback_data="progress_day")
+    builder.button(text="📆 Неделя", callback_data="progress_week")
+    builder.button(text="📆 Месяц", callback_data="progress_month")
+    builder.adjust(3)
+    return builder.as_markup()

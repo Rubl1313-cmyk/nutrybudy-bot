@@ -1,6 +1,6 @@
 """
 Подключение к базе данных для NutriBuddy
-✅ PostgreSQL + гарантированное создание таблиц
+✅ PostgreSQL + надёжное создание таблиц при старте
 """
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import declarative_base
@@ -49,12 +49,12 @@ async def init_db():
     🔥 Надёжное создание таблиц.
     """
     try:
-        logger.info("🔍 Initializing database...")
+        logger.info("🔍 Initializing database tables...")
         
         async with engine.begin() as conn:
-            # Создаём все таблицы
+            # Создаём все таблицы из Base.metadata
             await conn.run_sync(Base.metadata.create_all)
-            logger.info("✅ Tables created")
+            logger.info("✅ Tables created via create_all()")
             
             # Проверяем создание
             inspector = inspect(conn.sync_engine)

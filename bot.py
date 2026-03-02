@@ -13,12 +13,12 @@ from aiogram.enums import ParseMode
 from aiogram.types import Update, BotCommand
 from dotenv import load_dotenv
 from aiohttp import web
-from database.db import init_db, close_db
 from handlers import (
     common, profile, food, water, shopping,
     reminders, recipes, activity, progress, ai_handlers
 )
 from scheduler.jobs import setup_scheduler
+from database import init_db, close_db  # ✅ Это импортирует модели через database/__init__.py
 
 load_dotenv()
 

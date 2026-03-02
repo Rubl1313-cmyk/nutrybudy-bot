@@ -1,5 +1,6 @@
 """
 Обработчики мультимедиа: фото (распознавание еды) и голос.
+Теперь с переводом английских названий на русский.
 """
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery
@@ -13,6 +14,7 @@ from typing import List
 
 from services.cloudflare_ai import analyze_food_image, transcribe_audio
 from services.food_api import search_food
+from services.translator import translate_to_russian, extract_food_items  # ← импорт переводчика
 from keyboards.inline import get_food_selection_keyboard, get_confirmation_keyboard
 from utils.states import FoodStates
 from database.db import get_session
@@ -44,7 +46,7 @@ def _prepare_image(image_bytes: bytes) -> bytes:
 @router.message(F.photo)
 async def handle_photo(message: Message, state: FSMContext):
     """
-    Обрабатывает фото еды, запускает распознавание и пошаговый ввод.
+    Обрабатывает фото еды, переводит названия и запускает пошаговый ввод.
     """
     logger.info("📸 Photo received, starting recognition...")
     try:
@@ -72,18 +74,25 @@ async def handle_photo(message: Message, state: FSMContext):
             )
             return
 
-        logger.info(f"✅ Raw description: {description_en}")
+        logger.info(f"✅ Raw description (en): {description_en}")
 
-        # Разбиваем на элементы (по запятой)
-        items = [item.strip().lower() for item in description_en.split(',') if item.strip()]
-        if not items:
-            items = [description_en]
+        # Извлекаем отдельные продукты (на английском)
+        raw_items = await extract_food_items(description_en)
+        logger.info(f"✅ Extracted raw items: {raw_items}")
 
-        logger.info(f"✅ Extracted food items: {items}")
+        # Переводим каждый элемент на русский
+        translated_items = []
+        for item in raw_items:
+            translated = await translate_to_russian(item)
+            translated_items.append(translated)
+        logger.info(f"✅ Translated items: {translated_items}")
 
-        # Сохраняем в состояние
+        if not translated_items:
+            translated_items = [description_en]  # fallback
+
+        # Сохраняем в состояние (русские названия)
         await state.update_data(
-            pending_items=items,
+            pending_items=translated_items,
             current_index=0,
             selected_foods=[],
             ai_description=description_en

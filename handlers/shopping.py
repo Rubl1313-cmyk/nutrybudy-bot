@@ -1,6 +1,6 @@
 """
 Обработчик списков покупок
-✅ Исправлено: явная загрузка отношений
+✅ Исправлено: явная загрузка отношений через selectinload
 """
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery, ReplyKeyboardMarkup, KeyboardButton
@@ -111,8 +111,6 @@ async def view_list(callback: CallbackQuery):
         
         async with get_session() as session:
             # 🔥 ЯВНАЯ загрузка отношений через selectinload
-            from sqlalchemy.orm import selectinload
-            
             result = await session.execute(
                 select(ShoppingList)
                 .options(selectinload(ShoppingList.items))
@@ -127,14 +125,14 @@ async def view_list(callback: CallbackQuery):
             # 🔥 Теперь items уже загружены — можно безопасно использовать
             items = sorted(lst.items, key=lambda x: (x.is_checked, x.added_at))
             
-            # Подсчитываем выполненные
-            checked = sum(1 for i in items if i.is_checked)
-            total = len(items)
-            
             if not items:
                 text = f"📋 <b>{lst.name}</b>\n\nПусто. Добавь товары!"
             else:
-                text = f"📋 <b>{lst.name}</b>\n\n✅ {checked}/{total}\n\n"
+                text = f"📋 <b>{lst.name}</b>\n\n"
+                checked = sum(1 for i in items if i.is_checked)
+                total = len(items)
+                text += f"✅ {checked}/{total}\n\n"
+                
                 for item in items:
                     status = "✅" if item.is_checked else "⬜"
                     text += f"{status} {item.name}"

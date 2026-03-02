@@ -20,7 +20,7 @@ if DATABASE_URL:
         DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+asyncpg://", 1)
     elif DATABASE_URL.startswith("postgresql://") and "postgresql+asyncpg://" not in DATABASE_URL:
         DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
-    logger.info(f"🗄️ Using PostgreSQL")
+    logger.info(f"🗄️ Using PostgreSQL: {DATABASE_URL[:50]}...")
 else:
     DATABASE_URL = "sqlite+aiosqlite:///nutribudy.db"
     logger.warning("⚠️ Using SQLite")
@@ -51,15 +51,26 @@ async def init_db():
     try:
         logger.info("🔍 Initializing database tables...")
         
+        # 🔥 КРИТИЧЕСКИ ВАЖНО: импортировать модели ДО create_all()
+        # Это регистрирует модели в Base.metadata
+        from database import models  # noqa: F401 - импорт регистрирует модели
+        
         async with engine.begin() as conn:
             # Создаём все таблицы из Base.metadata
             await conn.run_sync(Base.metadata.create_all)
             logger.info("✅ Tables created via create_all()")
             
-            # Проверяем создание
+            # 🔥 Проверяем создание
             inspector = inspect(conn.sync_engine)
             tables = inspector.get_table_names()
             logger.info(f"✅ Tables in DB: {tables}")
+            
+            # 🔥 Проверка критических таблиц
+            required = ['users', 'meals', 'reminders', 'shopping_lists', 'activities']
+            missing = [t for t in required if t not in tables]
+            if missing:
+                logger.error(f"❌ Missing required tables: {missing}")
+                return False
         
         logger.info("✅ Database initialized successfully")
         return True

@@ -20,6 +20,7 @@ from handlers import (
 from scheduler.jobs import setup_scheduler
 from handlers import meal_plan
 from database.db import init_db, close_db
+from handlers import ai_assistant
 
 load_dotenv()
 
@@ -196,6 +197,7 @@ async def main():
     dp.include_router(progress.router)
     dp.include_router(ai_handlers.router)
     dp.include_router(meal_plan.router)
+    dp.include_router(ai_assistant.router)
     
     logging.info("✅ All routers included")
     

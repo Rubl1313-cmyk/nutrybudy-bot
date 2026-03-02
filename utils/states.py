@@ -131,3 +131,6 @@ class RecipeStates(StatesGroup):
     entering_ingredients = State()
     selecting_diet = State()
     selecting_difficulty = State()
+
+class ProgressStates(StatesGroup):
+    selecting_period = State()

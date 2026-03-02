@@ -18,7 +18,7 @@ from handlers import (
     reminders, recipes, activity, progress, ai_handlers
 )
 from scheduler.jobs import setup_scheduler
-from database import init_db, close_db  # ✅ Это импортирует модели через database/__init__.py
+from database.db import init_db, close_db
 
 load_dotenv()
 

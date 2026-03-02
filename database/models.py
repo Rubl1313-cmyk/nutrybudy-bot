@@ -1,16 +1,13 @@
 """
 Модели базы данных для NutriBuddy
-✅ Все связи и индексы для PostgreSQL
+✅ Все модели используют Base из database.db
 """
-from sqlalchemy import (
-    Column, Integer, String, Float, DateTime, ForeignKey, 
-    Boolean, Text, Index, func
-)
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import relationship
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Boolean, Text, Index
+from sqlalchemy.orm import relationship, declarative_base
 from datetime import datetime
 
-Base = declarative_base()
+# 🔥 Импортируем Base из db.py (единый источник!)
+from database.db import Base
 
 
 class User(Base):
@@ -42,10 +39,6 @@ class User(Base):
     shopping_lists = relationship("ShoppingList", back_populates="user", cascade="all, delete-orphan")
     reminders = relationship("Reminder", back_populates="user", cascade="all, delete-orphan")
     activities = relationship("Activity", back_populates="user", cascade="all, delete-orphan")
-    
-    __table_args__ = (
-        Index('idx_users_telegram_id', 'telegram_id'),
-    )
 
 
 class Meal(Base):
@@ -64,10 +57,6 @@ class Meal(Base):
     
     user = relationship("User", back_populates="meals")
     foods = relationship("FoodItem", back_populates="meal", cascade="all, delete-orphan")
-    
-    __table_args__ = (
-        Index('idx_meals_user_datetime', 'user_id', 'datetime'),
-    )
 
 
 class FoodItem(Base):
@@ -95,10 +84,6 @@ class WaterEntry(Base):
     datetime = Column(DateTime, default=datetime.utcnow, index=True)
     
     user = relationship("User", back_populates="water_entries")
-    
-    __table_args__ = (
-        Index('idx_water_user_date', 'user_id', 'datetime'),
-    )
 
 
 class WeightEntry(Base):
@@ -168,7 +153,3 @@ class Activity(Base):
     source = Column(String(20), default='manual')
     
     user = relationship("User", back_populates="activities")
-    
-    __table_args__ = (
-        Index('idx_activities_user_date', 'user_id', 'datetime'),
-    )

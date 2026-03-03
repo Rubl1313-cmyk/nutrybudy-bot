@@ -1,143 +1,60 @@
 """
-Клиент для DeepSeek API.
-Использует официальный API DeepSeek (platform.deepseek.com).
+Клиент для обращения к собственному Cloudflare Worker.
+Worker использует модель Qwen и даёт до 100 000 запросов в день бесплатно.
 """
 import aiohttp
 import os
 import logging
-from typing import Optional, Dict, Any, List
-import json
+from typing import Optional, Dict, Any
 
 logger = logging.getLogger(__name__)
 
-DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
-API_URL = "https://api.deepseek.com/v1/chat/completions"
+WORKER_URL = os.getenv("WORKER_URL")           # URL вашего Worker, например https://nutribudy-ai.workers.dev
+WORKER_API_KEY = os.getenv("WORKER_API_KEY")   # тот самый ключ, который вы задали в Worker
 
-# Системный промпт по умолчанию (роль AI-помощника)
 DEFAULT_SYSTEM_PROMPT = (
-    "Ты — NutriBuddy AI, дружелюбный помощник по питанию, здоровью и организации. "
-    "Твоя задача — помогать пользователю с вопросами о еде, тренировках, планировании, "
-    "а также выполнять команды, такие как добавление в список покупок или предложение рецептов. "
-    "Отвечай кратко, по делу, на русском языке. Если пользователь просит что-то сделать (например, "
-    "'добавь в список молоко'), используй доступные инструменты (tools), чтобы выполнить действие. "
-    "Если не знаешь — честно скажи, что не знаешь."
+    "Ты — NutriBuddy AI, дружелюбный помощник по питанию и здоровому образу жизни. "
+    "Отвечай на русском языке, кратко и по делу."
 )
 
-# Схемы для инструментов (function calling)
-TOOLS = [
-    {
-        "type": "function",
-        "function": {
-            "name": "add_to_shopping_list",
-            "description": "Добавляет товары в список покупок пользователя",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "items": {
-                        "type": "array",
-                        "items": {
-                            "type": "object",
-                            "properties": {
-                                "name": {"type": "string", "description": "Название товара"},
-                                "quantity": {"type": "integer", "description": "Количество"},
-                                "unit": {"type": "string", "description": "Единица измерения (шт, кг, л и т.д.)"}
-                            },
-                            "required": ["name", "quantity", "unit"]
-                        },
-                        "description": "Список товаров для добавления"
-                    }
-                },
-                "required": ["items"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "suggest_recipe",
-            "description": "Предлагает рецепт по заданным ингредиентам или запросу",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "ingredients": {
-                        "type": "string",
-                        "description": "Ингредиенты или описание блюда"
-                    }
-                },
-                "required": ["ingredients"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "get_weather",
-            "description": "Получает текущую погоду в городе",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "city": {
-                        "type": "string",
-                        "description": "Название города"
-                    }
-                },
-                "required": ["city"]
-            }
-        }
-    },
-    # можно добавить другие инструменты по необходимости
-]
 
-
-async def ask_deepseek(
+async def ask_worker_ai(
     prompt: str,
-    user_id: int = None,
     system_prompt: str = DEFAULT_SYSTEM_PROMPT,
+    model: str = "@cf/qwen/qwen3-32b-instruct",
     temperature: float = 0.7,
-    max_tokens: int = 1000,
-    tools: List[Dict] = TOOLS
-) -> Dict[str, Any]:
+    max_tokens: int = 1000
+) -> Optional[Dict[str, Any]]:
     """
-    Отправляет запрос к DeepSeek и возвращает полный ответ, включая возможные вызовы инструментов.
+    Отправляет запрос к собственному Cloudflare Worker и возвращает ответ.
     """
-    if not DEEPSEEK_API_KEY:
-        logger.error("❌ DEEPSEEK_API_KEY not set")
-        return {"error": "API ключ не настроен"}
+    if not WORKER_URL or not WORKER_API_KEY:
+        logger.error("❌ WORKER_URL or WORKER_API_KEY not set")
+        return {"error": "Worker credentials not configured"}
 
     headers = {
-        "Authorization": f"Bearer {DEEPSEEK_API_KEY}",
+        "Authorization": f"Bearer {WORKER_API_KEY}",
         "Content-Type": "application/json"
     }
 
     payload = {
-        "model": "deepseek-chat",  # или deepseek-reasoner, deepseek-coder
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": prompt}
-        ],
+        "prompt": prompt,
+        "systemPrompt": system_prompt,
+        "model": model,
         "temperature": temperature,
-        "max_tokens": max_tokens,
-        "stream": False
+        "max_tokens": max_tokens
     }
-
-    # Добавляем инструменты, если нужно
-    if tools:
-        payload["tools"] = tools
-        payload["tool_choice"] = "auto"
 
     try:
         async with aiohttp.ClientSession() as session:
-            async with session.post(API_URL, headers=headers, json=payload, timeout=30) as resp:
+            async with session.post(WORKER_URL, headers=headers, json=payload, timeout=30) as resp:
                 if resp.status == 200:
                     data = await resp.json()
                     return data
                 else:
                     error_text = await resp.text()
-                    logger.error(f"DeepSeek API error {resp.status}: {error_text}")
-                    return {"error": f"Ошибка API: {resp.status}"}
-    except asyncio.TimeoutError:
-        logger.error("DeepSeek API timeout")
-        return {"error": "Превышено время ожидания ответа."}
+                    logger.error(f"Worker error {resp.status}: {error_text}")
+                    return {"error": f"Worker error: {resp.status}"}
     except Exception as e:
-        logger.exception("DeepSeek API exception")
-        return {"error": f"Ошибка: {str(e)}"}
+        logger.exception("Worker request exception")
+        return {"error": f"Exception: {str(e)}"}

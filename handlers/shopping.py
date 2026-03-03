@@ -1,20 +1,18 @@
 """
 Обработчик списков покупок.
-При получении любого текста (кроме команд и кнопок) предлагает выбрать действие,
-но только если пользователь не находится в каком-либо FSM-состоянии.
+Только управление списками и товарами, без универсального обработчика текста.
 """
 from aiogram import Router, F
-from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
-from aiogram.filters import Command, StateFilter
+from aiogram.types import Message, CallbackQuery
+from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from database.db import get_session
 from database.models import User, ShoppingList, ShoppingItem
 from keyboards.inline import get_shopping_lists_keyboard, get_shopping_items_keyboard
-from keyboards.reply import get_main_keyboard, get_cancel_keyboard
+from keyboards.reply import get_main_keyboard
 from utils.parsers import parse_shopping_items
-from utils.normalizer import normalize_product_name
 from utils.states import ShoppingStates
 
 router = Router()
@@ -65,7 +63,6 @@ async def cmd_shopping(message: Message, state: FSMContext):
             )
             return
 
-        # Загружаем товары с сортировкой
         items_result = await session.execute(
             select(ShoppingItem)
             .where(ShoppingItem.list_id == shopping_list.id)
@@ -91,98 +88,9 @@ async def cmd_shopping(message: Message, state: FSMContext):
         )
 
 
-# ========== УНИВЕРСАЛЬНЫЙ ОБРАБОТЧИК ТЕКСТА ==========
-# Срабатывает только когда нет активного состояния FSM
-
-@router.message(
-    F.text,
-    StateFilter(None),  # ← ВАЖНО: только если состояние не установлено
-    ~F.text.startswith("/"),
-    ~F.text.regexp(r"^(запиши|добавь|что|как|почему|когда|где|сколько|рецепт|погода|ai|помощник|совет|напиши)").case(False),
-    ~F.text.in_({
-        "🏠 Главное меню", "❌ Отмена", "📊 Прогресс", "💧 Вода",
-        "📋 Списки покупок", "👤 Профиль", "🔔 Напоминания",
-        "💬 AI Помощник", "🏋️ Активность", "❓ Помощь"
-    })
-)
-async def handle_generic_text(message: Message, state: FSMContext):
-    """Обрабатывает произвольный текст, предлагая выбрать действие."""
-    text = message.text.strip()
-    await state.update_data(pending_text=text)
-
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📋 В список покупок", callback_data="action_shopping")],
-        [InlineKeyboardButton(text="🍽️ Записать как приём пищи", callback_data="action_food")],
-        [InlineKeyboardButton(text="🤖 Спросить AI", callback_data="action_ai")],
-        [InlineKeyboardButton(text="❌ Отмена", callback_data="action_cancel")]
-    ])
-    await message.answer(
-        f"📝 Вы написали:\n«{text}»\n\nЧто с этим сделать?",
-        reply_markup=keyboard
-    )
-
-
-@router.callback_query(F.data.startswith("action_"))
-async def process_action(callback: CallbackQuery, state: FSMContext):
-    """Обрабатывает выбранное действие."""
-    action = callback.data.split("_")[1]
-    data = await state.get_data()
-    text = data.get('pending_text', '')
-
-    if action == "shopping":
-        await add_to_shopping_list(callback, text)
-        await callback.answer("✅ Добавлено в список покупок")
-    elif action == "food":
-        await callback.message.answer("🍽️ Переход к дневнику питания...")
-        from handlers.food import process_manual_food
-        await state.update_data(manual_food_name=text)
-        await state.set_state(FoodStates.entering_weight)
-        await callback.message.answer(f"⚖️ Введите вес для «{text}» в граммах:")
-    elif action == "ai":
-        from handlers.ai_assistant import process_ai_query
-        await process_ai_query(callback.message, state, text)
-    elif action == "cancel":
-        await callback.message.answer("❌ Действие отменено.")
-
-    await state.clear()
-    await callback.message.delete()
-
-
-async def add_to_shopping_list(event, text: str):
-    """Вспомогательная функция для добавления текста в список покупок."""
-    user_id = event.from_user.id
-    parsed = parse_shopping_items(text)
-    if not parsed:
-        await event.answer("❌ Не удалось распознать товары.", show_alert=True)
-        return
-
-    async with get_session() as session:
-        shopping_list = await get_or_create_default_list(user_id, session)
-        if not shopping_list:
-            await event.answer("❌ Не удалось получить список покупок.", show_alert=True)
-            return
-
-        added = []
-        for name, qty, unit in parsed:
-            item = ShoppingItem(
-                list_id=shopping_list.id,
-                name=name,
-                quantity=qty,
-                unit=unit,
-                added_by=user_id
-            )
-            session.add(item)
-            added.append(f"{name} — {qty} {unit}")
-        await session.commit()
-
-    if added:
-        await event.message.answer(f"✅ Добавлено в список покупок:\n" + "\n".join(added))
-
-
-# ========== ОБРАБОТЧИКИ КНОПОК УПРАВЛЕНИЯ (без изменений) ==========
-
 @router.callback_query(F.data.startswith("item_incr_"))
 async def increase_quantity(callback: CallbackQuery):
+    """Увеличить количество товара на 1."""
     item_id = int(callback.data.split("_")[2])
     async with get_session() as session:
         item = await session.get(ShoppingItem, item_id)
@@ -195,6 +103,7 @@ async def increase_quantity(callback: CallbackQuery):
 
 @router.callback_query(F.data.startswith("item_decr_"))
 async def decrease_quantity(callback: CallbackQuery):
+    """Уменьшить количество товара на 1. Если станет 0, товар удаляется."""
     item_id = int(callback.data.split("_")[2])
     async with get_session() as session:
         item = await session.get(ShoppingItem, item_id)
@@ -211,6 +120,7 @@ async def decrease_quantity(callback: CallbackQuery):
 
 @router.callback_query(F.data.startswith("toggle_item_"))
 async def toggle_item(callback: CallbackQuery):
+    """Отметить/снять отметку товара."""
     item_id = int(callback.data.split("_")[2])
     async with get_session() as session:
         item = await session.get(ShoppingItem, item_id)
@@ -223,6 +133,7 @@ async def toggle_item(callback: CallbackQuery):
 
 @router.callback_query(F.data.startswith("delete_item_"))
 async def delete_item(callback: CallbackQuery):
+    """Удалить товар из списка."""
     item_id = int(callback.data.split("_")[2])
     async with get_session() as session:
         item = await session.get(ShoppingItem, item_id)
@@ -236,6 +147,7 @@ async def delete_item(callback: CallbackQuery):
 
 @router.callback_query(F.data.startswith("add_item_"))
 async def add_item_prompt(callback: CallbackQuery, state: FSMContext):
+    """Начать добавление товара вручную."""
     list_id = int(callback.data.split("_")[2])
     await state.update_data(current_list_id=list_id)
     await state.set_state(ShoppingStates.adding_item)
@@ -247,6 +159,7 @@ async def add_item_prompt(callback: CallbackQuery, state: FSMContext):
 
 @router.message(ShoppingStates.adding_item, F.text)
 async def add_item_manual(message: Message, state: FSMContext):
+    """Добавить один товар вручную."""
     data = await state.get_data()
     list_id = data.get('current_list_id')
     text = message.text.strip()
@@ -270,6 +183,7 @@ async def add_item_manual(message: Message, state: FSMContext):
 
 @router.callback_query(F.data.startswith("delete_list_"))
 async def delete_list(callback: CallbackQuery):
+    """Удалить список."""
     list_id = int(callback.data.split("_")[2])
     async with get_session() as session:
         lst = await session.get(ShoppingList, list_id)
@@ -289,6 +203,7 @@ async def delete_list(callback: CallbackQuery):
 
 @router.callback_query(F.data == "back_to_lists")
 async def back_to_lists(callback: CallbackQuery):
+    """Вернуться к главному списку."""
     user_id = callback.from_user.id
     async with get_session() as session:
         shopping_list = await get_or_create_default_list(user_id, session)
@@ -323,6 +238,7 @@ async def back_to_lists(callback: CallbackQuery):
 
 
 async def update_list_message(event: CallbackQuery | Message, list_id: int, is_callback: bool = True):
+    """Обновить сообщение со списком после изменений."""
     async with get_session() as session:
         lst = await session.get(ShoppingList, list_id)
         if not lst:

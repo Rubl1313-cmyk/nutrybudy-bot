@@ -1,6 +1,5 @@
 """
 Модуль для классификации намерений пользователя по тексту.
-Использует правила и словари ключевых слов.
 """
 import re
 from typing import Dict, Any, Optional, List
@@ -8,7 +7,6 @@ from utils.normalizer import normalize_product_name
 from utils.parsers import parse_shopping_items
 from utils.time_parser import parse_time
 
-# Типы приёмов пищи
 MEAL_TYPES = {
     "завтрак": "breakfast",
     "обед": "lunch",
@@ -16,7 +14,6 @@ MEAL_TYPES = {
     "перекус": "snack"
 }
 
-# Типы активности
 ACTIVITY_TYPES = {
     "ходьба": "walking",
     "бег": "running",
@@ -27,7 +24,6 @@ ACTIVITY_TYPES = {
     "другое": "other"
 }
 
-# Ключевые слова для определения намерений
 INTENT_KEYWORDS = {
     "water": ["вода", "выпил", "попил", "воды"],
     "shopping": ["список покупок", "купить", "добавь в список", "надо купить"],
@@ -44,27 +40,15 @@ INTENT_KEYWORDS = {
 
 
 def classify(text: str) -> Dict[str, Any]:
-    """
-    Определяет намерение пользователя по тексту.
-    Возвращает словарь с ключами:
-    - intent: str (food, water, shopping, activity, reminder, ai, unknown)
-    - meal_type: Optional[str] (breakfast/lunch/dinner/snack) – для food
-    - activity_type: Optional[str] – для activity
-    - items: Optional[List[str]] – список продуктов/ингредиентов
-    - duration: Optional[int] – длительность в минутах
-    - reminder_title: Optional[str]
-    - reminder_time: Optional[str]
-    - text: исходный текст
-    """
     text_lower = text.lower()
     result = {"intent": "unknown", "text": text}
 
-    # 1. Вода
+    # Вода
     if any(k in text_lower for k in INTENT_KEYWORDS["water"]) and not any(k in text_lower for k in ["список", "купить"]):
         result["intent"] = "water"
         return result
 
-    # 2. Активность
+    # Активность
     for key, act_type in ACTIVITY_TYPES.items():
         if key in text_lower:
             result["intent"] = "activity"
@@ -74,7 +58,7 @@ def classify(text: str) -> Dict[str, Any]:
                 result["duration"] = dur
             return result
 
-    # 3. Напоминание
+    # Напоминание
     if any(k in text_lower for k in INTENT_KEYWORDS["reminder"]):
         result["intent"] = "reminder"
         title = _extract_reminder_title(text)
@@ -85,7 +69,7 @@ def classify(text: str) -> Dict[str, Any]:
             result["reminder_time"] = time
         return result
 
-    # 4. Список покупок
+    # Список покупок
     if any(k in text_lower for k in INTENT_KEYWORDS["shopping"]):
         result["intent"] = "shopping"
         cleaned = _remove_keywords(text_lower, INTENT_KEYWORDS["shopping"])
@@ -94,7 +78,7 @@ def classify(text: str) -> Dict[str, Any]:
         result["items_with_quantity"] = items
         return result
 
-    # 5. Приём пищи
+    # Приём пищи
     if any(k in text_lower for k in INTENT_KEYWORDS["food"]) or any(meal in text_lower for meal in MEAL_TYPES):
         result["intent"] = "food"
         for meal_ru, meal_en in MEAL_TYPES.items():
@@ -107,12 +91,12 @@ def classify(text: str) -> Dict[str, Any]:
         result["items_with_quantity"] = items
         return result
 
-    # 6. Проверка на явные AI-ключевые слова
+    # Явные AI-ключевые слова
     if any(k in text_lower for k in INTENT_KEYWORDS["ai"]):
         result["intent"] = "ai"
         return result
 
-    # 7. Если ничего не подошло – всё равно отправляем в AI
+    # Всё остальное – в AI
     result["intent"] = "ai"
     return result
 

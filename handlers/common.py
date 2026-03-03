@@ -11,11 +11,10 @@ from handlers.profile import cmd_profile
 from handlers.food import cmd_log_food
 from handlers.water import cmd_water
 from handlers.progress import cmd_progress
+from handlers.shopping import cmd_shopping
+from handlers.reminders import cmd_reminders
 from handlers.activity import cmd_fitness
-from services.intent_classifier import classify
-from handlers.shopping import cmd_shopping, add_to_shopping_list
-from handlers.reminders import cmd_reminders, quick_create_reminder
-from handlers.ai_assistant import process_ai_query
+from handlers.ai_assistant import cmd_ask  # ← ВАЖНО: добавить этот импорт
 
 router = Router()
 
@@ -90,15 +89,6 @@ async def cmd_main_menu(message: Message, state: FSMContext):
         reply_markup=get_main_keyboard()
     )
 
-@router.message(
-    F.text,
-    ~F.text.startswith("/"),
-    ~F.text.in_({
-        "🏠 Главное меню", "❌ Отмена", "📊 Прогресс", "💧 Вода",
-        "📋 Списки покупок", "👤 Профиль", "🔔 Напоминания",
-        "💬 AI Помощник", "🏋️ Активность", "❓ Помощь"
-    })
-)
 
 # ---------- Обработчики кнопок главного меню ----------
 
@@ -117,7 +107,7 @@ async def menu_water(message: Message, state: FSMContext):
 @router.message(F.text == "📊 Прогресс")
 async def menu_progress(message: Message, state: FSMContext):
     await state.clear()
-    await cmd_progress(message)  # ← ВАЖНО: без state
+    await cmd_progress(message)
 
 
 @router.message(F.text == "📋 Списки покупок")
@@ -137,21 +127,11 @@ async def menu_profile(message: Message, state: FSMContext):
     await state.clear()
     await cmd_profile(message, state)
 
+
 @router.message(F.text == "💬 AI Помощник")
 async def menu_ai_assistant(message: Message, state: FSMContext):
     await state.clear()
-    await message.answer(
-        "🤖 <b>AI Помощник NutriBuddy</b>\n\n"
-        "Я умею:\n"
-        "• ✏️ Отвечать на любые вопросы о питании, здоровье, тренировках\n"
-        "• 🍳 Генерировать рецепты по вашим ингредиентам (например, «рецепт из курицы и риса»)\n"
-        "• 🛒 Добавлять товары в список покупок (скажите «добавь в список яйца, молоко, 3 яблока»)\n"
-        "• 🌡️ Сообщать погоду в любом городе (например, «погода в Мурманске»)\n"
-        "• 💡 Давать советы по здоровому образу жизни\n\n"
-        "Просто напишите или отправьте голосовое сообщение – я пойму и помогу!\n"
-        "Для отмены нажмите ❌ Отмена",
-        reply_markup=get_cancel_keyboard()
-    )
+    # Вызываем команду /ask (импортирована выше)
     await cmd_ask(message, state)
 
 

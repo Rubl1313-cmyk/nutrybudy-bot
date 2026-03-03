@@ -22,7 +22,6 @@ from database.models import Meal, FoodItem, User
 from datetime import datetime
 from sqlalchemy import select
 from services.intent_classifier import classify
-from handlers.common import handle_universal_text
 
 router = Router()
 logger = logging.getLogger(__name__)

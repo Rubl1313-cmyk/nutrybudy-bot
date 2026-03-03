@@ -2,18 +2,18 @@
 Обработчик AI-ассистента.
 """
 from aiogram import Router, F
-from aiogram.types import Message, CallbackQuery
+from aiogram.types import Message
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 import logging
 import json
 
-from services.deepseek_client import ask_deepseek, DEFAULT_SYSTEM_PROMPT
+# Новый импорт – используем ask_worker_ai из обновлённого клиента
+from services.deepseek_client import ask_worker_ai, DEFAULT_SYSTEM_PROMPT
 from utils.ai_tools import add_to_shopping_list, get_weather
 from keyboards.reply import get_main_keyboard, get_cancel_keyboard
 from services.cloudflare_ai import transcribe_audio
-from services.deepseek_client import ask_worker_ai  # новый импорт
 
 router = Router()
 logger = logging.getLogger(__name__)
@@ -27,7 +27,6 @@ class AIAssistantStates(StatesGroup):
 async def cmd_ask(message: Message, state: FSMContext):
     """Вход в режим AI-ассистента."""
     await state.set_state(AIAssistantStates.waiting_for_question)
-    # Сообщение уже отправлено в common.py при нажатии кнопки, поэтому здесь можно ничего не писать
 
 
 @router.message(AIAssistantStates.waiting_for_question, F.voice)
@@ -61,6 +60,7 @@ async def process_ai_query(message: Message, state: FSMContext, query: str):
         return
 
     await message.answer("⏳ Думаю...")
+    # Используем новую функцию ask_worker_ai
     response = await ask_worker_ai(
         prompt=query,
         system_prompt=DEFAULT_SYSTEM_PROMPT,
@@ -77,11 +77,3 @@ async def process_ai_query(message: Message, state: FSMContext, query: str):
         await message.answer("❌ Не удалось получить ответ.")
 
     await state.clear()
-
-
-async def execute_tool(func_name: str, args: dict, telegram_id: int) -> str:
-    if func_name == "add_to_shopping_list":
-        return await add_to_shopping_list(telegram_id, args.get("items", []))
-    if func_name == "get_weather":
-        return await get_weather(args.get("city", ""))
-    return f"❌ Неизвестная команда: {func_name}"

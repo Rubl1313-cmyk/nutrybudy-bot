@@ -21,6 +21,8 @@ from database.db import get_session
 from database.models import Meal, FoodItem, User
 from datetime import datetime
 from sqlalchemy import select
+from services.intent_classifier import classify
+from handlers.common import handle_universal_text
 
 router = Router()
 logger = logging.getLogger(__name__)
@@ -308,7 +310,7 @@ async def _finish_meal(message: Message, state: FSMContext):
 
 @router.message(F.voice)
 async def handle_voice(message: Message, state: FSMContext):
-    """Распознаёт голос и отправляет текст в AI-ассистент."""
+    """Распознаёт голос и классифицирует намерение."""
     try:
         voice = message.voice
         file_info = await message.bot.get_file(voice.file_id)
@@ -318,9 +320,9 @@ async def handle_voice(message: Message, state: FSMContext):
         if not text:
             await message.answer("❌ Не удалось распознать речь.")
             return
-        # Перенаправляем в AI-ассистент
-        from handlers.ai_assistant import process_ai_query
-        await process_ai_query(message, state, text)
+        await message.answer(f"📝 Распознано: {text}")
+        # Перенаправляем в универсальный обработчик
+        await handle_universal_text(message, state, text)
     except Exception as e:
         logger.error(f"Voice error: {e}")
         await message.answer("❌ Ошибка распознавания.")

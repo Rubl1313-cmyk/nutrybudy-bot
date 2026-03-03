@@ -131,7 +131,7 @@ async def menu_profile(message: Message, state: FSMContext):
 @router.message(F.text == "💬 AI Помощник")
 async def menu_ai_assistant(message: Message, state: FSMContext):
     await state.clear()
-    # Вызываем команду /ask (импортирована выше)
+    from handlers.ai_assistant import cmd_ask
     await cmd_ask(message, state)
 
 

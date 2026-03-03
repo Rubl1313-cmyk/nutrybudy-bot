@@ -16,7 +16,6 @@ from handlers.reminders import quick_create_reminder
 from handlers.shopping import add_to_shopping_list as shopping_add
 from keyboards.reply import get_main_keyboard, get_cancel_keyboard
 from services.cloudflare_ai import transcribe_audio
-from handlers.universal_text_handler import handle_universal_text
 
 router = Router()
 logger = logging.getLogger(__name__)
@@ -47,9 +46,10 @@ async def handle_voice_question(message: Message, state: FSMContext):
             return
         await message.answer(f"📝 <b>Распознано:</b>\n{text}", parse_mode="HTML")
         
-        # 🔥 ВАЖНО: отправляем текст в универсальный обработчик
+        # 🔥 ИМПОРТ ВНУТРИ ФУНКЦИИ
         from handlers.universal_text_handler import handle_universal_text
         await handle_universal_text(message, state, text)
+        
     except Exception as e:
         logger.error(f"Voice error: {e}")
         await message.answer("❌ Ошибка распознавания.")

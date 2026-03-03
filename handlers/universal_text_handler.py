@@ -181,6 +181,12 @@ elif intent == "weather":
         await message.answer(weather_info)
         return
 
+elif intent == "meal_plan":
+    # Импортируем внутри, чтобы избежать циклических импортов
+    from handlers.meal_plan import cmd_meal_plan
+    await cmd_meal_plan(message, state)
+    return
+
     # ----- НЕОПРЕДЕЛЁННОЕ -----
     else:
         await state.update_data(pending_text=text)

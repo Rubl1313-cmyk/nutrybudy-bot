@@ -21,7 +21,7 @@ DEFAULT_SYSTEM_PROMPT = (
 async def ask_worker_ai(
     prompt: str,
     system_prompt: str = DEFAULT_SYSTEM_PROMPT,
-    model: str = "@cf/qwen/qwen3-32b-instruct",
+    model: str = "@cf/qwen/qwen2.5-coder-32b-instruct",
     temperature: float = 0.7,
     max_tokens: int = 1000
 ) -> Optional[Dict[str, Any]]:

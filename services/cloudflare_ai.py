@@ -90,56 +90,37 @@ async def analyze_food_image(
 
 
 async def transcribe_audio(audio_bytes: bytes, language: str = "ru") -> Optional[str]:
-    """
-    Распознаёт речь в аудиофайле через Cloudflare Whisper.
-    Пробует несколько моделей по очереди.
-    """
     try:
         from aiohttp import FormData
         
-        if not CLOUDFLARE_ACCOUNT_ID or not CLOUDFLARE_API_TOKEN:
-            logger.error("❌ Cloudflare credentials not set")
+        # Проверка размера (опционально)
+        if len(audio_bytes) > 20 * 1024 * 1024:
+            logger.warning("Audio file too large (>20MB), skipping")
             return None
         
-        # Формируем данные для отправки
-        data = FormData()
-        data.add_field('file', audio_bytes, filename='voice.ogg', content_type='audio/ogg')
-        
-        headers = {"Authorization": f"Bearer {CLOUDFLARE_API_TOKEN}"}
-        
-        # Пробуем каждую модель по очереди
         for model in WHISPER_MODELS:
-            url = f"{BASE_URL}{model}"
-            logger.info(f"🎤 Trying Whisper model: {model}")
-            
-            async with aiohttp.ClientSession() as session:
-                try:
-                    async with session.post(
-                        url,
-                        headers=headers,
-                        data=data,
-                        timeout=aiohttp.ClientTimeout(total=60)
-                    ) as resp:
-                        
+            try:
+                # Создаём НОВЫЙ FormData для каждой попытки!
+                data = FormData()
+                data.add_field('file', audio_bytes, filename='voice.ogg', content_type='audio/ogg')
+                
+                url = f"{BASE_URL}{model}"
+                headers = {"Authorization": f"Bearer {CLOUDFLARE_API_TOKEN}"}
+                
+                async with aiohttp.ClientSession() as session:
+                    async with session.post(url, headers=headers, data=data, timeout=60) as resp:
                         if resp.status == 200:
                             result = await resp.json()
                             text = result.get("result", {}).get("text", "")
                             if text:
-                                logger.info(f"✅ Whisper success with {model}: {text[:100]}...")
                                 return text.strip()
-                            else:
-                                logger.warning(f"⚠️ Whisper {model} returned empty text")
                         else:
-                            error_text = await resp.text()
-                            logger.warning(f"❌ Whisper {model} error {resp.status}: {error_text[:200]}")
-                except Exception as e:
-                    logger.warning(f"⚠️ Whisper {model} exception: {e}")
-                    continue
-        
-        # Если ни одна модель не сработала
-        logger.error("❌ All Whisper models failed")
+                            logger.warning(f"Model {model} failed: {resp.status}")
+            except Exception as e:
+                logger.warning(f"Exception with {model}: {e}")
+                continue
+                
         return None
-        
     except Exception as e:
-        logger.exception(f"💥 transcribe_audio critical error: {e}")
+        logger.error(f"Critical error: {e}")
         return None

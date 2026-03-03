@@ -6,6 +6,7 @@ import re
 from typing import Dict, Any, Optional, List
 from utils.normalizer import normalize_product_name
 from utils.parsers import parse_shopping_items
+from utils.time_parser import parse_time
 
 # Типы приёмов пищи
 MEAL_TYPES = {
@@ -71,9 +72,8 @@ def classify(text: str) -> Dict[str, Any]:
     # 3. Напоминание
     if any(k in text_lower for k in INTENT_KEYWORDS["reminder"]):
         result["intent"] = "reminder"
-        # Извлекаем заголовок и время
         title = _extract_reminder_title(text)
-        time = _extract_time(text)
+        time = parse_time(text)  # ← используем новый парсер
         if title:
             result["reminder_title"] = title
         if time:
@@ -91,16 +91,13 @@ def classify(text: str) -> Dict[str, Any]:
         return result
 
     # 5. Приём пищи
-    # Проверяем, есть ли ключевые слова еды или тип приёма
     food_keywords = INTENT_KEYWORDS["food"]
     if any(k in text_lower for k in food_keywords) or any(meal in text_lower for meal in MEAL_TYPES):
         result["intent"] = "food"
-        # Определяем тип приёма, если есть
         for meal_ru, meal_en in MEAL_TYPES.items():
             if meal_ru in text_lower:
                 result["meal_type"] = meal_en
                 break
-        # Удаляем ключевые слова, оставляя список продуктов
         cleaned = _remove_keywords(text_lower, list(MEAL_TYPES.keys()) + food_keywords)
         items = parse_shopping_items(cleaned)
         result["items"] = [item[0] for item in items]
@@ -121,17 +118,6 @@ def _extract_duration(text: str) -> Optional[int]:
         if 'ч' in unit:
             num *= 60
         return num
-    return None
-
-
-def _extract_time(text: str) -> Optional[str]:
-    """Извлекает время в формате ЧЧ:ММ."""
-    match = re.search(r'(\d{1,2})[.:](\d{2})', text)
-    if match:
-        h = int(match.group(1))
-        m = int(match.group(2))
-        if 0 <= h <= 23 and 0 <= m <= 59:
-            return f"{h:02d}:{m:02d}"
     return None
 
 

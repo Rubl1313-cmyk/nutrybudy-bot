@@ -1,6 +1,7 @@
 """
 Обработчик планировщика питания.
-Показывает распределение калорий по приёмам пищи и генерирует примерное меню с возможностью перегенерации.
+Показывает распределение калорий по приёмам пищи и генерирует примерное меню.
+Добавлена кнопка сохранения рациона.
 """
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
@@ -106,8 +107,12 @@ async def generate_menu_callback(callback: CallbackQuery):
     content, success = await generate_menu(user_id)
 
     if success:
+        # Сохраняем меню в состоянии для возможности сохранения
+        await state.update_data(last_menu=content)
+
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="🔄 Другой вариант", callback_data="regenerate_menu")],
+            [InlineKeyboardButton(text="💾 Сохранить рацион", callback_data="save_menu")],
             [InlineKeyboardButton(text="🔙 Назад к распределению", callback_data="back_to_distribution")],
             [InlineKeyboardButton(text="🏠 Главное меню", callback_data="main_menu")]
         ])
@@ -119,7 +124,7 @@ async def generate_menu_callback(callback: CallbackQuery):
 
 
 @router.callback_query(F.data == "regenerate_menu")
-async def regenerate_menu_callback(callback: CallbackQuery):
+async def regenerate_menu_callback(callback: CallbackQuery, state: FSMContext):
     """Генерирует другой вариант меню."""
     user_id = callback.from_user.id
     await callback.message.edit_text("⏳ Генерирую другой вариант...")
@@ -127,8 +132,10 @@ async def regenerate_menu_callback(callback: CallbackQuery):
     content, success = await generate_menu(user_id, variation="Предложи другой вариант меню, отличный от предыдущего.")
 
     if success:
+        await state.update_data(last_menu=content)
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="🔄 Ещё вариант", callback_data="regenerate_menu")],
+            [InlineKeyboardButton(text="💾 Сохранить рацион", callback_data="save_menu")],
             [InlineKeyboardButton(text="🔙 Назад к распределению", callback_data="back_to_distribution")],
             [InlineKeyboardButton(text="🏠 Главное меню", callback_data="main_menu")]
         ])
@@ -137,6 +144,23 @@ async def regenerate_menu_callback(callback: CallbackQuery):
         await callback.message.edit_text(content)
 
     await callback.answer()
+
+
+@router.callback_query(F.data == "save_menu")
+async def save_menu_callback(callback: CallbackQuery, state: FSMContext):
+    """Сохраняет последнее сгенерированное меню."""
+    data = await state.get_data()
+    last_menu = data.get('last_menu')
+    if not last_menu:
+        await callback.answer("❌ Нет сохранённого рациона", show_alert=True)
+        return
+
+    # Отправляем копию с пометкой
+    await callback.message.answer(
+        f"📎 <b>Сохранённый рацион</b>\n\n{last_menu}",
+        parse_mode="HTML"
+    )
+    await callback.answer("✅ Рацион сохранён!", show_alert=False)
 
 
 @router.callback_query(F.data == "back_to_distribution")

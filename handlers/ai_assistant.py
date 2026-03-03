@@ -7,11 +7,8 @@ from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 import logging
-import json
 
-# Новый импорт – используем ask_worker_ai из обновлённого клиента
 from services.deepseek_client import ask_worker_ai, DEFAULT_SYSTEM_PROMPT
-from utils.ai_tools import add_to_shopping_list, get_weather
 from keyboards.reply import get_main_keyboard, get_cancel_keyboard
 from services.cloudflare_ai import transcribe_audio
 
@@ -27,7 +24,7 @@ class AIAssistantStates(StatesGroup):
 async def cmd_ask(message: Message, state: FSMContext):
     """Вход в режим AI-ассистента."""
     await state.set_state(AIAssistantStates.waiting_for_question)
-    # Сообщение уже отправлено в common.py, поэтому здесь ничего не пишем
+    logger.info("Состояние AI-ассистента установлено")
 
 
 @router.message(AIAssistantStates.waiting_for_question, F.voice)
@@ -56,14 +53,13 @@ async def handle_text_question(message: Message, state: FSMContext):
 
 async def process_ai_query(message: Message, state: FSMContext, query: str):
     """Основная логика отправки запроса в AI и обработки ответа."""
-    logger.info(f"🚀 process_ai_query вызван с текстом: {query}")
     if not query.strip():
         await message.answer("❌ Пустой запрос.")
         return
 
     await message.answer("⏳ Думаю...")
-    logger.info(f"✅ Ответ от Worker получен, длина: {len(content)}")
-    # Используем новую функцию ask_worker_ai
+    logger.info(f"🚀 process_ai_query вызван с текстом: {query}")
+
     response = await ask_worker_ai(
         prompt=query,
         system_prompt=DEFAULT_SYSTEM_PROMPT,
@@ -75,6 +71,7 @@ async def process_ai_query(message: Message, state: FSMContext, query: str):
         await message.answer(response["error"])
     elif response.get("choices"):
         content = response["choices"][0]["message"]["content"]
+        logger.info(f"✅ Ответ от Worker получен, длина: {len(content)}")
         await message.answer(content, parse_mode="HTML")
     else:
         await message.answer("❌ Не удалось получить ответ.")

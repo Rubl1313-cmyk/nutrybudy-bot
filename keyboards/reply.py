@@ -14,8 +14,7 @@ def get_main_keyboard():
             KeyboardButton(text="🔔 Напоминания"),
             KeyboardButton(text="👤 Профиль")
         ],
-        [
-            KeyboardButton(text="📖 Рецепты"),
+ [
             KeyboardButton(text="💬 AI Помощник"),
             KeyboardButton(text="🏋️ Активность")
         ],

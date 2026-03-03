@@ -99,64 +99,7 @@ async def cmd_main_menu(message: Message, state: FSMContext):
         "💬 AI Помощник", "🏋️ Активность", "❓ Помощь"
     })
 )
-async def handle_universal_text(message: Message, state: FSMContext, text: str = None):
-    """Универсальный обработчик любого текста."""
-    if text is None:
-        text = message.text
-    intent_data = classify(text)
-    intent = intent_data.get("intent")
 
-    if intent == "water":
-        await cmd_water(message, state)
-
-    elif intent == "activity":
-        act_type = intent_data.get("activity_type")
-        duration = intent_data.get("duration")
-        if act_type and duration:
-            # Сохраняем и переходим к подтверждению
-            await state.update_data(activity_type=act_type, duration=duration)
-            await state.set_state(ActivityStates.confirming)
-            await message.answer(f"🏃 Активность: {act_type}, {duration} мин. Подтвердить?")
-        else:
-            await cmd_fitness(message, state)
-
-    elif intent == "reminder":
-        title = intent_data.get("reminder_title")
-        time = intent_data.get("reminder_time")
-        if title and time:
-            # Быстрое создание
-            await quick_create_reminder(message.from_user.id, title, time, "daily")
-            await message.answer(f"✅ Напоминание «{title}» на {time} создано.")
-        else:
-            await cmd_reminders(message, state)
-
-    elif intent == "shopping":
-        items = intent_data.get("items")
-        if items:
-            # Добавляем все товары в список
-            await add_to_shopping_list(message, ' '.join(items))
-            await message.answer("✅ Добавлено в список покупок.")
-        else:
-            await cmd_shopping(message, state)
-
-    elif intent == "food":
-        meal_type = intent_data.get("meal_type", "snack")
-        items = intent_data.get("items")
-        if items:
-            # Запускаем множественный ввод
-            await state.update_data(
-                pending_items=items,
-                current_index=0,
-                selected_foods=[],
-                meal_type=meal_type
-            )
-            await process_next_food(message, state)
-        else:
-            await cmd_log_food(message, state)
-
-    else:  # intent == "ai"
-        await process_ai_query(message, state, text)
-        
 # ---------- Обработчики кнопок главного меню ----------
 
 @router.message(F.text == "🍽️ Дневник питания")

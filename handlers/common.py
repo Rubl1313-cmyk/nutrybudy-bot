@@ -16,7 +16,6 @@ from services.intent_classifier import classify
 from handlers.shopping import cmd_shopping, add_to_shopping_list
 from handlers.reminders import cmd_reminders, quick_create_reminder
 from handlers.ai_assistant import process_ai_query
-from handlers.media_handlers import process_next_food
 
 router = Router()
 

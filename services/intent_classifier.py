@@ -124,11 +124,7 @@ def classify(text: str) -> Dict[str, Any]:
     if any(k in text_lower for k in INTENT_KEYWORDS["ai"]):
         result["intent"] = "ai"
         return result
-
-if any(k in text_lower for k in INTENT_KEYWORDS["meal_plan"]):
-    result["intent"] = "meal_plan"
-    return result
-    
+        
     # Всё остальное – в AI
     result["intent"] = "ai"
     return result

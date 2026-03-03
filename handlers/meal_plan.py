@@ -183,13 +183,11 @@ async def generate_menu(user_id: int, variation: str = "") -> tuple[str, bool]:
 
 @router.callback_query(F.data == "generate_menu")
 async def generate_menu_callback(callback: CallbackQuery, state: FSMContext):
-    """Генерирует первое меню."""
     user_id = callback.from_user.id
     try:
         await callback.message.edit_text("⏳ Генерирую примерное меню...")
     except TelegramBadRequest as e:
         if "message is not modified" in str(e):
-            # Игнорируем, сообщение уже такое
             pass
         else:
             raise
@@ -204,12 +202,23 @@ async def generate_menu_callback(callback: CallbackQuery, state: FSMContext):
             [InlineKeyboardButton(text="🔙 Назад к распределению", callback_data="back_to_distribution")],
             [InlineKeyboardButton(text="🏠 Главное меню", callback_data="main_menu")]
         ])
-        await callback.message.edit_text(content, reply_markup=keyboard, parse_mode="HTML")
+
+        # 🔥 Разбиваем длинный текст
+        message_parts = split_message(content)
+        if not message_parts:
+            await callback.message.edit_text("❌ Не удалось сгенерировать меню.")
+            await callback.answer()
+            return
+             # Первая часть — редактируем исходное сообщение
+        await callback.message.edit_text(message_parts[0], reply_markup=keyboard, parse_mode="HTML")
+
+        # Остальные части — отправляем как новые сообщения
+        for part in message_parts[1:]:
+            await callback.message.answer(part, parse_mode="HTML")
     else:
         await callback.message.edit_text(content)
 
     await callback.answer()
-
 
 @router.callback_query(F.data == "regenerate_menu")
 async def regenerate_menu_callback(callback: CallbackQuery, state: FSMContext):

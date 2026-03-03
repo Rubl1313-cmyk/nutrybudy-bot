@@ -74,7 +74,29 @@ async def preset_water(callback: CallbackQuery, state: FSMContext):
     )
     await callback.answer()
 
+async def add_water_quick(telegram_id: int, amount: int) -> bool:
+    """Быстрое добавление воды без диалога."""
+    from database.db import get_session
+    from database.models import User, WaterEntry
+    from sqlalchemy import select
+    from datetime import datetime
 
+    async with get_session() as session:
+        result = await session.execute(
+            select(User).where(User.telegram_id == telegram_id)
+        )
+        user = result.scalar_one_or_none()
+        if not user:
+            return False
+        entry = WaterEntry(
+            user_id=user.id,
+            amount=amount,
+            datetime=datetime.now()
+        )
+        session.add(entry)
+        await session.commit()
+        return True
+        
 @router.message(WaterStates.entering_amount)
 async def manual_water(message: Message, state: FSMContext):
     text = message.text.strip()

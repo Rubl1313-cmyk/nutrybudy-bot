@@ -103,7 +103,7 @@ async def cmd_shopping(message: Message, state: FSMContext):
     ~F.text.in_({
         "🏠 Главное меню", "❌ Отмена", "📊 Прогресс", "💧 Вода",
         "📋 Списки покупок", "👤 Профиль", "🔔 Напоминания",
-        "📖 Рецепты", "💬 AI Помощник", "🏋️ Активность", "❓ Помощь"
+        "💬 AI Помощник", "🏋️ Активность", "❓ Помощь"
     })
 )
 async def add_items_from_text(message: Message, state: FSMContext):

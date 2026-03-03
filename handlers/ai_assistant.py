@@ -41,11 +41,11 @@ async def handle_voice_question(message: Message, state: FSMContext):
             await message.answer("❌ Не удалось распознать речь.")
             return
         await message.answer(f"📝 <b>Распознано:</b>\n{text}", parse_mode="HTML")
-        
+
         # 🔥 Импорт внутри функции для избежания циклического импорта
         from handlers.universal_text_handler import handle_universal_text
         await handle_universal_text(message, state, text)
-        
+
     except Exception as e:
         logger.error(f"Voice error: {e}")
         await message.answer("❌ Ошибка распознавания.")

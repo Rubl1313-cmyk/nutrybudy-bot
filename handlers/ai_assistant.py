@@ -23,16 +23,9 @@ class AIAssistantStates(StatesGroup):
 
 
 @router.message(Command("ask"))
-@router.message(F.text == "💬 AI Помощник")
 async def cmd_ask(message: Message, state: FSMContext):
+    """Переводит в режим ожидания вопроса (без отправки дополнительного сообщения)."""
     await state.set_state(AIAssistantStates.waiting_for_question)
-    await message.answer(
-        "🤖 <b>AI Помощник</b>\n\n"
-        "Задайте любой вопрос или дайте команду.\n"
-        "Например: «добавь в список 3 яйца», «рецепт из курицы», «погода в Мурманске»\n\n"
-        "Для отмены нажмите ❌ Отмена",
-        reply_markup=get_cancel_keyboard()
-    )
 
 
 @router.message(AIAssistantStates.waiting_for_question, F.voice)

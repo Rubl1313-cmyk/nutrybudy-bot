@@ -16,6 +16,7 @@ from handlers.reminders import quick_create_reminder
 from handlers.shopping import add_to_shopping_list as shopping_add
 from keyboards.reply import get_main_keyboard, get_cancel_keyboard
 from services.cloudflare_ai import transcribe_audio
+from handlers.universal_text_handler import handle_universal_text
 
 router = Router()
 logger = logging.getLogger(__name__)

@@ -3,7 +3,7 @@
 Если намерение не определено (intent == "ai"), показывает меню выбора.
 """
 from aiogram import Router
-from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery  # ← добавлен CallbackQuery
 from aiogram.fsm.context import FSMContext
 import logging
 
@@ -35,12 +35,11 @@ async def handle_universal_text(message: Message, state: FSMContext):
     text = message.text
     logger.info(f"📨 Получен текст: {text}")
 
-    # Классифицируем намерение
     intent_data = classify(text)
     intent = intent_data.get("intent")
     text_lower = text.lower()
 
-    # ----- ВОДА (спецобработка) -----
+    # ----- ВОДА -----
     if intent == "water":
         amount = parse_water_amount(text)
 
@@ -121,11 +120,9 @@ async def handle_universal_text(message: Message, state: FSMContext):
             await cmd_log_food(message, state)
         return
 
-    # ----- НЕОПРЕДЕЛЁННОЕ (intent == "ai") -----
+    # ----- НЕОПРЕДЕЛЁННОЕ -----
     else:
-        # Сохраняем текст в состоянии для последующего использования
         await state.update_data(pending_text=text)
-        # Показываем меню выбора
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="📋 В список покупок", callback_data="choose_shopping")],
             [InlineKeyboardButton(text="🍽️ Записать как приём пищи", callback_data="choose_food")],
@@ -141,7 +138,7 @@ async def handle_universal_text(message: Message, state: FSMContext):
 
 # ----- ОБРАБОТЧИКИ КНОПОК ДЛЯ ВОДЫ -----
 @universal_router.callback_query(lambda c: c.data == "water_drink")
-async def water_drink_callback(callback, state):
+async def water_drink_callback(callback: CallbackQuery, state: FSMContext):
     data = await state.get_data()
     amount = data.get('water_amount')
     if amount:
@@ -154,7 +151,7 @@ async def water_drink_callback(callback, state):
 
 
 @universal_router.callback_query(lambda c: c.data == "water_buy")
-async def water_buy_callback(callback, state):
+async def water_buy_callback(callback: CallbackQuery, state: FSMContext):
     data = await state.get_data()
     amount = data.get('water_amount')
     item_text = f"вода {amount} мл" if amount else "вода"
@@ -165,7 +162,7 @@ async def water_buy_callback(callback, state):
 
 
 @universal_router.callback_query(lambda c: c.data == "action_cancel")
-async def action_cancel_callback(callback, state):
+async def action_cancel_callback(callback: CallbackQuery, state: FSMContext):
     await state.clear()
     await callback.message.delete()
     await callback.message.answer("❌ Действие отменено.")
@@ -186,7 +183,6 @@ async def choose_shopping_callback(callback: CallbackQuery, state: FSMContext):
 async def choose_food_callback(callback: CallbackQuery, state: FSMContext):
     data = await state.get_data()
     text = data.get('pending_text', '')
-    # Разбираем на продукты
     items = [name for name, _, _ in parse_shopping_items(text)]
     await state.update_data(
         pending_items=items,

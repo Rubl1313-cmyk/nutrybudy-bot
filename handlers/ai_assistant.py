@@ -27,6 +27,7 @@ class AIAssistantStates(StatesGroup):
 async def cmd_ask(message: Message, state: FSMContext):
     """Вход в режим AI-ассистента."""
     await state.set_state(AIAssistantStates.waiting_for_question)
+    # Сообщение уже отправлено в common.py, поэтому здесь ничего не пишем
 
 
 @router.message(AIAssistantStates.waiting_for_question, F.voice)

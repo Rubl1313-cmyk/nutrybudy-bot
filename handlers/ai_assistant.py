@@ -62,11 +62,12 @@ async def process_ai_query(message: Message, state: FSMContext, query: str):
         return
 
     await message.answer("⏳ Думаю...")
+    logger.info(f"✅ Ответ от Worker получен, длина: {len(content)}")
     # Используем новую функцию ask_worker_ai
     response = await ask_worker_ai(
         prompt=query,
         system_prompt=DEFAULT_SYSTEM_PROMPT,
-        model="@cf/qwen/qwen3-32b-instruct",
+        model="@cf/qwen/qwen2.5-coder-32b-instruct",
         max_tokens=1500
     )
 

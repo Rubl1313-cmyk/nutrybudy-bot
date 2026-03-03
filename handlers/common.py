@@ -127,19 +127,21 @@ async def menu_profile(message: Message, state: FSMContext):
     await state.clear()
     await cmd_profile(message, state)
 
-
-@router.message(F.text == "📖 Рецепты")
-async def menu_recipes(message: Message, state: FSMContext):
-    await state.clear()
-    await message.answer(
-        "🍳 Вы можете попросить AI Помощника предложить рецепт, например: «рецепт из курицы и риса».",
-        reply_markup=get_main_keyboard()
-    )
-
-
 @router.message(F.text == "💬 AI Помощник")
 async def menu_ai_assistant(message: Message, state: FSMContext):
     await state.clear()
+    await message.answer(
+        "🤖 <b>AI Помощник NutriBuddy</b>\n\n"
+        "Я умею:\n"
+        "• ✏️ Отвечать на любые вопросы о питании, здоровье, тренировках\n"
+        "• 🍳 Генерировать рецепты по вашим ингредиентам (например, «рецепт из курицы и риса»)\n"
+        "• 🛒 Добавлять товары в список покупок (скажите «добавь в список яйца, молоко, 3 яблока»)\n"
+        "• 🌡️ Сообщать погоду в любом городе (например, «погода в Мурманске»)\n"
+        "• 💡 Давать советы по здоровому образу жизни\n\n"
+        "Просто напишите или отправьте голосовое сообщение – я пойму и помогу!\n"
+        "Для отмены нажмите ❌ Отмена",
+        reply_markup=get_cancel_keyboard()
+    )
     await cmd_ask(message, state)
 
 

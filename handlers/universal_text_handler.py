@@ -32,43 +32,33 @@ universal_router = Router()
 async def handle_universal_text(message: Message, state: FSMContext):
     """Универсальный обработчик любого текста."""
     text = message.text
-    intent_data = classify(text)
-    intent = intent_data.get("intent")
     text_lower = text.lower()
-
-    # ----- ОСОБАЯ ОБРАБОТКА ВОДЫ -----
-    if intent == "water":
+    
+    # Специальная обработка воды (до классификации, чтобы избежать неверного определения)
+    if "вода" in text_lower or "воды" in text_lower:
         amount = parse_water_amount(text)
+        await state.update_data(water_amount=amount)
 
-        # Если есть прямое указание "купить"
+        # Проверка на прямое указание "купить" или "выпил"
         if "купить" in text_lower or "покупки" in text_lower:
-            # Добавляем в список покупок
             item_text = f"вода {amount} мл" if amount else "вода"
             await add_to_shopping_list(message, item_text)
             await message.answer("✅ Добавлено в список покупок.")
             return
-
-        # Если есть прямое указание "выпил"
         elif "выпил" in text_lower or "попил" in text_lower:
             if amount:
                 await add_water_quick(message.from_user.id, amount)
                 await message.answer(f"✅ Записано {amount} мл воды.")
             else:
-                # Запускаем обычный процесс добавления воды
                 await cmd_water(message, state)
             return
-
-        # Если нет уточнения – предлагаем выбор
         else:
-            # Сохраняем распознанный объём в состояние
-            await state.update_data(water_amount=amount)
-
+            # Нет уточнения – предлагаем выбор: выпить или купить
             keyboard = InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(text="💧 Выпить воду", callback_data="water_drink")],
                 [InlineKeyboardButton(text="📋 Купить воду", callback_data="water_buy")],
                 [InlineKeyboardButton(text="❌ Отмена", callback_data="action_cancel")]
             ])
-
             amount_text = f" ({amount} мл)" if amount else ""
             await message.answer(
                 f"📝 Вы написали о воде{amount_text}.\n\nВы хотите выпить воду или купить её?",
@@ -76,7 +66,10 @@ async def handle_universal_text(message: Message, state: FSMContext):
             )
             return
 
-    # ----- ОСТАЛЬНЫЕ НАМЕРЕНИЯ -----
+    # Обычная классификация для всего остального
+    intent_data = classify(text)
+    intent = intent_data.get("intent")
+
     if intent == "activity":
         act_type = intent_data.get("activity_type")
         duration = intent_data.get("duration")
@@ -118,11 +111,11 @@ async def handle_universal_text(message: Message, state: FSMContext):
         else:
             await cmd_log_food(message, state)
 
-    else:  # intent == "ai"
+    else:  # intent == "ai" или unknown
         await process_ai_query(message, state, text)
 
 
-# ----- ОБРАБОТЧИКИ КНОПОК ДЛЯ ВОДЫ -----
+# Обработчики кнопок для воды
 @universal_router.callback_query(lambda c: c.data == "water_drink")
 async def water_drink_callback(callback, state):
     data = await state.get_data()
@@ -131,7 +124,6 @@ async def water_drink_callback(callback, state):
         await add_water_quick(callback.from_user.id, amount)
         await callback.message.answer(f"✅ Записано {amount} мл воды.")
     else:
-        # Нет объёма – запускаем стандартный процесс
         await cmd_water(callback.message, state)
     await callback.message.delete()
     await callback.answer()

@@ -89,6 +89,8 @@ async def handle_photo(message: Message, state: FSMContext):
         if not translated_items:
             translated_items = [description_en]
 
+        await message.answer(f"🧠 <b>Распознано:</b> {description_ru}", parse_mode="HTML")
+
         await state.update_data(
             pending_items=translated_items,
             current_index=0,

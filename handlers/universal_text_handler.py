@@ -14,7 +14,6 @@ from handlers.water import cmd_water, add_water_quick
 from handlers.shopping import cmd_shopping, add_to_shopping_list
 from handlers.activity import cmd_fitness
 from handlers.reminders import cmd_reminders, quick_create_reminder
-from handlers.ai_assistant import process_ai_query
 from handlers.media_handlers import process_next_food
 from utils.parsers import parse_shopping_items
 from utils.states import ActivityStates
@@ -105,4 +104,14 @@ async def action_cancel_callback(callback: CallbackQuery, state: FSMContext):
     await state.clear()
     await callback.message.delete()
     await callback.message.answer("❌ Действие отменено.")
+    await callback.answer()
+
+@universal_router.callback_query(lambda c: c.data == "choose_ai")
+async def choose_ai_callback(callback: CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+    text = data.get('pending_text', '')
+    # 🔥 ИМПОРТ ВНУТРИ ФУНКЦИИ
+    from handlers.ai_assistant import process_ai_query
+    await process_ai_query(callback.message, state, text)
+    await callback.message.delete()
     await callback.answer()

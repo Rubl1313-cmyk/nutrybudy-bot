@@ -14,6 +14,7 @@ from database.models import User
 from services.meal_planner import distribute_calories, get_meal_plan_prompt
 from services.deepseek_client import ask_worker_ai
 from keyboards.reply import get_main_keyboard
+from aiogram.exceptions import TelegramBadRequest
 
 router = Router()
 
@@ -99,17 +100,22 @@ async def generate_menu(user_id: int, variation: str = "") -> tuple[str, bool]:
 
 
 @router.callback_query(F.data == "generate_menu")
-async def generate_menu_callback(callback: CallbackQuery):
+async def generate_menu_callback(callback: CallbackQuery, state: FSMContext):
     """Генерирует первое меню."""
     user_id = callback.from_user.id
-    await callback.message.edit_text("⏳ Генерирую примерное меню...")
+    try:
+        await callback.message.edit_text("⏳ Генерирую примерное меню...")
+    except TelegramBadRequest as e:
+        if "message is not modified" in str(e):
+            # Игнорируем, сообщение уже такое
+            pass
+        else:
+            raise
 
     content, success = await generate_menu(user_id)
 
     if success:
-        # Сохраняем меню в состоянии для возможности сохранения
         await state.update_data(last_menu=content)
-
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="🔄 Другой вариант", callback_data="regenerate_menu")],
             [InlineKeyboardButton(text="💾 Сохранить рацион", callback_data="save_menu")],
@@ -127,7 +133,13 @@ async def generate_menu_callback(callback: CallbackQuery):
 async def regenerate_menu_callback(callback: CallbackQuery, state: FSMContext):
     """Генерирует другой вариант меню."""
     user_id = callback.from_user.id
-    await callback.message.edit_text("⏳ Генерирую другой вариант...")
+    try:
+        await callback.message.edit_text("⏳ Генерирую другой вариант...")
+    except TelegramBadRequest as e:
+        if "message is not modified" in str(e):
+            pass
+        else:
+            raise
 
     content, success = await generate_menu(user_id, variation="Предложи другой вариант меню, отличный от предыдущего.")
 
@@ -144,7 +156,6 @@ async def regenerate_menu_callback(callback: CallbackQuery, state: FSMContext):
         await callback.message.edit_text(content)
 
     await callback.answer()
-
 
 @router.callback_query(F.data == "save_menu")
 async def save_menu_callback(callback: CallbackQuery, state: FSMContext):

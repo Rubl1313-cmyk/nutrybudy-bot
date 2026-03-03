@@ -27,39 +27,30 @@ ACTIVITY_TYPES = {
     "другое": "other"
 }
 
-# Ключевые слова для определения намерений (без учёта регистра)
+# Ключевые слова для определения намерений
 INTENT_KEYWORDS = {
-    "food": ["запиши еду", "добавь еду", "съел", "поел", "прием пищи", "еда", "запиши обед", "запиши ужин", "запиши завтрак", "запиши перекус"],
     "water": ["вода", "выпил", "попил", "воды"],
     "shopping": ["список покупок", "купить", "добавь в список", "надо купить"],
     "activity": ["тренировка", "спорт", "занятие", "пробежка", "бег", "ходьба", "йога", "плавание", "велосипед"],
     "reminder": ["напомни", "напоминание"],
-    "ai": ["ai", "аи", "спроси", "вопрос", "скажи", "привет", "помоги"]
+    "food": ["запиши еду", "добавь еду", "съел", "поел", "прием пищи", "еда", "запиши обед", "запиши ужин", "запиши завтрак", "запиши перекус"],
+    "ai": ["ai", "аи", "спроси", "вопрос", "скажи", "привет", "помоги", "рецепт", "погода", "какая", "как", "что", "кто", "почему", "зачем", "сколько", "где", "когда", "напиши", "составь", "придумай"]
 }
 
 
 def classify(text: str) -> Dict[str, Any]:
     """
     Определяет намерение пользователя по тексту.
-    Возвращает словарь с ключами:
-    - intent: str (food, water, shopping, activity, reminder, ai, unknown)
-    - meal_type: Optional[str] (breakfast/lunch/dinner/snack) – для food
-    - activity_type: Optional[str] – для activity
-    - items: Optional[List[str]] – список продуктов/ингредиентов
-    - duration: Optional[int] – длительность в минутах
-    - reminder_title: Optional[str]
-    - reminder_time: Optional[str]
-    - text: исходный текст
     """
     text_lower = text.lower()
     result = {"intent": "unknown", "text": text}
 
-    # 1. Вода (самый простой маркер)
-    if any(w in text_lower for w in INTENT_KEYWORDS["water"]) and not any(w in text_lower for w in ["список", "купить"]):
+    # Вода
+    if any(k in text_lower for k in INTENT_KEYWORDS["water"]) and not any(k in text_lower for k in ["список", "купить"]):
         result["intent"] = "water"
         return result
 
-    # 2. Активность
+    # Активность
     for key, act_type in ACTIVITY_TYPES.items():
         if key in text_lower:
             result["intent"] = "activity"
@@ -69,48 +60,50 @@ def classify(text: str) -> Dict[str, Any]:
                 result["duration"] = dur
             return result
 
-    # 3. Напоминание
+    # Напоминание
     if any(k in text_lower for k in INTENT_KEYWORDS["reminder"]):
         result["intent"] = "reminder"
         title = _extract_reminder_title(text)
-        time = parse_time(text)  # ← используем новый парсер
+        time = parse_time(text)
         if title:
             result["reminder_title"] = title
         if time:
             result["reminder_time"] = time
         return result
 
-    # 4. Список покупок
-    shopping_keywords = INTENT_KEYWORDS["shopping"]
-    if any(k in text_lower for k in shopping_keywords):
+    # Список покупок
+    if any(k in text_lower for k in INTENT_KEYWORDS["shopping"]):
         result["intent"] = "shopping"
-        cleaned = _remove_keywords(text_lower, shopping_keywords)
+        cleaned = _remove_keywords(text_lower, INTENT_KEYWORDS["shopping"])
         items = parse_shopping_items(cleaned)
         result["items"] = [item[0] for item in items]
         result["items_with_quantity"] = items
         return result
 
-    # 5. Приём пищи
-    food_keywords = INTENT_KEYWORDS["food"]
-    if any(k in text_lower for k in food_keywords) or any(meal in text_lower for meal in MEAL_TYPES):
+    # Приём пищи
+    if any(k in text_lower for k in INTENT_KEYWORDS["food"]) or any(meal in text_lower for meal in MEAL_TYPES):
         result["intent"] = "food"
         for meal_ru, meal_en in MEAL_TYPES.items():
             if meal_ru in text_lower:
                 result["meal_type"] = meal_en
                 break
-        cleaned = _remove_keywords(text_lower, list(MEAL_TYPES.keys()) + food_keywords)
+        cleaned = _remove_keywords(text_lower, list(MEAL_TYPES.keys()) + INTENT_KEYWORDS["food"])
         items = parse_shopping_items(cleaned)
         result["items"] = [item[0] for item in items]
         result["items_with_quantity"] = items
         return result
 
-    # 6. Если ничего не подошло – считаем, что это запрос к AI
+    # AI
+    if any(k in text_lower for k in INTENT_KEYWORDS["ai"]):
+        result["intent"] = "ai"
+        return result
+
+    # Если ничего не подошло – всё равно отправляем в AI
     result["intent"] = "ai"
     return result
 
 
 def _extract_duration(text: str) -> Optional[int]:
-    """Извлекает длительность в минутах."""
     match = re.search(r'(\d+)\s*(минут|мин|ч|час)', text.lower())
     if match:
         num = int(match.group(1))
@@ -122,14 +115,12 @@ def _extract_duration(text: str) -> Optional[int]:
 
 
 def _extract_reminder_title(text: str) -> Optional[str]:
-    """Извлекает заголовок напоминания (убирая ключевые слова)."""
     cleaned = re.sub(r'напомни\s+', '', text, flags=re.IGNORECASE)
     cleaned = cleaned.strip()
     return cleaned if cleaned else None
 
 
 def _remove_keywords(text: str, keywords: List[str]) -> str:
-    """Удаляет ключевые слова из текста."""
     for kw in keywords:
         text = re.sub(r'\b' + re.escape(kw) + r'\b', '', text, flags=re.IGNORECASE)
     return re.sub(r'\s+', ' ', text).strip()

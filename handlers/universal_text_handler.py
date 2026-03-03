@@ -6,6 +6,7 @@ from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.fsm.context import FSMContext
 import logging
+from sqlalchemy import select
 
 from services.intent_classifier import classify
 from utils.water_parser import parse_water_amount
@@ -17,12 +18,17 @@ from handlers.reminders import cmd_reminders, quick_create_reminder
 from handlers.media_handlers import process_next_food
 from utils.parsers import parse_shopping_items
 from utils.states import ActivityStates
+from database.db import get_session
+from database.models import User, Activity
+from datetime import datetime
+from utils.ai_tools import get_weather
+
+# Убедитесь, что здесь НЕТ импорта from handlers.ai_assistant import process_ai_query
 
 logger = logging.getLogger(__name__)
 universal_router = Router()
 
 
-# Функция может вызываться с дополнительным параметром text (для голосовых)
 async def handle_universal_text(message: Message, state: FSMContext, text: str = None):
     """Универсальный обработчик любого текста."""
     if text is None:
@@ -33,7 +39,7 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
     intent = intent_data.get("intent")
     text_lower = text.lower()
 
-    # ----- ВОДА (спецобработка) -----
+    # ----- ВОДА -----
     if intent == "water":
         amount = parse_water_amount(text)
 
@@ -67,13 +73,49 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
 
     # ----- АКТИВНОСТЬ -----
     if intent == "activity":
+        # Если есть шаги
+        if "steps" in intent_data:
+            steps = intent_data["steps"]
+            # Упрощённый расчёт калорий: 0.04 ккал на шаг
+            calories = round(steps * 0.04, 1)
+            user_id = message.from_user.id
+            async with get_session() as session:
+                user_result = await session.execute(
+                    select(User).where(User.telegram_id == user_id)
+                )
+                user = user_result.scalar_one_or_none()
+                if not user:
+                    await message.answer("❌ Сначала настройте профиль.")
+                    return
+                activity = Activity(
+                    user_id=user.id,
+                    activity_type="walking",
+                    duration=0,
+                    distance=steps * 0.00075,  # средняя длина шага 0.75 м
+                    calories_burned=calories,
+                    steps=steps,
+                    datetime=datetime.now(),
+                    source="voice"
+                )
+                session.add(activity)
+                await session.commit()
+            await message.answer(f"✅ Записано {steps} шагов (сожжено ~{calories} ккал).")
+            return
+
+        # Если нет шагов – обычная активность
         act_type = intent_data.get("activity_type")
         duration = intent_data.get("duration")
         if act_type and duration:
+            # Сохраняем в состоянии для подтверждения
             await state.update_data(activity_type=act_type, duration=duration)
             await state.set_state(ActivityStates.confirming)
-            await message.answer(f"🏃 Активность: {act_type}, {duration} мин. Подтвердить?")
+            await message.answer(f"🏃 Активность: {act_type}, {duration} мин. Подтвердить?",
+                                 reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                                     [InlineKeyboardButton(text="✅ Да", callback_data="confirm_activity")],
+                                     [InlineKeyboardButton(text="❌ Нет", callback_data="cancel_activity")]
+                                 ]))
         else:
+            # Неполные данные – запускаем стандартный диалог
             await cmd_fitness(message, state)
         return
 
@@ -114,11 +156,16 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
             await cmd_log_food(message, state)
         return
 
-    # ----- НЕОПРЕДЕЛЁННОЕ (intent == "ai") -----
+    # ----- ПОГОДА -----
+    elif intent == "weather":
+        city = intent_data.get("city", "Москва")
+        weather_info = await get_weather(city)
+        await message.answer(weather_info)
+        return
+
+    # ----- НЕОПРЕДЕЛЁННОЕ -----
     else:
-        # Сохраняем текст в состоянии для последующего использования
         await state.update_data(pending_text=text)
-        # Показываем меню выбора
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="📋 В список покупок", callback_data="choose_shopping")],
             [InlineKeyboardButton(text="🍽️ Записать как приём пищи", callback_data="choose_food")],
@@ -179,7 +226,6 @@ async def choose_shopping_callback(callback: CallbackQuery, state: FSMContext):
 async def choose_food_callback(callback: CallbackQuery, state: FSMContext):
     data = await state.get_data()
     text = data.get('pending_text', '')
-    # Разбираем на продукты
     items = [name for name, _, _ in parse_shopping_items(text)]
     await state.update_data(
         pending_items=items,
@@ -200,4 +246,55 @@ async def choose_ai_callback(callback: CallbackQuery, state: FSMContext):
     from handlers.ai_assistant import process_ai_query
     await process_ai_query(callback.message, state, text)
     await callback.message.delete()
+    await callback.answer()
+
+
+# ----- ОБРАБОТЧИКИ ДЛЯ ПОДТВЕРЖДЕНИЯ АКТИВНОСТИ -----
+@universal_router.callback_query(lambda c: c.data == "confirm_activity")
+async def confirm_activity_callback(callback: CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+    act_type = data.get('activity_type')
+    duration = data.get('duration')
+    if not act_type or not duration:
+        await callback.message.edit_text("❌ Ошибка: данные активности не найдены.")
+        await state.clear()
+        return
+
+    # Рассчитываем калории
+    from services.activity import CALORIES_PER_MINUTE
+    calories = CALORIES_PER_MINUTE.get(act_type, 5) * duration
+
+    user_id = callback.from_user.id
+    async with get_session() as session:
+        user_result = await session.execute(
+            select(User).where(User.telegram_id == user_id)
+        )
+        user = user_result.scalar_one_or_none()
+        if not user:
+            await callback.message.edit_text("❌ Пользователь не найден.")
+            await state.clear()
+            return
+
+        activity = Activity(
+            user_id=user.id,
+            activity_type=act_type,
+            duration=duration,
+            distance=0,
+            calories_burned=calories,
+            steps=0,
+            datetime=datetime.now(),
+            source="manual"
+        )
+        session.add(activity)
+        await session.commit()
+
+    await callback.message.edit_text(f"✅ Активность записана: {act_type} {duration} мин, сожжено ~{calories} ккал.")
+    await state.clear()
+    await callback.answer()
+
+
+@universal_router.callback_query(lambda c: c.data == "cancel_activity")
+async def cancel_activity_callback(callback: CallbackQuery, state: FSMContext):
+    await state.clear()
+    await callback.message.edit_text("❌ Запись активности отменена.")
     await callback.answer()

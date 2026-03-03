@@ -13,6 +13,7 @@ from services.deepseek_client import ask_deepseek, DEFAULT_SYSTEM_PROMPT
 from utils.ai_tools import add_to_shopping_list, get_weather
 from keyboards.reply import get_main_keyboard, get_cancel_keyboard
 from services.cloudflare_ai import transcribe_audio
+from services.deepseek_client import ask_worker_ai  # новый импорт
 
 router = Router()
 logger = logging.getLogger(__name__)
@@ -54,31 +55,24 @@ async def handle_text_question(message: Message, state: FSMContext):
 
 
 async def process_ai_query(message: Message, state: FSMContext, query: str):
-    """Основная логика отправки запроса в DeepSeek и обработки ответа."""
+    """Основная логика отправки запроса в AI и обработки ответа."""
     if not query.strip():
         await message.answer("❌ Пустой запрос.")
         return
 
     await message.answer("⏳ Думаю...")
-    response = await ask_deepseek(
+    response = await ask_worker_ai(
         prompt=query,
-        user_id=message.from_user.id,
         system_prompt=DEFAULT_SYSTEM_PROMPT,
+        model="@cf/qwen/qwen3-32b-instruct",
         max_tokens=1500
     )
 
     if "error" in response:
         await message.answer(response["error"])
     elif response.get("choices"):
-        choice = response["choices"][0]["message"]
-        if choice.get("tool_calls"):
-            for tool_call in choice["tool_calls"]:
-                func_name = tool_call["function"]["name"]
-                args = json.loads(tool_call["function"]["arguments"])
-                result = await execute_tool(func_name, args, message.from_user.id)
-                await message.answer(result)
-        else:
-            await message.answer(choice.get("content", "✅ Готово."))
+        content = response["choices"][0]["message"]["content"]
+        await message.answer(content, parse_mode="HTML")
     else:
         await message.answer("❌ Не удалось получить ответ.")
 

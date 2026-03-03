@@ -2,24 +2,22 @@
 Парсер для извлечения товаров из текста.
 Поддерживает:
 - числа с единицами (2 яйца, 200 г сыра)
-- перечисления через запятую
-- перечисления через пробел (как запасной вариант)
+- перечисления через запятые и союзы "и", "с"
+- нормализацию слов к именительному падежу единственного числа
 """
 import re
 from typing import List, Tuple
+from utils.normalizer import normalize_product_name
+
 
 def parse_shopping_items(text: str) -> List[Tuple[str, int, str]]:
     """
     Преобразует текст в список кортежей (название, количество, единица).
-    Поддерживает форматы:
-    - "яблоки" → ("яблоки", 1, "шт")
-    - "2 яйца" → ("яйца", 2, "шт")
-    - "200 г сыра" → ("сыра", 200, "г")
-    - "молоко, хлеб, 3 яйца" → несколько элементов
-    - "яблоки молоко хлеб" → разбивает по пробелам как отдельные товары (по 1 шт)
-    - "2.5 кг картошки" → ("картошки", 2.5, "кг")
     """
-    # Сначала пробуем разделить по запятым
+    # Заменяем союзы "и", "с", "со" на запятые
+    text = re.sub(r'\b(и|с|со)\b', ',', text.lower())
+    
+    # Разделяем по запятым
     parts = re.split(r'[,;]', text)
     items = []
     
@@ -28,8 +26,8 @@ def parse_shopping_items(text: str) -> List[Tuple[str, int, str]]:
         if not part:
             continue
         
-        # Если после разделения по запятым всё ещё много слов без чисел, разбиваем по пробелам
-        subparts = _split_by_spaces_if_needed(part)
+        # Разбиваем по пробелам для сложных фраз
+        subparts = _split_complex_part(part)
         for subpart in subparts:
             item = _parse_single_item(subpart)
             if item:
@@ -38,27 +36,32 @@ def parse_shopping_items(text: str) -> List[Tuple[str, int, str]]:
     return items
 
 
-def _split_by_spaces_if_needed(part: str) -> List[str]:
+def _split_complex_part(part: str) -> List[str]:
     """
-    Если в части нет запятых и она содержит несколько слов без чисел,
-    разбивает по пробелам. Иначе возвращает исходную часть как один элемент.
+    Разбивает часть, которая может содержать несколько продуктов без запятых.
+    Например: "курицы морковки и риса" → ["курицы", "морковки", "риса"]
     """
-    # Если есть число, не разбиваем (чтобы "2 яйца" не разделилось)
+    # Если есть число, не разбиваем (оставляем как единое целое)
     if re.search(r'\d', part):
         return [part]
     
-    # Если в части больше двух слов, разбиваем по пробелам
+    # Разбиваем по пробелам
     words = part.split()
-    if len(words) > 2:
-        # Проверяем, не является ли это фразой, которая должна быть единым целым
-        # Например, "куриная грудка" — это единое понятие
-        # Простая эвристика: если после разбивки есть короткие слова (1-2 буквы), оставляем как есть
-        if any(len(w) <= 2 for w in words):
-            return [part]
-        # Иначе разбиваем на отдельные товары
-        return words
-    else:
-        return [part]
+    result = []
+    current = []
+    
+    for word in words:
+        if word in ('и', 'с', 'со'):
+            if current:
+                result.append(' '.join(current))
+                current = []
+        else:
+            current.append(word)
+    
+    if current:
+        result.append(' '.join(current))
+    
+    return result
 
 
 def _parse_single_item(text: str) -> Tuple[str, int, str] | None:
@@ -75,12 +78,14 @@ def _parse_single_item(text: str) -> Tuple[str, int, str] | None:
     if match:
         qty_str = match.group(1).replace(',', '.')
         qty = float(qty_str)
-        # если целое, конвертируем в int
         if qty.is_integer():
             qty = int(qty)
         name = match.group(2).strip()
         
-        # Пытаемся угадать единицу измерения (если есть в конце названия)
+        # Нормализуем название продукта
+        name = normalize_product_name(name)
+        
+        # Пытаемся угадать единицу измерения
         unit_match = re.search(r'\s+(г|кг|мл|л|шт|банка|бутылка|пачка)$', name)
         if unit_match:
             unit = unit_match.group(1)
@@ -89,5 +94,6 @@ def _parse_single_item(text: str) -> Tuple[str, int, str] | None:
             unit = "шт"
         return (name, qty, unit)
     else:
-        # числа нет – добавляем с количеством 1
-        return (text, 1, "шт")
+        # числа нет – нормализуем и добавляем с количеством 1
+        name = normalize_product_name(text)
+        return (name, 1, "шт")

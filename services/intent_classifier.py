@@ -1,6 +1,6 @@
 """
 Модуль для классификации намерений пользователя по тексту.
-Добавлено намерение "weather".
+Добавлено намерение "weather" и поддержка шагов.
 """
 import re
 from typing import Dict, Any, Optional, List
@@ -28,7 +28,7 @@ ACTIVITY_TYPES = {
 INTENT_KEYWORDS = {
     "water": ["вода", "выпил", "попил", "воды"],
     "shopping": ["список покупок", "купить", "добавь в список", "надо купить"],
-    "activity": ["тренировка", "спорт", "занятие", "пробежка", "бег", "ходьба", "йога", "плавание", "велосипед"],
+    "activity": ["тренировка", "спорт", "занятие", "пробежка", "бег", "ходьба", "йога", "плавание", "велосипед", "шаги", "прошел", "тысяч шагов"],
     "reminder": ["напомни", "напоминание"],
     "food": ["запиши еду", "добавь еду", "съел", "поел", "прием пищи", "еда", "запиши обед", "запиши ужин", "запиши завтрак", "запиши перекус"],
     "weather": ["погода", "сколько градусов", "температура", "прогноз погоды"],
@@ -49,15 +49,31 @@ def classify(text: str) -> Dict[str, Any]:
         result["intent"] = "water"
         return result
 
-    # Активность
-    for key, act_type in ACTIVITY_TYPES.items():
-        if key in text_lower:
-            result["intent"] = "activity"
-            result["activity_type"] = act_type
-            dur = _extract_duration(text)
-            if dur:
-                result["duration"] = dur
-            return result
+    # Активность (включая шаги)
+    if any(k in text_lower for k in ACTIVITY_TYPES) or "шаги" in text_lower:
+        result["intent"] = "activity"
+        # Если есть слово "шаги" – особый случай
+        if "шаги" in text_lower:
+            result["activity_type"] = "walking"
+            # Извлекаем количество шагов
+            match = re.search(r'(\d+)(?:\s*(?:тысяч|тыс))?\s*шаг', text_lower)
+            if match:
+                steps = int(match.group(1))
+                if 'тысяч' in text_lower or 'тыс' in text_lower:
+                    steps *= 1000
+                result["steps"] = steps
+            else:
+                # Если нет числа, просто запрашиваем количество
+                result["need_steps"] = True
+        else:
+            for key, act_type in ACTIVITY_TYPES.items():
+                if key in text_lower:
+                    result["activity_type"] = act_type
+                    dur = _extract_duration(text)
+                    if dur:
+                        result["duration"] = dur
+                    break
+        return result
 
     # Напоминание
     if any(k in text_lower for k in INTENT_KEYWORDS["reminder"]):
@@ -99,6 +115,8 @@ def classify(text: str) -> Dict[str, Any]:
         city_match = re.search(r'в\s+([а-яё\-\s]+)', text_lower)
         if city_match:
             result["city"] = city_match.group(1).strip()
+        else:
+            result["city"] = "Москва"  # город по умолчанию
         return result
 
     # Явные AI-ключевые слова

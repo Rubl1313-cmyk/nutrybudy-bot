@@ -88,9 +88,56 @@ async def cmd_shopping(message: Message, state: FSMContext):
         )
 
 
+# ========== ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ ДЛЯ ДОБАВЛЕНИЯ ТОВАРОВ ==========
+# Эта функция будет импортироваться в другие модули
+
+async def add_to_shopping_list(event, text: str):
+    """
+    Добавляет товары в список покупок из текста.
+    event может быть Message или CallbackQuery.
+    """
+    user_id = event.from_user.id
+    parsed = parse_shopping_items(text)
+    if not parsed:
+        if hasattr(event, 'message') and event.message:
+            await event.message.answer("❌ Не удалось распознать товары.")
+        else:
+            await event.answer("❌ Не удалось распознать товары.", show_alert=True)
+        return
+
+    async with get_session() as session:
+        shopping_list = await get_or_create_default_list(user_id, session)
+        if not shopping_list:
+            if hasattr(event, 'message') and event.message:
+                await event.message.answer("❌ Не удалось получить список покупок.")
+            else:
+                await event.answer("❌ Не удалось получить список покупок.", show_alert=True)
+            return
+
+        added = []
+        for name, qty, unit in parsed:
+            item = ShoppingItem(
+                list_id=shopping_list.id,
+                name=name,
+                quantity=qty,
+                unit=unit,
+                added_by=user_id
+            )
+            session.add(item)
+            added.append(f"{name} — {qty} {unit}")
+        await session.commit()
+
+    if added:
+        if hasattr(event, 'message') and event.message:
+            await event.message.answer(f"✅ Добавлено в список покупок:\n" + "\n".join(added))
+        else:
+            await event.answer(f"✅ Добавлено в список покупок: {', '.join(added)}")
+
+
+# ========== ОБРАБОТЧИКИ КНОПОК УПРАВЛЕНИЯ ==========
+
 @router.callback_query(F.data.startswith("item_incr_"))
 async def increase_quantity(callback: CallbackQuery):
-    """Увеличить количество товара на 1."""
     item_id = int(callback.data.split("_")[2])
     async with get_session() as session:
         item = await session.get(ShoppingItem, item_id)
@@ -103,7 +150,6 @@ async def increase_quantity(callback: CallbackQuery):
 
 @router.callback_query(F.data.startswith("item_decr_"))
 async def decrease_quantity(callback: CallbackQuery):
-    """Уменьшить количество товара на 1. Если станет 0, товар удаляется."""
     item_id = int(callback.data.split("_")[2])
     async with get_session() as session:
         item = await session.get(ShoppingItem, item_id)
@@ -120,7 +166,6 @@ async def decrease_quantity(callback: CallbackQuery):
 
 @router.callback_query(F.data.startswith("toggle_item_"))
 async def toggle_item(callback: CallbackQuery):
-    """Отметить/снять отметку товара."""
     item_id = int(callback.data.split("_")[2])
     async with get_session() as session:
         item = await session.get(ShoppingItem, item_id)
@@ -133,7 +178,6 @@ async def toggle_item(callback: CallbackQuery):
 
 @router.callback_query(F.data.startswith("delete_item_"))
 async def delete_item(callback: CallbackQuery):
-    """Удалить товар из списка."""
     item_id = int(callback.data.split("_")[2])
     async with get_session() as session:
         item = await session.get(ShoppingItem, item_id)
@@ -147,7 +191,6 @@ async def delete_item(callback: CallbackQuery):
 
 @router.callback_query(F.data.startswith("add_item_"))
 async def add_item_prompt(callback: CallbackQuery, state: FSMContext):
-    """Начать добавление товара вручную."""
     list_id = int(callback.data.split("_")[2])
     await state.update_data(current_list_id=list_id)
     await state.set_state(ShoppingStates.adding_item)
@@ -159,7 +202,6 @@ async def add_item_prompt(callback: CallbackQuery, state: FSMContext):
 
 @router.message(ShoppingStates.adding_item, F.text)
 async def add_item_manual(message: Message, state: FSMContext):
-    """Добавить один товар вручную."""
     data = await state.get_data()
     list_id = data.get('current_list_id')
     text = message.text.strip()
@@ -183,7 +225,6 @@ async def add_item_manual(message: Message, state: FSMContext):
 
 @router.callback_query(F.data.startswith("delete_list_"))
 async def delete_list(callback: CallbackQuery):
-    """Удалить список."""
     list_id = int(callback.data.split("_")[2])
     async with get_session() as session:
         lst = await session.get(ShoppingList, list_id)
@@ -203,7 +244,6 @@ async def delete_list(callback: CallbackQuery):
 
 @router.callback_query(F.data == "back_to_lists")
 async def back_to_lists(callback: CallbackQuery):
-    """Вернуться к главному списку."""
     user_id = callback.from_user.id
     async with get_session() as session:
         shopping_list = await get_or_create_default_list(user_id, session)
@@ -238,7 +278,6 @@ async def back_to_lists(callback: CallbackQuery):
 
 
 async def update_list_message(event: CallbackQuery | Message, list_id: int, is_callback: bool = True):
-    """Обновить сообщение со списком после изменений."""
     async with get_session() as session:
         lst = await session.get(ShoppingList, list_id)
         if not lst:

@@ -10,7 +10,7 @@ from typing import Optional, Dict, Any
 logger = logging.getLogger(__name__)
 
 WORKER_URL = os.getenv("WORKER_URL")           # URL вашего Worker, например https://nutribudy-ai.workers.dev
-WORKER_API_KEY = os.getenv("WORKER_API_KEY")   # тот самый ключ, который вы задали в Worker
+WORKER_API_KEY = os.getenv("WORKER_API_KEY")   # ключ, заданный в Worker
 
 DEFAULT_SYSTEM_PROMPT = (
     "Ты — NutriBuddy AI, дружелюбный помощник по питанию и здоровому образу жизни. "

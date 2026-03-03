@@ -9,6 +9,8 @@ import logging
 from typing import Optional, Dict, List
 from PIL import Image
 import io
+import ffmpeg
+import tempfile
 
 logger = logging.getLogger(__name__)
 
@@ -88,30 +90,47 @@ async def analyze_food_image(
         logger.exception(f"💥 analyze_food_image error: {e}")
         return None
 
-
 async def transcribe_audio(audio_bytes: bytes, language: str = "ru") -> Optional[str]:
     try:
         from aiohttp import FormData
 
-        # Логируем размер файла
         file_size = len(audio_bytes)
         logger.info(f"🎤 Audio file size: {file_size / 1024 / 1024:.2f} MB")
 
-        # Проверка размера (лимит Whisper ~25MB, но для надёжности 20MB)
         if file_size > 20 * 1024 * 1024:
             logger.warning("Audio file too large (>20MB), skipping")
             return None
 
+        # Конвертируем OGG в WAV через ffmpeg
+        # Создаём временные файлы
+        with tempfile.NamedTemporaryFile(suffix='.ogg', delete=False) as f_in:
+            f_in.write(audio_bytes)
+            in_path = f_in.name
+
+        out_path = in_path.replace('.ogg', '.wav')
+
+        try:
+            # Запускаем ffmpeg для конвертации
+            ffmpeg.input(in_path).output(out_path, acodec='pcm_s16le', ar='16000').run(quiet=True, overwrite_output=True)
+            logger.info("✅ Audio converted to WAV")
+            # Читаем сконвертированный файл
+            with open(out_path, 'rb') as f:
+                wav_bytes = f.read()
+        finally:
+            # Удаляем временные файлы
+            os.unlink(in_path)
+            if os.path.exists(out_path):
+                os.unlink(out_path)
+
         for model in WHISPER_MODELS:
             try:
-                # Создаём НОВЫЙ FormData для каждой попытки
                 data = FormData()
-                data.add_field('file', audio_bytes, filename='voice.ogg', content_type='audio/ogg')
+                data.add_field('file', wav_bytes, filename='audio.wav', content_type='audio/wav')
 
                 url = f"{BASE_URL}{model}"
                 headers = {"Authorization": f"Bearer {CLOUDFLARE_API_TOKEN}"}
 
-                logger.info(f"🎤 Sending to {model}, size: {file_size} bytes")
+                logger.info(f"🎤 Sending to {model}, size: {len(wav_bytes)} bytes")
 
                 async with aiohttp.ClientSession() as session:
                     async with session.post(url, headers=headers, data=data, timeout=60) as resp:

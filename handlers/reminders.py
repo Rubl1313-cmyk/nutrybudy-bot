@@ -217,3 +217,27 @@ async def cancel_reminder(callback: CallbackQuery, state: FSMContext):
     await state.clear()
     await callback.message.edit_text("❌ Создание отменено.")
     await callback.answer()
+
+async def quick_create_reminder(telegram_id: int, title: str, time: str, days: str = "daily"):
+    """Быстрое создание напоминания без диалога."""
+    from database.db import get_session
+    from database.models import User, Reminder
+    from sqlalchemy import select
+
+    async with get_session() as session:
+        user_result = await session.execute(
+            select(User).where(User.telegram_id == telegram_id)
+        )
+        user = user_result.scalar_one_or_none()
+        if not user:
+            return
+        reminder = Reminder(
+            user_id=user.id,
+            type="custom",
+            title=title,
+            time=time,
+            days=days,
+            enabled=True
+        )
+        session.add(reminder)
+        await session.commit()

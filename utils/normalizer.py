@@ -3,9 +3,8 @@
 Использует pymorphy2 для лемматизации и словарь исключений для особых случаев.
 """
 import re
-import pymorphy2
-
-morph = pymorphy2.MorphAnalyzer()
+import pymorphy3
+morph = pymorphy3.MorphAnalyzer()
 
 # Словарь исключений: нестандартные леммы -> каноническая форма продукта
 EXCEPTIONS = {

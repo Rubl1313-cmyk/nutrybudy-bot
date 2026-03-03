@@ -1,5 +1,6 @@
 """
 Универсальный обработчик текстовых сообщений.
+Если намерение не определено (intent == "ai"), показывает меню выбора.
 """
 from aiogram import Router
 from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
@@ -15,6 +16,7 @@ from handlers.activity import cmd_fitness
 from handlers.reminders import cmd_reminders, quick_create_reminder
 from handlers.ai_assistant import process_ai_query
 from handlers.media_handlers import process_next_food
+from utils.parsers import parse_shopping_items
 from utils.states import ActivityStates
 
 logger = logging.getLogger(__name__)
@@ -33,9 +35,7 @@ async def handle_universal_text(message: Message, state: FSMContext):
     text = message.text
     logger.info(f"📨 Получен текст: {text}")
 
-    # Отладка: показываем, что дошли
-    # await message.answer(f"⏳ Обрабатываю: {text}")  # раскомментировать для теста
-
+    # Классифицируем намерение
     intent_data = classify(text)
     intent = intent_data.get("intent")
     text_lower = text.lower()
@@ -72,7 +72,7 @@ async def handle_universal_text(message: Message, state: FSMContext):
             )
             return
 
-    # ----- ОСТАЛЬНЫЕ НАМЕРЕНИЯ -----
+    # ----- АКТИВНОСТЬ -----
     if intent == "activity":
         act_type = intent_data.get("activity_type")
         duration = intent_data.get("duration")
@@ -84,6 +84,7 @@ async def handle_universal_text(message: Message, state: FSMContext):
             await cmd_fitness(message, state)
         return
 
+    # ----- НАПОМИНАНИЯ -----
     elif intent == "reminder":
         title = intent_data.get("reminder_title")
         time = intent_data.get("reminder_time")
@@ -94,6 +95,7 @@ async def handle_universal_text(message: Message, state: FSMContext):
             await cmd_reminders(message, state)
         return
 
+    # ----- СПИСОК ПОКУПОК -----
     elif intent == "shopping":
         items = intent_data.get("items")
         if items:
@@ -103,6 +105,7 @@ async def handle_universal_text(message: Message, state: FSMContext):
             await cmd_shopping(message, state)
         return
 
+    # ----- ПРИЁМ ПИЩИ -----
     elif intent == "food":
         meal_type = intent_data.get("meal_type", "snack")
         items = intent_data.get("items")
@@ -118,10 +121,21 @@ async def handle_universal_text(message: Message, state: FSMContext):
             await cmd_log_food(message, state)
         return
 
-    # ----- AI ПОМОЩНИК (все остальные случаи) -----
+    # ----- НЕОПРЕДЕЛЁННОЕ (intent == "ai") -----
     else:
-        logger.info(f"➡️ Направляю в AI: {text}")
-        await process_ai_query(message, state, text)
+        # Сохраняем текст в состоянии для последующего использования
+        await state.update_data(pending_text=text)
+        # Показываем меню выбора
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="📋 В список покупок", callback_data="choose_shopping")],
+            [InlineKeyboardButton(text="🍽️ Записать как приём пищи", callback_data="choose_food")],
+            [InlineKeyboardButton(text="🤖 Спросить AI", callback_data="choose_ai")],
+            [InlineKeyboardButton(text="❌ Отмена", callback_data="action_cancel")]
+        ])
+        await message.answer(
+            f"📝 Вы написали:\n«{text}»\n\nКуда это добавить?",
+            reply_markup=keyboard
+        )
         return
 
 
@@ -155,4 +169,40 @@ async def action_cancel_callback(callback, state):
     await state.clear()
     await callback.message.delete()
     await callback.message.answer("❌ Действие отменено.")
+    await callback.answer()
+
+
+# ----- ОБРАБОТЧИКИ КНОПОК ДЛЯ НЕОПРЕДЕЛЁННЫХ ТЕКСТОВ -----
+@universal_router.callback_query(lambda c: c.data == "choose_shopping")
+async def choose_shopping_callback(callback: CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+    text = data.get('pending_text', '')
+    await add_to_shopping_list(callback.message, text)
+    await callback.message.delete()
+    await callback.answer("✅ Добавлено в список покупок")
+
+
+@universal_router.callback_query(lambda c: c.data == "choose_food")
+async def choose_food_callback(callback: CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+    text = data.get('pending_text', '')
+    # Разбираем на продукты
+    items = [name for name, _, _ in parse_shopping_items(text)]
+    await state.update_data(
+        pending_items=items,
+        current_index=0,
+        selected_foods=[],
+        meal_type="snack"
+    )
+    await process_next_food(callback.message, state)
+    await callback.message.delete()
+    await callback.answer()
+
+
+@universal_router.callback_query(lambda c: c.data == "choose_ai")
+async def choose_ai_callback(callback: CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+    text = data.get('pending_text', '')
+    await process_ai_query(callback.message, state, text)
+    await callback.message.delete()
     await callback.answer()

@@ -116,39 +116,75 @@ async def _convert_ogg_to_wav(ogg_bytes: bytes) -> Optional[bytes]:
 async def transcribe_audio(audio_bytes: bytes, language: str = "ru") -> Optional[str]:
     """
     Распознавание голоса через Cloudflare Whisper.
-    🔥 Автоматически приводит аудио к нужному формату.
+    🔥 API ожидает JSON с массивом байтов, а не multipart/form-data!
     """
     try:
         if not BASE_URL:
             return None
 
-        logger.info(f"🎤 Original size: {len(audio_bytes)/1024:.1f} KB")
+        file_size = len(audio_bytes)
+        logger.info(f"🎤 Original size: {file_size/1024:.1f} KB")
 
-        wav_bytes = await _convert_ogg_to_wav(audio_bytes)
-        if not wav_bytes:
-            logger.error("❌ Failed to convert audio")
+        if file_size > 20 * 1024 * 1024:
+            logger.warning("⚠️ Audio too large (>20MB)")
             return None
 
+        # Конвертируем OGG → WAV (всё ещё нужно)
+        wav_bytes = None
+        with tempfile.NamedTemporaryFile(suffix='.ogg', delete=False) as f_in:
+            f_in.write(audio_bytes)
+            in_path = f_in.name
+        out_path = in_path.replace('.ogg', '.wav')
+
+        try:
+            # Конвертируем с правильными параметрами
+            cmd = [
+                'ffmpeg', '-i', in_path,
+                '-ar', '16000', '-ac', '1', '-acodec', 'pcm_s16le',
+                '-y', out_path
+            ]
+            process = await asyncio.create_subprocess_exec(*cmd)
+            await process.communicate()
+
+            with open(out_path, 'rb') as f:
+                wav_bytes = f.read()
+            logger.info(f"✅ Conversion successful: {len(wav_bytes)} bytes")
+
+        finally:
+            if os.path.exists(in_path):
+                os.unlink(in_path)
+            if os.path.exists(out_path):
+                os.unlink(out_path)
+
+        if not wav_bytes:
+            return None
+
+        # 🔥 ПОДГОТОВКА ДАННЫХ ДЛЯ API
+        # Конвертируем WAV-байты в массив целых чисел (0-255)
+        audio_array = list(wav_bytes)
+        logger.info(f"📊 Audio array size: {len(audio_array)} samples")
+
+        # Формируем JSON-запрос
+        payload = {
+            "audio": audio_array  # ← массив байтов, как требует документация!
+        }
+
+        headers = {
+            "Authorization": f"Bearer {CLOUDFLARE_API_TOKEN}",
+            "Content-Type": "application/json"
+        }
+
+        # 🔥 Пробуем модели по очереди
         for model in WHISPER_MODELS:
             try:
-                form = aiohttp.FormData()
-                form.add_field(
-                    'file',
-                    wav_bytes,
-                    filename='audio.wav',
-                    content_type='audio/wav'
-                )
-
-                headers = {"Authorization": f"Bearer {CLOUDFLARE_API_TOKEN}"}
                 url = f"{BASE_URL}{model}"
-
-                logger.info(f"🎤 Sending to {model}")
+                logger.info(f"🎤 Sending to {model} as JSON array")
 
                 async with aiohttp.ClientSession() as session:
                     async with session.post(
                         url,
                         headers=headers,
-                        data=form,
+                        json=payload,  # ← ВАЖНО: JSON, а не FormData!
                         timeout=aiohttp.ClientTimeout(total=60)
                     ) as resp:
 
@@ -174,7 +210,6 @@ async def transcribe_audio(audio_bytes: bytes, language: str = "ru") -> Optional
     except Exception as e:
         logger.exception(f"💥 Critical error: {e}")
         return None
-
 
 # =============================================================================
 # 📸 АНАЛИЗ ИЗОБРАЖЕНИЙ (VISION)

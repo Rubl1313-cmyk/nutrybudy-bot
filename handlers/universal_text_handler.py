@@ -4,7 +4,7 @@
 from aiogram import Router
 from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.fsm.context import FSMContext
-from sqlalchemy import select
+import logging
 
 from services.intent_classifier import classify
 from utils.water_parser import parse_water_amount
@@ -16,9 +16,8 @@ from handlers.reminders import cmd_reminders, quick_create_reminder
 from handlers.ai_assistant import process_ai_query
 from handlers.media_handlers import process_next_food
 from utils.states import ActivityStates
-from database.db import get_session
-from database.models import User
 
+logger = logging.getLogger(__name__)
 universal_router = Router()
 
 
@@ -32,19 +31,25 @@ universal_router = Router()
 async def handle_universal_text(message: Message, state: FSMContext):
     """Универсальный обработчик любого текста."""
     text = message.text
-    text_lower = text.lower()
-    
-    # Специальная обработка воды (до классификации, чтобы избежать неверного определения)
-    if "вода" in text_lower or "воды" in text_lower:
-        amount = parse_water_amount(text)
-        await state.update_data(water_amount=amount)
+    logger.info(f"📨 Получен текст: {text}")
 
-        # Проверка на прямое указание "купить" или "выпил"
+    # Отладка: показываем, что дошли
+    # await message.answer(f"⏳ Обрабатываю: {text}")  # раскомментировать для теста
+
+    intent_data = classify(text)
+    intent = intent_data.get("intent")
+    text_lower = text.lower()
+
+    # ----- ВОДА (спецобработка) -----
+    if intent == "water":
+        amount = parse_water_amount(text)
+
         if "купить" in text_lower or "покупки" in text_lower:
             item_text = f"вода {amount} мл" if amount else "вода"
             await add_to_shopping_list(message, item_text)
             await message.answer("✅ Добавлено в список покупок.")
             return
+
         elif "выпил" in text_lower or "попил" in text_lower:
             if amount:
                 await add_water_quick(message.from_user.id, amount)
@@ -52,8 +57,9 @@ async def handle_universal_text(message: Message, state: FSMContext):
             else:
                 await cmd_water(message, state)
             return
+
         else:
-            # Нет уточнения – предлагаем выбор: выпить или купить
+            await state.update_data(water_amount=amount)
             keyboard = InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(text="💧 Выпить воду", callback_data="water_drink")],
                 [InlineKeyboardButton(text="📋 Купить воду", callback_data="water_buy")],
@@ -66,10 +72,7 @@ async def handle_universal_text(message: Message, state: FSMContext):
             )
             return
 
-    # Обычная классификация для всего остального
-    intent_data = classify(text)
-    intent = intent_data.get("intent")
-
+    # ----- ОСТАЛЬНЫЕ НАМЕРЕНИЯ -----
     if intent == "activity":
         act_type = intent_data.get("activity_type")
         duration = intent_data.get("duration")
@@ -79,6 +82,7 @@ async def handle_universal_text(message: Message, state: FSMContext):
             await message.answer(f"🏃 Активность: {act_type}, {duration} мин. Подтвердить?")
         else:
             await cmd_fitness(message, state)
+        return
 
     elif intent == "reminder":
         title = intent_data.get("reminder_title")
@@ -88,6 +92,7 @@ async def handle_universal_text(message: Message, state: FSMContext):
             await message.answer(f"✅ Напоминание «{title}» на {time} создано.")
         else:
             await cmd_reminders(message, state)
+        return
 
     elif intent == "shopping":
         items = intent_data.get("items")
@@ -96,6 +101,7 @@ async def handle_universal_text(message: Message, state: FSMContext):
             await message.answer("✅ Добавлено в список покупок.")
         else:
             await cmd_shopping(message, state)
+        return
 
     elif intent == "food":
         meal_type = intent_data.get("meal_type", "snack")
@@ -110,12 +116,16 @@ async def handle_universal_text(message: Message, state: FSMContext):
             await process_next_food(message, state)
         else:
             await cmd_log_food(message, state)
+        return
 
-    else:  # intent == "ai" или unknown
+    # ----- AI ПОМОЩНИК (все остальные случаи) -----
+    else:
+        logger.info(f"➡️ Направляю в AI: {text}")
         await process_ai_query(message, state, text)
+        return
 
 
-# Обработчики кнопок для воды
+# ----- ОБРАБОТЧИКИ КНОПОК ДЛЯ ВОДЫ -----
 @universal_router.callback_query(lambda c: c.data == "water_drink")
 async def water_drink_callback(callback, state):
     data = await state.get_data()

@@ -1,0 +1,183 @@
+"""
+Обработчик планировщика питания.
+Показывает распределение калорий по приёмам пищи и генерирует примерное меню с возможностью перегенерации.
+"""
+from aiogram import Router, F
+from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.filters import Command
+from aiogram.fsm.context import FSMContext
+from sqlalchemy import select
+
+from database.db import get_session
+from database.models import User
+from services.meal_planner import distribute_calories, get_meal_plan_prompt
+from services.deepseek_client import ask_worker_ai
+from keyboards.reply import get_main_keyboard
+
+router = Router()
+
+
+@router.message(Command("meal_plan"))
+@router.message(F.text == "🍽️ План питания")
+async def cmd_meal_plan(message: Message, state: FSMContext):
+    """Показывает распределение калорий и предлагает сгенерировать меню."""
+    user_id = message.from_user.id
+
+    async with get_session() as session:
+        result = await session.execute(
+            select(User).where(User.telegram_id == user_id)
+        )
+        user = result.scalar_one_or_none()
+        if not user or not user.daily_calorie_goal:
+            await message.answer(
+                "❌ Сначала настройте профиль через /set_profile.",
+                reply_markup=get_main_keyboard()
+            )
+            return
+
+    distribution = distribute_calories(user.daily_calorie_goal)
+
+    meal_names = {
+        "breakfast": "🥐 Завтрак",
+        "lunch": "🥗 Обед",
+        "dinner": "🍲 Ужин",
+        "snack": "🍎 Перекус"
+    }
+    text = f"🍽️ <b>Рекомендуемое распределение калорий на день</b>\n\n"
+    text += f"🔥 Дневная норма: {user.daily_calorie_goal:.0f} ккал\n\n"
+    for key, name in meal_names.items():
+        text += f"{name}: <b>{distribution[key]:.0f} ккал</b>\n"
+    text += f"\n<i>Это примерное распределение. Вы можете менять его под свои предпочтения.</i>"
+
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🍽️ Сгенерировать примерное меню", callback_data="generate_menu")],
+        [InlineKeyboardButton(text="🏠 Главное меню", callback_data="main_menu")]
+    ])
+
+    await message.answer(text, reply_markup=keyboard, parse_mode="HTML")
+
+
+async def generate_menu(user_id: int, variation: str = "") -> tuple[str, bool]:
+    """
+    Вспомогательная функция для генерации меню.
+    Возвращает (текст ответа, успех).
+    """
+    async with get_session() as session:
+        result = await session.execute(
+            select(User).where(User.telegram_id == user_id)
+        )
+        user = result.scalar_one_or_none()
+        if not user:
+            return "❌ Пользователь не найден.", False
+
+    user_data = {
+        "daily_calories": user.daily_calorie_goal,
+        "goal": user.goal,
+        "activity_level": user.activity_level,
+        "age": user.age,
+        "gender": user.gender,
+        "weight": user.weight,
+        "height": user.height
+    }
+    prompt = get_meal_plan_prompt(user_data) + " " + variation
+
+    response = await ask_worker_ai(
+        prompt=prompt,
+        system_prompt="Ты полезный ассистент. Отвечай на русском.",
+        max_tokens=1500
+    )
+
+    if "error" in response:
+        return response["error"], False
+
+    if response.get("choices"):
+        content = response["choices"][0]["message"]["content"]
+        return content, True
+    else:
+        return "❌ Не удалось сгенерировать меню.", False
+
+
+@router.callback_query(F.data == "generate_menu")
+async def generate_menu_callback(callback: CallbackQuery):
+    """Генерирует первое меню."""
+    user_id = callback.from_user.id
+    await callback.message.edit_text("⏳ Генерирую примерное меню...")
+
+    content, success = await generate_menu(user_id)
+
+    if success:
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="🔄 Другой вариант", callback_data="regenerate_menu")],
+            [InlineKeyboardButton(text="🔙 Назад к распределению", callback_data="back_to_distribution")],
+            [InlineKeyboardButton(text="🏠 Главное меню", callback_data="main_menu")]
+        ])
+        await callback.message.edit_text(content, reply_markup=keyboard, parse_mode="HTML")
+    else:
+        await callback.message.edit_text(content)
+
+    await callback.answer()
+
+
+@router.callback_query(F.data == "regenerate_menu")
+async def regenerate_menu_callback(callback: CallbackQuery):
+    """Генерирует другой вариант меню."""
+    user_id = callback.from_user.id
+    await callback.message.edit_text("⏳ Генерирую другой вариант...")
+
+    content, success = await generate_menu(user_id, variation="Предложи другой вариант меню, отличный от предыдущего.")
+
+    if success:
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="🔄 Ещё вариант", callback_data="regenerate_menu")],
+            [InlineKeyboardButton(text="🔙 Назад к распределению", callback_data="back_to_distribution")],
+            [InlineKeyboardButton(text="🏠 Главное меню", callback_data="main_menu")]
+        ])
+        await callback.message.edit_text(content, reply_markup=keyboard, parse_mode="HTML")
+    else:
+        await callback.message.edit_text(content)
+
+    await callback.answer()
+
+
+@router.callback_query(F.data == "back_to_distribution")
+async def back_to_distribution_callback(callback: CallbackQuery, state: FSMContext):
+    """Возвращает к сообщению с распределением калорий."""
+    user_id = callback.from_user.id
+    async with get_session() as session:
+        result = await session.execute(
+            select(User).where(User.telegram_id == user_id)
+        )
+        user = result.scalar_one_or_none()
+        if not user:
+            await callback.answer("❌ Профиль не найден", show_alert=True)
+            return
+
+    distribution = distribute_calories(user.daily_calorie_goal)
+    meal_names = {
+        "breakfast": "🥐 Завтрак",
+        "lunch": "🥗 Обед",
+        "dinner": "🍲 Ужин",
+        "snack": "🍎 Перекус"
+    }
+    text = f"🍽️ <b>Рекомендуемое распределение калорий на день</b>\n\n"
+    text += f"🔥 Дневная норма: {user.daily_calorie_goal:.0f} ккал\n\n"
+    for key, name in meal_names.items():
+        text += f"{name}: <b>{distribution[key]:.0f} ккал</b>\n"
+    text += f"\n<i>Это примерное распределение. Вы можете менять его под свои предпочтения.</i>"
+
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🍽️ Сгенерировать примерное меню", callback_data="generate_menu")],
+        [InlineKeyboardButton(text="🏠 Главное меню", callback_data="main_menu")]
+    ])
+
+    await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
+    await callback.answer()
+
+
+@router.callback_query(F.data == "main_menu")
+async def back_to_main_menu(callback: CallbackQuery, state: FSMContext):
+    """Возврат в главное меню."""
+    await state.clear()
+    await callback.message.delete()
+    await callback.message.answer("🏠 Главное меню", reply_markup=get_main_keyboard())
+    await callback.answer()

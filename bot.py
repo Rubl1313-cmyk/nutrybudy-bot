@@ -16,6 +16,7 @@ from handlers import (
 )
 from scheduler.jobs import setup_scheduler
 from handlers.universal_text_handler import universal_router
+from handlers import meal_plan
 
 load_dotenv()
 
@@ -168,6 +169,7 @@ async def main():
     dp.include_router(media_handlers.router)
     dp.include_router(ai_assistant.router)
     dp.include_router(universal_router)
+    dp.include_router(meal_plan.router)
 
     logging.info("✅ All routers included")
 

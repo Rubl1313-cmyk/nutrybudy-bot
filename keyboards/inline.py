@@ -139,9 +139,4 @@ def get_activity_type_keyboard():
     builder.adjust(2)  # по две кнопки в ряд
     return builder.as_markup()
 
-def get_activity_input_keyboard():
-    builder = InlineKeyboardBuilder()
-    builder.button(text="⏱️ По времени", callback_data="activity_time")
-    builder.button(text="👣 По шагам", callback_data="activity_steps")
-    builder.adjust(2)
     return builder.as_markup()

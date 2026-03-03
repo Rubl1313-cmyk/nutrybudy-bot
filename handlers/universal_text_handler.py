@@ -71,6 +71,12 @@ async def handle_universal_text(message: Message, state: FSMContext):
             )
             return
 
+        # ----- AI -----
+    elif intent == "ai":
+        logger.info(f"➡️ Направляю в AI: {text}")
+        await process_ai_query(message, state, text)
+        return
+        
     # ----- АКТИВНОСТЬ -----
     if intent == "activity":
         act_type = intent_data.get("activity_type")

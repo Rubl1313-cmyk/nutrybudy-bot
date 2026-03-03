@@ -1,9 +1,6 @@
 """
 Обработчик списков покупок.
-Теперь:
-- Единый список "Покупки" (создаётся автоматически).
-- Любой текст добавляет товары (с парсингом количества).
-- Инлайн-кнопки для изменения количества и отметки.
+При получении любого текста (кроме команд и кнопок) предлагает выбрать действие.
 """
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
@@ -13,25 +10,24 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from database.db import get_session
 from database.models import User, ShoppingList, ShoppingItem
-from keyboards.inline import get_shopping_items_keyboard
+from keyboards.inline import get_shopping_lists_keyboard, get_shopping_items_keyboard
 from keyboards.reply import get_main_keyboard, get_cancel_keyboard
 from utils.parsers import parse_shopping_items
+from utils.normalizer import normalize_product_name
 from utils.states import ShoppingStates
 
 router = Router()
 
 
-async def get_or_create_default_list(user_id: int, session):
+async def get_or_create_default_list(telegram_id: int, session):
     """Возвращает основной список покупок пользователя (создаёт если нет)."""
-    # Сначала получаем внутренний id пользователя
     user_result = await session.execute(
-        select(User).where(User.telegram_id == user_id)
+        select(User).where(User.telegram_id == telegram_id)
     )
     user = user_result.scalar_one_or_none()
     if not user:
         return None
 
-    # Ищем существующий неархивированный список
     result = await session.execute(
         select(ShoppingList)
         .where(
@@ -41,9 +37,7 @@ async def get_or_create_default_list(user_id: int, session):
         .order_by(ShoppingList.created_at.desc())
     )
     shopping_list = result.scalar_one_or_none()
-
     if not shopping_list:
-        # Создаём новый список с именем "Покупки"
         shopping_list = ShoppingList(
             user_id=user.id,
             name="Покупки",
@@ -79,13 +73,13 @@ async def cmd_shopping(message: Message, state: FSMContext):
         items = items_result.scalars().all()
 
         if not items:
-            text = f"📋 <b>{shopping_list.name}</b>\n\nСписок пуст. Отправьте товары (например: «яблоки, 2 литра молока»)."
+            text = f"📋 <b>{shopping_list.name}</b>\n\nСписок пуст. Напишите товары, и я спрошу, куда их добавить."
         else:
             text = f"📋 <b>{shopping_list.name}</b>\n\n"
             checked = sum(1 for i in items if i.is_checked)
             total = len(items)
             text += f"✅ {checked}/{total}\n\n"
-            for i, item in enumerate(items, 1):
+            for item in items:
                 status = "✅" if item.is_checked else "⬜"
                 text += f"{status} {item.name} — {item.quantity} {item.unit}\n"
 
@@ -95,6 +89,9 @@ async def cmd_shopping(message: Message, state: FSMContext):
             parse_mode="HTML"
         )
 
+
+# ========== УНИВЕРСАЛЬНЫЙ ОБРАБОТЧИК ТЕКСТА ==========
+# Ловит любой текст, кроме команд и кнопок меню, и предлагает выбрать действие
 
 @router.message(
     F.text,
@@ -106,23 +103,65 @@ async def cmd_shopping(message: Message, state: FSMContext):
         "💬 AI Помощник", "🏋️ Активность", "❓ Помощь"
     })
 )
-async def add_items_from_text(message: Message, state: FSMContext):
-    """Добавляет товары в список покупок из произвольного текста."""
-    user_id = message.from_user.id
+async def handle_generic_text(message: Message, state: FSMContext):
+    """Обрабатывает произвольный текст, предлагая выбрать действие."""
     text = message.text.strip()
+    # Сохраняем текст в состоянии
+    await state.update_data(pending_text=text)
 
-    if not text:
+    # Создаём inline-клавиатуру для выбора
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📋 В список покупок", callback_data="action_shopping")],
+        [InlineKeyboardButton(text="🍽️ Записать как приём пищи", callback_data="action_food")],
+        [InlineKeyboardButton(text="🤖 Спросить AI", callback_data="action_ai")],
+        [InlineKeyboardButton(text="❌ Отмена", callback_data="action_cancel")]
+    ])
+    await message.answer(
+        f"📝 Вы написали:\n«{text}»\n\nЧто с этим сделать?",
+        reply_markup=keyboard
+    )
+
+
+@router.callback_query(F.data.startswith("action_"))
+async def process_action(callback: CallbackQuery, state: FSMContext):
+    """Обрабатывает выбранное действие."""
+    action = callback.data.split("_")[1]
+    data = await state.get_data()
+    text = data.get('pending_text', '')
+
+    if action == "shopping":
+        await add_to_shopping_list(callback, text)
+        await callback.answer("✅ Добавлено в список покупок")
+    elif action == "food":
+        # Переходим в режим добавления еды
+        await callback.message.answer("🍽️ Переход к дневнику питания...")
+        from handlers.food import process_manual_food  # импорт внутри функции
+        await state.update_data(manual_food_name=text)
+        await state.set_state(FoodStates.entering_weight)
+        await callback.message.answer(f"⚖️ Введите вес для «{text}» в граммах:")
+    elif action == "ai":
+        from handlers.ai_assistant import process_ai_query
+        await process_ai_query(callback.message, state, text)
+    elif action == "cancel":
+        await callback.message.answer("❌ Действие отменено.")
+
+    await state.clear()
+    await callback.message.delete()
+
+
+async def add_to_shopping_list(event, text: str):
+    """Вспомогательная функция для добавления текста в список покупок."""
+    user_id = event.from_user.id
+    parsed = parse_shopping_items(text)
+    if not parsed:
+        await event.answer("❌ Не удалось распознать товары.", show_alert=True)
         return
 
     async with get_session() as session:
         shopping_list = await get_or_create_default_list(user_id, session)
         if not shopping_list:
-            await message.answer("❌ Ошибка: не удалось получить список покупок.")
+            await event.answer("❌ Не удалось получить список покупок.", show_alert=True)
             return
-
-        parsed = parse_shopping_items(text)
-        if not parsed:
-            return  # Ничего не распарсилось — возможно, это запрос к AI
 
         added = []
         for name, qty, unit in parsed:
@@ -137,27 +176,12 @@ async def add_items_from_text(message: Message, state: FSMContext):
             added.append(f"{name} — {qty} {unit}")
         await session.commit()
 
-        # Перезагружаем список для отображения
-        items_result = await session.execute(
-            select(ShoppingItem)
-            .where(ShoppingItem.list_id == shopping_list.id)
-            .order_by(ShoppingItem.is_checked, ShoppingItem.added_at)
-        )
-        items = items_result.scalars().all()
+    if added:
+        await event.message.answer(f"✅ Добавлено в список покупок:\n" + "\n".join(added))
 
-        text = f"📋 <b>{shopping_list.name}</b>\n\n"
-        checked = sum(1 for i in items if i.is_checked)
-        total = len(items)
-        text += f"✅ {checked}/{total}\n\n"
-        for i, item in enumerate(items, 1):
-            status = "✅" if item.is_checked else "⬜"
-            text += f"{status} {item.name} — {item.quantity} {item.unit}\n"
 
-        await message.answer(
-            text,
-            reply_markup=get_shopping_items_keyboard(items, shopping_list.id),
-            parse_mode="HTML"
-        )
+# ========== ОБРАБОТЧИКИ КНОПОК УПРАВЛЕНИЯ ==========
+# (остаются без изменений, но убедитесь, что старый универсальный обработчик удалён)
 
 @router.callback_query(F.data.startswith("item_incr_"))
 async def increase_quantity(callback: CallbackQuery):
@@ -183,7 +207,6 @@ async def decrease_quantity(callback: CallbackQuery):
                 item.quantity -= 1
                 await session.commit()
             else:
-                # Удаляем товар
                 await session.delete(item)
                 await session.commit()
             await update_list_message(callback, item.list_id)
@@ -256,39 +279,27 @@ async def add_item_manual(message: Message, state: FSMContext):
 
 @router.callback_query(F.data.startswith("delete_list_"))
 async def delete_list(callback: CallbackQuery):
-    """Удалить список и показать главное меню новым сообщением."""
+    """Удалить список."""
+    list_id = int(callback.data.split("_")[2])
+    async with get_session() as session:
+        lst = await session.get(ShoppingList, list_id)
+        if lst:
+            lst.is_archived = True
+            await session.commit()
+    await callback.message.answer(
+        "🗑️ Список архивирован.\n\nДля создания нового просто добавьте товары.",
+        reply_markup=get_main_keyboard()
+    )
     try:
-        list_id = int(callback.data.split("_")[2])
-
-        async with get_session() as session:
-            lst = await session.get(ShoppingList, list_id)
-            if lst:
-                lst.is_archived = True
-                await session.commit()
-
-        # ✅ Отправляем новое сообщение с главным меню вместо редактирования старого
-        await callback.message.answer(
-            "🗑️ Список архивирован.\n\n"
-            "Для создания нового просто добавьте товары.",
-            reply_markup=get_main_keyboard()
-        )
-        # Пытаемся удалить старое сообщение со списком (опционально)
-        try:
-            await callback.message.delete()
-        except:
-            pass
-
-    except (IndexError, ValueError, Exception) as e:
-        logger.error(f"Error deleting list: {e}")
-        await callback.answer("❌ Ошибка при удалении", show_alert=True)
-
+        await callback.message.delete()
+    except:
+        pass
     await callback.answer()
 
 
 @router.callback_query(F.data == "back_to_lists")
 async def back_to_lists(callback: CallbackQuery):
-    """Вернуться к главному списку (по сути то же, что и /shopping)."""
-    # Создаём имитацию команды /shopping
+    """Вернуться к главному списку."""
     user_id = callback.from_user.id
     async with get_session() as session:
         shopping_list = await get_or_create_default_list(user_id, session)
@@ -308,11 +319,11 @@ async def back_to_lists(callback: CallbackQuery):
             checked = sum(1 for i in items if i.is_checked)
             total = len(items)
             text += f"✅ {checked}/{total}\n\n"
-            for i, item in enumerate(items, 1):
+            for item in items:
                 status = "✅" if item.is_checked else "⬜"
                 text += f"{status} {item.name} — {item.quantity} {item.unit}\n"
         else:
-            text += "Список пуст. Отправьте товары (например: «яблоки, 2 литра молока»)."
+            text += "Список пуст. Напишите товары, и я спрошу, куда их добавить."
 
         await callback.message.edit_text(
             text,
@@ -325,7 +336,6 @@ async def back_to_lists(callback: CallbackQuery):
 async def update_list_message(event: CallbackQuery | Message, list_id: int, is_callback: bool = True):
     """Обновить сообщение со списком после изменений."""
     async with get_session() as session:
-        # Получаем список
         lst = await session.get(ShoppingList, list_id)
         if not lst:
             text = "❌ Список не найден."
@@ -347,11 +357,11 @@ async def update_list_message(event: CallbackQuery | Message, list_id: int, is_c
             checked = sum(1 for i in items if i.is_checked)
             total = len(items)
             text += f"✅ {checked}/{total}\n\n"
-            for i, item in enumerate(items, 1):
+            for item in items:
                 status = "✅" if item.is_checked else "⬜"
                 text += f"{status} {item.name} — {item.quantity} {item.unit}\n"
         else:
-            text += "Список пуст. Отправьте товары (например: «яблоки, 2 литра молока»)."
+            text += "Список пуст. Напишите товары, и я спрошу, куда их добавить."
 
         reply_markup = get_shopping_items_keyboard(items, list_id)
 

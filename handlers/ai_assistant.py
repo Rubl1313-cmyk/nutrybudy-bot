@@ -1,5 +1,6 @@
 """
 Обработчик AI-ассистента.
+Использует intent_classifier для выполнения действий или вызова AI.
 """
 from aiogram import Router, F
 from aiogram.types import Message
@@ -11,8 +12,6 @@ import logging
 from services.deepseek_client import ask_worker_ai, DEFAULT_SYSTEM_PROMPT
 from keyboards.reply import get_main_keyboard, get_cancel_keyboard
 from services.cloudflare_ai import transcribe_audio
-
-# Уберите импорт from handlers.universal_text_handler import handle_universal_text, если он есть
 
 router = Router()
 logger = logging.getLogger(__name__)
@@ -43,7 +42,7 @@ async def handle_voice_question(message: Message, state: FSMContext):
             return
         await message.answer(f"📝 <b>Распознано:</b>\n{text}", parse_mode="HTML")
         
-        # 🔥 ИМПОРТ ВНУТРИ ФУНКЦИИ
+        # 🔥 Импорт внутри функции для избежания циклического импорта
         from handlers.universal_text_handler import handle_universal_text
         await handle_universal_text(message, state, text)
         

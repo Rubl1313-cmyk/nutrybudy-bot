@@ -93,19 +93,25 @@ async def transcribe_audio(audio_bytes: bytes, language: str = "ru") -> Optional
     try:
         from aiohttp import FormData
 
-        # Проверка размера (лимит Whisper ~25MB, оставим запас)
-        if len(audio_bytes) > 20 * 1024 * 1024:
+        # Логируем размер файла
+        file_size = len(audio_bytes)
+        logger.info(f"🎤 Audio file size: {file_size / 1024 / 1024:.2f} MB")
+
+        # Проверка размера (лимит Whisper ~25MB, но для надёжности 20MB)
+        if file_size > 20 * 1024 * 1024:
             logger.warning("Audio file too large (>20MB), skipping")
             return None
 
         for model in WHISPER_MODELS:
             try:
-                # Создаём НОВЫЙ FormData для каждой попытки!
+                # Создаём НОВЫЙ FormData для каждой попытки
                 data = FormData()
                 data.add_field('file', audio_bytes, filename='voice.ogg', content_type='audio/ogg')
 
                 url = f"{BASE_URL}{model}"
                 headers = {"Authorization": f"Bearer {CLOUDFLARE_API_TOKEN}"}
+
+                logger.info(f"🎤 Sending to {model}, size: {file_size} bytes")
 
                 async with aiohttp.ClientSession() as session:
                     async with session.post(url, headers=headers, data=data, timeout=60) as resp:
@@ -117,13 +123,13 @@ async def transcribe_audio(audio_bytes: bytes, language: str = "ru") -> Optional
                                 return text.strip()
                         else:
                             error_text = await resp.text()
-                            logger.warning(f"Model {model} failed: {resp.status} - {error_text[:200]}")
+                            logger.warning(f"❌ Model {model} failed: {resp.status} - {error_text[:200]}")
             except Exception as e:
-                logger.warning(f"Exception with {model}: {e}")
+                logger.warning(f"⚠️ Exception with {model}: {e}")
                 continue
 
         logger.error("❌ All Whisper models failed")
         return None
     except Exception as e:
-        logger.exception("💥 transcribe_audio critical error: {e}")
+        logger.exception(f"💥 Critical error in transcribe_audio: {e}")
         return None

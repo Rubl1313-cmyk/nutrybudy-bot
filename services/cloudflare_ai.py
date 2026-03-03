@@ -92,35 +92,38 @@ async def analyze_food_image(
 async def transcribe_audio(audio_bytes: bytes, language: str = "ru") -> Optional[str]:
     try:
         from aiohttp import FormData
-        
-        # Проверка размера (опционально)
+
+        # Проверка размера (лимит Whisper ~25MB, оставим запас)
         if len(audio_bytes) > 20 * 1024 * 1024:
             logger.warning("Audio file too large (>20MB), skipping")
             return None
-        
+
         for model in WHISPER_MODELS:
             try:
                 # Создаём НОВЫЙ FormData для каждой попытки!
                 data = FormData()
                 data.add_field('file', audio_bytes, filename='voice.ogg', content_type='audio/ogg')
-                
+
                 url = f"{BASE_URL}{model}"
                 headers = {"Authorization": f"Bearer {CLOUDFLARE_API_TOKEN}"}
-                
+
                 async with aiohttp.ClientSession() as session:
                     async with session.post(url, headers=headers, data=data, timeout=60) as resp:
                         if resp.status == 200:
                             result = await resp.json()
                             text = result.get("result", {}).get("text", "")
                             if text:
+                                logger.info(f"✅ Whisper success with {model}: {text[:100]}...")
                                 return text.strip()
                         else:
-                            logger.warning(f"Model {model} failed: {resp.status}")
+                            error_text = await resp.text()
+                            logger.warning(f"Model {model} failed: {resp.status} - {error_text[:200]}")
             except Exception as e:
                 logger.warning(f"Exception with {model}: {e}")
                 continue
-                
+
+        logger.error("❌ All Whisper models failed")
         return None
     except Exception as e:
-        logger.error(f"Critical error: {e}")
+        logger.exception("💥 transcribe_audio critical error: {e}")
         return None

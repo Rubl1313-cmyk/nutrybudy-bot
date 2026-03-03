@@ -157,8 +157,26 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
         return
 
     # ----- ПОГОДА -----
-    elif intent == "weather":
-        city = intent_data.get("city", "Москва")
+elif intent == "weather":
+        user_id = message.from_user.id
+        city = intent_data.get("city")  # город, если указан в тексте (например, "в Мурманске")
+        
+        if not city:
+            # Город не указан в запросе – берём из профиля
+            async with get_session() as session:
+                from database.models import User
+                from sqlalchemy import select
+                result = await session.execute(
+                    select(User).where(User.telegram_id == user_id)
+                )
+                user = result.scalar_one_or_none()
+                if user and user.city:
+                    city = user.city
+                else:
+                    # Если и в профиле нет города, используем Москву с предупреждением
+                    city = "Москва"
+                    await message.answer("ℹ️ Город не указан в профиле, используется Москва. Вы можете изменить его в настройках профиля.")
+        
         weather_info = await get_weather(city)
         await message.answer(weather_info)
         return

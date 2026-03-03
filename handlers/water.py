@@ -75,7 +75,6 @@ async def preset_water(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
 
 async def add_water_quick(telegram_id: int, amount: int) -> bool:
-    """Быстрое добавление воды без диалога."""
     from database.db import get_session
     from database.models import User, WaterEntry
     from sqlalchemy import select

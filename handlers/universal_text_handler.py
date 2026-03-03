@@ -1,6 +1,5 @@
 """
 Универсальный обработчик текстовых сообщений.
-Вынесен в отдельный модуль для избежания циклических импортов.
 """
 from aiogram import Router
 from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
@@ -35,28 +34,49 @@ async def handle_universal_text(message: Message, state: FSMContext):
     text = message.text
     intent_data = classify(text)
     intent = intent_data.get("intent")
+    text_lower = text.lower()
 
-    # Особый случай: вода с объёмом
+    # ----- ОСОБАЯ ОБРАБОТКА ВОДЫ -----
     if intent == "water":
         amount = parse_water_amount(text)
-        if amount is not None:
-            # Есть явный объём – сразу добавляем воду
-            await add_water_quick(message.from_user.id, amount)
-            await message.answer(f"✅ Записано {amount} мл воды.")
+
+        # Если есть прямое указание "купить"
+        if "купить" in text_lower or "покупки" in text_lower:
+            # Добавляем в список покупок
+            item_text = f"вода {amount} мл" if amount else "вода"
+            await add_to_shopping_list(message, item_text)
+            await message.answer("✅ Добавлено в список покупок.")
             return
+
+        # Если есть прямое указание "выпил"
+        elif "выпил" in text_lower or "попил" in text_lower:
+            if amount:
+                await add_water_quick(message.from_user.id, amount)
+                await message.answer(f"✅ Записано {amount} мл воды.")
+            else:
+                # Запускаем обычный процесс добавления воды
+                await cmd_water(message, state)
+            return
+
+        # Если нет уточнения – предлагаем выбор
         else:
-            # Нет объёма – предлагаем выбор: записать воду или добавить в список покупок
+            # Сохраняем распознанный объём в состояние
+            await state.update_data(water_amount=amount)
+
             keyboard = InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(text="💧 Выпить воду", callback_data="water_drink")],
                 [InlineKeyboardButton(text="📋 Купить воду", callback_data="water_buy")],
                 [InlineKeyboardButton(text="❌ Отмена", callback_data="action_cancel")]
             ])
+
+            amount_text = f" ({amount} мл)" if amount else ""
             await message.answer(
-                f"📝 Вы написали о воде.\n\nВы хотите выпить воду или купить её в магазине?",
+                f"📝 Вы написали о воде{amount_text}.\n\nВы хотите выпить воду или купить её?",
                 reply_markup=keyboard
             )
             return
 
+    # ----- ОСТАЛЬНЫЕ НАМЕРЕНИЯ -----
     if intent == "activity":
         act_type = intent_data.get("activity_type")
         duration = intent_data.get("duration")
@@ -102,21 +122,35 @@ async def handle_universal_text(message: Message, state: FSMContext):
         await process_ai_query(message, state, text)
 
 
-# Обработчики inline-кнопок для воды
+# ----- ОБРАБОТЧИКИ КНОПОК ДЛЯ ВОДЫ -----
 @universal_router.callback_query(lambda c: c.data == "water_drink")
 async def water_drink_callback(callback, state):
+    data = await state.get_data()
+    amount = data.get('water_amount')
+    if amount:
+        await add_water_quick(callback.from_user.id, amount)
+        await callback.message.answer(f"✅ Записано {amount} мл воды.")
+    else:
+        # Нет объёма – запускаем стандартный процесс
+        await cmd_water(callback.message, state)
     await callback.message.delete()
-    await cmd_water(callback.message, state)
     await callback.answer()
+
 
 @universal_router.callback_query(lambda c: c.data == "water_buy")
 async def water_buy_callback(callback, state):
+    data = await state.get_data()
+    amount = data.get('water_amount')
+    item_text = f"вода {amount} мл" if amount else "вода"
+    await add_to_shopping_list(callback.message, item_text)
+    await callback.message.answer("✅ Добавлено в список покупок.")
     await callback.message.delete()
-    await add_to_shopping_list(callback.message, "вода")
     await callback.answer()
+
 
 @universal_router.callback_query(lambda c: c.data == "action_cancel")
 async def action_cancel_callback(callback, state):
+    await state.clear()
     await callback.message.delete()
     await callback.message.answer("❌ Действие отменено.")
     await callback.answer()

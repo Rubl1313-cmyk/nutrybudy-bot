@@ -14,14 +14,13 @@ from typing import List
 
 from services.cloudflare_ai import analyze_food_image, transcribe_audio
 from services.food_api import search_food
-from services.translator import translate_to_russian, extract_food_items  # ← импорт переводчика
+from services.translator import translate_to_russian, extract_food_items
 from keyboards.inline import get_food_selection_keyboard, get_confirmation_keyboard
 from utils.states import FoodStates
 from database.db import get_session
 from database.models import Meal, FoodItem, User
 from datetime import datetime
 from sqlalchemy import select
-from services.intent_classifier import classify
 
 router = Router()
 logger = logging.getLogger(__name__)
@@ -51,7 +50,6 @@ async def handle_photo(message: Message, state: FSMContext):
     """
     logger.info("📸 Photo received, starting recognition...")
     try:
-        # Если пользователь уже в каком-то состоянии, не связанном с едой, игнорируем фото
         current_state = await state.get_state()
         if current_state and not current_state.startswith("FoodStates"):
             logger.info(f"User in state {current_state}, ignoring photo")
@@ -89,9 +87,8 @@ async def handle_photo(message: Message, state: FSMContext):
         logger.info(f"✅ Translated items: {translated_items}")
 
         if not translated_items:
-            translated_items = [description_en]  # fallback
+            translated_items = [description_en]
 
-        # Сохраняем в состояние (русские названия)
         await state.update_data(
             pending_items=translated_items,
             current_index=0,
@@ -100,7 +97,7 @@ async def handle_photo(message: Message, state: FSMContext):
         )
 
         # Запускаем обработку первого продукта
-        await _process_next_food(message, state)
+        await process_next_food(message, state)
 
     except Exception as e:
         logger.error(f"❌ Photo error: {e}\n{traceback.format_exc()}")
@@ -108,8 +105,13 @@ async def handle_photo(message: Message, state: FSMContext):
         await state.clear()
 
 
-async def _process_next_food(message: Message, state: FSMContext):
-    """Обрабатывает следующий продукт из списка."""
+# ========== ПУБЛИЧНАЯ ФУНКЦИЯ ДЛЯ МНОЖЕСТВЕННОГО ВВОДА ==========
+# Используется в универсальном обработчике текста
+
+async def process_next_food(message: Message, state: FSMContext):
+    """
+    Обрабатывает следующий продукт из списка (публичная версия).
+    """
     data = await state.get_data()
     items = data.get('pending_items', [])
     idx = data.get('current_index', 0)
@@ -140,7 +142,6 @@ async def _process_next_food(message: Message, state: FSMContext):
 
 @router.callback_query(F.data.startswith("food_"), FoodStates.selecting_food)
 async def process_food_selection(callback: CallbackQuery, state: FSMContext):
-    """Выбор продукта из списка."""
     data = await state.get_data()
     foods = data.get('foods', [])
 
@@ -170,7 +171,6 @@ async def process_food_selection(callback: CallbackQuery, state: FSMContext):
 
 @router.message(FoodStates.manual_food_name, F.text)
 async def process_manual_food(message: Message, state: FSMContext):
-    """Ручной ввод названия продукта."""
     name = message.text.strip()
     if not name:
         await message.answer("❌ Название не может быть пустым.")
@@ -193,7 +193,6 @@ async def process_manual_food(message: Message, state: FSMContext):
 
 @router.message(FoodStates.entering_weight, F.text)
 async def process_weight(message: Message, state: FSMContext):
-    """Обработка ввода веса."""
     text = message.text.strip()
     if not text:
         await message.answer("❌ Введите число.")
@@ -237,11 +236,10 @@ async def process_weight(message: Message, state: FSMContext):
     idx = data.get('current_index', 0) + 1
     await state.update_data(selected_foods=selected_foods, current_index=idx)
 
-    await _process_next_food(message, state)
+    await process_next_food(message, state)
 
 
 async def _finish_meal(message: Message, state: FSMContext):
-    """Завершение ввода, сохранение приёма пищи."""
     data = await state.get_data()
     selected_foods = data.get('selected_foods', [])
     ai_description = data.get('ai_description', '')
@@ -257,7 +255,7 @@ async def _finish_meal(message: Message, state: FSMContext):
     total_carbs = sum(f['carbs'] for f in selected_foods)
 
     user_id = message.from_user.id
-    meal_type = data.get('meal_type', 'snack')  # если не указан, перекус
+    meal_type = data.get('meal_type', 'snack')
 
     async with get_session() as session:
         user_result = await session.execute(
@@ -309,7 +307,6 @@ async def _finish_meal(message: Message, state: FSMContext):
 
 @router.message(F.voice)
 async def handle_voice(message: Message, state: FSMContext):
-    """Распознаёт голос и классифицирует намерение."""
     try:
         voice = message.voice
         file_info = await message.bot.get_file(voice.file_id)
@@ -319,9 +316,9 @@ async def handle_voice(message: Message, state: FSMContext):
         if not text:
             await message.answer("❌ Не удалось распознать речь.")
             return
-        await message.answer(f"📝 Распознано: {text}")
-        # Перенаправляем в универсальный обработчик
-        await handle_universal_text(message, state, text)
+        # Перенаправляем в AI-ассистент
+        from handlers.ai_assistant import process_ai_query
+        await process_ai_query(message, state, text)
     except Exception as e:
         logger.error(f"Voice error: {e}")
         await message.answer("❌ Ошибка распознавания.")

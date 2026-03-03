@@ -1,10 +1,11 @@
 """
 Обработчик списков покупок.
-При получении любого текста (кроме команд и кнопок) предлагает выбрать действие.
+При получении любого текста (кроме команд и кнопок) предлагает выбрать действие,
+но только если пользователь не находится в каком-либо FSM-состоянии.
 """
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
-from aiogram.filters import Command
+from aiogram.filters import Command, StateFilter
 from aiogram.fsm.context import FSMContext
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
@@ -91,10 +92,11 @@ async def cmd_shopping(message: Message, state: FSMContext):
 
 
 # ========== УНИВЕРСАЛЬНЫЙ ОБРАБОТЧИК ТЕКСТА ==========
-# Ловит любой текст, кроме команд и кнопок меню, и предлагает выбрать действие
+# Срабатывает только когда нет активного состояния FSM
 
 @router.message(
     F.text,
+    StateFilter(None),  # ← ВАЖНО: только если состояние не установлено
     ~F.text.startswith("/"),
     ~F.text.regexp(r"^(запиши|добавь|что|как|почему|когда|где|сколько|рецепт|погода|ai|помощник|совет|напиши)").case(False),
     ~F.text.in_({
@@ -106,10 +108,8 @@ async def cmd_shopping(message: Message, state: FSMContext):
 async def handle_generic_text(message: Message, state: FSMContext):
     """Обрабатывает произвольный текст, предлагая выбрать действие."""
     text = message.text.strip()
-    # Сохраняем текст в состоянии
     await state.update_data(pending_text=text)
 
-    # Создаём inline-клавиатуру для выбора
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="📋 В список покупок", callback_data="action_shopping")],
         [InlineKeyboardButton(text="🍽️ Записать как приём пищи", callback_data="action_food")],
@@ -133,9 +133,8 @@ async def process_action(callback: CallbackQuery, state: FSMContext):
         await add_to_shopping_list(callback, text)
         await callback.answer("✅ Добавлено в список покупок")
     elif action == "food":
-        # Переходим в режим добавления еды
         await callback.message.answer("🍽️ Переход к дневнику питания...")
-        from handlers.food import process_manual_food  # импорт внутри функции
+        from handlers.food import process_manual_food
         await state.update_data(manual_food_name=text)
         await state.set_state(FoodStates.entering_weight)
         await callback.message.answer(f"⚖️ Введите вес для «{text}» в граммах:")
@@ -180,12 +179,10 @@ async def add_to_shopping_list(event, text: str):
         await event.message.answer(f"✅ Добавлено в список покупок:\n" + "\n".join(added))
 
 
-# ========== ОБРАБОТЧИКИ КНОПОК УПРАВЛЕНИЯ ==========
-# (остаются без изменений, но убедитесь, что старый универсальный обработчик удалён)
+# ========== ОБРАБОТЧИКИ КНОПОК УПРАВЛЕНИЯ (без изменений) ==========
 
 @router.callback_query(F.data.startswith("item_incr_"))
 async def increase_quantity(callback: CallbackQuery):
-    """Увеличить количество товара на 1."""
     item_id = int(callback.data.split("_")[2])
     async with get_session() as session:
         item = await session.get(ShoppingItem, item_id)
@@ -198,7 +195,6 @@ async def increase_quantity(callback: CallbackQuery):
 
 @router.callback_query(F.data.startswith("item_decr_"))
 async def decrease_quantity(callback: CallbackQuery):
-    """Уменьшить количество товара на 1. Если станет 0, товар удаляется."""
     item_id = int(callback.data.split("_")[2])
     async with get_session() as session:
         item = await session.get(ShoppingItem, item_id)
@@ -215,7 +211,6 @@ async def decrease_quantity(callback: CallbackQuery):
 
 @router.callback_query(F.data.startswith("toggle_item_"))
 async def toggle_item(callback: CallbackQuery):
-    """Отметить/снять отметку товара."""
     item_id = int(callback.data.split("_")[2])
     async with get_session() as session:
         item = await session.get(ShoppingItem, item_id)
@@ -228,7 +223,6 @@ async def toggle_item(callback: CallbackQuery):
 
 @router.callback_query(F.data.startswith("delete_item_"))
 async def delete_item(callback: CallbackQuery):
-    """Удалить товар из списка."""
     item_id = int(callback.data.split("_")[2])
     async with get_session() as session:
         item = await session.get(ShoppingItem, item_id)
@@ -242,7 +236,6 @@ async def delete_item(callback: CallbackQuery):
 
 @router.callback_query(F.data.startswith("add_item_"))
 async def add_item_prompt(callback: CallbackQuery, state: FSMContext):
-    """Начать добавление товара вручную."""
     list_id = int(callback.data.split("_")[2])
     await state.update_data(current_list_id=list_id)
     await state.set_state(ShoppingStates.adding_item)
@@ -254,7 +247,6 @@ async def add_item_prompt(callback: CallbackQuery, state: FSMContext):
 
 @router.message(ShoppingStates.adding_item, F.text)
 async def add_item_manual(message: Message, state: FSMContext):
-    """Добавить один товар вручную."""
     data = await state.get_data()
     list_id = data.get('current_list_id')
     text = message.text.strip()
@@ -273,13 +265,11 @@ async def add_item_manual(message: Message, state: FSMContext):
         await session.commit()
 
     await state.clear()
-    # Возвращаемся к списку
     await update_list_message(message, list_id, is_callback=False)
 
 
 @router.callback_query(F.data.startswith("delete_list_"))
 async def delete_list(callback: CallbackQuery):
-    """Удалить список."""
     list_id = int(callback.data.split("_")[2])
     async with get_session() as session:
         lst = await session.get(ShoppingList, list_id)
@@ -299,7 +289,6 @@ async def delete_list(callback: CallbackQuery):
 
 @router.callback_query(F.data == "back_to_lists")
 async def back_to_lists(callback: CallbackQuery):
-    """Вернуться к главному списку."""
     user_id = callback.from_user.id
     async with get_session() as session:
         shopping_list = await get_or_create_default_list(user_id, session)
@@ -334,7 +323,6 @@ async def back_to_lists(callback: CallbackQuery):
 
 
 async def update_list_message(event: CallbackQuery | Message, list_id: int, is_callback: bool = True):
-    """Обновить сообщение со списком после изменений."""
     async with get_session() as session:
         lst = await session.get(ShoppingList, list_id)
         if not lst:

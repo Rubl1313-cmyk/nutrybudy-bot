@@ -56,6 +56,7 @@ async def handle_text_question(message: Message, state: FSMContext):
 
 async def process_ai_query(message: Message, state: FSMContext, query: str):
     """Основная логика отправки запроса в AI и обработки ответа."""
+    logger.info(f"🚀 process_ai_query вызван с текстом: {query}")
     if not query.strip():
         await message.answer("❌ Пустой запрос.")
         return

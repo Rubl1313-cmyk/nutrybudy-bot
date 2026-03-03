@@ -1,24 +1,85 @@
 """
 Обработчик планировщика питания.
 Показывает распределение калорий по приёмам пищи и генерирует примерное меню.
-Добавлена кнопка сохранения рациона.
+Добавлена кнопка сохранения рациона и разбивка длинных сообщений.
 """
-import re
-from typing import List, Tuple
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
+from aiogram.exceptions import TelegramBadRequest
 from sqlalchemy import select
+import re
+from typing import List, Tuple
 
 from database.db import get_session
 from database.models import User
 from services.meal_planner import distribute_calories, get_meal_plan_prompt
 from services.deepseek_client import ask_worker_ai
 from keyboards.reply import get_main_keyboard
-from aiogram.exceptions import TelegramBadRequest
 
 router = Router()
+
+
+def split_message(text: str, max_length: int = 4096) -> List[str]:
+    """
+    Разбивает длинный текст на части, стараясь не разрывать слова и предложения.
+    Сохраняет HTML-разметку, закрывая теги в конце каждой части.
+    """
+    parts = []
+    while text:
+        limit = max_length
+
+        if len(text) <= limit:
+            parts.append(text)
+            break
+
+        part = text[:limit]
+        last_newline = part.rfind('\n')
+        last_space = part.rfind(' ')
+
+        split_pos = -1
+        if last_newline != -1:
+            split_pos = last_newline
+        elif last_space != -1:
+            split_pos = last_space
+
+        if split_pos != -1:
+            parts.append(part[:split_pos])
+            text = text[split_pos + 1:]
+        else:
+            parts.append(part)
+            text = text[limit:]
+
+    final_parts = []
+    open_tags = None
+    for part in parts:
+        part_with_tags, open_tags = _close_html_tags(part, open_tags)
+        final_parts.append(part_with_tags)
+
+    return final_parts
+
+
+def _close_html_tags(html: str, open_tags: List[str] = None) -> Tuple[str, List[str]]:
+    """Закрывает незакрытые HTML-теги в части и возвращает список открытых тегов."""
+    if open_tags is None:
+        open_tags = []
+    tag_pattern = re.compile(r'<(/?)(\w+)[^>]*>')
+    stack = open_tags.copy()
+
+    for match in tag_pattern.finditer(html):
+        is_closing = match.group(1) == '/'
+        tag_name = match.group(2)
+
+        if not is_closing:
+            stack.append(tag_name)
+        elif stack and stack[-1] == tag_name:
+            stack.pop()
+
+    if stack:
+        html += ''.join(f'</{tag}>' for tag in reversed(stack))
+
+    return html, stack
 
 
 @router.message(Command("meal_plan"))
@@ -60,86 +121,6 @@ async def cmd_meal_plan(message: Message, state: FSMContext):
 
     await message.answer(text, reply_markup=keyboard, parse_mode="HTML")
 
-def split_message(text: str, max_length: int = 4096) -> List[str]:
-    """
-    Разбивает длинный текст на части, стараясь не разрывать слова и предложения.
-    Сохраняет HTML-разметку, закрывая теги в конце каждой части.
-    
-    Args:
-        text: Исходный текст (может содержать HTML-теги).
-        max_length: Максимальная длина одной части (по умолчанию 4096).
-    
-    Returns:
-        Список строк, готовых к отправке.
-    """
-    parts = []
-    while text:
-        # Определяем текущий лимит (для первого сообщения с фото он меньше, но у нас просто текст)
-        limit = max_length
-
-        if len(text) <= limit:
-            parts.append(text)
-            break
-
-        # Берём часть до лимита
-        part = text[:limit]
-        # Ищем последний перенос строки в этой части
-        last_newline = part.rfind('\n')
-        # Ищем последний пробел, если нет переноса
-        last_space = part.rfind(' ')
-
-        # Определяем место для разрыва
-        split_pos = -1
-        if last_newline != -1:
-            split_pos = last_newline
-        elif last_space != -1:
-            split_pos = last_space
-
-        if split_pos != -1:
-            # Разрываем по найденной границе
-            parts.append(part[:split_pos])
-            text = text[split_pos + 1:]
-        else:
-            # Нет подходящей границы — режем по лимиту
-            parts.append(part)
-            text = text[limit:]
-
-    # 🔥 Закрываем HTML-теги в каждой части, чтобы разметка не ломалась
-    final_parts = []
-    open_tags = None
-    for part in parts:
-        part_with_tags, open_tags = _close_html_tags(part, open_tags)
-        final_parts.append(part_with_tags)
-
-    return final_parts
-
-
-def _close_html_tags(html: str, open_tags: List[str] = None) -> Tuple[str, List[str]]:
-    """
-    Закрывает незакрытые HTML-теги в части и возвращает список открытых тегов для следующей части.
-    """
-    if open_tags is None:
-        open_tags = []
-    tag_pattern = re.compile(r'<(/?)(\w+)[^>]*>')
-    stack = open_tags.copy()
-
-    # Проходим по всем тегам в текущей части
-    for match in tag_pattern.finditer(html):
-        is_closing = match.group(1) == '/'
-        tag_name = match.group(2)
-
-        if not is_closing:
-            # Открывающий тег — добавляем в стек
-            stack.append(tag_name)
-        elif stack and stack[-1] == tag_name:
-            # Закрывающий тег для последнего открытого — убираем из стека
-            stack.pop()
-
-    # Закрываем все оставшиеся открытые теги
-    if stack:
-        html += ''.join(f'</{tag}>' for tag in reversed(stack))
-
-    return html, stack
 
 async def generate_menu(user_id: int, variation: str = "") -> tuple[str, bool]:
     """
@@ -183,6 +164,7 @@ async def generate_menu(user_id: int, variation: str = "") -> tuple[str, bool]:
 
 @router.callback_query(F.data == "generate_menu")
 async def generate_menu_callback(callback: CallbackQuery, state: FSMContext):
+    """Генерирует первое меню."""
     user_id = callback.from_user.id
     try:
         await callback.message.edit_text("⏳ Генерирую примерное меню...")
@@ -203,13 +185,14 @@ async def generate_menu_callback(callback: CallbackQuery, state: FSMContext):
             [InlineKeyboardButton(text="🏠 Главное меню", callback_data="main_menu")]
         ])
 
-        # 🔥 Разбиваем длинный текст
+        # Разбиваем длинный текст
         message_parts = split_message(content)
         if not message_parts:
             await callback.message.edit_text("❌ Не удалось сгенерировать меню.")
             await callback.answer()
             return
-             # Первая часть — редактируем исходное сообщение
+
+        # Первая часть — редактируем исходное сообщение
         await callback.message.edit_text(message_parts[0], reply_markup=keyboard, parse_mode="HTML")
 
         # Остальные части — отправляем как новые сообщения
@@ -219,6 +202,7 @@ async def generate_menu_callback(callback: CallbackQuery, state: FSMContext):
         await callback.message.edit_text(content)
 
     await callback.answer()
+
 
 @router.callback_query(F.data == "regenerate_menu")
 async def regenerate_menu_callback(callback: CallbackQuery, state: FSMContext):
@@ -260,7 +244,8 @@ async def regenerate_menu_callback(callback: CallbackQuery, state: FSMContext):
         await callback.message.edit_text(content)
 
     await callback.answer()
-    
+
+
 @router.callback_query(F.data == "save_menu")
 async def save_menu_callback(callback: CallbackQuery, state: FSMContext):
     """Сохраняет последнее сгенерированное меню."""
@@ -270,12 +255,11 @@ async def save_menu_callback(callback: CallbackQuery, state: FSMContext):
         await callback.answer("❌ Нет сохранённого рациона", show_alert=True)
         return
 
-    # Отправляем копию с пометкой
     await callback.message.answer(
         f"📎 <b>Сохранённый рацион</b>\n\n{last_menu}",
         parse_mode="HTML"
     )
-    await callback.answer("✅ Рацион сохранён!", show_alert=False)
+    await callback.answer("✅ Рацион сохранён!")
 
 
 @router.callback_query(F.data == "back_to_distribution")

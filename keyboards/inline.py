@@ -58,17 +58,36 @@ def get_shopping_lists_keyboard(lists):
 
 
 def get_shopping_items_keyboard(items, list_id):
+    """
+    Клавиатура для отображения товаров в списке покупок с кнопками управления.
+    """
     builder = InlineKeyboardBuilder()
     for item in items[:10]:
         status = "✅" if item.is_checked else "⬜"
-        builder.button(
-            text=f"{status} {item.name}",
-            callback_data=f"toggle_item_{item.id}"
+        # Кнопка с названием товара (для информации)
+        builder.row(
+            InlineKeyboardButton(
+                text=f"{status} {item.name} — {item.quantity} {item.unit}",
+                callback_data=f"item_info_{item.id}"
+            )
         )
-    builder.button(text="➕ Добавить товар", callback_data=f"add_item_{list_id}")
-    builder.button(text="🗑️ Удалить список", callback_data=f"delete_list_{list_id}")
-    builder.button(text="🔙 Назад", callback_data="back_to_lists")
-    builder.adjust(1)
+        # Ряд с кнопками управления
+        builder.row(
+            InlineKeyboardButton(text="➖", callback_data=f"item_decr_{item.id}"),
+            InlineKeyboardButton(text="➕", callback_data=f"item_incr_{item.id}"),
+            InlineKeyboardButton(
+                text="✅" if not item.is_checked else "↩️",
+                callback_data=f"toggle_item_{item.id}"
+            ),
+            InlineKeyboardButton(text="🗑️", callback_data=f"delete_item_{item.id}"),
+            width=4
+        )
+    builder.row(
+        InlineKeyboardButton(text="➕ Добавить товар", callback_data=f"add_item_{list_id}"),
+        InlineKeyboardButton(text="🗑️ Удалить список", callback_data=f"delete_list_{list_id}"),
+        InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_lists"),
+        width=2
+    )
     return builder.as_markup()
 
 
@@ -102,20 +121,4 @@ def get_progress_options_keyboard():
     builder.button(text="📆 Неделя", callback_data="progress_week")
     builder.button(text="📆 Месяц", callback_data="progress_month")
     builder.adjust(3)
-    return builder.as_markup()
-
-def get_activity_type_keyboard():
-    """
-    Клавиатура для выбора типа активности.
-    Используется в handlers/activity.py
-    """
-    builder = InlineKeyboardBuilder()
-    builder.button(text="🚶 Ходьба", callback_data="activity_walking")
-    builder.button(text="🏃 Бег", callback_data="activity_running")
-    builder.button(text="🚴 Велосипед", callback_data="activity_cycling")
-    builder.button(text="🏋️ Тренажёрный зал", callback_data="activity_gym")
-    builder.button(text="🧘 Йога", callback_data="activity_yoga")
-    builder.button(text="🏊 Плавание", callback_data="activity_swimming")
-    builder.button(text="🎾 Другое", callback_data="activity_other")
-    builder.adjust(2)  # по две кнопки в ряд
     return builder.as_markup()

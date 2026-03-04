@@ -22,6 +22,8 @@ from keyboards.reply import get_main_keyboard
 router = Router()
 logger = logging.getLogger(__name__)
 
+AI_MAX_TOKENS = 5000  # было 1200
+
 
 def split_message(text: str, max_length: int = 4000) -> List[str]:
     """
@@ -118,7 +120,6 @@ async def generate_menu(user_id: int, variation: str = "") -> tuple[str, bool]:
     """
     Вспомогательная функция для генерации меню.
     Возвращает (текст ответа, успех).
-    ✅ УВЕЛИЧЕНО: max_tokens до 6000 для полных рецептов
     """
     async with get_session() as session:
         result = await session.execute(
@@ -139,11 +140,11 @@ async def generate_menu(user_id: int, variation: str = "") -> tuple[str, bool]:
     }
     prompt = get_meal_plan_prompt(user_data) + " " + variation
 
-    # ✅ УВЕЛИЧЕНО с 5000 до 6000 токенов
+    # 🔥 Увеличиваем max_tokens, чтобы AI мог дать полный ответ
     response = await ask_worker_ai(
         prompt=prompt,
-        system_prompt="Ты полезный ассистент. Отвечай подробно на русском. Давай полные рецепты с описанием.",
-        max_tokens=6000  # Было 5000
+        system_prompt="Ты полезный ассистент. Отвечай на русском. Составь подробное меню на день: завтрак, обед, ужин и перекус. Укажи ингредиенты и краткие инструкции.",
+        max_tokens=AI_MAX_TOKENS
     )
 
     if "error" in response:
@@ -151,6 +152,7 @@ async def generate_menu(user_id: int, variation: str = "") -> tuple[str, bool]:
 
     if response.get("choices"):
         content = response["choices"][0]["message"]["content"]
+        logger.info(f"🤖 AI ответ: {len(content)} символов, первые 100: {content[:100]}...")
         return content, True
     else:
         return "❌ Не удалось сгенерировать меню.", False

@@ -1,6 +1,7 @@
 """
 Обработчики мультимедиа: фото (распознавание еды) и голос.
 Реализован интерфейс с отдельными сообщениями для каждого продукта.
+Добавлена публичная функция start_food_input для использования из других модулей.
 """
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
@@ -10,7 +11,7 @@ from PIL import Image
 import io
 import traceback
 import re
-from typing import List, Dict
+from typing import List, Dict, Optional
 
 from services.cloudflare_ai import analyze_food_image, transcribe_audio
 from services.food_api import search_food
@@ -107,7 +108,7 @@ async def update_totals_message(chat_id: int, message_id: int, bot, selected_foo
         parse_mode="HTML"
     )
 
-async def send_product_message(chat_id: int, bot, index: int, food: Dict, totals_msg_id: int):
+async def send_product_message(chat_id: int, bot, index: int, food: Dict, totals_msg_id: int) -> int:
     """Отправляет сообщение для одного продукта и возвращает его message_id."""
     weight_str = f"{food['weight']} г" if food['weight'] else "0 г"
     calories_str = f"{food['calories']:.0f} ккал" if food['weight'] else "0 ккал"
@@ -129,9 +130,56 @@ async def send_product_message(chat_id: int, bot, index: int, food: Dict, totals
     msg = await bot.send_message(chat_id, text, reply_markup=keyboard, parse_mode="HTML")
     return msg.message_id
 
+async def start_food_input(
+    message: Message,
+    state: FSMContext,
+    food_names: List[str],
+    meal_type: str = "snack"
+):
+    """
+    Публичная функция для запуска интерфейса ввода продуктов.
+    Используется как из обработчика фото, так и из универсального обработчика текста.
+    """
+    # Инициализируем список продуктов
+    selected_foods = []
+    for name in food_names:
+        data = await get_food_data(name)
+        selected_foods.append({
+            **data,
+            'weight': 0,
+            'calories': 0,
+            'protein': 0,
+            'fat': 0,
+            'carbs': 0
+        })
+
+    # Отправляем сообщение с итогами
+    totals_text = "🍽️ <b>Всего в приёме пищи:</b>\n🔥 0 ккал | 🥩 0.0г | 🥑 0.0г | 🍚 0.0г"
+    totals_keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="➕ Добавить продукт", callback_data="add_food")],
+        [InlineKeyboardButton(text="✅ Подтвердить", callback_data="confirm_meal"),
+         InlineKeyboardButton(text="❌ Отмена", callback_data="cancel_meal")]
+    ])
+    totals_msg = await message.answer(totals_text, reply_markup=totals_keyboard, parse_mode="HTML")
+
+    # Отправляем сообщения для каждого продукта и сохраняем их ID
+    product_msg_ids = []
+    for i, food in enumerate(selected_foods):
+        msg_id = await send_product_message(message.chat.id, message.bot, i, food, totals_msg.message_id)
+        product_msg_ids.append(msg_id)
+
+    # Сохраняем все данные в state
+    await state.update_data(
+        selected_foods=selected_foods,
+        totals_msg_id=totals_msg.message_id,
+        product_msg_ids=product_msg_ids,
+        original_items=food_names,
+        meal_type=meal_type
+    )
+
 @router.message(F.photo)
 async def handle_photo(message: Message, state: FSMContext):
-    """Обработка фото: распознавание и отправка сообщений для каждого продукта."""
+    """Обработка фото: распознавание и запуск интерфейса ввода."""
     logger.info("📸 Photo received, starting recognition...")
     try:
         current_state = await state.get_state()
@@ -148,41 +196,7 @@ async def handle_photo(message: Message, state: FSMContext):
             )
             return
 
-        # Инициализируем список продуктов
-        selected_foods = []
-        for name in translated_items:
-            data = await get_food_data(name)
-            selected_foods.append({
-                **data,
-                'weight': 0,
-                'calories': 0,
-                'protein': 0,
-                'fat': 0,
-                'carbs': 0
-            })
-
-        # Отправляем сообщение с итогами
-        totals_text = "🍽️ <b>Всего в приёме пищи:</b>\n🔥 0 ккал | 🥩 0.0г | 🥑 0.0г | 🍚 0.0г"
-        totals_keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="➕ Добавить продукт", callback_data="add_food")],
-            [InlineKeyboardButton(text="✅ Подтвердить", callback_data="confirm_meal"),
-             InlineKeyboardButton(text="❌ Отмена", callback_data="cancel_meal")]
-        ])
-        totals_msg = await message.answer(totals_text, reply_markup=totals_keyboard, parse_mode="HTML")
-
-        # Отправляем сообщения для каждого продукта и сохраняем их ID
-        product_msg_ids = []
-        for i, food in enumerate(selected_foods):
-            msg_id = await send_product_message(message.chat.id, message.bot, i, food, totals_msg.message_id)
-            product_msg_ids.append(msg_id)
-
-        # Сохраняем все данные в state
-        await state.update_data(
-            selected_foods=selected_foods,
-            totals_msg_id=totals_msg.message_id,
-            product_msg_ids=product_msg_ids,
-            original_items=translated_items
-        )
+        await start_food_input(message, state, translated_items, meal_type="snack")
 
     except Exception as e:
         logger.error(f"❌ Photo error: {e}\n{traceback.format_exc()}")
@@ -205,7 +219,6 @@ async def weight_callback(callback: CallbackQuery, state: FSMContext):
     action = parts[1]  # inc, dec, set, del
     idx = int(parts[2])
     value = int(parts[3]) if len(parts) > 3 and parts[3].isdigit() else None
-    # последняя часть — totals_msg_id (используется для проверки, но не обязательно)
 
     if idx >= len(selected_foods):
         await callback.answer("❌ Ошибка индекса", show_alert=True)
@@ -214,17 +227,13 @@ async def weight_callback(callback: CallbackQuery, state: FSMContext):
     food = selected_foods[idx]
 
     if action == "del":
-        # Удаляем продукт
         del selected_foods[idx]
-        # Удаляем сообщение продукта
         try:
             await callback.bot.delete_message(callback.message.chat.id, product_msg_ids[idx])
         except:
             pass
-        # Обновляем список message_id
         del product_msg_ids[idx]
         await state.update_data(selected_foods=selected_foods, product_msg_ids=product_msg_ids)
-        # Обновляем итоги
         await update_totals_message(callback.message.chat.id, totals_msg_id, callback.bot, selected_foods)
         await callback.answer("✅ Продукт удалён")
         return
@@ -249,7 +258,6 @@ async def weight_callback(callback: CallbackQuery, state: FSMContext):
         await callback.answer()
         return
 
-    # Обновляем вес и пересчитываем калории
     food['weight'] = new_weight
     if new_weight > 0:
         multiplier = new_weight / 100
@@ -287,7 +295,6 @@ async def weight_callback(callback: CallbackQuery, state: FSMContext):
     except Exception as e:
         logger.error(f"Edit error: {e}")
 
-    # Обновляем сообщение с итогами
     await update_totals_message(callback.message.chat.id, totals_msg_id, callback.bot, selected_foods)
     await callback.answer()
 
@@ -333,7 +340,6 @@ async def process_add_weight(message: Message, state: FSMContext):
             await message.answer("❌ Введите число от 1 до 10000 г")
             return
 
-    # Получаем данные продукта
     food_data = await get_food_data(name)
 
     multiplier = weight / 100 if weight > 0 else 0
@@ -350,11 +356,9 @@ async def process_add_weight(message: Message, state: FSMContext):
     product_msg_ids = data.get('product_msg_ids', [])
     totals_msg_id = data.get('totals_msg_id')
 
-    # Добавляем продукт в список
     idx = len(selected_foods)
     selected_foods.append(new_food)
 
-    # Отправляем сообщение для нового продукта
     new_msg_id = await send_product_message(
         message.chat.id,
         message.bot,
@@ -369,10 +373,7 @@ async def process_add_weight(message: Message, state: FSMContext):
         product_msg_ids=product_msg_ids
     )
 
-    # Обновляем итоги
     await update_totals_message(message.chat.id, totals_msg_id, message.bot, selected_foods)
-
-    # Удаляем сообщение с запросом веса (опционально)
     await message.delete()
     await message.answer("✅ Продукт добавлен.")
 
@@ -434,7 +435,6 @@ async def confirm_meal_callback(callback: CallbackQuery, state: FSMContext):
                 session.add(item)
         await session.commit()
 
-    # Удаляем все сообщения продуктов и сообщение с итогами
     chat_id = callback.message.chat.id
     for msg_id in product_msg_ids:
         try:
@@ -446,7 +446,6 @@ async def confirm_meal_callback(callback: CallbackQuery, state: FSMContext):
     except:
         pass
 
-    # Отправляем итоговое сообщение
     lines = [f"🍽️ Записан приём пищи ({meal_type}):"]
     for f in selected_foods:
         if f['weight']:

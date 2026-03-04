@@ -18,7 +18,6 @@ from handlers.water import cmd_water, add_water_quick
 from handlers.shopping import cmd_shopping, add_to_shopping_list, update_list_message, get_or_create_default_list
 from handlers.activity import cmd_fitness
 from handlers.reminders import cmd_reminders, quick_create_reminder
-from handlers.media_handlers import show_food_overview
 from utils.parsers import parse_shopping_items
 from utils.states import ActivityStates
 from database.db import get_session

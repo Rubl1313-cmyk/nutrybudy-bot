@@ -1,11 +1,11 @@
 """
 Планировщик задач для NutriBuddy
-✅ Исправлено для работы с PostgreSQL
+✅ Исправлено: используется get_session() вместо async_session
 """
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from aiogram import Bot
-from database.db import async_session
+from database.db import get_session  # изменён импорт
 from sqlalchemy import text
 from sqlalchemy.exc import ProgrammingError
 from datetime import datetime
@@ -28,11 +28,10 @@ def setup_scheduler(bot: Bot):
     async def check_reminders():
         """Проверка напоминаний каждую минуту"""
         try:
-            async with async_session() as session:
+            async with get_session() as session:  # исправлено
                 now = datetime.now().strftime("%H:%M")
                 day = datetime.now().strftime("%a").lower()[:3]  # mon, tue, wed...
                 
-                # 🔥 Простой SQL-запрос для PostgreSQL
                 result = await session.execute(
                     text("""
                         SELECT u.telegram_id, r.title, r.time, r.days 

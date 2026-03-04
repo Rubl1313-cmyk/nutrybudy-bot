@@ -188,13 +188,12 @@ async def process_steps_input(message: Message, state: FSMContext):
             await state.clear()
             return
 
-        # Расчёт калорий (примерно 0.04 ккал на шаг)
         calories = round(steps * 0.04, 1)
         activity = Activity(
             user_id=user.id,
             activity_type="walking",
             duration=0,
-            distance=steps * 0.00075,  # средняя длина шага 0.75 м
+            distance=steps * 0.00075,
             calories_burned=calories,
             steps=steps,
             datetime=datetime.now(),

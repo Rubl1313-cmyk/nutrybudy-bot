@@ -22,7 +22,6 @@ from utils.states import ProgressStates
 
 router = Router()
 
-
 def _progress_bar(current: float, goal: float, length: int = 10) -> str:
     """Генерирует текстовый прогресс-бар."""
     if goal <= 0:
@@ -30,7 +29,6 @@ def _progress_bar(current: float, goal: float, length: int = 10) -> str:
     filled = int((current / goal) * length)
     filled = min(filled, length)
     return "█" * filled + "░" * (length - filled)
-
 
 @router.message(Command("progress"))
 @router.message(F.text == "📊 Прогресс")
@@ -54,7 +52,6 @@ async def cmd_progress(message: Message):
         "📊 Выберите период для отображения прогресса:",
         reply_markup=get_progress_options_keyboard(),
     )
-
 
 @router.callback_query(F.data.startswith("progress_"))
 async def process_progress_period(callback: CallbackQuery, state: FSMContext):
@@ -154,7 +151,7 @@ async def process_progress_period(callback: CallbackQuery, state: FSMContext):
     await callback.message.answer(text, reply_markup=get_main_keyboard(), parse_mode="HTML")
 
     # Генерация графиков
-  weight_plot = await generate_weight_plot(user.id, session)
+    weight_plot = await generate_weight_plot(user.id, session)
     if weight_plot:
         await callback.message.answer_photo(
             BufferedInputFile(weight_plot, filename="weight.png"),
@@ -162,8 +159,8 @@ async def process_progress_period(callback: CallbackQuery, state: FSMContext):
         )
 
     water_plot = await generate_water_plot(
-        user.id, 
-        session, 
+        user.id,
+        session,
         period=period,
         daily_goal=user.daily_water_goal
     )
@@ -174,8 +171,8 @@ async def process_progress_period(callback: CallbackQuery, state: FSMContext):
         )
 
     calorie_plot = await generate_calorie_plot(
-        user.id, 
-        session, 
+        user.id,
+        session,
         period=period,
         daily_goal=user.daily_calorie_goal
     )
@@ -186,10 +183,10 @@ async def process_progress_period(callback: CallbackQuery, state: FSMContext):
         )
 
     activity_plot = await generate_activity_plot(
-        user.id, 
-        session, 
+        user.id,
+        session,
         period=period,
-        daily_goal=None  # для активности цели нет
+        daily_goal=None
     )
     if activity_plot:
         await callback.message.answer_photo(

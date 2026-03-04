@@ -155,6 +155,12 @@ async def process_progress_period(callback: CallbackQuery, state: FSMContext):
 
     # Генерация графиков
     weight_plot = await generate_weight_plot(user.id, session)
+    if len(weights) > 3:
+    # простая линия тренда (окно 3 точки)
+    trend = [sum(weights[max(0,i-2):i+1])/min(3,i+1) for i in range(len(weights))]
+    plt.plot(dates, trend, '--', color='gray', alpha=0.5, label='Тренд')
+    plt.legend()
+    
     if weight_plot:
         await callback.message.answer_photo(
             BufferedInputFile(weight_plot, filename="weight.png"),

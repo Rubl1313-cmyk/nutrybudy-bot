@@ -28,6 +28,11 @@ from utils.ai_tools import get_weather
 logger = logging.getLogger(__name__)
 universal_router = Router()
 
+@universal_router.message(F.text, ~F.text.startswith("/"))
+async def universal_message_handler(message: Message, state: FSMContext):
+    """Точка входа для всех текстовых сообщений, не начинающихся с '/'."""
+    await handle_universal_text(message, state)
+
 
 async def handle_universal_text(message: Message, state: FSMContext, text: str = None):
     """Универсальный обработчик любого текста."""

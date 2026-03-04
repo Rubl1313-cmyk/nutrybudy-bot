@@ -202,12 +202,39 @@ async def add_item_prompt(callback: CallbackQuery, state: FSMContext):
 
 @router.message(ShoppingStates.adding_item, F.text)
 async def add_item_manual(message: Message, state: FSMContext):
+    """Добавить один товар вручную с проверкой существования списка."""
     data = await state.get_data()
     list_id = data.get('current_list_id')
+    if not list_id:
+        await message.answer("❌ Ошибка: не выбран список. Начните заново.")
+        await state.clear()
+        return
+
     text = message.text.strip()
 
     async with get_session() as session:
+        # 1. Проверяем, существует ли список с таким ID
+        shopping_list = await session.get(ShoppingList, list_id)
+        if not shopping_list or shopping_list.is_archived:
+            # Список не найден или архивирован – создаём новый
+            shopping_list = await get_or_create_default_list(message.from_user.id, session)
+            if not shopping_list:
+                await message.answer("❌ Не удалось создать список покупок.")
+                await state.clear()
+                return
+            list_id = shopping_list.id
+            # Обновляем состояние новым ID
+            await state.update_data(current_list_id=list_id)
+            await message.answer("🔄 Ваш список покупок был пересоздан, продолжаем...")
+
+        # 2. Разбираем товары
         parsed = parse_shopping_items(text)
+        if not parsed:
+            await message.answer("❌ Не удалось распознать товары. Пример: «2 яйца, молоко»")
+            return
+
+        # 3. Добавляем товары
+        added = []
         for name, qty, unit in parsed:
             item = ShoppingItem(
                 list_id=list_id,
@@ -217,9 +244,12 @@ async def add_item_manual(message: Message, state: FSMContext):
                 added_by=message.from_user.id
             )
             session.add(item)
+            added.append(f"{name} — {qty} {unit}")
         await session.commit()
 
     await state.clear()
+    await message.answer(f"✅ Добавлено в список покупок:\n" + "\n".join(added))
+    # Обновляем сообщение со списком (если нужно)
     await update_list_message(message, list_id, is_callback=False)
 
 

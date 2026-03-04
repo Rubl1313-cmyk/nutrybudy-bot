@@ -161,23 +161,27 @@ async def process_progress_period(callback: CallbackQuery, state: FSMContext):
             caption="📈 Динамика веса (все записи)",
         )
 
-    water_plot = await generate_water_plot(user.id, session, period=period)
+    water_plot = await generate_water_plot(
+        user.id, 
+        session, 
+        period=period,
+        daily_goal=user.daily_water_goal  # ← добавить этот параметр
+    )
     if water_plot:
-        await callback.message.answer_photo(
-            BufferedInputFile(water_plot, filename="water.png"),
-            caption=f"💧 Потребление воды {period_names[period]}",
-        )
+        await callback.message.answer_photo(...)
 
-    calorie_plot = await generate_calorie_plot(user.id, session, period=period)
+    calorie_plot = await generate_calorie_plot(
+        user.id, 
+        session, 
+        period=period,
+        daily_goal=user.daily_calorie_goal  # ← добавить этот параметр
+    )
     if calorie_plot:
-        await callback.message.answer_photo(
-            BufferedInputFile(calorie_plot, filename="calories.png"),
-            caption=f"🔥 Потребление калорий {period_names[period]}",
-        )
+        await callback.message.answer_photo(...)
 
-    activity_plot = await generate_activity_plot(user.id, session, period=period)
-    if activity_plot:
-        await callback.message.answer_photo(
-            BufferedInputFile(activity_plot, filename="activity.png"),
-            caption=f"🏃 Активность {period_names[period]}",
-        )
+    activity_plot = await generate_activity_plot(
+        user.id, 
+        session, 
+        period=period,
+        daily_goal=None  # для активности цели нет, можно оставить None
+    )

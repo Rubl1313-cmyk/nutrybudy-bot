@@ -1,10 +1,21 @@
 """
-Модуль для приведения русских слов к канонической форме (именительный падеж, единственное число).
-Использует pymorphy2 для лемматизации и словарь исключений для особых случаев.
+Модуль для приведения русских слов к канонической форме.
+✅ Добавлена безопасная инициализация с fallback
 """
 import re
+import logging
 import pymorphy3
-morph = pymorphy3.MorphAnalyzer()
+
+logger = logging.getLogger(__name__)
+
+# ✅ Безопасная инициализация
+try:
+    morph = pymorphy3.MorphAnalyzer()
+    logger.info("✅ pymorphy3 initialized successfully")
+except ValueError as e:
+    logger.error(f"❌ pymorphy3 initialization failed: {e}")
+    logger.warning("⚠️ Morphological analysis will be disabled")
+    morph = None
 
 # Словарь исключений: нестандартные леммы -> каноническая форма продукта
 EXCEPTIONS = {
@@ -349,36 +360,34 @@ EXCEPTIONS = {
 }
 
 def normalize_word(word: str) -> str:
-    """
-    Приводит слово к нормальной форме:
-    - через pymorphy2 получаем лемму
-    - если лемма есть в словаре EXCEPTIONS, заменяем на каноническую форму
-    """
-    word_lower = word.lower().strip()
-    if not word_lower:
+    """Приводит слово к нормальной форме."""
+    if not word or not word.strip():
         return word
     
-    # Парсим слово через pymorphy2
-    parsed = morph.parse(word_lower)[0]
-    lemma = parsed.normal_form
+    word_lower = word.lower().strip()
     
-    # Проверяем, есть ли лемма в словаре исключений
-    if lemma in EXCEPTIONS:
-        return EXCEPTIONS[lemma]
+    # ✅ Если morph не инициализирован, возвращаем как есть
+    if morph is None:
+        return word_lower
     
-    # Иначе возвращаем лемму
-    return lemma
+    try:
+        parsed = morph.parse(word_lower)[0]
+        lemma = parsed.normal_form
+        
+        if lemma in EXCEPTIONS:
+            return EXCEPTIONS[lemma]
+        
+        return lemma
+    except Exception as e:
+        logger.warning(f"⚠️ Failed to normalize '{word}': {e}")
+        return word_lower
 
 def normalize_product_name(name: str) -> str:
-    """
-    Приводит название продукта (может состоять из нескольких слов) к канонической форме.
-    """
-    # Убираем лишние пробелы
+    """Приводит название продукта к канонической форме."""
     name = re.sub(r'\s+', ' ', name).strip()
     if not name:
         return name
     
-    # Разбиваем на слова и нормализуем каждое
     words = name.split()
     normalized_words = [normalize_word(w) for w in words]
     return ' '.join(normalized_words)

@@ -20,6 +20,17 @@ def get_water_preset_keyboard():
     builder.adjust(2)
     return builder.as_markup()
 
+def get_food_menu() -> InlineKeyboardMarkup:
+    """Подменю раздела «Питание»."""
+    buttons = [
+        [InlineKeyboardButton(text="📸 Отправить фото еды", callback_data="menu_food_photo")],
+        [InlineKeyboardButton(text="✏️ Ввести продукты вручную", callback_data="menu_food_manual")],
+        [InlineKeyboardButton(text="🍽️ План питания", callback_data="menu_meal_plan")],
+        [InlineKeyboardButton(text="💬 AI Помощник", callback_data="menu_ai")],   # <-- добавлено
+        [InlineKeyboardButton(text="🔙 Назад", callback_data="menu_back")]
+    ]
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
+
 def get_food_overview_keyboard(selected_foods: List[Dict]) -> InlineKeyboardMarkup:
     """Клавиатура для сводки продуктов."""
     buttons = []

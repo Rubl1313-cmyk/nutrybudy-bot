@@ -1,6 +1,6 @@
 """
 Обработчик активности для NutriBuddy.
-✅ Для ходьбы можно вводить количество шагов, калории рассчитываются автоматически.
+✅ Для ходьбы теперь используется отдельный пункт "Записать шаги".
 ✅ Для остальных типов активности сохраняется ввод времени.
 """
 from aiogram import Router, F
@@ -13,13 +13,13 @@ from database.db import get_session
 from database.models import User, Activity
 from keyboards.inline import get_activity_type_keyboard, get_confirmation_keyboard
 from keyboards.reply import get_main_keyboard, get_cancel_keyboard
-from utils.states import ActivityStates
+from utils.states import ActivityStates, StepsStates
 
 router = Router()
 
 # 🔥 Калории на минуту для разных активностей (средний человек 70кг)
 CALORIES_PER_MINUTE = {
-    "walking": 4,      # Ходьба
+    "walking": 4,      # Ходьба (но этот тип больше не используется в меню)
     "running": 10,     # Бег
     "cycling": 7,      # Велосипед
     "gym": 6,          # Тренажёрный зал
@@ -28,19 +28,34 @@ CALORIES_PER_MINUTE = {
     "other": 5         # Другое
 }
 
+# Функция для проверки наличия профиля
+async def check_user_exists(user_id: int) -> bool:
+    """Проверяет, существует ли пользователь в БД."""
+    async with get_session() as session:
+        result = await session.execute(
+            select(User).where(User.telegram_id == user_id)
+        )
+        return result.scalar_one_or_none() is not None
 
 @router.message(Command("fitness"))
 @router.message(F.text == "🏋️ Активность")
 async def cmd_fitness(message: Message, state: FSMContext):
     """Начало записи активности (выбор типа)."""
+    # Проверяем, есть ли профиль
+    if not await check_user_exists(message.from_user.id):
+        await message.answer(
+            "❌ Сначала настройте профиль через /set_profile.",
+            reply_markup=get_main_keyboard()
+        )
+        return
+
     await state.clear()
     await state.set_state(ActivityStates.manual_type)
     await message.answer(
         "🏋️ <b>Запись активности</b>\n\n"
-        "Выберите тип активности:",
+        "Выберите тип активности (ходьба теперь записывается через 'Записать шаги'):",
         reply_markup=get_activity_type_keyboard()
     )
-
 
 @router.callback_query(F.data.startswith("activity_"), ActivityStates.manual_type)
 async def process_activity_type(callback: CallbackQuery, state: FSMContext):
@@ -50,7 +65,7 @@ async def process_activity_type(callback: CallbackQuery, state: FSMContext):
     await state.set_state(ActivityStates.manual_duration)
 
     type_names = {
-        "walking": "🚶 Ходьба",
+        "walking": "🚶 Ходьба (используйте пункт 'Записать шаги')",
         "running": "🏃 Бег",
         "cycling": "🚴 Велосипед",
         "gym": "🏋️ Тренажёрный зал",
@@ -67,7 +82,6 @@ async def process_activity_type(callback: CallbackQuery, state: FSMContext):
         parse_mode="HTML"
     )
     await callback.answer()
-
 
 @router.message(ActivityStates.manual_duration, F.text.regexp(r'^\s*\d+\s*$'))
 async def process_duration(message: Message, state: FSMContext):
@@ -86,7 +100,7 @@ async def process_duration(message: Message, state: FSMContext):
         await state.set_state(ActivityStates.confirming)
 
         type_names = {
-            "walking": "🚶 Ходьба",
+            "walking": "🚶 Ходьба (используйте пункт 'Записать шаги')",
             "running": "🏃 Бег",
             "cycling": "🚴 Велосипед",
             "gym": "🏋️ Тренажёрный зал",
@@ -105,7 +119,6 @@ async def process_duration(message: Message, state: FSMContext):
         )
     except ValueError:
         await message.answer("❌ Введите число от 1 до 480 минут")
-
 
 @router.callback_query(F.data == "confirm", ActivityStates.confirming)
 async def confirm_activity(callback: CallbackQuery, state: FSMContext):
@@ -144,10 +157,51 @@ async def confirm_activity(callback: CallbackQuery, state: FSMContext):
     )
     await callback.answer()
 
-
 @router.callback_query(F.data == "cancel", ActivityStates.confirming)
 async def cancel_activity(callback: CallbackQuery, state: FSMContext):
     """Отмена записи активности."""
     await state.clear()
     await callback.message.edit_text("❌ Запись отменена.")
     await callback.answer()
+
+# ========== Обработчик для шагов ==========
+
+@router.message(StepsStates.waiting_for_steps, F.text)
+async def process_steps_input(message: Message, state: FSMContext):
+    """Обрабатывает ввод количества шагов."""
+    try:
+        steps = int(message.text.strip())
+        if steps <= 0 or steps > 100000:
+            raise ValueError
+    except ValueError:
+        await message.answer("❌ Пожалуйста, введите целое положительное число (до 100000).")
+        return
+
+    user_id = message.from_user.id
+    async with get_session() as session:
+        user_result = await session.execute(
+            select(User).where(User.telegram_id == user_id)
+        )
+        user = user_result.scalar_one_or_none()
+        if not user:
+            await message.answer("❌ Сначала настройте профиль через /set_profile.")
+            await state.clear()
+            return
+
+        # Расчёт калорий (примерно 0.04 ккал на шаг)
+        calories = round(steps * 0.04, 1)
+        activity = Activity(
+            user_id=user.id,
+            activity_type="walking",
+            duration=0,
+            distance=steps * 0.00075,  # средняя длина шага 0.75 м
+            calories_burned=calories,
+            steps=steps,
+            datetime=datetime.now(),
+            source="manual"
+        )
+        session.add(activity)
+        await session.commit()
+
+    await message.answer(f"✅ Записано {steps} шагов (сожжено ~{calories} ккал).")
+    await state.clear()

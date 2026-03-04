@@ -109,22 +109,25 @@ async def add_to_shopping_list(event, text: str):
     Добавляет товары в список покупок из текста.
     event может быть Message или CallbackQuery.
     """
+    from aiogram.types import Message, CallbackQuery
     user_id = event.from_user.id
     parsed = parse_shopping_items(text)
     if not parsed:
-        if hasattr(event, 'message') and event.message:
+        if isinstance(event, Message):
+            await event.answer("❌ Не удалось распознать товары.")
+        elif isinstance(event, CallbackQuery):
             await event.message.answer("❌ Не удалось распознать товары.")
-        else:
-            await event.answer("❌ Не удалось распознать товары.", show_alert=True)
+            await event.answer()
         return
 
     async with get_session() as session:
         shopping_list = await get_or_create_default_list(user_id, session, event)
         if not shopping_list:
-            if hasattr(event, 'message') and event.message:
+            if isinstance(event, Message):
+                await event.answer("❌ Не удалось получить список покупок.")
+            elif isinstance(event, CallbackQuery):
                 await event.message.answer("❌ Не удалось получить список покупок.")
-            else:
-                await event.answer("❌ Не удалось получить список покупок.", show_alert=True)
+                await event.answer()
             return
 
         added = []
@@ -141,10 +144,11 @@ async def add_to_shopping_list(event, text: str):
         await session.commit()
 
     if added:
-        if hasattr(event, 'message') and event.message:
+        if isinstance(event, Message):
+            await event.answer(f"✅ Добавлено в список покупок:\n" + "\n".join(added))
+        elif isinstance(event, CallbackQuery):
             await event.message.answer(f"✅ Добавлено в список покупок:\n" + "\n".join(added))
-        else:
-            await event.answer(f"✅ Добавлено в список покупок: {', '.join(added)}")
+            await event.answer()
 
 # ========== ОБРАБОТЧИКИ КНОПОК УПРАВЛЕНИЯ ==========
 
@@ -317,6 +321,7 @@ async def back_to_lists(callback: CallbackQuery, state: FSMContext):
 
 async def update_list_message(event: CallbackQuery | Message, list_id: int, is_callback: bool = True):
     """Обновляет сообщение со списком покупок."""
+    from aiogram.types import Message, CallbackQuery
     async with get_session() as session:
         lst = await session.get(ShoppingList, list_id)
         if not lst:

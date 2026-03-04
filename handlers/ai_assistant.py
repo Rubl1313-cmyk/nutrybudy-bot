@@ -66,6 +66,11 @@ async def process_voice(message: Message, state: FSMContext, is_global: bool = F
 @router.message(F.voice)
 async def handle_voice_global(message: Message, state: FSMContext):
     """Обрабатывает ЛЮБОЕ голосовое сообщение вне зависимости от состояния."""
+    # Не перехватывать если пользователь в состоянии ввода еды/воды
+    current_state = await state.get_state()
+    if current_state and any(x in current_state for x in ['Food', 'Water', 'Activity', 'Steps']):
+        return
+    
     await process_voice(message, state, is_global=True)
 
 @router.message(Command("ask"))

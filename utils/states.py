@@ -4,6 +4,7 @@
 from aiogram.fsm.state import State, StatesGroup
 
 class FoodStates(StatesGroup):
+    choosing_meal_type = State()  # ← добавлено
     selecting_food = State()
     entering_weight = State()
     manual_food_name = State()

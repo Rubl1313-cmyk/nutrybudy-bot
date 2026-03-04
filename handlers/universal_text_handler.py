@@ -13,7 +13,7 @@ from datetime import datetime
 
 from services.intent_classifier import classify
 from utils.water_parser import parse_water_amount
-from handlers.food import cmd_log_food, process_next_food  # ДОБАВЛЕН ИМПОРТ
+from handlers.food import cmd_log_food, process_next_food  # ✅ добавлен импорт
 from handlers.water import cmd_water, add_water_quick
 from handlers.shopping import cmd_shopping, add_to_shopping_list, update_list_message, get_or_create_default_list
 from handlers.activity import cmd_fitness
@@ -75,7 +75,7 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
             )
             return
 
-       # ----- АКТИВНОСТЬ -----
+    # ----- АКТИВНОСТЬ -----
     if intent == "activity":
         act_type = intent_data.get("activity_type")
         duration = intent_data.get("duration")
@@ -111,22 +111,20 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
 
         # Если есть расстояние, но нет длительности – рассчитываем длительность по темпу
         if distance_km and not duration:
-            # Определяем темп (мин/км) в зависимости от типа активности
             if act_type == "running":
-                pace = 6.0  # мин/км (10 км/ч)
+                pace = 6.0
             elif act_type == "walking":
-                pace = 12.0  # мин/км (5 км/ч)
+                pace = 12.0
             elif act_type == "cycling":
-                pace = 4.0   # мин/км (15 км/ч)
+                pace = 4.0
             else:
-                pace = 8.0   # среднее для других
+                pace = 8.0
             duration = int(distance_km * pace)
 
-        # Если есть длительность или (теперь) расстояние
+        # Если есть длительность или расстояние
         if act_type and (duration or distance_km):
-            # Если есть только длительность (без расстояния), используем её
+            # Если есть только длительность (без расстояния), запрашиваем подтверждение
             if duration and not distance_km:
-                # Запрашиваем подтверждение
                 await state.update_data(activity_type=act_type, duration=duration)
                 await state.set_state(ActivityStates.confirming)
                 await message.answer(
@@ -137,9 +135,8 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
                     ])
                 )
                 return
-            # Если есть расстояние (и возможно длительность) – сразу считаем и сохраняем
+            # Если есть расстояние – сразу считаем и сохраняем
             else:
-                # Получаем вес пользователя для расчёта калорий
                 user_id = message.from_user.id
                 async with get_session() as session:
                     user_result = await session.execute(
@@ -149,14 +146,12 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
                     if not user:
                         await message.answer("❌ Сначала настройте профиль через /set_profile.")
                         return
-                    weight = user.weight or 70  # если вес не указан, берём 70 кг
+                    weight = user.weight or 70
 
-                # Получаем MET из словаря
                 met = CALORIES_PER_MINUTE.get(act_type, 5)
                 # Если длительность не указана, используем рассчитанную из расстояния (уже есть)
-                calories = met * weight * (duration / 60)  # формула: MET * вес(кг) * время(ч)
+                calories = met * weight * (duration / 60)
 
-                # Сохраняем активность
                 async with get_session() as session:
                     activity = Activity(
                         user_id=user.id,
@@ -171,7 +166,6 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
                     session.add(activity)
                     await session.commit()
 
-                # Формируем сообщение
                 msg_parts = [f"✅ Активность записана: {act_type}"]
                 if duration:
                     msg_parts.append(f"{duration} мин")
@@ -190,6 +184,7 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
         # Если ничего не распознано – запускаем общий диалог
         await cmd_fitness(message, state)
         return
+
     # ----- НАПОМИНАНИЯ -----
     if intent == "reminder":
         title = intent_data.get("reminder_title")
@@ -216,7 +211,6 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
         meal_type = intent_data.get("meal_type", "snack")
         items = intent_data.get("items")
         if items:
-            # Используем новый интерфейс с отдельными сообщениями
             from handlers.media_handlers import start_food_input
             await start_food_input(message, state, items, meal_type)
         else:
@@ -351,7 +345,7 @@ async def confirm_activity_callback(callback: CallbackQuery, state: FSMContext):
         weight = user.weight or 70
 
     met = CALORIES_PER_MINUTE.get(act_type, 5)
-    calories = met * weight * (duration / 60)   # ИСПРАВЛЕНО
+    calories = met * weight * (duration / 60)
 
     async with get_session() as session:
         activity = Activity(

@@ -1,5 +1,7 @@
 """
-Генерация графиков для прогресса.
+Генерация современных и понятных графиков для прогресса.
+✅ Линейные графики с заливкой области
+✅ Горизонтальная линия нормы (где применимо)
 ✅ Поддержка периода: день (почасово + итоги), неделя/месяц (подневно)
 """
 import matplotlib
@@ -12,12 +14,25 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from typing import Optional, Literal
 import logging
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
+# Современная цветовая палитра
+COLORS = {
+    'weight': '#2E86AB',      # синий
+    'water': '#56A3A6',       # бирюзовый
+    'calories': '#F18F01',     # оранжевый
+    'activity': '#C73E1D',     # красный
+    'trend': '#A23B72',        # фиолетовый для тренда
+    'goal': '#E15554'          # красный для линии нормы
+}
 
 async def generate_weight_plot(user_id: int, session: AsyncSession) -> Optional[bytes]:
-    """График динамики веса (все записи)."""
+    """
+    График динамики веса (все записи).
+    Линейный график + линия тренда.
+    """
     result = await session.execute(
         select(WeightEntry).where(WeightEntry.user_id == user_id).order_by(WeightEntry.datetime)
     )
@@ -28,67 +43,70 @@ async def generate_weight_plot(user_id: int, session: AsyncSession) -> Optional[
     dates = [e.datetime for e in entries]
     weights = [e.weight for e in entries]
 
-    plt.figure(figsize=(10, 5))
-    plt.plot(dates, weights, marker='o', linestyle='-', color='blue', linewidth=2, markersize=6)
-    plt.title('📈 Динамика веса', fontsize=14, fontweight='bold')
-    plt.xlabel('Дата')
-    plt.ylabel('Вес (кг)')
-    plt.grid(True, alpha=0.3)
-    plt.xticks(rotation=45)
+    plt.figure(figsize=(12, 6))
+    # Основная линия
+    plt.plot(dates, weights, marker='o', linestyle='-', linewidth=2.5,
+             color=COLORS['weight'], markersize=6, label='Вес')
+    plt.fill_between(dates, min(weights)-1, weights, alpha=0.15, color=COLORS['weight'])
+
+    # Линия тренда (полиномиальная регрессия 1-й степени)
+    if len(weights) > 3:
+        z = np.polyfit(range(len(weights)), weights, 1)
+        p = np.poly1d(z)
+        plt.plot(dates, p(range(len(weights))), '--', linewidth=2,
+                 color=COLORS['trend'], label='Тренд')
+
+    plt.title('📈 Динамика веса', fontsize=16, fontweight='bold', pad=20)
+    plt.xlabel('Дата', fontsize=12)
+    plt.ylabel('Вес (кг)', fontsize=12)
+    plt.grid(True, alpha=0.3, linestyle='--')
+    plt.legend(loc='best')
+    plt.xticks(rotation=45, ha='right')
     plt.tight_layout()
 
     buf = io.BytesIO()
-    plt.savefig(buf, format='png', bbox_inches='tight', dpi=100)
+    plt.savefig(buf, format='png', bbox_inches='tight', dpi=120)
     plt.close()
     buf.seek(0)
     return buf.read()
-
 
 async def generate_water_plot(
     user_id: int,
     session: AsyncSession,
     period: Literal['day', 'week', 'month'] = 'week',
-    daily_goal: float = 2000
+    daily_goal: Optional[float] = None
 ) -> Optional[bytes]:
-    """
-    График потребления воды.
-    - day: почасовой (24 часа) + столбцы "Всего" и "Норма"
-    - week / month: подневной
-    """
+    """График потребления воды."""
     return await _generate_consumption_plot(
         user_id=user_id,
         session=session,
         model=WaterEntry,
         amount_field='amount',
         ylabel='Вода (мл)',
-        title_prefix='💧 Потребление воды',
+        title='💧 Потребление воды',
+        color=COLORS['water'],
         period=period,
         daily_goal=daily_goal
     )
-
 
 async def generate_calorie_plot(
     user_id: int,
     session: AsyncSession,
     period: Literal['day', 'week', 'month'] = 'week',
-    daily_goal: float = 2000
+    daily_goal: Optional[float] = None
 ) -> Optional[bytes]:
-    """
-    График потребления калорий.
-    - day: почасовой + итоги
-    - week/month: подневной
-    """
+    """График потребления калорий."""
     return await _generate_consumption_plot(
         user_id=user_id,
         session=session,
         model=Meal,
         amount_field='total_calories',
         ylabel='Калории (ккал)',
-        title_prefix='🔥 Потребление калорий',
+        title='🔥 Потребление калорий',
+        color=COLORS['calories'],
         period=period,
         daily_goal=daily_goal
     )
-
 
 async def generate_activity_plot(
     user_id: int,
@@ -96,22 +114,18 @@ async def generate_activity_plot(
     period: Literal['day', 'week', 'month'] = 'week',
     daily_goal: Optional[float] = None
 ) -> Optional[bytes]:
-    """
-    График сожжённых калорий.
-    - day: почасовой + итоги
-    - week/month: подневной
-    """
+    """График сожжённых калорий (активность)."""
     return await _generate_consumption_plot(
         user_id=user_id,
         session=session,
         model=Activity,
         amount_field='calories_burned',
         ylabel='Сожжено (ккал)',
-        title_prefix='🏃 Активность',
+        title='🏃 Активность (сожжённые калории)',
+        color=COLORS['activity'],
         period=period,
         daily_goal=daily_goal
     )
-
 
 async def _generate_consumption_plot(
     user_id: int,
@@ -119,16 +133,20 @@ async def _generate_consumption_plot(
     model,
     amount_field: str,
     ylabel: str,
-    title_prefix: str,
+    title: str,
+    color: str,
     period: Literal['day', 'week', 'month'] = 'week',
     daily_goal: Optional[float] = None
 ) -> Optional[bytes]:
-    """Общая функция для построения графиков потребления/активности."""
+    """
+    Универсальная функция для графиков потребления/активности.
+    Для дня: столбцовая диаграмма + итоговые столбцы.
+    Для недели/месяца: линейный график с заливкой и линией нормы.
+    """
     now = datetime.now()
 
     if period == 'day':
         start_date = now - timedelta(hours=24)
-        # Получаем записи за последние 24 часа
         result = await session.execute(
             select(model).where(
                 model.user_id == user_id,
@@ -139,21 +157,18 @@ async def _generate_consumption_plot(
         if not entries:
             return None
 
-        # Группировка по часам
+        # Почасовая группировка
         hourly = {}
         for e in entries:
             hour_key = e.datetime.replace(minute=0, second=0, microsecond=0)
             amount = getattr(e, amount_field) or 0
             hourly[hour_key] = hourly.get(hour_key, 0) + amount
 
-        # Сортируем часы
         hours = sorted(hourly.keys())
         values = [hourly[h] for h in hours]
-
-        # Подготавливаем метки для оси X (часы)
         labels = [h.strftime('%H:%M') for h in hours]
 
-        # Добавляем итоговые столбцы: "Всего" и "Норма"
+        # Добавляем итоговые столбцы
         total_value = sum(values)
         labels.append('Всего')
         values.append(total_value)
@@ -161,89 +176,86 @@ async def _generate_consumption_plot(
             labels.append('Норма')
             values.append(daily_goal)
 
-        # Строим график
         plt.figure(figsize=(12, 6))
-        bars = plt.bar(range(len(labels)), values, color=['#1f77b4']*len(hours) + ['#ff7f0e', '#2ca02c'])
-        # Окрашиваем последние два столбца в разные цвета
-        if daily_goal is not None:
-            bars[-2].set_color('#ff7f0e')  # всего
-            bars[-1].set_color('#2ca02c')  # норма
-        else:
-            bars[-1].set_color('#ff7f0e')  # всего
+        x = range(len(labels))
+        bars = plt.bar(x, values, color=['#1f77b4']*len(hours) + ['#ff7f0e', '#2ca02c'],
+                       alpha=0.8, edgecolor='white', linewidth=1)
 
-        plt.xticks(range(len(labels)), labels, rotation=45, ha='right')
-        plt.title(f'{title_prefix} (последние 24 часа)', fontsize=14, fontweight='bold')
-        plt.xlabel('Время')
-        plt.ylabel(ylabel)
-        plt.grid(True, axis='y', alpha=0.3)
-
-        # Подписи значений на столбцах
+        # Подписи значений
         for bar, val in zip(bars, values):
-            height = bar.get_height()
-            if height > 0:
-                plt.text(bar.get_x() + bar.get_width()/2., height,
-                         f'{int(val)}', ha='center', va='bottom', fontsize=8)
+            if val > 0:
+                plt.text(bar.get_x() + bar.get_width()/2., bar.get_height(),
+                         f'{int(val)}', ha='center', va='bottom', fontsize=9, fontweight='bold')
 
+        plt.xticks(x, labels, rotation=45, ha='right')
+        plt.title(f'{title} (последние 24 часа)', fontsize=16, fontweight='bold', pad=20)
+        plt.xlabel('Время', fontsize=12)
+        plt.ylabel(ylabel, fontsize=12)
+        plt.grid(True, axis='y', alpha=0.3, linestyle='--')
         plt.tight_layout()
+
         buf = io.BytesIO()
-        plt.savefig(buf, format='png', bbox_inches='tight', dpi=100)
+        plt.savefig(buf, format='png', bbox_inches='tight', dpi=120)
         plt.close()
         buf.seek(0)
         return buf.read()
 
-    elif period == 'week':
-        start_date = now - timedelta(days=7)
-        date_format = '%d.%m'
-        xlabel = 'День'
-        title = f'{title_prefix} (последние 7 дней)'
-        group_by = 'day'
-    else:  # month
-        start_date = now - timedelta(days=30)
-        date_format = '%d.%m'
-        xlabel = 'День'
-        title = f'{title_prefix} (последние 30 дней)'
-        group_by = 'day'
+    else:  # week или month
+        if period == 'week':
+            start_date = now - timedelta(days=7)
+            title_suffix = ' (последние 7 дней)'
+        else:
+            start_date = now - timedelta(days=30)
+            title_suffix = ' (последние 30 дней)'
 
-    # Для недели и месяца
-    result = await session.execute(
-        select(model).where(
-            model.user_id == user_id,
-            model.datetime >= start_date
-        ).order_by(model.datetime)
-    )
-    entries = result.scalars().all()
-    if not entries:
-        return None
+        result = await session.execute(
+            select(model).where(
+                model.user_id == user_id,
+                model.datetime >= start_date
+            ).order_by(model.datetime)
+        )
+        entries = result.scalars().all()
+        if not entries:
+            return None
 
-    # Группировка по дням
-    daily = {}
-    for e in entries:
-        day_key = e.datetime.date()
-        amount = getattr(e, amount_field) or 0
-        daily[day_key] = daily.get(day_key, 0) + amount
+        # Группировка по дням
+        daily = {}
+        for e in entries:
+            day_key = e.datetime.date()
+            amount = getattr(e, amount_field) or 0
+            daily[day_key] = daily.get(day_key, 0) + amount
 
-    # Сортируем дни
-    days = sorted(daily.keys())
-    values = [daily[d] for d in days]
-    labels = [d.strftime(date_format) for d in days]
+        days = sorted(daily.keys())
+        values = [daily[d] for d in days]
+        labels = [d.strftime('%d.%m') for d in days]
 
-    plt.figure(figsize=(10, 5))
-    bars = plt.bar(range(len(labels)), values, color='blue', alpha=0.7)
-    plt.xticks(range(len(labels)), labels, rotation=45, ha='right')
-    plt.title(title, fontsize=14, fontweight='bold')
-    plt.xlabel(xlabel)
-    plt.ylabel(ylabel)
-    plt.grid(True, axis='y', alpha=0.3)
+        plt.figure(figsize=(12, 6))
+        # Линейный график с маркерами
+        plt.plot(range(len(labels)), values, marker='o', linestyle='-', linewidth=2.5,
+                 color=color, markersize=6, label='Факт')
+        plt.fill_between(range(len(labels)), 0, values, alpha=0.2, color=color)
 
-    for bar, val in zip(bars, values):
-        height = bar.get_height()
-        if height > 0:
-            plt.text(bar.get_x() + bar.get_width()/2., height,
-                     f'{int(val)}', ha='center', va='bottom', fontsize=8)
+        # Линия нормы (если передана)
+        if daily_goal is not None:
+            plt.axhline(y=daily_goal, color=COLORS['goal'], linestyle='--', linewidth=2,
+                        alpha=0.8, label=f'Норма {daily_goal:.0f}')
 
-    plt.tight_layout()
-    buf = io.BytesIO()
-    plt.savefig(buf, format='png', bbox_inches='tight', dpi=100)
-    plt.close()
-    buf.seek(0)
-    return buf.read()
+        # Подписи значений
+        for i, val in enumerate(values):
+            if val > 0:
+                plt.text(i, val + (max(values)*0.02), f'{int(val)}',
+                         ha='center', va='bottom', fontsize=8, rotation=0)
+
+        plt.xticks(range(len(labels)), labels, rotation=45, ha='right')
+        plt.title(title + title_suffix, fontsize=16, fontweight='bold', pad=20)
+        plt.xlabel('Дата', fontsize=12)
+        plt.ylabel(ylabel, fontsize=12)
+        plt.grid(True, alpha=0.3, linestyle='--')
+        plt.legend(loc='best')
+        plt.tight_layout()
+
+        buf = io.BytesIO()
+        plt.savefig(buf, format='png', bbox_inches='tight', dpi=120)
+        plt.close()
+        buf.seek(0)
+        return buf.read()

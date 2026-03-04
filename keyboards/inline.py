@@ -165,3 +165,53 @@ def get_activity_type_keyboard():
     return builder.as_markup()
 
     return builder.as_markup()
+
+# ========== НОВЫЕ НАВИГАЦИОННЫЕ МЕНЮ ==========
+
+def get_food_menu() -> InlineKeyboardMarkup:
+    """Подменю раздела «Питание»."""
+    buttons = [
+        [InlineKeyboardButton(text="📸 Отправить фото еды", callback_data="menu_food_photo")],
+        [InlineKeyboardButton(text="✏️ Ввести продукты вручную", callback_data="menu_food_manual")],
+        [InlineKeyboardButton(text="🍽️ План питания", callback_data="menu_meal_plan")],
+        [InlineKeyboardButton(text="🔙 Назад", callback_data="menu_back")]
+    ]
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+def get_water_activity_menu() -> InlineKeyboardMarkup:
+    """Подменю «Вода и активность»."""
+    buttons = [
+        [InlineKeyboardButton(text="💧 Записать воду", callback_data="menu_water")],
+        [InlineKeyboardButton(text="🏃 Записать активность", callback_data="menu_activity")],
+        [InlineKeyboardButton(text="👟 Записать шаги", callback_data="menu_steps")],
+        [InlineKeyboardButton(text="🔙 Назад", callback_data="menu_back")]
+    ]
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+def get_progress_menu() -> InlineKeyboardMarkup:
+    """Подменю «Прогресс»."""
+    buttons = [
+        [InlineKeyboardButton(text="📈 За день", callback_data="progress_day")],
+        [InlineKeyboardButton(text="📊 За неделю", callback_data="progress_week")],
+        [InlineKeyboardButton(text="📉 За месяц", callback_data="progress_month")],
+        [InlineKeyboardButton(text="🔙 Назад", callback_data="menu_back")]
+    ]
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+def get_lists_menu() -> InlineKeyboardMarkup:
+    """Подменю «Списки и напоминания»."""
+    buttons = [
+        [InlineKeyboardButton(text="📋 Список покупок", callback_data="menu_shopping")],
+        [InlineKeyboardButton(text="🔔 Напоминания", callback_data="menu_reminders")],
+        [InlineKeyboardButton(text="🔙 Назад", callback_data="menu_back")]
+    ]
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+def get_profile_menu() -> InlineKeyboardMarkup:
+    """Подменю «Профиль»."""
+    buttons = [
+        [InlineKeyboardButton(text="👤 Просмотр профиля", callback_data="menu_profile_view")],
+        [InlineKeyboardButton(text="✏️ Редактировать профиль", callback_data="menu_profile_edit")],
+        [InlineKeyboardButton(text="🔙 Назад", callback_data="menu_back")]
+    ]
+    return InlineKeyboardMarkup(inline_keyboard=buttons)

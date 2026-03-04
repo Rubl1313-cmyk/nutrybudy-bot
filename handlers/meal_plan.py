@@ -28,6 +28,7 @@ def split_message(text: str, max_length: int = 4000) -> List[str]:
     Разбивает длинный текст на части, стараясь сохранить целостность слов и HTML-тегов.
     ✅ УЛУЧШЕНО: лучшая обработка границ и тегов
     """
+    logger.info(f"🔍 split_message: входной текст {len(text)} символов, max_length={max_length}")
     if len(text) <= max_length:
         return [text]
 

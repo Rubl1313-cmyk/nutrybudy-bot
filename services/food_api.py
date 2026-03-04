@@ -5,12 +5,12 @@ import aiohttp
 import hashlib
 import hmac
 import time
-import asyncio
 import logging
 from typing import List, Dict, Optional
 from urllib.parse import quote, urlencode
 from googletrans import Translator
 import base64
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -102,7 +102,7 @@ LOCAL_FOOD_DB = {
     # ========== ХЛЕБ И ВЫПЕЧКА ==========
     "хлеб": {"name": "Хлеб пшеничный", "calories": 265, "protein": 9, "fat": 3.2, "carbs": 49},
     "хлеб ржаной": {"name": "Хлеб ржаной", "calories": 200, "protein": 6, "fat": 1.5, "carbs": 40},
-    "лаваш": {"name": "Лаваш", "calories": 250, "protein": 8, "fat": 2, "carbs": 50},   # исправлено
+    "лаваш": {"name": "Лаваш", "calories": 250, "protein": 8, "fat": 2, "carbs": 50},
     "печенье": {"name": "Печенье", "calories": 450, "protein": 6, "fat": 15, "carbs": 75},
     "пряники": {"name": "Пряники", "calories": 360, "protein": 5, "fat": 5, "carbs": 75},
 
@@ -287,7 +287,7 @@ LOCAL_FOOD_DB = {
     "салат с клубникой": {"name": "Салат с клубникой", "calories": 50, "protein": 1, "fat": 1, "carbs": 10},
     "салат с малиной": {"name": "Салат с малиной", "calories": 60, "protein": 1, "fat": 1, "carbs": 12},
     "салат с черникой": {"name": "Салат с черникой", "calories": 60, "protein": 1, "fat": 1, "carbs": 12},
-       # ========== ЯЙЦА И БЛЮДА ИЗ ЯИЦ (ДОПОЛНЕНИЕ) ==========
+    # ========== ЯЙЦА И БЛЮДА ИЗ ЯИЦ (ДОПОЛНЕНИЕ) ==========
     "яичница": {"name": "Яичница глазунья", "calories": 180, "protein": 10, "fat": 14, "carbs": 1.5},
     "омлет с молоком": {"name": "Омлет с молоком", "calories": 150, "protein": 9, "fat": 11, "carbs": 2},
     "яйцо пашот": {"name": "Яйцо пашот", "calories": 155, "protein": 12.6, "fat": 10.6, "carbs": 1.1},
@@ -365,15 +365,19 @@ def search_local_db(query: str) -> List[Dict]:
     return results
 
 # ========== КОНФИГУРАЦИЯ FATSECRET ==========
-FATSECRET_CONSUMER_KEY = "ваш_consumer_key"  # Получить на https://platform.fatsecret.com/
-FATSECRET_CONSUMER_SECRET = "ваш_consumer_secret"
-FATSECRET_ACCESS_TOKEN = None  # Будет получен при инициализации
+FATSECRET_CONSUMER_KEY = os.getenv("FATSECRET_CONSUMER_KEY", "")
+FATSECRET_CONSUMER_SECRET = os.getenv("FATSECRET_CONSUMER_SECRET", "")
+FATSECRET_ACCESS_TOKEN = None
 
 translator = Translator()
 
 async def get_fatsecret_token() -> Optional[str]:
     """Получение OAuth-токена для FatSecret API."""
     global FATSECRET_ACCESS_TOKEN
+    
+    if not FATSECRET_CONSUMER_KEY or not FATSECRET_CONSUMER_SECRET:
+        logger.warning("⚠️ FatSecret credentials not set")
+        return None
     
     if FATSECRET_ACCESS_TOKEN:
         return FATSECRET_ACCESS_TOKEN
@@ -403,7 +407,8 @@ async def get_fatsecret_token() -> Optional[str]:
             async with session.post(
                 'https://oauth.fatsecret.com/connect/token',
                 headers={'Authorization': auth_header},
-                data={'grant_type': 'client_credentials'}
+                data={'grant_type': 'client_credentials'},
+                timeout=10
             ) as resp:
                 if resp.status == 200:
                     data = await resp.json()
@@ -439,7 +444,8 @@ async def search_fatsecret(query: str) -> List[Dict]:
                     'format': 'json',
                     'max_results': 5
                 },
-                headers={'Authorization': f'Bearer {token}'}
+                headers={'Authorization': f'Bearer {token}'},
+                timeout=10
             ) as resp:
                 if resp.status == 200:
                     data = await resp.json()
@@ -476,7 +482,8 @@ async def get_food_details(food_id: str, token: str) -> Optional[Dict]:
                     'food_id': food_id,
                     'format': 'json'
                 },
-                headers={'Authorization': f'Bearer {token}'}
+                headers={'Authorization': f'Bearer {token}'},
+                timeout=10
             ) as resp:
                 if resp.status == 200:
                     data = await resp.json()
@@ -539,7 +546,6 @@ async def search_openfoodfacts(query: str, max_results: int = 5) -> List[Dict]:
                     if not name or len(name) < 3 or name in seen_names:
                         continue
                     nutriments = p.get('nutriments', {})
-                    # Исключаем напитки и приправы (но для базы уже есть, можно не исключать)
                     results.append({
                         'name': name,
                         'calories': nutriments.get('energy-kcal_100g', 0) or 0,
@@ -602,13 +608,3 @@ async def search_food(query: str) -> List[Dict]:
     ))
 
     return combined[:10]
-
-# Синхронная обёртка для обратной совместимости
-def search_food_sync(query: str) -> List[Dict]:
-    import asyncio
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    try:
-        return loop.run_until_complete(search_food(query))
-    finally:
-        loop.close()

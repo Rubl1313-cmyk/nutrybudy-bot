@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 try:
     morph = pymorphy3.MorphAnalyzer()
     logger.info("✅ pymorphy3 initialized successfully")
-except ValueError as e:
+except Exception as e:
     logger.error(f"❌ pymorphy3 initialization failed: {e}")
     logger.warning("⚠️ Morphological analysis will be disabled")
     morph = None

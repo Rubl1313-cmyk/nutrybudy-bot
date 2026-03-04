@@ -1,7 +1,7 @@
 """
 Обработчик планировщика питания.
 Показывает распределение калорий по приёмам пищи и генерирует примерное меню.
-Добавлена кнопка сохранения рациона и надёжная разбивка длинных сообщений.
+✅ ИСПРАВЛЕНО: Улучшена разбивка сообщений, увеличен лимит токенов
 """
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
@@ -23,60 +23,54 @@ router = Router()
 logger = logging.getLogger(__name__)
 
 
-def split_message(text: str, max_length: int = 4096) -> List[str]:
+def split_message(text: str, max_length: int = 4000) -> List[str]:
     """
-    Разбивает длинный текст на части, стараясь сохранить целостность слов.
+    Разбивает длинный текст на части, стараясь сохранить целостность слов и HTML-тегов.
+    ✅ УЛУЧШЕНО: лучшая обработка границ и тегов
     """
     if len(text) <= max_length:
         return [text]
 
     parts = []
     while len(text) > max_length:
-        # Ищем последний пробел или перенос строки в пределах лимита
-        split_at = -1
-        for separator in ('\n', '. ', ' ', '-', ''):
-            if separator == '':
-                # Если разделитель не найден, режем по лимиту с добавлением дефиса
-                split_at = max_length - 1
-                text = text[:split_at] + '-' + text[split_at:]
-                break
-            pos = text.rfind(separator, 0, max_length)
-            if pos != -1:
-                split_at = pos + (1 if separator != '' else 0)
-                break
-
+        # Ищем безопасное место для разбивки (последний пробел или перенос)
+        split_at = text.rfind('\n', 0, max_length)
+        if split_at == -1:
+            split_at = text.rfind(' ', 0, max_length)
+        if split_at == -1:
+            split_at = max_length - 1
+        
         part = text[:split_at].rstrip()
         text = text[split_at:].lstrip()
+        
+        # Закрываем HTML-теги в части
+        part = _close_html_tags_in_part(part)
         parts.append(part)
 
     if text:
+        # Закрываем HTML-теги в последней части
+        text = _close_html_tags_in_part(text)
         parts.append(text)
 
-    # Закрываем HTML-теги (упрощённо, если требуется)
-    # Если возникают проблемы с HTML, можно отключить parse_mode
     return parts
 
 
-def _close_html_tags(html: str, open_tags: List[str] = None) -> Tuple[str, List[str]]:
-    """Закрывает незакрытые HTML-теги в части и возвращает список открытых тегов."""
-    if open_tags is None:
-        open_tags = []
-    tag_pattern = re.compile(r'<(/?)(\w+)[^>]*>')
-    stack = open_tags.copy()
-
-    for match in tag_pattern.finditer(html):
-        is_closing = match.group(1) == '/'
-        tag_name = match.group(2)
-
-        if not is_closing:
-            stack.append(tag_name)
-        elif stack and stack[-1] == tag_name:
-            stack.pop()
-
-    if stack:
-        html += ''.join(f'</{tag}>' for tag in reversed(stack))
-
-    return html, stack
+def _close_html_tags_in_part(text: str) -> str:
+    """Закрывает незакрытые HTML-теги в части сообщения."""
+    # Находим все открытые теги
+    open_tags = re.findall(r'<(\w+)(?:\s[^>]*)?>', text)
+    close_tags = re.findall(r'</(\w+)>', text)
+    
+    # Удаляем закрытые теги из списка открытых
+    for tag in close_tags:
+        if tag in open_tags:
+            open_tags.remove(tag)
+    
+    # Закрываем оставшиеся открытые теги в обратном порядке
+    for tag in reversed(open_tags):
+        text += f'</{tag}>'
+    
+    return text
 
 
 @router.message(Command("meal_plan"))
@@ -123,6 +117,7 @@ async def generate_menu(user_id: int, variation: str = "") -> tuple[str, bool]:
     """
     Вспомогательная функция для генерации меню.
     Возвращает (текст ответа, успех).
+    ✅ УВЕЛИЧЕНО: max_tokens до 6000 для полных рецептов
     """
     async with get_session() as session:
         result = await session.execute(
@@ -143,10 +138,11 @@ async def generate_menu(user_id: int, variation: str = "") -> tuple[str, bool]:
     }
     prompt = get_meal_plan_prompt(user_data) + " " + variation
 
+    # ✅ УВЕЛИЧЕНО с 5000 до 6000 токенов
     response = await ask_worker_ai(
         prompt=prompt,
-        system_prompt="Ты полезный ассистент. Отвечай на русском.",
-        max_tokens=5000
+        system_prompt="Ты полезный ассистент. Отвечай подробно на русском. Давай полные рецепты с описанием.",
+        max_tokens=6000  # Было 5000
     )
 
     if "error" in response:
@@ -182,15 +178,20 @@ async def generate_menu_callback(callback: CallbackQuery, state: FSMContext):
             [InlineKeyboardButton(text="🏠 Главное меню", callback_data="main_menu")]
         ])
 
-        # Разбиваем длинный текст (с запасом 4000 символов)
-        message_parts = split_message(content)
+        # ✅ УЛУЧШЕНО: Разбиваем с запасом 4000 символов
+        message_parts = split_message(content, max_length=4000)
         if not message_parts:
             await callback.message.edit_text("❌ Не удалось сгенерировать меню.")
             await callback.answer()
             return
 
         # Первая часть — редактируем исходное сообщение
-        await callback.message.edit_text(message_parts[0], reply_markup=keyboard, parse_mode="HTML")
+        try:
+            await callback.message.edit_text(message_parts[0], reply_markup=keyboard, parse_mode="HTML")
+        except TelegramBadRequest as e:
+            logger.error(f"Ошибка при редактировании: {e}")
+            # Если не получилось отредактировать, отправляем как новое
+            await callback.message.answer(message_parts[0], reply_markup=keyboard, parse_mode="HTML")
 
         # Остальные части — отправляем как новые сообщения
         for i, part in enumerate(message_parts[1:], start=2):
@@ -198,7 +199,7 @@ async def generate_menu_callback(callback: CallbackQuery, state: FSMContext):
                 await callback.message.answer(part, parse_mode="HTML")
                 logger.info(f"✅ Отправлена часть {i}/{len(message_parts)}")
             except Exception as e:
-                logger.error(f"❌ Ошибка при отправке части {i}: {e}")
+                logger.error(f"❌ Ошибка при отправке части {i}: {e}", exc_info=True)
     else:
         await callback.message.edit_text(content)
 
@@ -217,7 +218,7 @@ async def regenerate_menu_callback(callback: CallbackQuery, state: FSMContext):
         else:
             raise
 
-    content, success = await generate_menu(user_id, variation="Предложи другой вариант меню, отличный от предыдущего.")
+    content, success = await generate_menu(user_id, variation="Предложи другой вариант меню, отличный от предыдущего. Давай подробные рецепты.")
 
     if success:
         await state.update_data(last_menu=content)
@@ -228,20 +229,24 @@ async def regenerate_menu_callback(callback: CallbackQuery, state: FSMContext):
             [InlineKeyboardButton(text="🏠 Главное меню", callback_data="main_menu")]
         ])
 
-        message_parts = split_message(content)
+        message_parts = split_message(content, max_length=4000)
         if not message_parts:
             await callback.message.edit_text("❌ Не удалось сгенерировать меню.")
             await callback.answer()
             return
 
-        await callback.message.edit_text(message_parts[0], reply_markup=keyboard, parse_mode="HTML")
+        try:
+            await callback.message.edit_text(message_parts[0], reply_markup=keyboard, parse_mode="HTML")
+        except TelegramBadRequest as e:
+            logger.error(f"Ошибка при редактировании: {e}")
+            await callback.message.answer(message_parts[0], reply_markup=keyboard, parse_mode="HTML")
 
         for i, part in enumerate(message_parts[1:], start=2):
             try:
                 await callback.message.answer(part, parse_mode="HTML")
                 logger.info(f"✅ Отправлена часть {i}/{len(message_parts)}")
             except Exception as e:
-                logger.error(f"❌ Ошибка при отправке части {i}: {e}")
+                logger.error(f"❌ Ошибка при отправке части {i}: {e}", exc_info=True)
     else:
         await callback.message.edit_text(content)
 
@@ -257,10 +262,14 @@ async def save_menu_callback(callback: CallbackQuery, state: FSMContext):
         await callback.answer("❌ Нет сохранённого рациона", show_alert=True)
         return
 
-    await callback.message.answer(
-        f"📎 <b>Сохранённый рацион</b>\n\n{last_menu}",
-        parse_mode="HTML"
-    )
+    # ✅ Разбиваем сохранённое меню на части
+    message_parts = split_message(last_menu, max_length=4000)
+    for part in message_parts:
+        await callback.message.answer(
+            f"📎 <b>Сохранённый рацион</b>\n\n{part}",
+            parse_mode="HTML"
+        )
+    
     await callback.answer("✅ Рацион сохранён!")
 
 

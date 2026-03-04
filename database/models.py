@@ -2,19 +2,18 @@
 Модели базы данных для NutriBuddy
 ✅ Все модели используют Base из database.db
 """
-from sqlalchemy import Column, Integer, BigInteger, String, Float, DateTime, ForeignKey, Boolean, Text, Index
-from sqlalchemy.orm import relationship, declarative_base
+from sqlalchemy import Column, Integer, BigInteger, String, Float, DateTime, ForeignKey, Boolean, Text
+from sqlalchemy.orm import relationship
 from datetime import datetime
 
-# 🔥 Импортируем Base из db.py (единый источник!)
+# Импортируем Base из db.py (единый источник!)
 from database.db import Base
 
 class User(Base):
     __tablename__ = 'users'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    # ⚠️ ВНИМАНИЕ: изменено с Integer на BigInteger, чтобы поддерживать большие telegram_id (>2^31)
-    telegram_id = Column(BigInteger, unique=True, nullable=False, index=True)
+    telegram_id = Column(BigInteger, unique=True, nullable=False, index=True)  # изменено на BigInteger
     username = Column(String(255))
     first_name = Column(String(255))
     weight = Column(Float)
@@ -93,4 +92,56 @@ class WeightEntry(Base):
     user = relationship("User", back_populates="weight_entries")
 
 class ShoppingList(Base):
-    __tab
+    __tablename__ = 'shopping_lists'   # ← здесь было исправлено (было __tab)
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey('users.id', ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String(255), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    is_archived = Column(Boolean, default=False)
+
+    user = relationship("User", back_populates="shopping_lists")
+    items = relationship("ShoppingItem", back_populates="list", cascade="all, delete-orphan")
+
+class ShoppingItem(Base):
+    __tablename__ = 'shopping_items'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    list_id = Column(Integer, ForeignKey('shopping_lists.id', ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String(255), nullable=False)
+    quantity = Column(Integer, default=1)          # количество (число)
+    unit = Column(String(20), default="шт")        # единица измерения
+    is_checked = Column(Boolean, default=False)
+    added_by = Column(BigInteger)  # изменено на BigInteger (хранит telegram_id)
+    added_at = Column(DateTime, default=datetime.utcnow)
+
+    list = relationship("ShoppingList", back_populates="items")
+
+class Reminder(Base):
+    __tablename__ = 'reminders'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey('users.id', ondelete="CASCADE"), nullable=False, index=True)
+    type = Column(String(20))
+    title = Column(String(255), nullable=False)
+    time = Column(String(5))
+    days = Column(String(50))
+    enabled = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    user = relationship("User", back_populates="reminders")
+
+class Activity(Base):
+    __tablename__ = 'activities'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey('users.id', ondelete="CASCADE"), nullable=False, index=True)
+    activity_type = Column(String(50), nullable=False)
+    duration = Column(Integer)
+    distance = Column(Float)
+    calories_burned = Column(Float)
+    steps = Column(Integer, default=0)
+    datetime = Column(DateTime, default=datetime.utcnow, index=True)
+    source = Column(String(20), default='manual')
+
+    user = relationship("User", back_populates="activities")

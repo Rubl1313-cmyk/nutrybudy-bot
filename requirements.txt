@@ -1,6 +1,6 @@
 aiogram==3.10.0
 sqlalchemy==2.0.35
-asyncpg==0.29.0  # ← ДОБАВЛЕНО: драйвер для PostgreSQL
+asyncpg==0.29.0
 aiosqlite==0.20.0
 apscheduler==3.10.4
 python-dotenv==1.0.1
@@ -8,9 +8,8 @@ aiohttp==3.9.5
 matplotlib==3.9.1
 Pillow==10.4.0
 gunicorn==21.2.0
-pymorphy3
-ffmpeg-python
+pymorphy3==1.0.0
+ffmpeg-python==0.2.0
 googletrans==4.0.0rc1
-pycryptodome  # для OAuth-подписей
+pycryptodome==3.20.0
 numpy>=1.21.0
-ffmpeg

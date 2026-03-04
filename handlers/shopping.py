@@ -18,15 +18,32 @@ from utils.states import ShoppingStates
 router = Router()
 
 
-async def get_or_create_default_list(telegram_id: int, session):
-    """Возвращает основной список покупок пользователя (создаёт если нет)."""
+async def get_or_create_default_list(telegram_id: int, session, event=None):
+    """
+    Возвращает основной список покупок пользователя.
+    Если пользователь не найден в БД, создаёт его автоматически.
+    """
+    # Пытаемся найти пользователя
     user_result = await session.execute(
         select(User).where(User.telegram_id == telegram_id)
     )
     user = user_result.scalar_one_or_none()
-    if not user:
-        return None
 
+    # Если пользователя нет, создаём нового
+    if not user:
+        if event is None:
+            return None  # нет event — не можем создать
+        # Создаём пользователя с минимальными данными из event
+        user = User(
+            telegram_id=telegram_id,
+            username=event.from_user.username,
+            first_name=event.from_user.first_name
+        )
+        session.add(user)
+        await session.flush()  # чтобы получить user.id
+        logger.info(f"🆕 Автоматически создан пользователь {telegram_id}")
+
+    # Ищем активный список покупок
     result = await session.execute(
         select(ShoppingList)
         .where(
@@ -36,6 +53,8 @@ async def get_or_create_default_list(telegram_id: int, session):
         .order_by(ShoppingList.created_at.desc())
     )
     shopping_list = result.scalar_one_or_none()
+
+    # Если списка нет, создаём новый
     if not shopping_list:
         shopping_list = ShoppingList(
             user_id=user.id,
@@ -44,6 +63,7 @@ async def get_or_create_default_list(telegram_id: int, session):
         )
         session.add(shopping_list)
         await session.flush()
+
     return shopping_list
 
 

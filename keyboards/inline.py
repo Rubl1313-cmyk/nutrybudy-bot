@@ -162,21 +162,18 @@ def get_progress_options_keyboard():
 def get_activity_type_keyboard():
     """
     Клавиатура для выбора типа активности.
-    Используется в handlers/activity.py
+    Убрана ходьба, так как для неё есть отдельный пункт "Записать шаги".
     """
     builder = InlineKeyboardBuilder()
-    builder.button(text="🚶 Ходьба", callback_data="activity_walking")
     builder.button(text="🏃 Бег", callback_data="activity_running")
     builder.button(text="🚴 Велосипед", callback_data="activity_cycling")
     builder.button(text="🏋️ Тренажёрный зал", callback_data="activity_gym")
     builder.button(text="🧘 Йога", callback_data="activity_yoga")
     builder.button(text="🏊 Плавание", callback_data="activity_swimming")
     builder.button(text="🎾 Другое", callback_data="activity_other")
-    builder.adjust(2)  # по две кнопки в ряд
+    builder.adjust(2)
     return builder.as_markup()
-
-    return builder.as_markup()
-
+    
 # ========== НОВЫЕ НАВИГАЦИОННЫЕ МЕНЮ ==========
 
 def get_food_menu() -> InlineKeyboardMarkup:

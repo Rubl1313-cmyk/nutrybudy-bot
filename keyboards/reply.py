@@ -1,37 +1,22 @@
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 
 def get_main_keyboard():
+    """Главное меню с категориями."""
     kb = [
-        [
-            KeyboardButton(text="🍽️ Дневник питания"),
-            KeyboardButton(text="💧 Вода")
-        ],
-        [
-            KeyboardButton(text="📊 Прогресс"),
-            KeyboardButton(text="📋 Списки покупок")
-        ],
-        [
-            KeyboardButton(text="🔔 Напоминания"),
-            KeyboardButton(text="👤 Профиль")
-        ],
-        [
-            KeyboardButton(text="🍽️ План питания"),
-            KeyboardButton(text="💬 AI Помощник"),
-            KeyboardButton(text="🏋️ Активность")
-        ],
-        [
-            KeyboardButton(text="❓ Помощь")
-        ]
+        [KeyboardButton(text="🍽️ Питание")],
+        [KeyboardButton(text="💧 Вода и активность")],
+        [KeyboardButton(text="📊 Прогресс и статистика")],
+        [KeyboardButton(text="📋 Списки и напоминания")],
+        [KeyboardButton(text="👤 Профиль и настройки")],
+        [KeyboardButton(text="❓ Помощь")]
     ]
     return ReplyKeyboardMarkup(keyboard=kb, resize_keyboard=True)
-
 
 def get_cancel_keyboard():
     return ReplyKeyboardMarkup(
         keyboard=[[KeyboardButton(text="❌ Отмена")]],
         resize_keyboard=True
     )
-
 
 def get_edit_profile_keyboard():
     kb = [
@@ -40,7 +25,6 @@ def get_edit_profile_keyboard():
         [KeyboardButton(text="🏠 Главное меню")]
     ]
     return ReplyKeyboardMarkup(keyboard=kb, resize_keyboard=True)
-
 
 def get_gender_keyboard():
     return ReplyKeyboardMarkup(
@@ -51,7 +35,6 @@ def get_gender_keyboard():
         resize_keyboard=True
     )
 
-
 def get_activity_level_keyboard():
     return ReplyKeyboardMarkup(
         keyboard=[
@@ -61,7 +44,6 @@ def get_activity_level_keyboard():
         ],
         resize_keyboard=True
     )
-
 
 def get_goal_keyboard():
     return ReplyKeyboardMarkup(

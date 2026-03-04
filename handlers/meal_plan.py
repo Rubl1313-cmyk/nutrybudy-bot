@@ -1,7 +1,7 @@
 """
 Обработчик планировщика питания.
 Показывает распределение калорий по приёмам пищи и генерирует примерное меню.
-Добавлена кнопка сохранения рациона и разбивка длинных сообщений.
+Добавлена кнопка сохранения рациона и надёжная разбивка длинных сообщений.
 """
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
@@ -10,6 +10,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.exceptions import TelegramBadRequest
 from sqlalchemy import select
 import re
+import logging
 from typing import List, Tuple
 
 from database.db import get_session
@@ -19,49 +20,49 @@ from services.deepseek_client import ask_worker_ai
 from keyboards.reply import get_main_keyboard
 
 router = Router()
+logger = logging.getLogger(__name__)
 
 
 def split_message(text: str, max_length: int = 4096) -> List[str]:
     """
-    Разбивает длинный текст на части, стараясь не разрывать слова и предложения.
-    Сохраняет HTML-разметку, закрывая теги в конце каждой части.
+    Разбивает длинный текст на части, стараясь не разрывать слова.
+    Учитывает HTML-теги, закрывая их в конце каждой части.
+    
+    Args:
+        text: Исходный текст (может содержать HTML-теги)
+        max_length: Максимальная длина одной части
+    
+    Returns:
+        Список частей текста, готовых к отправке
     """
     parts = []
-    while text:
-        limit = max_length
-
-        if len(text) <= limit:
-            parts.append(text)
-            break
-
-        part = text[:limit]
-        last_newline = part.rfind('\n')
-        last_space = part.rfind(' ')
-
-        split_pos = -1
-        if last_newline != -1:
-            split_pos = last_newline
-        elif last_space != -1:
-            split_pos = last_space
-
-        if split_pos != -1:
-            parts.append(part[:split_pos])
-            text = text[split_pos + 1:]
-        else:
+    while len(text) > max_length:
+        # Ищем последний пробел перед лимитом
+        split_at = text.rfind(' ', 0, max_length)
+        if split_at == -1:
+            split_at = max_length
+        part = text[:split_at].rstrip()
+        text = text[split_at:].lstrip()
+        if part:
             parts.append(part)
-            text = text[limit:]
+    if text:
+        parts.append(text)
 
+    # Закрываем HTML-теги в каждой части
     final_parts = []
-    open_tags = None
+    open_tags = []
     for part in parts:
         part_with_tags, open_tags = _close_html_tags(part, open_tags)
         final_parts.append(part_with_tags)
 
+    logger.info(f"📄 Сообщение разбито на {len(final_parts)} частей")
     return final_parts
 
 
 def _close_html_tags(html: str, open_tags: List[str] = None) -> Tuple[str, List[str]]:
-    """Закрывает незакрытые HTML-теги в части и возвращает список открытых тегов."""
+    """
+    Закрывает незакрытые HTML-теги в части и возвращает список открытых тегов для следующей части.
+    """
     if open_tags is None:
         open_tags = []
     tag_pattern = re.compile(r'<(/?)(\w+)[^>]*>')
@@ -196,8 +197,12 @@ async def generate_menu_callback(callback: CallbackQuery, state: FSMContext):
         await callback.message.edit_text(message_parts[0], reply_markup=keyboard, parse_mode="HTML")
 
         # Остальные части — отправляем как новые сообщения
-        for part in message_parts[1:]:
-            await callback.message.answer(part, parse_mode="HTML")
+        for i, part in enumerate(message_parts[1:], start=2):
+            try:
+                await callback.message.answer(part, parse_mode="HTML")
+                logger.info(f"Отправлена часть {i}/{len(message_parts)}")
+            except Exception as e:
+                logger.error(f"Ошибка при отправке части {i}: {e}")
     else:
         await callback.message.edit_text(content)
 
@@ -227,19 +232,20 @@ async def regenerate_menu_callback(callback: CallbackQuery, state: FSMContext):
             [InlineKeyboardButton(text="🏠 Главное меню", callback_data="main_menu")]
         ])
 
-        # Разбиваем длинный текст
         message_parts = split_message(content)
         if not message_parts:
             await callback.message.edit_text("❌ Не удалось сгенерировать меню.")
             await callback.answer()
             return
 
-        # Первая часть — редактируем исходное сообщение
         await callback.message.edit_text(message_parts[0], reply_markup=keyboard, parse_mode="HTML")
 
-        # Остальные части — отправляем как новые сообщения
-        for part in message_parts[1:]:
-            await callback.message.answer(part, parse_mode="HTML")
+        for i, part in enumerate(message_parts[1:], start=2):
+            try:
+                await callback.message.answer(part, parse_mode="HTML")
+                logger.info(f"Отправлена часть {i}/{len(message_parts)}")
+            except Exception as e:
+                logger.error(f"Ошибка при отправке части {i}: {e}")
     else:
         await callback.message.edit_text(content)
 

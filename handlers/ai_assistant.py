@@ -20,6 +20,32 @@ logger = logging.getLogger(__name__)
 class AIAssistantStates(StatesGroup):
     waiting_for_question = State()
 
+# Глобальный обработчик голосовых сообщений (работает всегда)
+@router.message(F.voice)
+async def handle_voice_global(message: Message, state: FSMContext):
+    """
+    Обрабатывает ЛЮБОЕ голосовое сообщение, распознаёт речь
+    и передаёт текст в универсальный обработчик.
+    """
+    await message.answer("🎤 Распознаю речь...")
+    try:
+        voice = message.voice
+        file_info = await message.bot.get_file(voice.file_id)
+        file_bytes = await message.bot.download_file(file_info.file_path)
+        file_data = file_bytes.read()
+        text = await transcribe_audio(file_data)
+        if not text:
+            await message.answer("❌ Не удалось распознать речь.")
+            return
+        await message.answer(f"📝 <b>Распознано:</b>\n{text}", parse_mode="HTML")
+
+        # 🔥 Импорт внутри функции (чтобы избежать циклических импортов)
+        from handlers.universal_text_handler import handle_universal_text
+        await handle_universal_text(message, state, text)
+
+    except Exception as e:
+        logger.error(f"Глобальная ошибка голоса: {e}")
+        await message.answer("❌ Ошибка распознавания.")
 
 @router.message(Command("ask"))
 async def cmd_ask(message: Message, state: FSMContext):

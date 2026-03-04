@@ -1,7 +1,6 @@
-"""
 Модуль для приведения русских слов к канонической форме.
 ✅ Добавлена безопасная инициализация с fallback
-"""
+
 import re
 import logging
 import pymorphy3
@@ -16,7 +15,8 @@ except Exception as e:
     logger.error(f"❌ pymorphy3 initialization failed: {e}")
     logger.warning("⚠️ Morphological analysis will be disabled")
     morph = None
-
+    
+    
 # Словарь исключений: нестандартные леммы -> каноническая форма продукта
 EXCEPTIONS = {
     # Мясо и птица
@@ -360,34 +360,25 @@ EXCEPTIONS = {
 }
 
 def normalize_word(word: str) -> str:
-    """Приводит слово к нормальной форме."""
     if not word or not word.strip():
         return word
-    
     word_lower = word.lower().strip()
-    
-    # ✅ Если morph не инициализирован, возвращаем как есть
     if morph is None:
         return word_lower
-    
     try:
         parsed = morph.parse(word_lower)[0]
         lemma = parsed.normal_form
-        
         if lemma in EXCEPTIONS:
             return EXCEPTIONS[lemma]
-        
         return lemma
     except Exception as e:
         logger.warning(f"⚠️ Failed to normalize '{word}': {e}")
         return word_lower
 
 def normalize_product_name(name: str) -> str:
-    """Приводит название продукта к канонической форме."""
     name = re.sub(r'\s+', ' ', name).strip()
     if not name:
         return name
-    
     words = name.split()
     normalized_words = [normalize_word(w) for w in words]
     return ' '.join(normalized_words)

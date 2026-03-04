@@ -1,6 +1,7 @@
 """
 Обработчик планировщика питания.
 Генерирует меню по частям: завтрак, обед, ужин, перекус.
+Исправлена проблема таймаута callback'ов и ускорена генерация через параллельные запросы.
 """
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
@@ -9,7 +10,8 @@ from aiogram.fsm.context import FSMContext
 from aiogram.exceptions import TelegramBadRequest
 from sqlalchemy import select
 import logging
-from typing import Dict, Optional
+import asyncio
+from typing import Dict, List, Optional
 
 from database.db import get_session
 from database.models import User
@@ -100,7 +102,8 @@ async def cmd_meal_plan(message: Message, state: FSMContext):
 
 @router.callback_query(F.data == "generate_full_menu")
 async def generate_full_menu_callback(callback: CallbackQuery, state: FSMContext):
-    # ✅ Сразу отвечаем на callback, чтобы Telegram не считал его устаревшим
+    """Генерирует полное меню по частям (параллельно)."""
+    # ✅ Немедленно отвечаем на callback, чтобы Telegram не считал его устаревшим
     await callback.answer()
 
     user_id = callback.from_user.id
@@ -128,21 +131,29 @@ async def generate_full_menu_callback(callback: CallbackQuery, state: FSMContext
 
     distribution = distribute_calories(user.daily_calorie_goal)
 
-    # Генерируем каждый приём пищи последовательно
-    full_menu = f"🍽️ <b>Меню на день ({user.daily_calorie_goal:.0f} ккал)</b>\n\n"
-    previous_parts = ""
-
+    # Создаём список задач для параллельного выполнения
+    tasks = []
     for meal in MEAL_TYPES:
-        await callback.message.edit_text(f"⏳ Генерирую {meal['name'].lower()}...")
-        part = await generate_meal_part(
-            user_data,
-            meal['key'],
-            meal['name'],
-            distribution[meal['key']],
-            previous_parts
+        tasks.append(
+            generate_meal_part(
+                user_data,
+                meal['key'],
+                meal['name'],
+                distribution[meal['key']],
+                ""  # при параллельной генерации предыдущие приёмы не нужны
+            )
         )
-        full_menu += part + "\n"
-        previous_parts += f"{meal['name']}: {distribution[meal['key']]:.0f} ккал\n"
+
+    # Запускаем все запросы одновременно
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    # Собираем результат
+    full_menu = f"🍽️ <b>Меню на день ({user.daily_calorie_goal:.0f} ккал)</b>\n\n"
+    for result in results:
+        if isinstance(result, Exception):
+            full_menu += f"❌ Ошибка генерации: {result}\n\n"
+        else:
+            full_menu += result + "\n"
 
     # Клавиатура
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
@@ -152,16 +163,16 @@ async def generate_full_menu_callback(callback: CallbackQuery, state: FSMContext
         [InlineKeyboardButton(text="🏠 Главное меню", callback_data="main_menu")]
     ])
 
-    # Отправляем готовое меню
+    # Отправляем готовое меню (редактируем исходное сообщение)
     await callback.message.edit_text(full_menu, reply_markup=keyboard, parse_mode="HTML")
-    await callback.answer()
+    # ❗ Не вызываем callback.answer() повторно — он уже был в начале
 
 @router.callback_query(F.data == "save_menu")
 async def save_menu_callback(callback: CallbackQuery, state: FSMContext):
     """Сохраняет последнее сгенерированное меню."""
-    # ✅ Сразу отвечаем на callback, чтобы избежать таймаута
+    # Сразу отвечаем на callback, чтобы избежать таймаута
     await callback.answer("✅ Рацион сохранён!")
-    # Теперь можно спокойно отправлять сообщение с меню
+    # Отправляем копию текущего сообщения
     await callback.message.answer(
         f"📎 <b>Сохранённый рацион</b>\n\n{callback.message.text}",
         parse_mode="HTML"

@@ -154,13 +154,7 @@ async def process_progress_period(callback: CallbackQuery, state: FSMContext):
     await callback.message.answer(text, reply_markup=get_main_keyboard(), parse_mode="HTML")
 
     # Генерация графиков
-    weight_plot = await generate_weight_plot(user.id, session)
-    if len(weights) > 3:
-    # простая линия тренда (окно 3 точки)
-    trend = [sum(weights[max(0,i-2):i+1])/min(3,i+1) for i in range(len(weights))]
-    plt.plot(dates, trend, '--', color='gray', alpha=0.5, label='Тренд')
-    plt.legend()
-    
+  weight_plot = await generate_weight_plot(user.id, session)
     if weight_plot:
         await callback.message.answer_photo(
             BufferedInputFile(weight_plot, filename="weight.png"),
@@ -171,23 +165,34 @@ async def process_progress_period(callback: CallbackQuery, state: FSMContext):
         user.id, 
         session, 
         period=period,
-        daily_goal=user.daily_water_goal  # ← добавить этот параметр
+        daily_goal=user.daily_water_goal
     )
     if water_plot:
-        await callback.message.answer_photo(...)
+        await callback.message.answer_photo(
+            BufferedInputFile(water_plot, filename="water.png"),
+            caption=f"💧 Потребление воды {period_names[period]}",
+        )
 
     calorie_plot = await generate_calorie_plot(
         user.id, 
         session, 
         period=period,
-        daily_goal=user.daily_calorie_goal  # ← добавить этот параметр
+        daily_goal=user.daily_calorie_goal
     )
     if calorie_plot:
-        await callback.message.answer_photo(...)
+        await callback.message.answer_photo(
+            BufferedInputFile(calorie_plot, filename="calories.png"),
+            caption=f"🔥 Потребление калорий {period_names[period]}",
+        )
 
     activity_plot = await generate_activity_plot(
         user.id, 
         session, 
         period=period,
-        daily_goal=None  # для активности цели нет, можно оставить None
+        daily_goal=None  # для активности цели нет
     )
+    if activity_plot:
+        await callback.message.answer_photo(
+            BufferedInputFile(activity_plot, filename="activity.png"),
+            caption=f"🏃 Активность {period_names[period]}",
+        )

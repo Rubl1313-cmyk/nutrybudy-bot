@@ -1,6 +1,6 @@
 """
 Планировщик задач для NutriBuddy
-✅ Обработка ошибок при отсутствии таблиц
+✅ Исправлено для работы с PostgreSQL
 """
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -12,9 +12,7 @@ from datetime import datetime
 import logging
 
 logger = logging.getLogger(__name__)
-
 scheduler = AsyncIOScheduler()
-
 
 async def send_reminder(bot: Bot, user_id: int, title: str):
     """Отправка напоминания"""
@@ -22,7 +20,6 @@ async def send_reminder(bot: Bot, user_id: int, title: str):
         await bot.send_message(user_id, f"🔔 {title}")
     except Exception as e:
         logger.error(f"❌ Failed to send reminder: {e}")
-
 
 def setup_scheduler(bot: Bot):
     """Настройка планировщика"""
@@ -33,27 +30,30 @@ def setup_scheduler(bot: Bot):
         try:
             async with async_session() as session:
                 now = datetime.now().strftime("%H:%M")
-                day = datetime.now().strftime("%a").lower()[:3]
+                day = datetime.now().strftime("%a").lower()[:3]  # mon, tue, wed...
                 
-                # 🔥 Простой SQL-запрос без ORM
+                # 🔥 Простой SQL-запрос для PostgreSQL
                 result = await session.execute(
-                    text("SELECT id, user_id, title, time, days, enabled FROM reminders WHERE enabled = true")
+                    text("""
+                        SELECT u.telegram_id, r.title, r.time, r.days 
+                        FROM reminders r
+                        JOIN users u ON r.user_id = u.id
+                        WHERE r.enabled = true
+                    """)
                 )
                 rows = result.fetchall()
                 
                 for row in rows:
-                    rem_id, user_id, title, rem_time, rem_days, enabled = row
-                    
+                    telegram_id, title, rem_time, rem_days = row
                     if rem_time == now and (rem_days == 'daily' or day in rem_days):
-                        await send_reminder(bot, user_id, title)
+                        await send_reminder(bot, telegram_id, title)
                         
         except ProgrammingError as e:
-            # 🔥 Игнорируем, если таблица ещё не создана
             if "does not exist" in str(e).lower():
-                logger.warning("⚠️ Reminders table not ready yet — skipping check")
+                logger.warning("⚠️ Tables not ready yet — skipping check")
             else:
                 logger.error(f"❌ Reminder check error: {e}")
         except Exception as e:
-            logger.error(f"❌ Unexpected error in check_reminders: {e}")
+            logger.error(f"❌ Unexpected error in check_reminders: {e}", exc_info=True)
     
     return scheduler

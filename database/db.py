@@ -1,6 +1,6 @@
 """
 Подключение к базе данных для NutriBuddy.
-Гарантированно создаёт недостающие колонки через явные SQL-запросы.
+Гарантированно создаёт недостающие колонки и приводит типы к BIGINT через явные SQL-запросы.
 """
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import declarative_base
@@ -42,10 +42,44 @@ async_session = async_sessionmaker(
     autoflush=False
 )
 
+async def _ensure_bigint_columns(conn):
+    """
+    Проверяет и изменяет тип колонок, хранящих Telegram ID, с INTEGER на BIGINT.
+    Выполняется только для PostgreSQL.
+    """
+    if "postgresql" not in DATABASE_URL:
+        logger.info("ℹ️ Skipping BIGINT migration for non-PostgreSQL database")
+        return
+
+    # 1. Колонка telegram_id в таблице users
+    result = await conn.execute(text(
+        "SELECT data_type FROM information_schema.columns "
+        "WHERE table_name='users' AND column_name='telegram_id'"
+    ))
+    row = result.first()
+    if row and row[0] == 'integer':
+        logger.info("🔄 Migrating users.telegram_id from INTEGER to BIGINT...")
+        await conn.execute(text("ALTER TABLE users ALTER COLUMN telegram_id TYPE BIGINT;"))
+        logger.info("✅ users.telegram_id is now BIGINT")
+    else:
+        logger.info("ℹ️ users.telegram_id already BIGINT or not found")
+
+    # 2. Колонка added_by в таблице shopping_items
+    result = await conn.execute(text(
+        "SELECT data_type FROM information_schema.columns "
+        "WHERE table_name='shopping_items' AND column_name='added_by'"
+    ))
+    row = result.first()
+    if row and row[0] == 'integer':
+        logger.info("🔄 Migrating shopping_items.added_by from INTEGER to BIGINT...")
+        await conn.execute(text("ALTER TABLE shopping_items ALTER COLUMN added_by TYPE BIGINT;"))
+        logger.info("✅ shopping_items.added_by is now BIGINT")
+    else:
+        logger.info("ℹ️ shopping_items.added_by already BIGINT or not found")
 
 async def init_db():
     """
-    Инициализация таблиц и добавление недостающих колонок через явные SQL-запросы.
+    Инициализация таблиц, добавление недостающих колонок и приведение типов к BIGINT.
     """
     try:
         logger.info("🔍 Initializing database tables...")
@@ -58,7 +92,7 @@ async def init_db():
 
             # 🔥 Явная проверка и добавление колонки unit через SQL
             if "postgresql" in DATABASE_URL:
-                # Проверяем существование колонки через information_schema
+                # Проверяем существование колонки unit
                 result = await conn.execute(text(
                     "SELECT column_name FROM information_schema.columns "
                     "WHERE table_name='shopping_items' AND column_name='unit'"
@@ -71,9 +105,11 @@ async def init_db():
                     logger.info("✅ Column 'unit' added to shopping_items")
                 else:
                     logger.info("ℹ️ Column 'unit' already exists")
+
+                # 🔥 Миграция на BIGINT
+                await _ensure_bigint_columns(conn)
             else:
-                # Для SQLite (если используется) можно просто добавить колонку, но SQLite не поддерживает DROP COLUMN, поэтому лучше не трогать
-                logger.info("ℹ️ Skipping column add for SQLite")
+                logger.info("ℹ️ Skipping PostgreSQL-specific migrations for SQLite")
 
             # Проверяем список таблиц для отладки
             result = await conn.execute(text(
@@ -89,10 +125,8 @@ async def init_db():
         logger.error(f"❌ Database init failed: {e}", exc_info=True)
         return False
 
-
 def get_session() -> AsyncSession:
     return async_session()
-
 
 async def close_db():
     await engine.dispose()

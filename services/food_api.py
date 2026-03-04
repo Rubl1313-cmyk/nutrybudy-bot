@@ -10,6 +10,7 @@ import logging
 from typing import List, Dict, Optional
 from urllib.parse import quote, urlencode
 from googletrans import Translator
+import base64
 
 logger = logging.getLogger(__name__)
 

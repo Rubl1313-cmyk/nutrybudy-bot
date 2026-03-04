@@ -183,13 +183,15 @@ async def process_days(callback: CallbackQuery, state: FSMContext):
 
 @router.callback_query(F.data == "confirm", ReminderStates.confirming)
 async def confirm_reminder(callback: CallbackQuery, state: FSMContext):
-    """Сохранение напоминания"""
     data = await state.get_data()
-    telegram_id = callback.from_user.id
-
-    # ✅ ПРОВЕРКА: есть ли все необходимые данные
-    if 'type' not in data or 'title' not in data or 'time' not in data or 'days' not in data:
-        await callback.answer("❌ Ошибка: не хватает данных. Попробуйте ещё раз.", show_alert=True)
+    logger.warning(f"🔔 confirm_reminder: state_data={data}, current_state={await state.get_state()}")
+    
+    required_fields = ['type', 'title', 'time', 'days']
+    missing = [f for f in required_fields if f not in data]
+    
+    if missing:
+        logger.error(f"❌ Не хватает полей в state: {missing}")
+        await callback.answer(f"⚠️ Ошибка: не хватает данных ({', '.join(missing)}). Начните заново.", show_alert=True)
         await state.clear()
         return
 

@@ -13,3 +13,4 @@ ffmpeg-python
 googletrans==4.0.0rc1
 pycryptodome  # для OAuth-подписей
 numpy>=1.21.0
+ffmpeg

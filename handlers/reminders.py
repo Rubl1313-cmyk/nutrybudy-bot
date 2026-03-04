@@ -1,13 +1,14 @@
-
 """
-Обработчик напоминаний
-✅ ИСПРАВЛЕНО: Добавлено сохранение type для custom напоминаний
+Обработчик напоминаний.
+Исправлено: уникальные callback_data для подтверждения.
 """
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery, ReplyKeyboardMarkup, KeyboardButton
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from sqlalchemy import select
+from datetime import datetime
+
 from database.db import get_session
 from database.models import User, Reminder
 from keyboards.inline import (
@@ -24,7 +25,7 @@ router = Router()
 @router.message(Command("reminders"))
 @router.message(F.text == "🔔 Напоминания")
 async def cmd_reminders(message: Message, state: FSMContext):
-    """Показать напоминания"""
+    """Показать напоминания."""
     await state.clear()
     telegram_id = message.from_user.id
 
@@ -76,7 +77,7 @@ async def cmd_reminders(message: Message, state: FSMContext):
 
 @router.message(F.text == "➕ Создать напоминание")
 async def create_reminder_button(message: Message, state: FSMContext):
-    """Начать создание напоминания"""
+    """Начать создание напоминания."""
     await state.set_state(ReminderStates.choosing_type)
     await message.answer(
         "🔔 <b>Новое напоминание</b>\n\nВыберите тип:",
@@ -86,6 +87,7 @@ async def create_reminder_button(message: Message, state: FSMContext):
 
 @router.callback_query(F.data == "new_reminder")
 async def new_reminder_callback(callback: CallbackQuery, state: FSMContext):
+    """Callback для создания нового напоминания."""
     await state.set_state(ReminderStates.choosing_type)
     await callback.message.edit_text(
         "🔔 <b>Новое напоминание</b>\n\nВыберите тип:",
@@ -96,9 +98,9 @@ async def new_reminder_callback(callback: CallbackQuery, state: FSMContext):
 
 @router.callback_query(F.data.startswith("reminder_"), ReminderStates.choosing_type)
 async def process_reminder_type(callback: CallbackQuery, state: FSMContext):
-    """Выбор типа напоминания"""
+    """Выбор типа напоминания."""
     rem_type = callback.data.split("_")[1]
-    await state.update_data(type=rem_type)  # ✅ Сохраняем type
+    await state.update_data(type=rem_type)
 
     title_map = {
         "meal": "🍽️ Приём пищи",
@@ -122,14 +124,8 @@ async def process_reminder_type(callback: CallbackQuery, state: FSMContext):
 
 @router.message(ReminderStates.entering_title, F.text)
 async def process_title(message: Message, state: FSMContext):
-    """✅ ИСПРАВЛЕНО: Сохраняем type='custom' при вводе названия"""
     title = message.text.strip()
     await state.update_data(title=title)
-    # ✅ ВАЖНО: Убеждаемся, что type сохранён
-    data = await state.get_data()
-    if 'type' not in data:
-        await state.update_data(type='custom')
-    
     await state.set_state(ReminderStates.entering_time)
     await message.answer(
         f"✅ Текст: <b>{title}</b>\n\n"
@@ -176,27 +172,19 @@ async def process_days(callback: CallbackQuery, state: FSMContext):
         f"⏰ {data['time']}\n"
         f"📅 {days_map.get(day, day)}\n\n"
         "Создать напоминание?",
-        reply_markup=get_confirmation_keyboard()
+        # 🔥 Передаём action="reminder" для уникальных callback_data
+        reply_markup=get_confirmation_keyboard("reminder")
     )
     await callback.answer()
 
 
-@router.callback_query(F.data == "confirm", ReminderStates.confirming)
+@router.callback_query(F.data == "confirm_reminder", ReminderStates.confirming)
 async def confirm_reminder(callback: CallbackQuery, state: FSMContext):
+    """Сохранение напоминания."""
     data = await state.get_data()
-    logger.warning(f"🔔 confirm_reminder: state_data={data}, current_state={await state.get_state()}")
-    
-    required_fields = ['type', 'title', 'time', 'days']
-    missing = [f for f in required_fields if f not in data]
-    
-    if missing:
-        logger.error(f"❌ Не хватает полей в state: {missing}")
-        await callback.answer(f"⚠️ Ошибка: не хватает данных ({', '.join(missing)}). Начните заново.", show_alert=True)
-        await state.clear()
-        return
+    telegram_id = callback.from_user.id
 
     async with get_session() as session:
-        # Получаем пользователя по telegram_id
         user_result = await session.execute(
             select(User).where(User.telegram_id == telegram_id)
         )
@@ -225,31 +213,9 @@ async def confirm_reminder(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
 
 
-@router.callback_query(F.data == "cancel", ReminderStates.confirming)
+@router.callback_query(F.data == "cancel_reminder", ReminderStates.confirming)
 async def cancel_reminder(callback: CallbackQuery, state: FSMContext):
-    """Отмена создания"""
+    """Отмена создания."""
     await state.clear()
     await callback.message.edit_text("❌ Создание отменено.")
     await callback.answer()
-
-async def quick_create_reminder(telegram_id: int, title: str, time: str, days: str = "daily"):
-    from database.db import get_session
-    from database.models import User, Reminder
-    from sqlalchemy import select
-    async with get_session() as session:
-        user_result = await session.execute(
-            select(User).where(User.telegram_id == telegram_id)
-        )
-        user = user_result.scalar_one_or_none()
-        if not user:
-            return
-        reminder = Reminder(
-            user_id=user.id,
-            type="custom",
-            title=title,
-            time=time,
-            days=days,
-            enabled=True
-        )
-        session.add(reminder)
-        await session.commit()

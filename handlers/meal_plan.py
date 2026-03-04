@@ -159,12 +159,13 @@ async def generate_full_menu_callback(callback: CallbackQuery, state: FSMContext
 @router.callback_query(F.data == "save_menu")
 async def save_menu_callback(callback: CallbackQuery, state: FSMContext):
     """Сохраняет последнее сгенерированное меню."""
-    # Просто отправляем копию текущего сообщения
+    # ✅ Сразу отвечаем на callback, чтобы избежать таймаута
+    await callback.answer("✅ Рацион сохранён!")
+    # Теперь можно спокойно отправлять сообщение с меню
     await callback.message.answer(
         f"📎 <b>Сохранённый рацион</b>\n\n{callback.message.text}",
         parse_mode="HTML"
     )
-    await callback.answer("✅ Рацион сохранён!")
 
 @router.callback_query(F.data == "back_to_distribution")
 async def back_to_distribution_callback(callback: CallbackQuery, state: FSMContext):

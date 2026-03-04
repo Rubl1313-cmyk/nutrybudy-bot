@@ -1,6 +1,7 @@
 """
 Обработчики мультимедиа: фото (распознавание еды) и голос.
 Теперь с переводом английских названий на русский.
+Исправлена ошибка с переменной description_ru.
 """
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery
@@ -25,7 +26,6 @@ from sqlalchemy import select
 router = Router()
 logger = logging.getLogger(__name__)
 
-
 def _prepare_image(image_bytes: bytes) -> bytes:
     """Оптимизация изображения для Cloudflare."""
     try:
@@ -39,7 +39,6 @@ def _prepare_image(image_bytes: bytes) -> bytes:
     except Exception as e:
         logger.warning(f"⚠️ Image prep error: {e}")
         return image_bytes
-
 
 # ========== ОБРАБОТКА ФОТО ==========
 
@@ -86,8 +85,8 @@ async def handle_photo(message: Message, state: FSMContext):
             translated_items.append(translated)
         logger.info(f"✅ Translated items: {translated_items}")
 
-        if not translated_items:
-            translated_items = [description_en]
+        # ✅ Формируем читаемое описание на русском
+        description_ru = ", ".join(translated_items) if translated_items else description_en
 
         await message.answer(f"🧠 <b>Распознано:</b> {description_ru}", parse_mode="HTML")
 
@@ -105,7 +104,6 @@ async def handle_photo(message: Message, state: FSMContext):
         logger.error(f"❌ Photo error: {e}\n{traceback.format_exc()}")
         await message.answer("❌ Ошибка при обработке фото. Попробуйте позже.")
         await state.clear()
-
 
 # ========== ПУБЛИЧНАЯ ФУНКЦИЯ ДЛЯ МНОЖЕСТВЕННОГО ВВОДА ==========
 # Используется в универсальном обработчике текста
@@ -141,7 +139,6 @@ async def process_next_food(message: Message, state: FSMContext):
         reply_markup=get_food_selection_keyboard(foods)
     )
 
-
 @router.callback_query(F.data.startswith("food_"), FoodStates.selecting_food)
 async def process_food_selection(callback: CallbackQuery, state: FSMContext):
     data = await state.get_data()
@@ -170,7 +167,6 @@ async def process_food_selection(callback: CallbackQuery, state: FSMContext):
     )
     await callback.answer()
 
-
 @router.message(FoodStates.manual_food_name, F.text)
 async def process_manual_food(message: Message, state: FSMContext):
     name = message.text.strip()
@@ -191,7 +187,6 @@ async def process_manual_food(message: Message, state: FSMContext):
     await message.answer(
         f"✅ Продукт: {name}\n\n⚖️ Введите вес в граммах:"
     )
-
 
 @router.message(FoodStates.entering_weight, F.text)
 async def process_weight(message: Message, state: FSMContext):
@@ -239,7 +234,6 @@ async def process_weight(message: Message, state: FSMContext):
     await state.update_data(selected_foods=selected_foods, current_index=idx)
 
     await process_next_food(message, state)
-
 
 async def _finish_meal(message: Message, state: FSMContext):
     data = await state.get_data()
@@ -303,7 +297,6 @@ async def _finish_meal(message: Message, state: FSMContext):
 
     await message.answer("\n".join(lines))
     await state.clear()
-
 
 # ========== ОБРАБОТКА ГОЛОСА ==========
 

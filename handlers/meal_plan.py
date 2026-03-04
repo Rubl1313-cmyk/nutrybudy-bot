@@ -23,18 +23,15 @@ router = Router()
 logger = logging.getLogger(__name__)
 
 
-def split_message(text: str, max_length: int = 4096) -> List[str]:
+def split_message(text: str, max_length: int = 4000) -> List[str]:
     """
-    Разбивает длинный текст на части, стараясь не разрывать слова.
-    Учитывает HTML-теги, закрывая их в конце каждой части.
-    
-    Args:
-        text: Исходный текст (может содержать HTML-теги)
-        max_length: Максимальная длина одной части
-    
-    Returns:
-        Список частей текста, готовых к отправке
+    Разбивает длинный текст на части по max_length символов,
+    стараясь не разрывать слова. Если в части остаются незакрытые
+    HTML-теги, они закрываются.
     """
+    if len(text) <= max_length:
+        return [text]
+
     parts = []
     while len(text) > max_length:
         # Ищем последний пробел перед лимитом
@@ -55,14 +52,12 @@ def split_message(text: str, max_length: int = 4096) -> List[str]:
         part_with_tags, open_tags = _close_html_tags(part, open_tags)
         final_parts.append(part_with_tags)
 
-    logger.info(f"📄 Сообщение разбито на {len(final_parts)} частей")
+    logger.info(f"📄 Текст длиной {len(text)} символов разбит на {len(final_parts)} частей")
     return final_parts
 
 
 def _close_html_tags(html: str, open_tags: List[str] = None) -> Tuple[str, List[str]]:
-    """
-    Закрывает незакрытые HTML-теги в части и возвращает список открытых тегов для следующей части.
-    """
+    """Закрывает незакрытые HTML-теги в части и возвращает список открытых тегов."""
     if open_tags is None:
         open_tags = []
     tag_pattern = re.compile(r'<(/?)(\w+)[^>]*>')
@@ -186,7 +181,7 @@ async def generate_menu_callback(callback: CallbackQuery, state: FSMContext):
             [InlineKeyboardButton(text="🏠 Главное меню", callback_data="main_menu")]
         ])
 
-        # Разбиваем длинный текст
+        # Разбиваем длинный текст (с запасом 4000 символов)
         message_parts = split_message(content)
         if not message_parts:
             await callback.message.edit_text("❌ Не удалось сгенерировать меню.")
@@ -200,9 +195,9 @@ async def generate_menu_callback(callback: CallbackQuery, state: FSMContext):
         for i, part in enumerate(message_parts[1:], start=2):
             try:
                 await callback.message.answer(part, parse_mode="HTML")
-                logger.info(f"Отправлена часть {i}/{len(message_parts)}")
+                logger.info(f"✅ Отправлена часть {i}/{len(message_parts)}")
             except Exception as e:
-                logger.error(f"Ошибка при отправке части {i}: {e}")
+                logger.error(f"❌ Ошибка при отправке части {i}: {e}")
     else:
         await callback.message.edit_text(content)
 
@@ -243,9 +238,9 @@ async def regenerate_menu_callback(callback: CallbackQuery, state: FSMContext):
         for i, part in enumerate(message_parts[1:], start=2):
             try:
                 await callback.message.answer(part, parse_mode="HTML")
-                logger.info(f"Отправлена часть {i}/{len(message_parts)}")
+                logger.info(f"✅ Отправлена часть {i}/{len(message_parts)}")
             except Exception as e:
-                logger.error(f"Ошибка при отправке части {i}: {e}")
+                logger.error(f"❌ Ошибка при отправке части {i}: {e}")
     else:
         await callback.message.edit_text(content)
 

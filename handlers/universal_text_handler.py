@@ -1,18 +1,21 @@
 """
 Универсальный обработчик текстовых сообщений.
 Если намерение не определено, показывает меню выбора.
+Исправлены все ошибки: шаги, дублирование, обработка исключений.
 """
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.fsm.context import FSMContext
+from aiogram.exceptions import TelegramBadRequest
 import logging
 from sqlalchemy import select
+from datetime import datetime
 
 from services.intent_classifier import classify
 from utils.water_parser import parse_water_amount
 from handlers.food import cmd_log_food
 from handlers.water import cmd_water, add_water_quick
-from handlers.shopping import cmd_shopping, add_to_shopping_list
+from handlers.shopping import cmd_shopping, add_to_shopping_list, update_list_message, get_or_create_default_list
 from handlers.activity import cmd_fitness
 from handlers.reminders import cmd_reminders, quick_create_reminder
 from handlers.media_handlers import process_next_food
@@ -20,11 +23,8 @@ from utils.parsers import parse_shopping_items
 from utils.states import ActivityStates
 from database.db import get_session
 from database.models import User, Activity
-from datetime import datetime
 from utils.ai_tools import get_weather
-from handlers.shopping import update_list_message
-
-# Убедитесь, что здесь НЕТ импорта from handlers.ai_assistant import process_ai_query
+from services.activity import CALORIES_PER_MINUTE
 
 logger = logging.getLogger(__name__)
 universal_router = Router()
@@ -33,7 +33,6 @@ universal_router = Router()
 async def universal_message_handler(message: Message, state: FSMContext):
     """Точка входа для всех текстовых сообщений, не начинающихся с '/'."""
     await handle_universal_text(message, state)
-
 
 async def handle_universal_text(message: Message, state: FSMContext, text: str = None):
     """Универсальный обработчик любого текста."""
@@ -77,20 +76,45 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
             )
             return
 
-     # ----- АКТИВНОСТЬ -----
+    # ----- АКТИВНОСТЬ -----
     if intent == "activity":
         # Если есть шаги
         if "steps" in intent_data:
             steps = intent_data["steps"]
-            # ... (ваш код для шагов) ...
-            await message.answer(...)
+            user_id = message.from_user.id
+
+            # Расчёт калорий: примерно 0.04 ккал на шаг (для среднего человека)
+            calories = round(steps * 0.04, 1)
+
+            async with get_session() as session:
+                user_result = await session.execute(
+                    select(User).where(User.telegram_id == user_id)
+                )
+                user = user_result.scalar_one_or_none()
+                if not user:
+                    await message.answer("❌ Сначала настройте профиль через /set_profile.")
+                    return
+
+                activity = Activity(
+                    user_id=user.id,
+                    activity_type="walking",
+                    duration=0,
+                    distance=steps * 0.00075,  # средняя длина шага 0.75 м
+                    calories_burned=calories,
+                    steps=steps,
+                    datetime=datetime.now(),
+                    source="text"
+                )
+                session.add(activity)
+                await session.commit()
+
+            await message.answer(f"✅ Записано {steps} шагов (сожжено ~{calories} ккал).")
             return
 
         # Если нет шагов – обычная активность
         act_type = intent_data.get("activity_type")
         duration = intent_data.get("duration")
         if act_type and duration:
-            # Сохраняем в состоянии для подтверждения
             await state.update_data(activity_type=act_type, duration=duration)
             await state.set_state(ActivityStates.confirming)
             await message.answer(
@@ -100,31 +124,14 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
                     [InlineKeyboardButton(text="❌ Нет", callback_data="cancel_activity")]
                 ])
             )
-            return  # ← Этого return не хватало!
+            return
         else:
             # Неполные данные – запускаем стандартный диалог
             await cmd_fitness(message, state)
-        return
-
-        # Если нет шагов – обычная активность
-        act_type = intent_data.get("activity_type")
-        duration = intent_data.get("duration")
-        if act_type and duration:
-            # Сохраняем в состоянии для подтверждения
-            await state.update_data(activity_type=act_type, duration=duration)
-            await state.set_state(ActivityStates.confirming)
-            await message.answer(f"🏃 Активность: {act_type}, {duration} мин. Подтвердить?",
-                                 reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                                     [InlineKeyboardButton(text="✅ Да", callback_data="confirm_activity")],
-                                     [InlineKeyboardButton(text="❌ Нет", callback_data="cancel_activity")]
-                                 ]))
-        else:
-            # Неполные данные – запускаем стандартный диалог
-            await cmd_fitness(message, state)
-        return
+            return
 
     # ----- НАПОМИНАНИЯ -----
-    elif intent == "reminder":
+    if intent == "reminder":
         title = intent_data.get("reminder_title")
         time = intent_data.get("reminder_time")
         if title and time:
@@ -135,7 +142,7 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
         return
 
     # ----- СПИСОК ПОКУПОК -----
-    elif intent == "shopping":
+    if intent == "shopping":
         items = intent_data.get("items")
         if items:
             await add_to_shopping_list(message, ' '.join(items))
@@ -145,7 +152,7 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
         return
 
     # ----- ПРИЁМ ПИЩИ -----
-    elif intent == "food":
+    if intent == "food":
         meal_type = intent_data.get("meal_type", "snack")
         items = intent_data.get("items")
         if items:
@@ -161,14 +168,12 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
         return
 
     # ----- ПОГОДА -----
-    elif intent == "weather":
+    if intent == "weather":
         user_id = message.from_user.id
         city = intent_data.get("city")
-        
+
         if not city:
             async with get_session() as session:
-                from database.models import User
-                from sqlalchemy import select
                 result = await session.execute(
                     select(User).where(User.telegram_id == user_id)
                 )
@@ -178,26 +183,24 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
                 else:
                     city = "Москва"
                     await message.answer("ℹ️ Город не указан в профиле, используется Москва.")
-        
+
         weather_info = await get_weather(city)
         await message.answer(weather_info)
         return
 
     # ----- НЕОПРЕДЕЛЁННОЕ -----
-    else:
-        await state.update_data(pending_text=text)
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="📋 В список покупок", callback_data="choose_shopping")],
-            [InlineKeyboardButton(text="🍽️ Записать как приём пищи", callback_data="choose_food")],
-            [InlineKeyboardButton(text="🤖 Спросить AI", callback_data="choose_ai")],
-            [InlineKeyboardButton(text="❌ Отмена", callback_data="action_cancel")]
-        ])
-        await message.answer(
-            f"📝 Вы написали:\n«{text}»\n\nКуда это добавить?",
-            reply_markup=keyboard
-        )
-        return
-
+    await state.update_data(pending_text=text)
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📋 В список покупок", callback_data="choose_shopping")],
+        [InlineKeyboardButton(text="🍽️ Записать как приём пищи", callback_data="choose_food")],
+        [InlineKeyboardButton(text="🤖 Спросить AI", callback_data="choose_ai")],
+        [InlineKeyboardButton(text="❌ Отмена", callback_data="action_cancel")]
+    ])
+    await message.answer(
+        f"📝 Вы написали:\n«{text}»\n\nКуда это добавить?",
+        reply_markup=keyboard
+    )
+    return
 
 # ----- ОБРАБОТЧИКИ КНОПОК ДЛЯ ВОДЫ -----
 @universal_router.callback_query(lambda c: c.data == "water_drink")
@@ -212,7 +215,6 @@ async def water_drink_callback(callback: CallbackQuery, state: FSMContext):
     await callback.message.delete()
     await callback.answer()
 
-
 @universal_router.callback_query(lambda c: c.data == "water_buy")
 async def water_buy_callback(callback: CallbackQuery, state: FSMContext):
     data = await state.get_data()
@@ -223,7 +225,6 @@ async def water_buy_callback(callback: CallbackQuery, state: FSMContext):
     await callback.message.delete()
     await callback.answer()
 
-
 @universal_router.callback_query(lambda c: c.data == "action_cancel")
 async def action_cancel_callback(callback: CallbackQuery, state: FSMContext):
     await state.clear()
@@ -231,24 +232,20 @@ async def action_cancel_callback(callback: CallbackQuery, state: FSMContext):
     await callback.message.answer("❌ Действие отменено.")
     await callback.answer()
 
-
 # ----- ОБРАБОТЧИКИ КНОПОК ДЛЯ НЕОПРЕДЕЛЁННЫХ ТЕКСТОВ -----
 @universal_router.callback_query(lambda c: c.data == "choose_shopping")
 async def choose_shopping_callback(callback: CallbackQuery, state: FSMContext):
     data = await state.get_data()
     text = data.get('pending_text', '')
-    await add_to_shopping_list(callback, text)  # ← передаём callback как event
+    await add_to_shopping_list(callback, text)
 
-    # После добавления обновляем сообщение со списком (если список уже был открыт)
     async with get_session() as session:
-        from handlers.shopping import get_or_create_default_list
         shopping_list = await get_or_create_default_list(callback.from_user.id, session, callback)
         if shopping_list:
             await update_list_message(callback, shopping_list.id)
 
     await callback.message.delete()
     await callback.answer("✅ Добавлено в список покупок")
-
 
 @universal_router.callback_query(lambda c: c.data == "choose_food")
 async def choose_food_callback(callback: CallbackQuery, state: FSMContext):
@@ -265,17 +262,14 @@ async def choose_food_callback(callback: CallbackQuery, state: FSMContext):
     await callback.message.delete()
     await callback.answer()
 
-
 @universal_router.callback_query(lambda c: c.data == "choose_ai")
 async def choose_ai_callback(callback: CallbackQuery, state: FSMContext):
     data = await state.get_data()
     text = data.get('pending_text', '')
-    # 🔥 Импорт внутри функции для избежания циклического импорта
     from handlers.ai_assistant import process_ai_query
     await process_ai_query(callback.message, state, text)
     await callback.message.delete()
     await callback.answer()
-
 
 # ----- ОБРАБОТЧИКИ ДЛЯ ПОДТВЕРЖДЕНИЯ АКТИВНОСТИ -----
 @universal_router.callback_query(lambda c: c.data == "confirm_activity")
@@ -284,22 +278,20 @@ async def confirm_activity_callback(callback: CallbackQuery, state: FSMContext):
     act_type = data.get('activity_type')
     duration = data.get('duration')
     if not act_type or not duration:
-        await callback.message.edit_text("❌ Ошибка: данные активности не найдены.")
+        await safe_edit(callback, "❌ Ошибка: данные активности не найдены.")
         await state.clear()
         return
 
-    # Рассчитываем калории
-    from services.activity import CALORIES_PER_MINUTE
     calories = CALORIES_PER_MINUTE.get(act_type, 5) * duration
-
     user_id = callback.from_user.id
+
     async with get_session() as session:
         user_result = await session.execute(
             select(User).where(User.telegram_id == user_id)
         )
         user = user_result.scalar_one_or_none()
         if not user:
-            await callback.message.edit_text("❌ Пользователь не найден.")
+            await safe_edit(callback, "❌ Пользователь не найден.")
             await state.clear()
             return
 
@@ -316,13 +308,25 @@ async def confirm_activity_callback(callback: CallbackQuery, state: FSMContext):
         session.add(activity)
         await session.commit()
 
-    await callback.message.edit_text(f"✅ Активность записана: {act_type} {duration} мин, сожжено ~{calories} ккал.")
+    await safe_edit(
+        callback,
+        f"✅ Активность записана: {act_type} {duration} мин, сожжено ~{calories} ккал."
+    )
     await state.clear()
     await callback.answer()
-
 
 @universal_router.callback_query(lambda c: c.data == "cancel_activity")
 async def cancel_activity_callback(callback: CallbackQuery, state: FSMContext):
     await state.clear()
-    await callback.message.edit_text("❌ Запись активности отменена.")
+    await safe_edit(callback, "❌ Запись активности отменена.")
     await callback.answer()
+
+async def safe_edit(callback: CallbackQuery, text: str, reply_markup=None):
+    """Безопасное редактирование сообщения с обработкой ошибки 'message not modified'."""
+    try:
+        await callback.message.edit_text(text, reply_markup=reply_markup)
+    except TelegramBadRequest as e:
+        if "message is not modified" in str(e):
+            logger.debug("Сообщение не изменилось, пропускаем")
+        else:
+            raise e

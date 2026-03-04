@@ -77,36 +77,34 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
             )
             return
 
-    # ----- АКТИВНОСТЬ -----
+     # ----- АКТИВНОСТЬ -----
     if intent == "activity":
         # Если есть шаги
         if "steps" in intent_data:
             steps = intent_data["steps"]
-            # Упрощённый расчёт калорий: 0.04 ккал на шаг
-            calories = round(steps * 0.04, 1)
-            user_id = message.from_user.id
-            async with get_session() as session:
-                user_result = await session.execute(
-                    select(User).where(User.telegram_id == user_id)
-                )
-                user = user_result.scalar_one_or_none()
-                if not user:
-                    await message.answer("❌ Сначала настройте профиль.")
-                    return
-                activity = Activity(
-                    user_id=user.id,
-                    activity_type="walking",
-                    duration=0,
-                    distance=steps * 0.00075,  # средняя длина шага 0.75 м
-                    calories_burned=calories,
-                    steps=steps,
-                    datetime=datetime.now(),
-                    source="voice"
-                )
-                session.add(activity)
-                await session.commit()
-            await message.answer(f"✅ Записано {steps} шагов (сожжено ~{calories} ккал).")
+            # ... (ваш код для шагов) ...
+            await message.answer(...)
             return
+
+        # Если нет шагов – обычная активность
+        act_type = intent_data.get("activity_type")
+        duration = intent_data.get("duration")
+        if act_type and duration:
+            # Сохраняем в состоянии для подтверждения
+            await state.update_data(activity_type=act_type, duration=duration)
+            await state.set_state(ActivityStates.confirming)
+            await message.answer(
+                f"🏃 Активность: {act_type}, {duration} мин. Подтвердить?",
+                reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text="✅ Да", callback_data="confirm_activity")],
+                    [InlineKeyboardButton(text="❌ Нет", callback_data="cancel_activity")]
+                ])
+            )
+            return  # ← Этого return не хватало!
+        else:
+            # Неполные данные – запускаем стандартный диалог
+            await cmd_fitness(message, state)
+        return
 
         # Если нет шагов – обычная активность
         act_type = intent_data.get("activity_type")

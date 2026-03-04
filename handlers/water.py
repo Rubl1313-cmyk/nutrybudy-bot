@@ -16,7 +16,6 @@ from utils.states import WaterStates
 
 router = Router()
 
-
 async def add_water_quick(telegram_id: int, amount: int) -> bool:
     """Быстрое добавление воды без диалога (используется в callback)."""
     async with get_session() as session:
@@ -35,21 +34,19 @@ async def add_water_quick(telegram_id: int, amount: int) -> bool:
         await session.commit()
         return True
 
-
 @router.message(Command("log_water"))
 @router.message(F.text == "💧 Вода")
 async def cmd_water(message: Message, state: FSMContext):
-    await state.clear()
-    telegram_id = message.from_user.id
-
+    """Начало записи воды."""
+    # Проверяем, есть ли профиль
     async with get_session() as session:
         user_result = await session.execute(
-            select(User).where(User.telegram_id == telegram_id)
+            select(User).where(User.telegram_id == message.from_user.id)
         )
         user = user_result.scalar_one_or_none()
         if not user:
             await message.answer(
-                "❌ Сначала настрой профиль через /set_profile",
+                "❌ Сначала настройте профиль через /set_profile.",
                 reply_markup=get_main_keyboard()
             )
             return
@@ -76,7 +73,6 @@ async def cmd_water(message: Message, state: FSMContext):
         reply_markup=get_water_preset_keyboard()
     )
 
-
 @router.callback_query(F.data.startswith("water_"))
 async def preset_water(callback: CallbackQuery, state: FSMContext):
     """Выбор предустановленного объёма."""
@@ -93,7 +89,6 @@ async def preset_water(callback: CallbackQuery, state: FSMContext):
         reply_markup=get_confirmation_keyboard("water")
     )
     await callback.answer()
-
 
 @router.message(WaterStates.entering_amount)
 async def manual_water(message: Message, state: FSMContext):
@@ -114,7 +109,6 @@ async def manual_water(message: Message, state: FSMContext):
         f"💧 Добавить {amount:.0f} мл?",
         reply_markup=get_confirmation_keyboard("water")
     )
-
 
 @router.callback_query(F.data == "confirm_water", WaterStates.confirming)
 async def confirm_water(callback: CallbackQuery, state: FSMContext):

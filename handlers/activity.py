@@ -40,19 +40,19 @@ async def cmd_fitness(message: Message, state: FSMContext):
         return
 
     await state.clear()
-    await state.set_state(ActivityStates.manual_type)
+    await state.set_state(ActivityStates.waiting_for_type)  # ✅ исправлено
     await message.answer(
         "🏋️ <b>Запись активности</b>\n\n"
         "Выберите тип активности (ходьба теперь записывается через 'Записать шаги'):",
         reply_markup=get_activity_type_keyboard()
     )
 
-@router.callback_query(F.data.startswith("activity_"), ActivityStates.manual_type)
+@router.callback_query(F.data.startswith("activity_"), ActivityStates.waiting_for_type)  # ✅ исправлено
 async def process_activity_type(callback: CallbackQuery, state: FSMContext):
     """Выбор типа активности."""
     act_type = callback.data.split("_")[1]
     await state.update_data(activity_type=act_type)
-    await state.set_state(ActivityStates.manual_duration)
+    await state.set_state(ActivityStates.waiting_for_duration)  # ✅ исправлено
 
     type_names = {
         "walking": "🚶 Ходьба (используйте пункт 'Записать шаги')",
@@ -73,7 +73,7 @@ async def process_activity_type(callback: CallbackQuery, state: FSMContext):
     )
     await callback.answer()
 
-@router.message(ActivityStates.manual_duration, F.text.regexp(r'^\s*\d+\s*$'))
+@router.message(ActivityStates.waiting_for_duration, F.text.regexp(r'^\s*\d+\s*$'))  # ✅ исправлено
 async def process_duration(message: Message, state: FSMContext):
     """Ввод длительности."""
     try:

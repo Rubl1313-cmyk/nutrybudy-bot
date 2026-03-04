@@ -1,6 +1,6 @@
 """
 Обработчик напоминаний.
-Исправлено: уникальные callback_data для подтверждения.
+Исправлено: уникальные callback_data для подтверждения + добавлена quick_create_reminder.
 """
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery, ReplyKeyboardMarkup, KeyboardButton
@@ -21,6 +21,8 @@ from utils.states import ReminderStates
 
 router = Router()
 
+
+# ========== ОСНОВНЫЕ ОБРАБОТЧИКИ ==========
 
 @router.message(Command("reminders"))
 @router.message(F.text == "🔔 Напоминания")
@@ -172,7 +174,6 @@ async def process_days(callback: CallbackQuery, state: FSMContext):
         f"⏰ {data['time']}\n"
         f"📅 {days_map.get(day, day)}\n\n"
         "Создать напоминание?",
-        # 🔥 Передаём action="reminder" для уникальных callback_data
         reply_markup=get_confirmation_keyboard("reminder")
     )
     await callback.answer()
@@ -219,3 +220,40 @@ async def cancel_reminder(callback: CallbackQuery, state: FSMContext):
     await state.clear()
     await callback.message.edit_text("❌ Создание отменено.")
     await callback.answer()
+
+
+# ========== ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ ДЛЯ БЫСТРОГО СОЗДАНИЯ ==========
+
+async def quick_create_reminder(telegram_id: int, title: str, time: str, days: str = "daily") -> bool:
+    """
+    Быстрое создание напоминания без диалога.
+    Используется в универсальном обработчике для команд типа "напомни в 18:00 позвонить маме".
+
+    Args:
+        telegram_id: ID пользователя в Telegram
+        title: Текст напоминания
+        time: Время в формате ЧЧ:ММ
+        days: Дни недели (daily или строка дней)
+
+    Returns:
+        bool: True если успешно, False если пользователь не найден
+    """
+    async with get_session() as session:
+        user_result = await session.execute(
+            select(User).where(User.telegram_id == telegram_id)
+        )
+        user = user_result.scalar_one_or_none()
+        if not user:
+            return False
+
+        reminder = Reminder(
+            user_id=user.id,
+            type="custom",
+            title=title,
+            time=time,
+            days=days,
+            enabled=True
+        )
+        session.add(reminder)
+        await session.commit()
+        return True

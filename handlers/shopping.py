@@ -16,7 +16,6 @@ from keyboards.reply import get_main_keyboard
 from utils.parsers import parse_shopping_items
 from utils.states import ShoppingStates
 import logging
-from aiogram.exceptions import TelegramBadRequest
 
 router = Router()
 logger = logging.getLogger(__name__)
@@ -146,6 +145,8 @@ async def add_to_shopping_list(event, text: str):
             await event.message.answer(f"✅ Добавлено в список покупок:\n" + "\n".join(added))
         else:
             await event.answer(f"✅ Добавлено в список покупок: {', '.join(added)}")
+
+# ========== ОБРАБОТЧИКИ КНОПОК УПРАВЛЕНИЯ ==========
 
 @router.callback_query(F.data.startswith("item_incr_"))
 async def increase_quantity(callback: CallbackQuery):
@@ -353,6 +354,6 @@ async def update_list_message(event: CallbackQuery | Message, list_id: int, is_c
                 await event.answer(text, reply_markup=reply_markup, parse_mode="HTML")
         except TelegramBadRequest as e:
             if "message is not modified" in str(e):
-                logger.info("Сообщение уже актуально, пропускаем редактирование")
+                logger.info("Сообщение уже актуально, пропускаем")
             else:
                 raise e

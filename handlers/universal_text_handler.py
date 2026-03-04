@@ -10,7 +10,7 @@ from aiogram.exceptions import TelegramBadRequest
 import logging
 from sqlalchemy import select
 from datetime import datetime
-
+from handlers.food import process_next_food
 from services.intent_classifier import classify
 from utils.water_parser import parse_water_amount
 from handlers.food import cmd_log_food

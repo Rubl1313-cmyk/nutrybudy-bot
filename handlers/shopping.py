@@ -16,6 +16,7 @@ from keyboards.reply import get_main_keyboard
 from utils.parsers import parse_shopping_items
 from utils.states import ShoppingStates
 import logging
+from aiogram.exceptions import TelegramBadRequest
 
 router = Router()
 logger = logging.getLogger(__name__)
@@ -299,7 +300,6 @@ async def back_to_lists(callback: CallbackQuery, state: FSMContext):
 
         reply_markup = get_shopping_items_keyboard(items, shopping_list.id)
 
-        # Безопасное обновление сообщения
         try:
             await callback.message.edit_text(
                 text,
@@ -308,7 +308,7 @@ async def back_to_lists(callback: CallbackQuery, state: FSMContext):
             )
         except TelegramBadRequest as e:
             if "message is not modified" in str(e):
-                logger.info("Сообщение уже актуально, пропускаем редактирование")
+                logger.info("Сообщение уже актуально, пропускаем")
             else:
                 raise e
 

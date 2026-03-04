@@ -227,8 +227,9 @@ async def weight_callback(callback: CallbackQuery, state: FSMContext):
     idx = int(parts[2])
     value = int(parts[3]) if len(parts) > 3 and parts[3].isdigit() else None
 
+    # ✅ Проверка выхода индекса за пределы
     if idx >= len(selected_foods):
-        await callback.answer("❌ Ошибка индекса", show_alert=True)
+        await callback.answer("❌ Продукт уже удалён или индекс неверен", show_alert=True)
         return
 
     food = selected_foods[idx]

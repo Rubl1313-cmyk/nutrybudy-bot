@@ -8,7 +8,8 @@ aiohttp==3.9.5
 matplotlib==3.9.1
 Pillow==10.4.0
 gunicorn==21.2.0
-pymorphy3==1.0.0
+pymorphy3==1.1.0
+pymorphy3-dicts-ru==2.4.417127.4579844  # ← ДОБАВЛЕНО: словари для русского!
 ffmpeg-python==0.2.0
 googletrans==4.0.0rc1
 pycryptodome==3.20.0

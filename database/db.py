@@ -47,9 +47,14 @@ async def _ensure_bigint_columns(conn):
     Проверяет и изменяет тип колонок, хранящих Telegram ID, с INTEGER на BIGINT.
     Выполняется только для PostgreSQL.
     """
-    if "postgresql" not in DATABASE_URL:
-        logger.info("ℹ️ Skipping BIGINT migration for non-PostgreSQL database")
-        return
+     if "postgresql" in DATABASE_URL:
+                result = await conn.execute(text(
+                    "SELECT table_name FROM information_schema.tables WHERE table_schema='public'"
+                ))
+                tables = [row[0] for row in result]
+                logger.info(f"✅ Tables in DB: {tables}")
+            else:
+                logger.info("ℹ️ Skipping table list for SQLite")
 
     # 1. Колонка telegram_id в таблице users
     result = await conn.execute(text(

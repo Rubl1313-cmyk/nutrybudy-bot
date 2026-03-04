@@ -1,6 +1,6 @@
 """
-Обработчик трекера воды
-✅ Проверка пользователя по telegram_id
+Обработчик трекера воды.
+✅ Исправлено: уникальные callback_data для кнопок подтверждения.
 """
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery
@@ -17,6 +17,25 @@ from utils.states import WaterStates
 router = Router()
 
 
+async def add_water_quick(telegram_id: int, amount: int) -> bool:
+    """Быстрое добавление воды без диалога (используется в callback)."""
+    async with get_session() as session:
+        result = await session.execute(
+            select(User).where(User.telegram_id == telegram_id)
+        )
+        user = result.scalar_one_or_none()
+        if not user:
+            return False
+        entry = WaterEntry(
+            user_id=user.id,
+            amount=amount,
+            datetime=datetime.now()
+        )
+        session.add(entry)
+        await session.commit()
+        return True
+
+
 @router.message(Command("log_water"))
 @router.message(F.text == "💧 Вода")
 async def cmd_water(message: Message, state: FSMContext):
@@ -24,7 +43,6 @@ async def cmd_water(message: Message, state: FSMContext):
     telegram_id = message.from_user.id
 
     async with get_session() as session:
-        # Получаем пользователя по telegram_id
         user_result = await session.execute(
             select(User).where(User.telegram_id == telegram_id)
         )
@@ -61,6 +79,7 @@ async def cmd_water(message: Message, state: FSMContext):
 
 @router.callback_query(F.data.startswith("water_"))
 async def preset_water(callback: CallbackQuery, state: FSMContext):
+    """Выбор предустановленного объёма."""
     try:
         amount = int(callback.data.split("_")[1])
     except (ValueError, IndexError):
@@ -70,34 +89,15 @@ async def preset_water(callback: CallbackQuery, state: FSMContext):
     await state.set_state(WaterStates.confirming)
     await callback.message.edit_text(
         f"💧 Добавить {amount} мл?",
-        reply_markup=get_confirmation_keyboard()
+        # 🔥 Уникальный action="water"
+        reply_markup=get_confirmation_keyboard("water")
     )
     await callback.answer()
 
-async def add_water_quick(telegram_id: int, amount: int) -> bool:
-    from database.db import get_session
-    from database.models import User, WaterEntry
-    from sqlalchemy import select
-    from datetime import datetime
 
-    async with get_session() as session:
-        result = await session.execute(
-            select(User).where(User.telegram_id == telegram_id)
-        )
-        user = result.scalar_one_or_none()
-        if not user:
-            return False
-        entry = WaterEntry(
-            user_id=user.id,
-            amount=amount,
-            datetime=datetime.now()
-        )
-        session.add(entry)
-        await session.commit()
-        return True
-        
 @router.message(WaterStates.entering_amount)
 async def manual_water(message: Message, state: FSMContext):
+    """Ручной ввод объёма."""
     text = message.text.strip()
     try:
         import re
@@ -110,11 +110,15 @@ async def manual_water(message: Message, state: FSMContext):
         return
     await state.update_data(amount=amount)
     await state.set_state(WaterStates.confirming)
-    await message.answer(f"💧 Добавить {amount:.0f} мл?", reply_markup=get_confirmation_keyboard())
+    await message.answer(
+        f"💧 Добавить {amount:.0f} мл?",
+        reply_markup=get_confirmation_keyboard("water")
+    )
 
 
-@router.callback_query(F.data == "confirm")
+@router.callback_query(F.data == "confirm_water", WaterStates.confirming)
 async def confirm_water(callback: CallbackQuery, state: FSMContext):
+    """Подтверждение и сохранение воды."""
     data = await state.get_data()
     amount = data.get('amount')
     if not amount:
@@ -123,7 +127,6 @@ async def confirm_water(callback: CallbackQuery, state: FSMContext):
 
     telegram_id = callback.from_user.id
     async with get_session() as session:
-        # Получаем пользователя
         user_result = await session.execute(
             select(User).where(User.telegram_id == telegram_id)
         )
@@ -161,8 +164,9 @@ async def confirm_water(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
 
 
-@router.callback_query(F.data == "cancel")
+@router.callback_query(F.data == "cancel_water", WaterStates.confirming)
 async def cancel_water(callback: CallbackQuery, state: FSMContext):
+    """Отмена добавления воды."""
     await state.clear()
     await callback.message.edit_text("❌ Отменено")
     await callback.answer()

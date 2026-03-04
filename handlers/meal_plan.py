@@ -100,7 +100,9 @@ async def cmd_meal_plan(message: Message, state: FSMContext):
 
 @router.callback_query(F.data == "generate_full_menu")
 async def generate_full_menu_callback(callback: CallbackQuery, state: FSMContext):
-    """Генерирует полное меню по частям."""
+    # ✅ Сразу отвечаем на callback, чтобы Telegram не считал его устаревшим
+    await callback.answer()
+
     user_id = callback.from_user.id
     await callback.message.edit_text("⏳ Генерирую меню... Это займёт около минуты.")
 

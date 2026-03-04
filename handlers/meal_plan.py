@@ -118,8 +118,7 @@ async def cmd_meal_plan(message: Message, state: FSMContext):
 
 async def generate_menu(user_id: int, variation: str = "") -> tuple[str, bool]:
     """
-    Вспомогательная функция для генерации меню.
-    Возвращает (текст ответа, успех).
+    Генерирует меню с возможностью дозапроса при обрыве.
     """
     async with get_session() as session:
         result = await session.execute(
@@ -138,24 +137,50 @@ async def generate_menu(user_id: int, variation: str = "") -> tuple[str, bool]:
         "weight": user.weight,
         "height": user.height
     }
-    prompt = get_meal_plan_prompt(user_data) + " " + variation
+    base_prompt = get_meal_plan_prompt(user_data) + " " + variation
 
-    # 🔥 Увеличиваем max_tokens, чтобы AI мог дать полный ответ
-    response = await ask_worker_ai(
-        prompt=prompt,
-        system_prompt="Ты полезный ассистент. Отвечай на русском. Составь подробное меню на день: завтрак, обед, ужин и перекус. Укажи ингредиенты и краткие инструкции.",
-        max_tokens=AI_MAX_TOKENS
-    )
+    full_content = ""
+    required_parts = ["завтрак", "обед", "ужин", "перекус"]
 
-    if "error" in response:
-        return response["error"], False
+    for attempt in range(3):  # максимум 3 попытки
+        prompt = base_prompt
+        if attempt > 0:
+            # Берём последние 300 символов предыдущего ответа для контекста
+            context = full_content[-300:] if full_content else ""
+            prompt = (
+                f"Ты уже начал писать меню, но не закончил. Вот последняя часть твоего ответа:\n{context}\n\n"
+                f"Продолжи с того места, где остановился. Не повторяй уже написанное, просто продолжи. "
+                f"Обязательно добавь все недостающие разделы: {', '.join(missing)}."
+            )
 
-    if response.get("choices"):
+        response = await ask_worker_ai(
+            prompt=prompt,
+            system_prompt="Ты полезный ассистент. Отвечай на русском. Всегда давай полный, завершённый ответ.",
+            max_tokens=2500  # можно оставить 5000, но для дозапроса хватит
+        )
+
+        if "error" in response:
+            return response["error"], False
+
+        if not response.get("choices"):
+            return "❌ Не удалось сгенерировать меню.", False
+
         content = response["choices"][0]["message"]["content"]
-        logger.info(f"🤖 AI ответ: {len(content)} символов, первые 100: {content[:100]}...")
-        return content, True
-    else:
-        return "❌ Не удалось сгенерировать меню.", False
+        full_content += content
+        logger.info(f"📝 Попытка {attempt+1}: длина {len(full_content)} символов")
+
+        # Проверяем наличие всех разделов
+        content_lower = full_content.lower()
+        missing = [p for p in required_parts if p not in content_lower]
+
+        if not missing and len(full_content) > 800:
+            # Всё есть и достаточно длинно — выходим
+            logger.info("✅ Получено полное меню")
+            break
+
+        logger.info(f"⚠️ Не хватает разделов: {missing}. Пробуем ещё раз...")
+
+    return full_content, True
 
 
 @router.callback_query(F.data == "generate_menu")

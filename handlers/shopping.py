@@ -321,7 +321,6 @@ async def back_to_lists(callback: CallbackQuery, state: FSMContext):
 
 async def update_list_message(event: CallbackQuery | Message, list_id: int, is_callback: bool = True):
     """Обновляет сообщение со списком покупок."""
-    from aiogram.types import Message, CallbackQuery
     async with get_session() as session:
         lst = await session.get(ShoppingList, list_id)
         if not lst:

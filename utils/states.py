@@ -1,34 +1,41 @@
 """
 Состояния FSM для различных сценариев.
+Содержит все состояния, используемые в хендлерах.
 """
 from aiogram.fsm.state import State, StatesGroup
 
 class FoodStates(StatesGroup):
-    choosing_meal_type = State()  # для выбора типа приёма пищи
-    searching_food = State()      # для поиска продукта
-    selecting_food = State()
-    entering_weight = State()
-    manual_food_name = State()
-    editing_weight = State()
-    adding_name = State()
-    adding_weight = State()
+    """Состояния для записи еды."""
+    choosing_meal_type = State()  # выбор типа приёма пищи
+    searching_food = State()      # поиск продукта в базе
+    selecting_food = State()      # выбор из списка найденных
+    entering_weight = State()     # ввод веса
+    manual_food_name = State()    # ручной ввод названия
+    editing_weight = State()      # редактирование веса (в сводке)
+    adding_name = State()         # добавление нового продукта (название)
+    adding_weight = State()       # добавление нового продукта (вес)
 
 class WaterStates(StatesGroup):
+    """Состояния для записи воды."""
     entering_amount = State()
     confirming = State()
 
 class ActivityStates(StatesGroup):
+    """Состояния для записи активности (кроме шагов)."""
     waiting_for_type = State()
     waiting_for_duration = State()
     confirming = State()
 
 class StepsStates(StatesGroup):
+    """Состояния для записи шагов."""
     waiting_for_steps = State()
 
 class ShoppingStates(StatesGroup):
+    """Состояния для списка покупок."""
     adding_item = State()
 
 class ReminderStates(StatesGroup):
+    """Состояния для напоминаний."""
     choosing_type = State()
     entering_title = State()
     entering_time = State()
@@ -36,9 +43,11 @@ class ReminderStates(StatesGroup):
     confirming = State()
 
 class AIAssistantStates(StatesGroup):
+    """Состояния для AI-ассистента."""
     waiting_for_question = State()
 
 class ProfileStates(StatesGroup):
+    """Состояния для настройки профиля."""
     weight = State()
     height = State()
     age = State()
@@ -46,3 +55,10 @@ class ProfileStates(StatesGroup):
     activity = State()
     goal = State()
     city = State()
+
+class ProgressStates(StatesGroup):
+    """
+    Состояния для прогресса (пока не используются, но импортируются).
+    Если появятся, добавьте сюда нужные состояния.
+    """
+    pass

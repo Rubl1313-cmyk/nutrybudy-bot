@@ -1,6 +1,6 @@
 """
 Модуль для классификации намерений пользователя по тексту.
-Использует приоритеты и строгие регулярные выражения для точного определения.
+Охватывает максимум разговорных вариантов: шаги, активность, воду, покупки, еду, напоминания, погоду, AI.
 """
 import re
 from typing import Dict, Any, Optional, List
@@ -10,32 +10,70 @@ MEAL_TYPES = {
     "завтрак": "breakfast",
     "обед": "lunch",
     "ужин": "dinner",
-    "перекус": "snack"
+    "перекус": "snack",
+    "полдник": "snack",      # добавил синоним
+    "ланч": "lunch"           # добавил
 }
 
 ACTIVITY_TYPES = {
     "ходьба": "walking",
+    "прогулка": "walking",
+    "гулял": "walking",
+    "пешком": "walking",
     "бег": "running",
+    "побегал": "running",
+    "бегал": "running",
+    "пробежка": "running",
     "йога": "yoga",
+    "позанимался йогой": "yoga",
     "плавание": "swimming",
+    "поплавал": "swimming",
     "велосипед": "cycling",
+    "покатался на велосипеде": "cycling",
     "тренажёрный зал": "gym",
     "тренажерный зал": "gym",
     "тренировка": "workout",
-    "прогулка": "walking"
+    "потренировался": "workout",
+    "спортзал": "gym"
 }
 
-# Ключевые слова для разных намерений (с учётом границ слов)
+# Ключевые слова с учётом разговорных форм
 INTENT_KEYWORDS = {
-    "water": [r'\bвода\b', r'\bводы\b', r'\bвыпил\b', r'\bпопил\b'],
-    "shopping": [r'\bкупить\b', r'\bсписок покупок\b', r'\bдобавь в список\b', r'\bнадо купить\b'],
-    "activity": [r'\bтренировка\b', r'\bспорт\b', r'\bзанятие\b', r'\bпробежка\b'],
-    "reminder": [r'\bнапомни\b', r'\bнапоминание\b'],
-    "food": [r'\bзапиши еду\b', r'\bдобавь еду\b', r'\bсъел\b', r'\bпоел\b', r'\bприем пищи\b', r'\bеда\b'],
-    "weather": [r'\bпогода\b', r'\bсколько градусов\b', r'\bтемпература\b', r'\bпрогноз погоды\b'],
-    "ai": [r'\bai\b', r'\bаи\b', r'\bспроси\b', r'\bвопрос\b', r'\bскажи\b', r'\bпомоги\b', r'\bрецепт\b',
-           r'\bчто такое\b', r'\bкак сделать\b', r'\bпочему\b', r'\bзачем\b', r'\bкогда\b', r'\bгде\b', r'\bкто\b',
-           r'\bнапиши\b', r'\bсоставь\b', r'\bпридумай\b']
+    "water": [
+        r'\bвода\b', r'\bводы\b', r'\bводой\b',
+        r'\bвыпил\b', r'\bпопил\b', r'\bпить\b', r'\bхочу пить\b',
+        r'\bвыпей\b', r'\bнапился\b'
+    ],
+    "shopping": [
+        r'\bкупить\b', r'\bсписок покупок\b', r'\bдобавь в список\b',
+        r'\bнадо купить\b', r'\bзапиши в покупки\b', r'\bдобавь в покупки\b',
+        r'\bкуплю\b'
+    ],
+    "activity": [
+        r'\bтренировка\b', r'\bспорт\b', r'\bзанятие\b', r'\bпробежка\b',
+        r'\bактивность\b', r'\bупражнения\b'
+    ],
+    "reminder": [
+        r'\bнапомни\b', r'\bнапоминание\b', r'\bне забудь\b',
+        r'\bнапомни мне\b'
+    ],
+    "food": [
+        r'\bзапиши еду\b', r'\bдобавь еду\b', r'\bсъел\b', r'\bпоел\b',
+        r'\bприем пищи\b', r'\bеда\b', r'\bпокушать\b', r'\bпокушал\b',
+        r'\bпоесть\b', r'\bплотно поел\b'
+    ],
+    "weather": [
+        r'\bпогода\b', r'\bсколько градусов\b', r'\bтемпература\b',
+        r'\bпрогноз погоды\b', r'\bкакая погода\b', r'\bна улице\b',
+        r'\bтепло\b', r'\bхолодно\b'
+    ],
+    "ai": [
+        r'\bai\b', r'\bаи\b', r'\bспроси\b', r'\bвопрос\b', r'\bскажи\b',
+        r'\bпомоги\b', r'\bрецепт\b', r'\bчто такое\b', r'\bкак сделать\b',
+        r'\bпочему\b', r'\bзачем\b', r'\bкогда\b', r'\bгде\b', r'\bкто\b',
+        r'\bнапиши\b', r'\bсоставь\b', r'\bпридумай\b', r'\bрасскажи\b',
+        r'\bобъясни\b', r'\bпосоветуй\b'
+    ]
 }
 
 def classify(text: str) -> Dict[str, Any]:
@@ -46,21 +84,26 @@ def classify(text: str) -> Dict[str, Any]:
     text_lower = text.lower().strip()
     result = {"intent": "unknown", "original_text": text}
 
-    # ----- 1. Шаги (наивысший приоритет) -----
-    # Ищем число перед словом "шаг" (с учётом тысяч)
-    steps_match = re.search(r'(\d+)(?:\s*(?:тысяч|тыс))?\s*шаг', text_lower)
+    # ----- 1. Шаги (самый высокий приоритет) -----
+    # Ищем любую форму слова "шаг" (шаг, шага, шагов, шаги)
+    steps_match = re.search(
+        r'(\d+)(?:\s*(?:тысяч|тыс|к|км))?\s*(?:шаг|шага|шагов|шаги)',
+        text_lower
+    )
     if steps_match:
         steps = int(steps_match.group(1))
-        if 'тысяч' in text_lower or 'тыс' in text_lower:
+        # Учитываем тысячи (если написано "5 тысяч шагов")
+        if any(x in text_lower for x in ['тысяч', 'тыс', 'к']):
             steps *= 1000
         result["intent"] = "activity"
         result["activity_type"] = "walking"
         result["steps"] = steps
         return result
 
-    # ----- 2. Активность с длительностью (например, "бег 30 минут") -----
+    # ----- 2. Активность с длительностью (например, "бег 30 минут", "пробежка 1 час") -----
     for act_ru, act_en in ACTIVITY_TYPES.items():
-        if act_ru in text_lower:
+        # Используем границы слов, чтобы не ловить части слов
+        if re.search(r'\b' + re.escape(act_ru) + r'\b', text_lower):
             duration = _extract_duration(text_lower)
             if duration:
                 result["intent"] = "activity"
@@ -68,7 +111,7 @@ def classify(text: str) -> Dict[str, Any]:
                 result["duration"] = duration
                 return result
             else:
-                # Если есть ключевое слово активности, но нет длительности — возможно, пользователь хочет ввести позже
+                # Если есть ключевое слово, но нет длительности — возможно, пользователь хочет ввести позже
                 result["intent"] = "activity"
                 result["activity_type"] = act_en
                 return result
@@ -76,7 +119,7 @@ def classify(text: str) -> Dict[str, Any]:
     # ----- 3. Вода (с проверкой на покупку) -----
     # Сначала проверяем, не является ли это покупкой воды
     if any(re.search(kw, text_lower) for kw in INTENT_KEYWORDS["shopping"]):
-        if any(re.search(r'\bвода\b|\bводы\b', text_lower) for kw in INTENT_KEYWORDS["water"]):
+        if re.search(r'\bвода\b|\bводы\b|\bводой\b', text_lower):
             # Это покупка воды, а не питьё
             result["intent"] = "shopping"
             result["items"] = ["вода"]
@@ -87,7 +130,7 @@ def classify(text: str) -> Dict[str, Any]:
     if any(re.search(kw, text_lower) for kw in INTENT_KEYWORDS["water"]):
         result["intent"] = "water"
         # Извлекаем количество, если есть
-        amount_match = re.search(r'(\d+)\s*(?:мл|литр|л)', text_lower)
+        amount_match = re.search(r'(\d+)\s*(?:мл|литр|л|бутыл[а-я]*)', text_lower)
         if amount_match:
             result["amount"] = int(amount_match.group(1))
         return result
@@ -97,8 +140,6 @@ def classify(text: str) -> Dict[str, Any]:
         result["intent"] = "shopping"
         # Очищаем текст от ключевых слов и извлекаем товары
         cleaned = _remove_keywords(text_lower, INTENT_KEYWORDS["shopping"])
-        # Здесь можно использовать parse_shopping_items из utils
-        # Для простоты пока просто вернём очищенный текст
         result["cleaned_text"] = cleaned
         return result
 
@@ -116,11 +157,13 @@ def classify(text: str) -> Dict[str, Any]:
 
     # ----- 6. Приём пищи (еда) -----
     # Проверяем наличие ключевых слов еды или названий приёмов пищи
-    if any(re.search(kw, text_lower) for kw in INTENT_KEYWORDS["food"]) or any(meal in text_lower for meal in MEAL_TYPES):
+    if any(re.search(kw, text_lower) for kw in INTENT_KEYWORDS["food"]) or any(
+        re.search(r'\b' + re.escape(meal) + r'\b', text_lower) for meal in MEAL_TYPES
+    ):
         result["intent"] = "food"
         # Определяем тип приёма пищи
         for meal_ru, meal_en in MEAL_TYPES.items():
-            if meal_ru in text_lower:
+            if re.search(r'\b' + re.escape(meal_ru) + r'\b', text_lower):
                 result["meal_type"] = meal_en
                 break
         # Очищаем текст от ключевых слов для извлечения продуктов
@@ -157,8 +200,8 @@ def classify(text: str) -> Dict[str, Any]:
     return result
 
 def _extract_duration(text: str) -> Optional[int]:
-    """Извлекает длительность в минутах из текста."""
-    match = re.search(r'(\d+)\s*(?:минут|мин|м|час|ч)', text)
+    """Извлекает длительность в минутах из текста (поддерживает часы и минуты)."""
+    match = re.search(r'(\d+)\s*(?:минут|мин|м|час|ч|часа|часов)', text)
     if match:
         num = int(match.group(1))
         unit = match.group(2)
@@ -169,14 +212,14 @@ def _extract_duration(text: str) -> Optional[int]:
 
 def _extract_reminder_title(text: str) -> Optional[str]:
     """Извлекает заголовок напоминания."""
-    # Убираем ключевые слова "напомни" и время, если есть
-    cleaned = re.sub(r'\bнапомни\b', '', text, flags=re.IGNORECASE)
+    # Убираем ключевые слова "напомни", "не забудь" и время
+    cleaned = re.sub(r'\bнапомни\b|\bне забудь\b', '', text, flags=re.IGNORECASE)
     cleaned = re.sub(r'\bв\s*\d{1,2}[:.]\d{2}\b', '', cleaned)
     cleaned = cleaned.strip()
     return cleaned if cleaned else None
 
 def _extract_time(text: str) -> Optional[str]:
-    """Извлекает время в формате ЧЧ:ММ."""
+    """Извлекает время в формате ЧЧ:ММ (поддерживает разделители : и .)."""
     match = re.search(r'\bв\s*(\d{1,2})[:.](\d{2})\b', text)
     if match:
         return f"{match.group(1).zfill(2)}:{match.group(2)}"

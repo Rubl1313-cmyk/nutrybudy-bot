@@ -1,11 +1,13 @@
 """
 Обработчик списков покупок.
 Только управление списками и товарами, без универсального обработчика текста.
+Исправлена ошибка "message is not modified" при возврате к списку.
 """
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
+from aiogram.exceptions import TelegramBadRequest
 from sqlalchemy import select
 from database.db import get_session
 from database.models import User, ShoppingList, ShoppingItem
@@ -23,28 +25,24 @@ async def get_or_create_default_list(telegram_id: int, session, event=None):
     Возвращает основной список покупок пользователя.
     Если пользователь не найден в БД, создаёт его автоматически.
     """
-    # Пытаемся найти пользователя
     user_result = await session.execute(
         select(User).where(User.telegram_id == telegram_id)
     )
     user = user_result.scalar_one_or_none()
 
-    # Если пользователя нет, создаём нового
     if not user:
         if event is None:
             logger.warning(f"Нет event для создания пользователя {telegram_id}")
             return None
-        # Создаём пользователя с минимальными данными из event
         user = User(
             telegram_id=telegram_id,
             username=event.from_user.username,
             first_name=event.from_user.first_name
         )
         session.add(user)
-        await session.flush()  # чтобы получить user.id
+        await session.flush()
         logger.info(f"🆕 Автоматически создан пользователь {telegram_id}")
 
-    # Ищем активный список покупок
     result = await session.execute(
         select(ShoppingList)
         .where(
@@ -55,7 +53,6 @@ async def get_or_create_default_list(telegram_id: int, session, event=None):
     )
     shopping_list = result.scalar_one_or_none()
 
-    # Если списка нет, создаём новый
     if not shopping_list:
         shopping_list = ShoppingList(
             user_id=user.id,
@@ -107,8 +104,6 @@ async def cmd_shopping(message: Message, state: FSMContext):
             parse_mode="HTML"
         )
 
-# ========== ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ ДЛЯ ДОБАВЛЕНИЯ ТОВАРОВ ==========
-
 async def add_to_shopping_list(event, text: str):
     """
     Добавляет товары в список покупок из текста.
@@ -124,7 +119,6 @@ async def add_to_shopping_list(event, text: str):
         return
 
     async with get_session() as session:
-        # Передаём event для автоматического создания пользователя
         shopping_list = await get_or_create_default_list(user_id, session, event)
         if not shopping_list:
             if hasattr(event, 'message') and event.message:
@@ -151,8 +145,6 @@ async def add_to_shopping_list(event, text: str):
             await event.message.answer(f"✅ Добавлено в список покупок:\n" + "\n".join(added))
         else:
             await event.answer(f"✅ Добавлено в список покупок: {', '.join(added)}")
-
-# ========== ОБРАБОТЧИКИ КНОПОК УПРАВЛЕНИЯ ==========
 
 @router.callback_query(F.data.startswith("item_incr_"))
 async def increase_quantity(callback: CallbackQuery):
@@ -226,10 +218,8 @@ async def add_item_manual(message: Message, state: FSMContext):
     text = message.text.strip()
 
     async with get_session() as session:
-        # 1. Проверяем, существует ли список с таким ID
         shopping_list = await session.get(ShoppingList, list_id)
         if not shopping_list or shopping_list.is_archived:
-            # Список не найден или архивирован – создаём новый
             shopping_list = await get_or_create_default_list(message.from_user.id, session, message)
             if not shopping_list:
                 await message.answer("❌ Не удалось создать список покупок.")
@@ -239,13 +229,11 @@ async def add_item_manual(message: Message, state: FSMContext):
             await state.update_data(current_list_id=list_id)
             await message.answer("🔄 Ваш список покупок был пересоздан, продолжаем...")
 
-        # 2. Разбираем товары
         parsed = parse_shopping_items(text)
         if not parsed:
             await message.answer("❌ Не удалось распознать товары. Пример: «2 яйца, молоко»")
             return
 
-        # 3. Добавляем товары
         added = []
         for name, qty, unit in parsed:
             item = ShoppingItem(
@@ -282,7 +270,8 @@ async def delete_list(callback: CallbackQuery):
     await callback.answer()
 
 @router.callback_query(F.data == "back_to_lists")
-async def back_to_lists(callback: CallbackQuery):
+async def back_to_lists(callback: CallbackQuery, state: FSMContext):
+    """Возврат к основному списку покупок."""
     user_id = callback.from_user.id
     async with get_session() as session:
         shopping_list = await get_or_create_default_list(user_id, session, callback)
@@ -308,14 +297,25 @@ async def back_to_lists(callback: CallbackQuery):
         else:
             text += "Список пуст. Напишите товары, и я спрошу, куда их добавить."
 
-        await callback.message.edit_text(
-            text,
-            reply_markup=get_shopping_items_keyboard(items, shopping_list.id),
-            parse_mode="HTML"
-        )
+        reply_markup = get_shopping_items_keyboard(items, shopping_list.id)
+
+        # Безопасное обновление сообщения
+        try:
+            await callback.message.edit_text(
+                text,
+                reply_markup=reply_markup,
+                parse_mode="HTML"
+            )
+        except TelegramBadRequest as e:
+            if "message is not modified" in str(e):
+                logger.info("Сообщение уже актуально, пропускаем редактирование")
+            else:
+                raise e
+
     await callback.answer()
 
 async def update_list_message(event: CallbackQuery | Message, list_id: int, is_callback: bool = True):
+    """Обновляет сообщение со списком покупок."""
     async with get_session() as session:
         lst = await session.get(ShoppingList, list_id)
         if not lst:
@@ -346,7 +346,13 @@ async def update_list_message(event: CallbackQuery | Message, list_id: int, is_c
 
         reply_markup = get_shopping_items_keyboard(items, list_id)
 
-        if is_callback:
-            await event.message.edit_text(text, reply_markup=reply_markup, parse_mode="HTML")
-        else:
-            await event.answer(text, reply_markup=reply_markup, parse_mode="HTML")
+        try:
+            if is_callback:
+                await event.message.edit_text(text, reply_markup=reply_markup, parse_mode="HTML")
+            else:
+                await event.answer(text, reply_markup=reply_markup, parse_mode="HTML")
+        except TelegramBadRequest as e:
+            if "message is not modified" in str(e):
+                logger.info("Сообщение уже актуально, пропускаем редактирование")
+            else:
+                raise e

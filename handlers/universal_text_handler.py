@@ -76,16 +76,17 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
             )
             return
 
-    # ----- АКТИВНОСТЬ -----
+       # ----- АКТИВНОСТЬ -----
     if intent == "activity":
-        # Если есть шаги
-        if "steps" in intent_data:
-            steps = intent_data["steps"]
+        act_type = intent_data.get("activity_type")
+        duration = intent_data.get("duration")
+        distance_km = intent_data.get("distance_km")
+        steps = intent_data.get("steps")
+
+        # Если есть шаги (приоритет)
+        if steps:
             user_id = message.from_user.id
-
-            # Расчёт калорий: примерно 0.04 ккал на шаг (для среднего человека)
-            calories = round(steps * 0.04, 1)
-
+            calories = round(steps * 0.04, 1)  # приблизительно
             async with get_session() as session:
                 user_result = await session.execute(
                     select(User).where(User.telegram_id == user_id)
@@ -94,12 +95,11 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
                 if not user:
                     await message.answer("❌ Сначала настройте профиль через /set_profile.")
                     return
-
                 activity = Activity(
                     user_id=user.id,
                     activity_type="walking",
                     duration=0,
-                    distance=steps * 0.00075,  # средняя длина шага 0.75 м
+                    distance=steps * 0.00075,
                     calories_burned=calories,
                     steps=steps,
                     datetime=datetime.now(),
@@ -107,29 +107,94 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
                 )
                 session.add(activity)
                 await session.commit()
-
             await message.answer(f"✅ Записано {steps} шагов (сожжено ~{calories} ккал).")
             return
 
-        # Если нет шагов – обычная активность
-        act_type = intent_data.get("activity_type")
-        duration = intent_data.get("duration")
-        if act_type and duration:
-            await state.update_data(activity_type=act_type, duration=duration)
-            await state.set_state(ActivityStates.confirming)
-            await message.answer(
-                f"🏃 Активность: {act_type}, {duration} мин. Подтвердить?",
-                reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                    [InlineKeyboardButton(text="✅ Да", callback_data="confirm_activity")],
-                    [InlineKeyboardButton(text="❌ Нет", callback_data="cancel_activity")]
-                ])
-            )
-            return
-        else:
-            # Неполные данные – запускаем стандартный диалог
+        # Если есть расстояние, но нет длительности – рассчитываем длительность по темпу
+        if distance_km and not duration:
+            # Определяем темп (мин/км) в зависимости от типа активности
+            if act_type == "running":
+                pace = 6.0  # мин/км (10 км/ч)
+            elif act_type == "walking":
+                pace = 12.0  # мин/км (5 км/ч)
+            elif act_type == "cycling":
+                pace = 4.0   # мин/км (15 км/ч)
+            else:
+                pace = 8.0   # среднее для других
+            duration = int(distance_km * pace)
+
+        # Если есть длительность или (теперь) расстояние
+        if act_type and (duration or distance_km):
+            # Если есть только длительность (без расстояния), используем её
+            if duration and not distance_km:
+                # Запрашиваем подтверждение
+                await state.update_data(activity_type=act_type, duration=duration)
+                await state.set_state(ActivityStates.confirming)
+                await message.answer(
+                    f"🏃 Активность: {act_type}, {duration} мин. Подтвердить?",
+                    reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                        [InlineKeyboardButton(text="✅ Да", callback_data="confirm_activity")],
+                        [InlineKeyboardButton(text="❌ Нет", callback_data="cancel_activity")]
+                    ])
+                )
+                return
+            # Если есть расстояние (и возможно длительность) – сразу считаем и сохраняем
+            else:
+                # Получаем вес пользователя для расчёта калорий
+                user_id = message.from_user.id
+                async with get_session() as session:
+                    user_result = await session.execute(
+                        select(User).where(User.telegram_id == user_id)
+                    )
+                    user = user_result.scalar_one_or_none()
+                    if not user:
+                        await message.answer("❌ Сначала настройте профиль через /set_profile.")
+                        return
+                    weight = user.weight or 70  # если вес не указан, берём 70 кг
+
+                # Получаем MET из словаря (если есть)
+                from services.activity import CALORIES_PER_MINUTE
+                met = CALORIES_PER_MINUTE.get(act_type, 5)
+                # Если длительность не указана, используем рассчитанную из расстояния
+                if not duration:
+                    # Рассчитываем длительность по темпу (уже сделано выше)
+                    pass
+                calories = met * weight * (duration / 60)  # формула: MET * вес(кг) * время(ч)
+
+                # Сохраняем активность
+                async with get_session() as session:
+                    activity = Activity(
+                        user_id=user.id,
+                        activity_type=act_type,
+                        duration=duration,
+                        distance=distance_km if distance_km else 0,
+                        calories_burned=calories,
+                        steps=0,
+                        datetime=datetime.now(),
+                        source="text"
+                    )
+                    session.add(activity)
+                    await session.commit()
+
+                # Формируем сообщение
+                msg_parts = [f"✅ Активность записана: {act_type}"]
+                if duration:
+                    msg_parts.append(f"{duration} мин")
+                if distance_km:
+                    msg_parts.append(f"{distance_km} км")
+                msg_parts.append(f"сожжено ~{calories:.0f} ккал")
+                await message.answer(" ".join(msg_parts))
+                return
+
+        # Если нет ни длительности, ни расстояния, но есть тип активности – запускаем диалог
+        if act_type:
+            await state.update_data(activity_type=act_type)
             await cmd_fitness(message, state)
             return
 
+        # Если ничего не распознано – запускаем общий диалог
+        await cmd_fitness(message, state)
+        return
     # ----- НАПОМИНАНИЯ -----
     if intent == "reminder":
         title = intent_data.get("reminder_title")

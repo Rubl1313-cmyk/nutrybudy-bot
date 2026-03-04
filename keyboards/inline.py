@@ -2,7 +2,6 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from typing import List, Dict
 
-
 def get_meal_type_keyboard():
     builder = InlineKeyboardBuilder()
     builder.button(text="🥐 Завтрак", callback_data="meal_breakfast")
@@ -12,24 +11,12 @@ def get_meal_type_keyboard():
     builder.adjust(2)
     return builder.as_markup()
 
-
 def get_water_preset_keyboard():
     builder = InlineKeyboardBuilder()
     for amount in [200, 300, 500, 1000]:
         builder.button(text=f"{amount} мл 💧", callback_data=f"water_{amount}")
     builder.adjust(2)
     return builder.as_markup()
-
-def get_food_menu() -> InlineKeyboardMarkup:
-    """Подменю раздела «Питание»."""
-    buttons = [
-        [InlineKeyboardButton(text="📸 Отправить фото еды", callback_data="menu_food_photo")],
-        [InlineKeyboardButton(text="✏️ Ввести продукты вручную", callback_data="menu_food_manual")],
-        [InlineKeyboardButton(text="🍽️ План питания", callback_data="menu_meal_plan")],
-        [InlineKeyboardButton(text="💬 AI Помощник", callback_data="menu_ai")],   # <-- добавлено
-        [InlineKeyboardButton(text="🔙 Назад", callback_data="menu_back")]
-    ]
-    return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 def get_food_overview_keyboard(selected_foods: List[Dict]) -> InlineKeyboardMarkup:
     """Клавиатура для сводки продуктов."""
@@ -68,7 +55,6 @@ def get_food_selection_keyboard(foods: List[dict]):
     builder.adjust(1)
     return builder.as_markup()
 
-
 def get_confirmation_keyboard(action: str = ""):
     builder = InlineKeyboardBuilder()
     if action:
@@ -80,7 +66,6 @@ def get_confirmation_keyboard(action: str = ""):
     builder.adjust(2)
     return builder.as_markup()
 
-
 def get_shopping_lists_keyboard(lists):
     builder = InlineKeyboardBuilder()
     for lst in lists:
@@ -91,7 +76,6 @@ def get_shopping_lists_keyboard(lists):
     builder.button(text="➕ Новый список", callback_data="new_shopping_list")
     builder.adjust(1)
     return builder.as_markup()
-
 
 def get_shopping_items_keyboard(items, list_id):
     """
@@ -126,7 +110,6 @@ def get_shopping_items_keyboard(items, list_id):
     )
     return builder.as_markup()
 
-
 def get_days_keyboard():
     builder = InlineKeyboardBuilder()
     builder.button(text="Пн", callback_data="day_mon")
@@ -140,7 +123,6 @@ def get_days_keyboard():
     builder.adjust(4)
     return builder.as_markup()
 
-
 def get_reminder_type_keyboard():
     builder = InlineKeyboardBuilder()
     builder.button(text="🍽️ Приём пищи", callback_data="reminder_meal")
@@ -150,7 +132,6 @@ def get_reminder_type_keyboard():
     builder.adjust(2)
     return builder.as_markup()
 
-
 def get_progress_options_keyboard():
     builder = InlineKeyboardBuilder()
     builder.button(text="📅 Сегодня", callback_data="progress_day")
@@ -158,7 +139,7 @@ def get_progress_options_keyboard():
     builder.button(text="📆 Месяц", callback_data="progress_month")
     builder.adjust(3)
     return builder.as_markup()
-    
+
 def get_activity_type_keyboard():
     """
     Клавиатура для выбора типа активности.
@@ -173,7 +154,7 @@ def get_activity_type_keyboard():
     builder.button(text="🎾 Другое", callback_data="activity_other")
     builder.adjust(2)
     return builder.as_markup()
-    
+
 # ========== НОВЫЕ НАВИГАЦИОННЫЕ МЕНЮ ==========
 
 def get_food_menu() -> InlineKeyboardMarkup:
@@ -182,6 +163,7 @@ def get_food_menu() -> InlineKeyboardMarkup:
         [InlineKeyboardButton(text="📸 Отправить фото еды", callback_data="menu_food_photo")],
         [InlineKeyboardButton(text="✏️ Ввести продукты вручную", callback_data="menu_food_manual")],
         [InlineKeyboardButton(text="🍽️ План питания", callback_data="menu_meal_plan")],
+        [InlineKeyboardButton(text="💬 AI Помощник", callback_data="menu_ai")],
         [InlineKeyboardButton(text="🔙 Назад", callback_data="menu_back")]
     ]
     return InlineKeyboardMarkup(inline_keyboard=buttons)

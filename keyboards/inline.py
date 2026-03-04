@@ -1,6 +1,6 @@
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
-from typing import List
+from typing import List, Dict
 
 
 def get_meal_type_keyboard():
@@ -20,6 +20,31 @@ def get_water_preset_keyboard():
     builder.adjust(2)
     return builder.as_markup()
 
+def get_food_overview_keyboard(selected_foods: List[Dict]) -> InlineKeyboardMarkup:
+    """Клавиатура для сводки продуктов."""
+    buttons = []
+    for i, food in enumerate(selected_foods):
+        status = "✅" if food['weight'] else "⬜"
+        buttons.append([
+            InlineKeyboardButton(
+                text=f"{status} {food['name']}",
+                callback_data=f"edit_food_{i}"
+            )
+        ])
+    buttons.append([
+        InlineKeyboardButton(text="➕ Добавить продукт", callback_data="add_food")
+    ])
+    buttons.append([
+        InlineKeyboardButton(text="✅ Подтвердить", callback_data="confirm_meal"),
+        InlineKeyboardButton(text="❌ Отмена", callback_data="cancel_meal")
+    ])
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+def get_food_edit_keyboard() -> InlineKeyboardMarkup:
+    """Клавиатура для редактирования продукта."""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="↩️ Назад", callback_data="back_to_overview")]
+    ])
 
 def get_food_selection_keyboard(foods: List[dict]):
     builder = InlineKeyboardBuilder()

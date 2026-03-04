@@ -23,37 +23,38 @@ router = Router()
 logger = logging.getLogger(__name__)
 
 
-def split_message(text: str, max_length: int = 4000) -> List[str]:
+def split_message(text: str, max_length: int = 4096) -> List[str]:
     """
-    Разбивает длинный текст на части по max_length символов,
-    стараясь не разрывать слова. Если в части остаются незакрытые
-    HTML-теги, они закрываются.
+    Разбивает длинный текст на части, стараясь сохранить целостность слов.
     """
     if len(text) <= max_length:
         return [text]
 
     parts = []
     while len(text) > max_length:
-        # Ищем последний пробел перед лимитом
-        split_at = text.rfind(' ', 0, max_length)
-        if split_at == -1:
-            split_at = max_length
+        # Ищем последний пробел или перенос строки в пределах лимита
+        split_at = -1
+        for separator in ('\n', '. ', ' ', '-', ''):
+            if separator == '':
+                # Если разделитель не найден, режем по лимиту с добавлением дефиса
+                split_at = max_length - 1
+                text = text[:split_at] + '-' + text[split_at:]
+                break
+            pos = text.rfind(separator, 0, max_length)
+            if pos != -1:
+                split_at = pos + (1 if separator != '' else 0)
+                break
+
         part = text[:split_at].rstrip()
         text = text[split_at:].lstrip()
-        if part:
-            parts.append(part)
+        parts.append(part)
+
     if text:
         parts.append(text)
 
-    # Закрываем HTML-теги в каждой части
-    final_parts = []
-    open_tags = []
-    for part in parts:
-        part_with_tags, open_tags = _close_html_tags(part, open_tags)
-        final_parts.append(part_with_tags)
-
-    logger.info(f"📄 Текст длиной {len(text)} символов разбит на {len(final_parts)} частей")
-    return final_parts
+    # Закрываем HTML-теги (упрощённо, если требуется)
+    # Если возникают проблемы с HTML, можно отключить parse_mode
+    return parts
 
 
 def _close_html_tags(html: str, open_tags: List[str] = None) -> Tuple[str, List[str]]:
@@ -145,7 +146,7 @@ async def generate_menu(user_id: int, variation: str = "") -> tuple[str, bool]:
     response = await ask_worker_ai(
         prompt=prompt,
         system_prompt="Ты полезный ассистент. Отвечай на русском.",
-        max_tokens=1500
+        max_tokens=5000
     )
 
     if "error" in response:

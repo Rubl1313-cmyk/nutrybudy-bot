@@ -103,6 +103,8 @@ class ActivityStates(StatesGroup):
     waiting_for_duration = State()
     confirming = State()
 
+class StepsStates(StatesGroup):  # <-- новый класс
+    waiting_for_steps = State()
 
 # =============================================================================
 # ⚖️ ВЕС

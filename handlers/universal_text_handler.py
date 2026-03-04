@@ -10,10 +10,10 @@ from aiogram.exceptions import TelegramBadRequest
 import logging
 from sqlalchemy import select
 from datetime import datetime
-from handlers.food import process_next_food
+
 from services.intent_classifier import classify
 from utils.water_parser import parse_water_amount
-from handlers.food import cmd_log_food
+from handlers.food import cmd_log_food, process_next_food  # ДОБАВЛЕН ИМПОРТ
 from handlers.water import cmd_water, add_water_quick
 from handlers.shopping import cmd_shopping, add_to_shopping_list, update_list_message, get_or_create_default_list
 from handlers.activity import cmd_fitness
@@ -151,13 +151,9 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
                         return
                     weight = user.weight or 70  # если вес не указан, берём 70 кг
 
-                # Получаем MET из словаря (если есть)
-                from services.activity import CALORIES_PER_MINUTE
+                # Получаем MET из словаря
                 met = CALORIES_PER_MINUTE.get(act_type, 5)
-                # Если длительность не указана, используем рассчитанную из расстояния
-                if not duration:
-                    # Рассчитываем длительность по темпу (уже сделано выше)
-                    pass
+                # Если длительность не указана, используем рассчитанную из расстояния (уже есть)
                 calories = met * weight * (duration / 60)  # формула: MET * вес(кг) * время(ч)
 
                 # Сохраняем активность
@@ -342,9 +338,7 @@ async def confirm_activity_callback(callback: CallbackQuery, state: FSMContext):
         await state.clear()
         return
 
-    calories = CALORIES_PER_MINUTE.get(act_type, 5) * duration
     user_id = callback.from_user.id
-
     async with get_session() as session:
         user_result = await session.execute(
             select(User).where(User.telegram_id == user_id)
@@ -354,7 +348,12 @@ async def confirm_activity_callback(callback: CallbackQuery, state: FSMContext):
             await safe_edit(callback, "❌ Пользователь не найден.")
             await state.clear()
             return
+        weight = user.weight or 70
 
+    met = CALORIES_PER_MINUTE.get(act_type, 5)
+    calories = met * weight * (duration / 60)   # ИСПРАВЛЕНО
+
+    async with get_session() as session:
         activity = Activity(
             user_id=user.id,
             activity_type=act_type,
@@ -370,7 +369,7 @@ async def confirm_activity_callback(callback: CallbackQuery, state: FSMContext):
 
     await safe_edit(
         callback,
-        f"✅ Активность записана: {act_type} {duration} мин, сожжено ~{calories} ккал."
+        f"✅ Активность записана: {act_type} {duration} мин, сожжено ~{calories:.0f} ккал."
     )
     await state.clear()
     await callback.answer()

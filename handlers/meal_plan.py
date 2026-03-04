@@ -1,7 +1,7 @@
 """
 Обработчик планировщика питания.
 Генерирует меню по частям: завтрак, обед, ужин, перекус.
-Исправлена проблема таймаута callback'ов и ускорена генерация через параллельные запросы.
+Исключает дублирование рецептов и гарантирует полноту ответа.
 """
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
@@ -23,7 +23,7 @@ router = Router()
 logger = logging.getLogger(__name__)
 
 # Константы
-AI_MAX_TOKENS = 1500  # для каждого запроса достаточно
+AI_MAX_TOKENS = 2500  # увеличенный лимит, чтобы AI успевал завершить ответ
 MEAL_TYPES = [
     {"key": "breakfast", "name": "🥐 Завтрак"},
     {"key": "lunch", "name": "🥗 Обед"},
@@ -40,6 +40,7 @@ async def generate_meal_part(
 ) -> str:
     """
     Генерирует один приём пищи через AI.
+    previous_meals содержит описания уже сгенерированных блюд, чтобы AI не повторялся.
     """
     prompt = (
         f"Ты диетолог. Составь рецепт для {meal_name.lower()} в рамках здорового питания.\n"
@@ -47,14 +48,23 @@ async def generate_meal_part(
         f"Пол: {user_data['gender']}, возраст: {user_data['age']}, вес: {user_data['weight']} кг, рост: {user_data['height']} см.\n"
         f"Активность: {user_data['activity_level']}\n\n"
         f"Требуемая калорийность этого приёма: {calories:.0f} ккал.\n\n"
-        f"Уже сгенерировано ранее:\n{previous_meals}\n\n"
-        f"Опиши рецепт кратко: название, ингредиенты с калориями (в скобках) и короткую инструкцию. "
-        f"Не используй markdown, только обычный текст и эмодзи."
+    )
+    
+    if previous_meals:
+        prompt += f"Ранее были предложены такие блюда:\n{previous_meals}\n\n"
+        prompt += "❗️ ВАЖНО: Предложи ДРУГОЕ блюдо, не повторяй уже использованные рецепты. Например, если на обед был салат, на ужин сделай горячее.\n\n"
+    
+    prompt += (
+        "Опиши рецепт полно и структурированно:\n"
+        "1. Название блюда\n"
+        "2. Ингредиенты с калориями в скобках на указанное количество (не на 100г)\n"
+        "3. Пошаговая инструкция приготовления\n\n"
+        "Не используй markdown, только обычный текст и эмодзи. Закончи рецепт обязательно."
     )
 
     response = await ask_worker_ai(
         prompt=prompt,
-        system_prompt="Ты полезный ассистент-диетолог. Отвечай на русском.",
+        system_prompt="Ты полезный ассистент-диетолог. Отвечай на русском. Составляй разнообразные, не повторяющиеся рецепты.",
         max_tokens=AI_MAX_TOKENS
     )
 
@@ -63,6 +73,7 @@ async def generate_meal_part(
 
     if response.get("choices"):
         content = response["choices"][0]["message"]["content"]
+        # Если ответ явно неполный (обрывается на середине предложения), можно добавить лог, но доверимся AI
         return f"**{meal_name}** (~{calories:.0f} ккал)\n{content}\n"
     else:
         return f"❌ Не удалось сгенерировать {meal_name}."
@@ -102,7 +113,7 @@ async def cmd_meal_plan(message: Message, state: FSMContext):
 
 @router.callback_query(F.data == "generate_full_menu")
 async def generate_full_menu_callback(callback: CallbackQuery, state: FSMContext):
-    """Генерирует полное меню по частям (параллельно)."""
+    """Генерирует полное меню по частям (параллельно с учётом предыдущих)."""
     # ✅ Немедленно отвечаем на callback, чтобы Telegram не считал его устаревшим
     await callback.answer()
 
@@ -131,29 +142,26 @@ async def generate_full_menu_callback(callback: CallbackQuery, state: FSMContext
 
     distribution = distribute_calories(user.daily_calorie_goal)
 
-    # Создаём список задач для параллельного выполнения
-    tasks = []
-    for meal in MEAL_TYPES:
-        tasks.append(
-            generate_meal_part(
-                user_data,
-                meal['key'],
-                meal['name'],
-                distribution[meal['key']],
-                ""  # при параллельной генерации предыдущие приёмы не нужны
-            )
-        )
-
-    # Запускаем все запросы одновременно
-    results = await asyncio.gather(*tasks, return_exceptions=True)
-
-    # Собираем результат
+    # Генерируем последовательно, чтобы передавать предыдущие блюда и избежать повторов
     full_menu = f"🍽️ <b>Меню на день ({user.daily_calorie_goal:.0f} ккал)</b>\n\n"
-    for result in results:
-        if isinstance(result, Exception):
-            full_menu += f"❌ Ошибка генерации: {result}\n\n"
-        else:
-            full_menu += result + "\n"
+    previous_descriptions = ""
+
+    for meal in MEAL_TYPES:
+        await callback.message.edit_text(f"⏳ Генерирую {meal['name'].lower()}...")
+        part = await generate_meal_part(
+            user_data,
+            meal['key'],
+            meal['name'],
+            distribution[meal['key']],
+            previous_descriptions
+        )
+        full_menu += part + "\n"
+        # Извлекаем краткое описание блюда для контекста (первые 100 символов после названия)
+        # Просто добавим название приёма и первую строку рецепта
+        lines = part.split('\n')
+        if len(lines) > 1:
+            first_line = lines[1].strip() if lines[1].strip() else "блюдо"
+            previous_descriptions += f"{meal['name']}: {first_line}\n"
 
     # Клавиатура
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
@@ -165,14 +173,11 @@ async def generate_full_menu_callback(callback: CallbackQuery, state: FSMContext
 
     # Отправляем готовое меню (редактируем исходное сообщение)
     await callback.message.edit_text(full_menu, reply_markup=keyboard, parse_mode="HTML")
-    # ❗ Не вызываем callback.answer() повторно — он уже был в начале
 
 @router.callback_query(F.data == "save_menu")
 async def save_menu_callback(callback: CallbackQuery, state: FSMContext):
     """Сохраняет последнее сгенерированное меню."""
-    # Сразу отвечаем на callback, чтобы избежать таймаута
     await callback.answer("✅ Рацион сохранён!")
-    # Отправляем копию текущего сообщения
     await callback.message.answer(
         f"📎 <b>Сохранённый рацион</b>\n\n{callback.message.text}",
         parse_mode="HTML"

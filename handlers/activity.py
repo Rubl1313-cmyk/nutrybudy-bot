@@ -14,19 +14,9 @@ from database.models import User, Activity
 from keyboards.inline import get_activity_type_keyboard, get_confirmation_keyboard
 from keyboards.reply import get_main_keyboard, get_cancel_keyboard
 from utils.states import ActivityStates, StepsStates
+from services.activity import CALORIES_PER_MINUTE  # импортируем общий словарь
 
 router = Router()
-
-# 🔥 Калории на минуту для разных активностей (средний человек 70кг)
-CALORIES_PER_MINUTE = {
-    "walking": 4,      # Ходьба (но этот тип больше не используется в меню)
-    "running": 10,     # Бег
-    "cycling": 7,      # Велосипед
-    "gym": 6,          # Тренажёрный зал
-    "yoga": 3,         # Йога
-    "swimming": 8,     # Плавание
-    "other": 5         # Другое
-}
 
 # Функция для проверки наличия профиля
 async def check_user_exists(user_id: int) -> bool:
@@ -94,7 +84,20 @@ async def process_duration(message: Message, state: FSMContext):
         data = await state.get_data()
         act_type = data.get('activity_type', 'other')
 
-        calories = CALORIES_PER_MINUTE.get(act_type, 5) * duration
+        # Получаем вес пользователя
+        user_id = message.from_user.id
+        async with get_session() as session:
+            user_result = await session.execute(
+                select(User).where(User.telegram_id == user_id)
+            )
+            user = user_result.scalar_one_or_none()
+            if not user:
+                await message.answer("❌ Профиль не найден.")
+                return
+            weight = user.weight or 70
+
+        met = CALORIES_PER_MINUTE.get(act_type, 5)
+        calories = met * weight * (duration / 60)   # ИСПРАВЛЕНО
 
         await state.update_data(duration=duration, calories=calories)
         await state.set_state(ActivityStates.confirming)
@@ -113,7 +116,7 @@ async def process_duration(message: Message, state: FSMContext):
             f"✅ <b>Подтверждение</b>\n\n"
             f"🏃 {type_names.get(act_type, act_type)}\n"
             f"⏱️ {duration} минут\n"
-            f"🔥 {calories} ккал\n\n"
+            f"🔥 {calories:.0f} ккал\n\n"
             f"Всё верно?",
             reply_markup=get_confirmation_keyboard()
         )
@@ -135,13 +138,14 @@ async def confirm_activity(callback: CallbackQuery, state: FSMContext):
             await callback.message.edit_text("❌ Пользователь не найден.")
             await state.clear()
             return
+        weight = user.weight or 70
 
         activity = Activity(
             user_id=user.id,
             activity_type=data['activity_type'],
             duration=data['duration'],
             distance=0,
-            calories_burned=data['calories'],
+            calories_burned=data['calories'],  # уже пересчитано в process_duration
             steps=0,
             datetime=datetime.now(),
             source='manual'
@@ -188,6 +192,7 @@ async def process_steps_input(message: Message, state: FSMContext):
             await state.clear()
             return
 
+        # Приблизительный расчёт: 0.04 ккал на шаг (зависит от веса)
         calories = round(steps * 0.04, 1)
         activity = Activity(
             user_id=user.id,

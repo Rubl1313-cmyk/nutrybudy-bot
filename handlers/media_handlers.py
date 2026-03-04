@@ -1,6 +1,7 @@
 """
 Обработчики мультимедиа: фото (распознавание еды) и голос.
 Реализован быстрый ввод: кнопки изменения веса прямо в списке продуктов.
+Каждый продукт отображается с собственным рядом кнопок.
 """
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
@@ -63,6 +64,7 @@ async def recognize_food_from_photo(message: Message) -> List[str]:
 async def show_food_overview(message: Message, state: FSMContext, items: List[str] = None, selected_foods: List[Dict] = None):
     """
     Отображает обзор всех продуктов с кнопками изменения веса и удаления.
+    Каждый продукт имеет свой ряд кнопок под ним.
     """
     data = await state.get_data()
     if items is None:
@@ -74,7 +76,6 @@ async def show_food_overview(message: Message, state: FSMContext, items: List[st
     if not selected_foods and items:
         selected_foods = []
         for name in items:
-            # Пытаемся найти продукт в базе, чтобы получить КБЖУ
             search_results = await search_food(name)
             if search_results:
                 best = search_results[0]
@@ -106,7 +107,6 @@ async def show_food_overview(message: Message, state: FSMContext, items: List[st
 
     await state.update_data(selected_foods=selected_foods, original_items=items)
 
-    # Формируем текст и клавиатуру
     text = "🍽️ <b>Продукты в приёме пищи:</b>\n\n"
     keyboard_buttons = []
 
@@ -115,16 +115,17 @@ async def show_food_overview(message: Message, state: FSMContext, items: List[st
         calories_str = f"{food['calories']:.0f} ккал" if food['weight'] else "0 ккал"
         text += f"{i+1}. {food['name']} — {weight_str} ({calories_str})\n"
 
-        # Кнопки управления весом
+        # Ряд кнопок для этого продукта
         row = [
             InlineKeyboardButton(text="➖10", callback_data=f"weight_dec_{i}_10"),
             InlineKeyboardButton(text="➕10", callback_data=f"weight_inc_{i}_10"),
             InlineKeyboardButton(text="50", callback_data=f"weight_set_{i}_50"),
             InlineKeyboardButton(text="100", callback_data=f"weight_set_{i}_100"),
             InlineKeyboardButton(text="200", callback_data=f"weight_set_{i}_200"),
-            InlineKeyboardButton(text="❌", callback_data=f"food_del_{i}")
+            InlineKeyboardButton(text="❌", callback_data=f"weight_del_{i}")
         ]
         keyboard_buttons.append(row)
+        text += "\n"  # пустая строка для разделения продуктов
 
     # Кнопки общих действий
     keyboard_buttons.append([
@@ -156,7 +157,7 @@ async def weight_callback(callback: CallbackQuery, state: FSMContext):
         return
 
     parts = callback.data.split('_')
-    action = parts[1]  # inc, dec, set
+    action = parts[1]  # inc, dec, set, del
     idx = int(parts[2])
     if idx >= len(selected_foods):
         await callback.answer("❌ Ошибка индекса", show_alert=True)
@@ -272,7 +273,6 @@ async def process_add_weight(message: Message, state: FSMContext):
     text = message.text.strip().lower()
 
     if text == "/skip":
-        # Пропускаем ввод веса, добавим с весом 0
         weight = 0
     else:
         try:
@@ -284,7 +284,6 @@ async def process_add_weight(message: Message, state: FSMContext):
             await message.answer("❌ Введите число от 1 до 10000 г")
             return
 
-    # Ищем продукт в базе
     search_results = await search_food(name)
     if search_results:
         best = search_results[0]
@@ -325,7 +324,6 @@ async def confirm_meal_callback(callback: CallbackQuery, state: FSMContext):
     data = await state.get_data()
     selected_foods = data.get('selected_foods', [])
 
-    # Проверяем, что хотя бы у одного продукта указан вес
     if not any(f['weight'] for f in selected_foods):
         await callback.answer("❌ Укажите вес хотя бы одного продукта", show_alert=True)
         return
@@ -406,7 +404,6 @@ async def handle_voice(message: Message, state: FSMContext):
         if not text:
             await message.answer("❌ Не удалось распознать речь.")
             return
-        # Перенаправляем в AI-ассистент
         from handlers.ai_assistant import process_ai_query
         await process_ai_query(message, state, text)
     except Exception as e:

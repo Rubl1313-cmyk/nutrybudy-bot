@@ -3,6 +3,7 @@ import logging
 import os
 import sys
 from datetime import datetime
+from dotenv import load_dotenv
 from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.client.default import DefaultBotProperties

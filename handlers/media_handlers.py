@@ -485,21 +485,3 @@ async def cancel_meal_callback(callback: CallbackQuery, state: FSMContext):
     await callback.message.answer("❌ Ввод отменён.")
     await state.clear()
     await callback.answer()
-
-# ========== ОБРАБОТКА ГОЛОСА ==========
-@router.message(F.voice)
-async def handle_voice(message: Message, state: FSMContext):
-    try:
-        voice = message.voice
-        file_info = await message.bot.get_file(voice.file_id)
-        file_bytes = await message.bot.download_file(file_info.file_path)
-        file_data = file_bytes.read()
-        text = await transcribe_audio(file_data)
-        if not text:
-            await message.answer("❌ Не удалось распознать речь.")
-            return
-        from handlers.ai_assistant import process_ai_query
-        await process_ai_query(message, state, text)
-    except Exception as e:
-        logger.error(f"Voice error: {e}")
-        await message.answer("❌ Ошибка распознавания.")

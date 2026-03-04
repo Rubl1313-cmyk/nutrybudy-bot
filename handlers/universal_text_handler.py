@@ -216,18 +216,17 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
             await cmd_shopping(message, state)
         return
 
-    # ----- ПРИЁМ ПИЩИ -----
+     # ----- ПРИЁМ ПИЩИ -----
     if intent == "food":
         meal_type = intent_data.get("meal_type", "snack")
         items = intent_data.get("items")
         if items:
-            await state.update_data(
-                pending_items=items,
-                current_index=0,
-                selected_foods=[],
-                meal_type=meal_type
-            )
-            await process_next_food(message, state)
+            # Используем новый интерфейс сводки
+            from handlers.media_handlers import show_food_overview
+            # Создаём пустой список selected_foods (пользователь будет редактировать)
+            selected_foods = [{'name': name, 'weight': None, 'calories': 0, 'protein': 0, 'fat': 0, 'carbs': 0} for name in items]
+            await state.update_data(meal_type=meal_type, original_items=items)
+            await show_food_overview(message, state, items, selected_foods)
         else:
             await cmd_log_food(message, state)
         return

@@ -6,6 +6,7 @@
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.fsm.context import FSMContext
+from aiogram.exceptions import TelegramBadRequest
 import logging
 from PIL import Image
 import io
@@ -100,13 +101,19 @@ async def update_totals_message(chat_id: int, message_id: int, bot, selected_foo
          InlineKeyboardButton(text="❌ Отмена", callback_data="cancel_meal")]
     ])
 
-    await bot.edit_message_text(
-        text,
-        chat_id=chat_id,
-        message_id=message_id,
-        reply_markup=keyboard,
-        parse_mode="HTML"
-    )
+    try:
+        await bot.edit_message_text(
+            text,
+            chat_id=chat_id,
+            message_id=message_id,
+            reply_markup=keyboard,
+            parse_mode="HTML"
+        )
+    except TelegramBadRequest as e:
+        if "message is not modified" in str(e):
+            logger.debug("Totals message not modified, skipping")
+        else:
+            raise e
 
 async def send_product_message(chat_id: int, bot, index: int, food: Dict, totals_msg_id: int) -> int:
     """Отправляет сообщение для одного продукта и возвращает его message_id."""

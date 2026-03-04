@@ -33,7 +33,9 @@ class FoodStates(StatesGroup):
     entering_weight = State()
     manual_food_name = State()
     confirming = State()
-
+    editing_weight = State()      # новое состояние для редактирования веса
+    adding_name = State()  
+    adding_weight = State()
 
 # =============================================================================
 # 💧 ВОДА
@@ -136,3 +138,6 @@ class ProgressStates(StatesGroup):
 
 class MealPlanStates(StatesGroup):
     viewing_plan = State()
+
+class AIAssistantStates(StatesGroup):
+    waiting_for_question = State()

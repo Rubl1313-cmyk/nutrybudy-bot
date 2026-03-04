@@ -22,6 +22,7 @@ from database.db import get_session
 from database.models import User, Activity
 from datetime import datetime
 from utils.ai_tools import get_weather
+from handlers.shopping import update_list_message
 
 # Убедитесь, что здесь НЕТ импорта from handlers.ai_assistant import process_ai_query
 
@@ -238,7 +239,15 @@ async def action_cancel_callback(callback: CallbackQuery, state: FSMContext):
 async def choose_shopping_callback(callback: CallbackQuery, state: FSMContext):
     data = await state.get_data()
     text = data.get('pending_text', '')
-    await add_to_shopping_list(callback.message, text)
+    await add_to_shopping_list(callback, text)  # ← передаём callback как event
+
+    # После добавления обновляем сообщение со списком (если список уже был открыт)
+    async with get_session() as session:
+        from handlers.shopping import get_or_create_default_list
+        shopping_list = await get_or_create_default_list(callback.from_user.id, session, callback)
+        if shopping_list:
+            await update_list_message(callback, shopping_list.id)
+
     await callback.message.delete()
     await callback.answer("✅ Добавлено в список покупок")
 

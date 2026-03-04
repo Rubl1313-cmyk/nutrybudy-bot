@@ -19,25 +19,24 @@ from utils.states import ProfileStates
 logger = logging.getLogger(__name__)
 router = Router()
 
-
 @router.message(Command("set_profile"))
 @router.message(F.text == "👤 Профиль")
 async def cmd_profile(message: Message, state: FSMContext):
     """Показать профиль или начать настройку"""
     await state.clear()
-    
+
     user_id = message.from_user.id
-    
+
     async with get_session() as session:
         result = await session.execute(
             select(User).where(User.telegram_id == user_id)
         )
         user = result.scalar_one_or_none()
-        
+
         if user and user.weight and user.height:
             gender_emoji = "♂️" if user.gender == "male" else "♀️"
             goal_emoji = {"lose": "⬇️", "maintain": "➡️", "gain": "⬆️"}.get(user.goal, "🎯")
-            
+
             text = (
                 f"👤 <b>Твой профиль</b>\n\n"
                 f"⚖️ Вес: {user.weight} кг\n"
@@ -54,7 +53,7 @@ async def cmd_profile(message: Message, state: FSMContext):
                 f"🍚 Углеводы: {user.daily_carbs_goal:.1f} г\n"
                 f"💧 Вода: {user.daily_water_goal:.0f} мл"
             )
-            
+
             keyboard = ReplyKeyboardMarkup(
                 keyboard=[
                     [KeyboardButton(text="✏️ Изменить профиль")],
@@ -63,7 +62,7 @@ async def cmd_profile(message: Message, state: FSMContext):
                 ],
                 resize_keyboard=True
             )
-            
+
             await message.answer(text, reply_markup=keyboard, parse_mode="HTML")
         else:
             await state.set_state(ProfileStates.weight)
@@ -74,7 +73,6 @@ async def cmd_profile(message: Message, state: FSMContext):
                 parse_mode="HTML"
             )
 
-
 @router.message(F.text == "✏️ Изменить профиль")
 async def edit_profile(message: Message, state: FSMContext):
     await state.clear()
@@ -84,7 +82,6 @@ async def edit_profile(message: Message, state: FSMContext):
         reply_markup=get_cancel_keyboard()
     )
 
-
 @router.message(ProfileStates.weight)
 async def process_weight(message: Message, state: FSMContext):
     """Ввод веса — надёжный парсинг"""
@@ -92,20 +89,20 @@ async def process_weight(message: Message, state: FSMContext):
         text = message.text.strip()
         import re
         match = re.search(r'(\d+([.,]\d+)?)', text)
-        
+
         if match:
             weight_str = match.group(1).replace(',', '.')
             weight = float(weight_str)
         else:
             weight = float(text.replace(',', '.'))
-        
+
         if not 30 <= weight <= 300:
             raise ValueError("Вес вне диапазона")
-            
+
         await state.update_data(weight=weight)
         await state.set_state(ProfileStates.height)
         await message.answer(f"✅ {weight} кг\n\n📏 Введи рост (см):")
-        
+
     except (ValueError, IndexError, AttributeError, TypeError) as e:
         logger.warning(f"⚠️ Weight parse error: {e}")
         await message.answer(
@@ -114,7 +111,6 @@ async def process_weight(message: Message, state: FSMContext):
             parse_mode="HTML"
         )
 
-
 @router.message(ProfileStates.height)
 async def process_height(message: Message, state: FSMContext):
     """Ввод роста"""
@@ -122,23 +118,22 @@ async def process_height(message: Message, state: FSMContext):
         text = message.text.strip()
         import re
         match = re.search(r'(\d+([.,]\d+)?)', text)
-        
+
         if match:
             height_str = match.group(1).replace(',', '.')
             height = float(height_str)
         else:
             height = float(text.replace(',', '.'))
-        
+
         if not 100 <= height <= 250:
             raise ValueError("Рост вне диапазона")
-            
+
         await state.update_data(height=height)
         await state.set_state(ProfileStates.age)
         await message.answer(f"✅ {height} см\n\n🎂 Введи возраст:")
-        
+
     except (ValueError, IndexError, AttributeError, TypeError):
         await message.answer("❌ Введи число от 100 до 250")
-
 
 @router.message(ProfileStates.age)
 async def process_age(message: Message, state: FSMContext):
@@ -147,10 +142,10 @@ async def process_age(message: Message, state: FSMContext):
         age = int(message.text.strip())
         if not 10 <= age <= 120:
             raise ValueError("Возраст вне диапазона")
-            
+
         await state.update_data(age=age)
         await state.set_state(ProfileStates.gender)
-        
+
         keyboard = ReplyKeyboardMarkup(
             keyboard=[
                 [KeyboardButton(text="♂️ Мужской")],
@@ -159,23 +154,22 @@ async def process_age(message: Message, state: FSMContext):
             resize_keyboard=True
         )
         await message.answer(f"✅ {age} лет\n\n🚻 Выбери пол:", reply_markup=keyboard)
-        
+
     except (ValueError, TypeError):
         await message.answer("❌ Введи целое число от 10 до 120")
-
 
 @router.message(ProfileStates.gender)
 async def process_gender(message: Message, state: FSMContext):
     """Выбор пола"""
     gender_map = {"♂️ Мужской": "male", "♀️ Женский": "female"}
-    
+
     if message.text not in gender_map:
         await message.answer("❌ Выбери из кнопок")
         return
-        
+
     await state.update_data(gender=gender_map[message.text])
     await state.set_state(ProfileStates.activity)
-    
+
     keyboard = ReplyKeyboardMarkup(
         keyboard=[
             [KeyboardButton(text="🪑 Сидячий")],
@@ -186,19 +180,18 @@ async def process_gender(message: Message, state: FSMContext):
     )
     await message.answer(f"✅ {message.text}\n\n🏋️ Активность:", reply_markup=keyboard)
 
-
 @router.message(ProfileStates.activity)
 async def process_activity(message: Message, state: FSMContext):
     """Выбор активности"""
     act_map = {"🪑 Сидячий": "low", "🚶 Средний": "medium", "🏃 Высокий": "high"}
-    
+
     if message.text not in act_map:
         await message.answer("❌ Выбери из кнопок")
         return
-        
+
     await state.update_data(activity=act_map[message.text])
     await state.set_state(ProfileStates.goal)
-    
+
     keyboard = ReplyKeyboardMarkup(
         keyboard=[
             [KeyboardButton(text="⬇️ Похудение")],
@@ -209,74 +202,98 @@ async def process_activity(message: Message, state: FSMContext):
     )
     await message.answer(f"✅ {message.text}\n\n🎯 Цель:", reply_markup=keyboard)
 
-
 @router.message(ProfileStates.goal)
 async def process_goal(message: Message, state: FSMContext):
     """Выбор цели"""
     goal_map = {"⬇️ Похудение": "lose", "➡️ Поддержание": "maintain", "⬆️ Набор массы": "gain"}
-    
+
     if message.text not in goal_map:
         await message.answer("❌ Выбери из кнопок")
         return
-        
+
     await state.update_data(goal=goal_map[message.text])
     await state.set_state(ProfileStates.city)
     await message.answer(f"✅ {message.text}\n\n🌆 Город:", reply_markup=get_cancel_keyboard())
 
-
 @router.message(ProfileStates.city)
 async def process_city(message: Message, state: FSMContext):
-    """Сохранение профиля"""
+    """Сохранение профиля с обработкой ошибок"""
     city = message.text.strip()
     data = await state.get_data()
-    
-    temp = await get_temperature(city)
-    water_goal = calculate_water_goal(data['weight'], data['activity'], temp)
-    calorie_goal, protein, fat, carbs = calculate_calorie_goal(
-        data['weight'], data['height'], data['age'],
-        data['gender'], data['activity'], data['goal']
-    )
-    
-    async with get_session() as session:
-        result = await session.execute(
-            select(User).where(User.telegram_id == message.from_user.id)
+
+    # Проверяем, что все необходимые данные есть
+    required_fields = ['weight', 'height', 'age', 'gender', 'activity', 'goal']
+    missing = [field for field in required_fields if field not in data]
+    if missing:
+        logger.error(f"Missing fields in state: {missing}")
+        await message.answer(
+            "❌ Произошла ошибка: не все данные профиля были заполнены. Начните заново.",
+            reply_markup=get_main_keyboard()
         )
-        user = result.scalar_one_or_none()
-        
-        if not user:
-            user = User(telegram_id=message.from_user.id)
-            session.add(user)
-        
-        user.weight = data['weight']
-        user.height = data['height']
-        user.age = data['age']
-        user.gender = data['gender']
-        user.activity_level = data['activity']
-        user.goal = data['goal']
-        user.city = city
-        user.daily_water_goal = water_goal
-        user.daily_calorie_goal = calorie_goal
-        user.daily_protein_goal = protein
-        user.daily_fat_goal = fat
-        user.daily_carbs_goal = carbs
-        
-        await session.commit()
-    
-    await state.clear()
-    
-    gender_emoji = "♂️" if data['gender'] == "male" else "♀️"
-    goal_emoji = {"lose": "⬇️", "maintain": "➡️", "gain": "⬆️"}.get(data['goal'], "🎯")
-    
-    await message.answer(
-        f"🎉 <b>Профиль сохранён!</b>\n\n"
-        f"👤 {gender_emoji} {data['gender'].capitalize()}, {data['age']} лет\n"
-        f"⚖️ {data['weight']} кг | 📏 {data['height']} см\n"
-        f"🏃 {data['activity']} | 🎯 {goal_emoji} {data['goal']}\n"
-        f"🌆 {city} ({temp}°C)\n\n"
-        f"📊 <b>Твои нормы:</b>\n"
-        f"🔥 Калории: <b>{calorie_goal} ккал</b>\n"
-        f"🥩 Белки: {protein} г | 🥑 Жиры: {fat} г | 🍚 Углеводы: {carbs} г\n"
-        f"💧 Вода: <b>{water_goal} мл</b>",
-        reply_markup=get_main_keyboard(),
-        parse_mode="HTML"
-    )
+        await state.clear()
+        return
+
+    try:
+        # Получаем температуру (всегда число, даже при ошибке)
+        temp = await get_temperature(city)
+
+        # Рассчитываем нормы
+        water_goal = calculate_water_goal(data['weight'], data['activity'], temp)
+        calorie_goal, protein, fat, carbs = calculate_calorie_goal(
+            data['weight'], data['height'], data['age'],
+            data['gender'], data['activity'], data['goal']
+        )
+
+        # Сохраняем в БД
+        async with get_session() as session:
+            result = await session.execute(
+                select(User).where(User.telegram_id == message.from_user.id)
+            )
+            user = result.scalar_one_or_none()
+
+            if not user:
+                user = User(telegram_id=message.from_user.id)
+                session.add(user)
+
+            user.weight = data['weight']
+            user.height = data['height']
+            user.age = data['age']
+            user.gender = data['gender']
+            user.activity_level = data['activity']
+            user.goal = data['goal']
+            user.city = city
+            user.daily_water_goal = water_goal
+            user.daily_calorie_goal = calorie_goal
+            user.daily_protein_goal = protein
+            user.daily_fat_goal = fat
+            user.daily_carbs_goal = carbs
+
+            await session.commit()
+            logger.info(f"✅ Profile saved for user {message.from_user.id}")
+
+        await state.clear()
+
+        gender_emoji = "♂️" if data['gender'] == "male" else "♀️"
+        goal_emoji = {"lose": "⬇️", "maintain": "➡️", "gain": "⬆️"}.get(data['goal'], "🎯")
+
+        await message.answer(
+            f"🎉 <b>Профиль сохранён!</b>\n\n"
+            f"👤 {gender_emoji} {data['gender'].capitalize()}, {data['age']} лет\n"
+            f"⚖️ {data['weight']} кг | 📏 {data['height']} см\n"
+            f"🏃 {data['activity']} | 🎯 {goal_emoji} {data['goal']}\n"
+            f"🌆 {city} ({temp}°C)\n\n"
+            f"📊 <b>Твои нормы:</b>\n"
+            f"🔥 Калории: <b>{calorie_goal} ккал</b>\n"
+            f"🥩 Белки: {protein} г | 🥑 Жиры: {fat} г | 🍚 Углеводы: {carbs} г\n"
+            f"💧 Вода: <b>{water_goal} мл</b>",
+            reply_markup=get_main_keyboard(),
+            parse_mode="HTML"
+        )
+
+    except Exception as e:
+        logger.error(f"❌ Error saving profile: {e}", exc_info=True)
+        await message.answer(
+            "❌ Произошла внутренняя ошибка при сохранении профиля. Попробуйте позже.",
+            reply_markup=get_main_keyboard()
+        )
+        await state.clear()

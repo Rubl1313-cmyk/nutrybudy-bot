@@ -7,14 +7,14 @@ from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
-from sqlalchemy import select, func
+from sqlalchemy import select
 from datetime import datetime
 from database.db import get_session
 from database.models import User, Activity
 from keyboards.inline import get_activity_type_keyboard, get_confirmation_keyboard
 from keyboards.reply import get_main_keyboard, get_cancel_keyboard
 from utils.states import ActivityStates, StepsStates
-from services.activity import CALORIES_PER_MINUTE  # импортируем общий словарь
+from services.activity import CALORIES_PER_MINUTE  # ✅ используем общий словарь
 
 router = Router()
 
@@ -97,7 +97,7 @@ async def process_duration(message: Message, state: FSMContext):
             weight = user.weight or 70
 
         met = CALORIES_PER_MINUTE.get(act_type, 5)
-        calories = met * weight * (duration / 60)   # ИСПРАВЛЕНО
+        calories = met * weight * (duration / 60)
 
         await state.update_data(duration=duration, calories=calories)
         await state.set_state(ActivityStates.confirming)
@@ -138,14 +138,13 @@ async def confirm_activity(callback: CallbackQuery, state: FSMContext):
             await callback.message.edit_text("❌ Пользователь не найден.")
             await state.clear()
             return
-        weight = user.weight or 70
 
         activity = Activity(
             user_id=user.id,
             activity_type=data['activity_type'],
             duration=data['duration'],
             distance=0,
-            calories_burned=data['calories'],  # уже пересчитано в process_duration
+            calories_burned=data['calories'],
             steps=0,
             datetime=datetime.now(),
             source='manual'
@@ -192,7 +191,6 @@ async def process_steps_input(message: Message, state: FSMContext):
             await state.clear()
             return
 
-        # Приблизительный расчёт: 0.04 ккал на шаг (зависит от веса)
         calories = round(steps * 0.04, 1)
         activity = Activity(
             user_id=user.id,

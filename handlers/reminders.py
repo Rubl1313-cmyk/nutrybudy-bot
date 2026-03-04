@@ -1,7 +1,7 @@
 
 """
 Обработчик напоминаний
-✅ Проверка пользователя, обработка confirm/cancel
+✅ ИСПРАВЛЕНО: Добавлено сохранение type для custom напоминаний
 """
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery, ReplyKeyboardMarkup, KeyboardButton
@@ -98,7 +98,7 @@ async def new_reminder_callback(callback: CallbackQuery, state: FSMContext):
 async def process_reminder_type(callback: CallbackQuery, state: FSMContext):
     """Выбор типа напоминания"""
     rem_type = callback.data.split("_")[1]
-    await state.update_data(type=rem_type)
+    await state.update_data(type=rem_type)  # ✅ Сохраняем type
 
     title_map = {
         "meal": "🍽️ Приём пищи",
@@ -122,8 +122,14 @@ async def process_reminder_type(callback: CallbackQuery, state: FSMContext):
 
 @router.message(ReminderStates.entering_title, F.text)
 async def process_title(message: Message, state: FSMContext):
+    """✅ ИСПРАВЛЕНО: Сохраняем type='custom' при вводе названия"""
     title = message.text.strip()
     await state.update_data(title=title)
+    # ✅ ВАЖНО: Убеждаемся, что type сохранён
+    data = await state.get_data()
+    if 'type' not in data:
+        await state.update_data(type='custom')
+    
     await state.set_state(ReminderStates.entering_time)
     await message.answer(
         f"✅ Текст: <b>{title}</b>\n\n"
@@ -180,6 +186,12 @@ async def confirm_reminder(callback: CallbackQuery, state: FSMContext):
     """Сохранение напоминания"""
     data = await state.get_data()
     telegram_id = callback.from_user.id
+
+    # ✅ ПРОВЕРКА: есть ли все необходимые данные
+    if 'type' not in data or 'title' not in data or 'time' not in data or 'days' not in data:
+        await callback.answer("❌ Ошибка: не хватает данных. Попробуйте ещё раз.", show_alert=True)
+        await state.clear()
+        return
 
     async with get_session() as session:
         # Получаем пользователя по telegram_id

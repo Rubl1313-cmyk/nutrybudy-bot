@@ -10,3 +10,5 @@ Pillow==10.4.0
 gunicorn==21.2.0
 pymorphy3
 ffmpeg-python
+googletrans==4.0.0rc1
+pycryptodome  # для OAuth-подписей

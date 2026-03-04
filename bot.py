@@ -160,6 +160,7 @@ async def main():
     # Подключение роутеров
     dp.include_router(common.router)
     dp.include_router(profile.router)
+    dp.include_router(universal_router)
     dp.include_router(food.router)
     dp.include_router(water.router)
     dp.include_router(shopping.router)
@@ -168,7 +169,6 @@ async def main():
     dp.include_router(progress.router)
     dp.include_router(media_handlers.router)
     dp.include_router(ai_assistant.router)
-    dp.include_router(universal_router)
     dp.include_router(meal_plan.router)
 
     logging.info("✅ All routers included")

@@ -16,25 +16,129 @@ MEAL_TYPES = {
 }
 
 ACTIVITY_TYPES = {
+    # ========== ХОДЬБА ==========
     "ходьба": "walking",
     "прогулка": "walking",
+    "пешая прогулка": "walking",
     "гулял": "walking",
-    "пешком": "walking",
-    "бег": "running",
-    "побегал": "running",
-    "бегал": "running",
-    "пробежка": "running",
-    "йога": "yoga",
-    "позанимался йогой": "yoga",
-    "плавание": "swimming",
-    "поплавал": "swimming",
-    "велосипед": "cycling",
-    "покатался на велосипеде": "cycling",
-    "тренажёрный зал": "gym",
-    "тренажерный зал": "gym",
-    "тренировка": "workout",
-    "потренировался": "workout",
-    "спортзал": "gym"
+    "ходил пешком": "walking",
+    "скандинавская ходьба": "nordic_walking",
+    "ходьба быстрая": "walking_brisk",
+    "ходьба в гору": "walking_uphill",
+    "подъём по лестнице": "stair_walking",
+    "лестница": "stair_walking",
+    
+    # ========== БЕГ ==========
+    "бег": "running_10kmh",
+    "пробежка": "jogging",
+    "бег трусцой": "jogging",
+    "бег быстрый": "running_14kmh",
+    "бег по пересечённой": "running_cross",
+    "бег по лестнице": "running_stairs",
+    
+    # ========== ВЕЛОСИПЕД ==========
+    "велосипед": "cycling_moderate",
+    "велопрогулка": "cycling_leisure",
+    "велосипед быстро": "cycling_vigorous",
+    "велотренажёр": "stationary_bike",
+    "вело": "cycling_moderate",
+    
+    # ========== ПЛАВАНИЕ ==========
+    "плавание": "swimming_moderate",
+    "бассейн": "swimming_moderate",
+    "кроль": "swimming_fast",
+    "брасс": "swimming_breaststroke",
+    "аквааэробика": "water_aerobics",
+    "водное поло": "water_polo",
+    
+    # ========== ЗИМНИЕ ВИДЫ ==========
+    "лыжи": "skiing_cross_country",
+    "беговые лыжи": "skiing_cross_country",
+    "горные лыжи": "skiing_downhill",
+    "сноуборд": "snowboarding",
+    "коньки": "skating",
+    "катание на коньках": "skating",
+    "фигурное катание": "ice_skating_figure",
+    "скоростной бег на коньках": "skating_speed",
+    
+    # ========== СПОРТИВНЫЕ ИГРЫ ==========
+    "футбол": "football",
+    "баскетбол": "basketball",
+    "волейбол": "volleyball",
+    "теннис": "tennis_singles",
+    "настольный теннис": "table_tennis",
+    "бадминтон": "badminton",
+    "сквош": "squash",
+    "гандбол": "handball",
+    "хоккей": "hockey",
+    "гольф": "golf_carry",
+    
+    # ========== ЕДИНОБОРСТВА ==========
+    "бокс": "boxing_sparring",
+    "карате": "karate",
+    "дзюдо": "judo",
+    "таэквондо": "taekwondo",
+    "кикбоксинг": "kickboxing",
+    "муай тай": "muay_thai",
+    
+    # ========== ТРЕНАЖЁРНЫЙ ЗАЛ ==========
+    "тренажёрный зал": "weightlifting_moderate",
+    "тренажерка": "weightlifting_moderate",
+    "качалка": "weightlifting_heavy",
+    "силовая": "weightlifting_moderate",
+    "круговая тренировка": "circuit_training",
+    "воркаут": "calisthenics_vigorous",
+    "турник": "pullups_pushups",
+    "брусья": "pullups_pushups",
+    "эллипс": "elliptical",
+    "гребной тренажёр": "rowing_machine",
+    "степпер": "stair_climber",
+    
+    # ========== ЙОГА ==========
+    "йога": "yoga_hatha",
+    "аштанга": "yoga_ashtanga",
+    "пилатес": "pilates",
+    "стретчинг": "stretching",
+    "растяжка": "stretching",
+    "бодифлекс": "bodyflex",
+    
+    # ========== ТАНЦЫ ==========
+    "танцы": "dance_modern",
+    "бальные танцы": "dance_ballroom",
+    "диско": "dance_disco",
+    "зумба": "zumba",
+    "балет": "dance_ballet",
+    
+    # ========== ДОМАШНИЕ ДЕЛА ==========
+    "уборка": "housework_moderate",
+    "мытьё полов": "housework_moderate",
+    "работа в саду": "gardening",
+    "огород": "gardening",
+    "стрижка газона": "mowing_lawn",
+    "колка дров": "chopping_wood",
+    "чистка снега": "shoveling_snow",
+    
+    # ========== АКТИВНЫЙ ОТДЫХ ==========
+    "туризм": "hiking",
+    "поход": "hiking",
+    "скалолазание": "climbing_rock",
+    "альпинизм": "climbing_mountain",
+    "рыбалка": "fishing",
+    "верховая езда": "horseback_riding_trot",
+    "лошади": "horseback_riding_trot",
+    "каякинг": "kayaking",
+    "каноэ": "canoeing",
+    "сёрфинг": "surfing",
+    "скейтборд": "skateboarding",
+    "ролики": "rollerblading",
+    "батут": "trampoline",
+    
+    # ========== ДРУГОЕ ==========
+    "секс": "sex_active",
+    "сон": "sleeping",
+    "шоппинг": "shopping",
+    "магазин": "shopping",
+    "готовка": "cooking",
 }
 
 # Ключевые слова с учётом разговорных форм

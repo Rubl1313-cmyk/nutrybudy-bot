@@ -7,16 +7,16 @@ from aiogram.types import Message, CallbackQuery
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from sqlalchemy import select
-from sqlalchemy.orm import selectinload
 from database.db import get_session
 from database.models import User, ShoppingList, ShoppingItem
-from keyboards.inline import get_shopping_lists_keyboard, get_shopping_items_keyboard
+from keyboards.inline import get_shopping_items_keyboard
 from keyboards.reply import get_main_keyboard
 from utils.parsers import parse_shopping_items
 from utils.states import ShoppingStates
+import logging
 
 router = Router()
-
+logger = logging.getLogger(__name__)
 
 async def get_or_create_default_list(telegram_id: int, session, event=None):
     """
@@ -32,7 +32,8 @@ async def get_or_create_default_list(telegram_id: int, session, event=None):
     # Если пользователя нет, создаём нового
     if not user:
         if event is None:
-            return None  # нет event — не можем создать
+            logger.warning(f"Нет event для создания пользователя {telegram_id}")
+            return None
         # Создаём пользователя с минимальными данными из event
         user = User(
             telegram_id=telegram_id,
@@ -66,7 +67,6 @@ async def get_or_create_default_list(telegram_id: int, session, event=None):
 
     return shopping_list
 
-
 @router.message(Command("shopping"))
 @router.message(F.text == "📋 Списки покупок")
 async def cmd_shopping(message: Message, state: FSMContext):
@@ -75,10 +75,10 @@ async def cmd_shopping(message: Message, state: FSMContext):
     user_id = message.from_user.id
 
     async with get_session() as session:
-        shopping_list = await get_or_create_default_list(user_id, session)
+        shopping_list = await get_or_create_default_list(user_id, session, message)
         if not shopping_list:
             await message.answer(
-                "❌ Сначала настройте профиль через /set_profile",
+                "❌ Не удалось создать список покупок.",
                 reply_markup=get_main_keyboard()
             )
             return
@@ -107,9 +107,7 @@ async def cmd_shopping(message: Message, state: FSMContext):
             parse_mode="HTML"
         )
 
-
 # ========== ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ ДЛЯ ДОБАВЛЕНИЯ ТОВАРОВ ==========
-# Эта функция будет импортироваться в другие модули
 
 async def add_to_shopping_list(event, text: str):
     """
@@ -126,7 +124,8 @@ async def add_to_shopping_list(event, text: str):
         return
 
     async with get_session() as session:
-        shopping_list = await get_or_create_default_list(user_id, session)
+        # Передаём event для автоматического создания пользователя
+        shopping_list = await get_or_create_default_list(user_id, session, event)
         if not shopping_list:
             if hasattr(event, 'message') and event.message:
                 await event.message.answer("❌ Не удалось получить список покупок.")
@@ -153,7 +152,6 @@ async def add_to_shopping_list(event, text: str):
         else:
             await event.answer(f"✅ Добавлено в список покупок: {', '.join(added)}")
 
-
 # ========== ОБРАБОТЧИКИ КНОПОК УПРАВЛЕНИЯ ==========
 
 @router.callback_query(F.data.startswith("item_incr_"))
@@ -166,7 +164,6 @@ async def increase_quantity(callback: CallbackQuery):
             await session.commit()
             await update_list_message(callback, item.list_id)
     await callback.answer()
-
 
 @router.callback_query(F.data.startswith("item_decr_"))
 async def decrease_quantity(callback: CallbackQuery):
@@ -183,7 +180,6 @@ async def decrease_quantity(callback: CallbackQuery):
             await update_list_message(callback, item.list_id)
     await callback.answer()
 
-
 @router.callback_query(F.data.startswith("toggle_item_"))
 async def toggle_item(callback: CallbackQuery):
     item_id = int(callback.data.split("_")[2])
@@ -194,7 +190,6 @@ async def toggle_item(callback: CallbackQuery):
             await session.commit()
             await update_list_message(callback, item.list_id)
     await callback.answer()
-
 
 @router.callback_query(F.data.startswith("delete_item_"))
 async def delete_item(callback: CallbackQuery):
@@ -208,7 +203,6 @@ async def delete_item(callback: CallbackQuery):
             await update_list_message(callback, list_id)
     await callback.answer()
 
-
 @router.callback_query(F.data.startswith("add_item_"))
 async def add_item_prompt(callback: CallbackQuery, state: FSMContext):
     list_id = int(callback.data.split("_")[2])
@@ -218,7 +212,6 @@ async def add_item_prompt(callback: CallbackQuery, state: FSMContext):
         "📝 Введите название товара (можно с количеством, например «2 яйца»):"
     )
     await callback.answer()
-
 
 @router.message(ShoppingStates.adding_item, F.text)
 async def add_item_manual(message: Message, state: FSMContext):
@@ -237,13 +230,12 @@ async def add_item_manual(message: Message, state: FSMContext):
         shopping_list = await session.get(ShoppingList, list_id)
         if not shopping_list or shopping_list.is_archived:
             # Список не найден или архивирован – создаём новый
-            shopping_list = await get_or_create_default_list(message.from_user.id, session)
+            shopping_list = await get_or_create_default_list(message.from_user.id, session, message)
             if not shopping_list:
                 await message.answer("❌ Не удалось создать список покупок.")
                 await state.clear()
                 return
             list_id = shopping_list.id
-            # Обновляем состояние новым ID
             await state.update_data(current_list_id=list_id)
             await message.answer("🔄 Ваш список покупок был пересоздан, продолжаем...")
 
@@ -269,9 +261,7 @@ async def add_item_manual(message: Message, state: FSMContext):
 
     await state.clear()
     await message.answer(f"✅ Добавлено в список покупок:\n" + "\n".join(added))
-    # Обновляем сообщение со списком (если нужно)
     await update_list_message(message, list_id, is_callback=False)
-
 
 @router.callback_query(F.data.startswith("delete_list_"))
 async def delete_list(callback: CallbackQuery):
@@ -291,12 +281,11 @@ async def delete_list(callback: CallbackQuery):
         pass
     await callback.answer()
 
-
 @router.callback_query(F.data == "back_to_lists")
 async def back_to_lists(callback: CallbackQuery):
     user_id = callback.from_user.id
     async with get_session() as session:
-        shopping_list = await get_or_create_default_list(user_id, session)
+        shopping_list = await get_or_create_default_list(user_id, session, callback)
         if not shopping_list:
             await callback.message.edit_text("❌ Ошибка.")
             await callback.answer()
@@ -325,7 +314,6 @@ async def back_to_lists(callback: CallbackQuery):
             parse_mode="HTML"
         )
     await callback.answer()
-
 
 async def update_list_message(event: CallbackQuery | Message, list_id: int, is_callback: bool = True):
     async with get_session() as session:

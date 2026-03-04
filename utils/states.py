@@ -97,6 +97,10 @@ class ActivityStates(StatesGroup):
     # Подтверждение
     confirming = State()
 
+    waiting_for_type = State()
+    waiting_for_duration = State()
+    confirming = State()
+
 
 # =============================================================================
 # ⚖️ ВЕС

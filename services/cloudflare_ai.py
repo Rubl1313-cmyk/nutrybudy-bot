@@ -38,9 +38,13 @@ WHISPER_MODELS = [
     "@cf/openai/whisper-large-v3-turbo",
 ]
 
+# Улучшенный промпт для LLaVA: просим конкретное название блюда
 LLAVA_FALLBACK_PROMPT = """
-What food is in this image? Answer with the name of the dish in English only, nothing else.
-Example: "Caesar salad" or "Grilled chicken breast"
+Look at this image. If it contains a plate or bowl with food, describe the specific dish in English.
+If it's a known salad like Caesar salad, Greek salad, etc., name it precisely.
+If it's a main course, name it (e.g., 'Grilled chicken breast', 'Spaghetti bolognese').
+Answer with the dish name only, no extra words.
+Examples: 'Caesar salad', 'Grilled salmon', 'Vegetable soup'.
 """
 
 def _bytes_to_array(image_bytes: bytes) -> list:
@@ -48,12 +52,15 @@ def _bytes_to_array(image_bytes: bytes) -> list:
     return list(image_bytes)
 
 def _is_valid_food_label(label: str) -> bool:
-    """Проверяет, что метка выглядит как еда (не шаблон)."""
+    """Проверяет, что метка выглядит как еда (не шаблон и не посуда)."""
     if not label or len(label) < 3:
         return False
     label_lower = label.lower()
+    # Исключаем посуду и не-еду
     non_food = ['person', 'people', 'man', 'woman', 'child', 'dog', 'cat', 
-                'car', 'truck', 'building', 'house', 'animal', 'furniture']
+                'car', 'truck', 'building', 'house', 'animal', 'furniture',
+                'plate', 'bowl', 'dish', 'cup', 'glass', 'fork', 'knife', 'spoon',
+                'table', 'napkin']
     for item in non_food:
         if item in label_lower:
             return False
@@ -67,19 +74,11 @@ def _format_classification_result(api_result: Any) -> Optional[List[Dict]]:
     logger.info(f"Raw API result type: {type(api_result)}")
     logger.info(f"Raw API result preview: {str(api_result)[:200]}")
     
-    # Если результат — словарь, ищем массив в нём
-    if isinstance(api_result, dict):
-        # Пробуем получить массив по ключу 'result'
-        if 'result' in api_result:
-            classes_data = api_result['result']
-        else:
-            # Если нет 'result', возможно, массив в другом ключе
-            classes_data = api_result.get('classes', [])
+    if isinstance(api_result, dict) and 'result' in api_result:
+        classes_data = api_result['result']
     else:
-        # Если результат уже массив
         classes_data = api_result
     
-    # Убеждаемся, что работаем со списком
     if not isinstance(classes_data, list):
         logger.warning(f"Classes data is not a list: {type(classes_data)}")
         return None
@@ -88,23 +87,25 @@ def _format_classification_result(api_result: Any) -> Optional[List[Dict]]:
         logger.info("Empty classes list")
         return None
     
-    # Берём первый элемент (самый вероятный)
     first_item = classes_data[0]
     logger.info(f"First item type: {type(first_item)}")
     
-    # Извлекаем данные (может быть словарь или другой объект)
     if isinstance(first_item, dict):
         confidence = first_item.get("score", 0)
         label = first_item.get("label", "")
     elif isinstance(first_item, (list, tuple)) and len(first_item) >= 2:
-        # Если пришёл кортеж [label, score]
         label, confidence = first_item[0], first_item[1]
     else:
         logger.warning(f"Unexpected item format: {first_item}")
         return None
     
-    if confidence < 0.3 or not _is_valid_food_label(label):
-        logger.info(f"Classification rejected: {label} ({confidence})")
+    # Если это посуда или не еда, считаем, что ResNet-50 не помог
+    if not _is_valid_food_label(label):
+        logger.info(f"Classification result is not food: {label} ({confidence})")
+        return None
+    
+    if confidence < 0.3:
+        logger.info(f"Classification confidence too low: {label} ({confidence})")
         return None
     
     return [{
@@ -121,6 +122,7 @@ async def analyze_food_image(
 ) -> Optional[List[Dict]]:
     """
     Распознаёт еду на изображении, используя ResNet-50 в приоритете.
+    Если ResNet-50 видит посуду, сразу переходим к LLaVA для описания блюда.
     Возвращает список блюд с деталями на английском.
     """
     if not BASE_URL:
@@ -143,22 +145,22 @@ async def analyze_food_image(
                 async with session.post(url, headers=headers, json=payload, timeout=30) as resp:
                     if resp.status == 200:
                         result = await resp.json()
-                        # Логируем полный ответ для отладки
                         logger.info(f"ResNet-50 raw response: {json.dumps(result)[:500]}")
                         
                         formatted = _format_classification_result(result)
                         if formatted:
                             logger.info(f"✅ ResNet-50 identified: {formatted[0]['name_en']}")
                             return formatted
+                        else:
+                            logger.info("ResNet-50 result rejected (non-food or low confidence)")
                     else:
-                        error_text = await resp.text()
                         logger.warning(f"ResNet-50 failed: {resp.status}")
         except Exception as e:
             logger.warning(f"Classification model {model} failed: {e}")
             continue
 
-    # 2. Если ResNet-50 не сработал, пробуем LLaVA
-    logger.info("Classification failed, falling back to LLaVA")
+    # 2. Если ResNet-50 не дал результата, пробуем LLaVA с улучшенным промптом
+    logger.info("Classification failed, falling back to LLaVA with enhanced prompt")
     for model in VISION_MODELS:
         for attempt in range(max_retries):
             try:
@@ -177,6 +179,10 @@ async def analyze_food_image(
                             description = result.get("result", {}).get("description", "").strip()
                             
                             if description and len(description) < 100:
+                                # Фильтруем слишком общие ответы
+                                if description.lower() in ["salad", "food", "dish", "plate"]:
+                                    logger.info(f"LLaVA response too generic: {description}, retrying...")
+                                    continue
                                 logger.info(f"✅ LLaVA identified: {description}")
                                 return [{
                                     "name_en": description,
@@ -185,6 +191,8 @@ async def analyze_food_image(
                                     "estimated_weight_g": None,
                                     "preparation": None
                                 }]
+                            else:
+                                logger.warning(f"LLaVA response invalid: {description}")
             except Exception as e:
                 logger.warning(f"LLaVA attempt {attempt+1} failed: {e}")
             await asyncio.sleep(1 * (attempt + 1))
@@ -193,7 +201,7 @@ async def analyze_food_image(
     return None
 
 # =============================================================================
-# 🎤 РАСПОЗНАВАНИЕ ГОЛОСА (WHISPER)
+# 🎤 РАСПОЗНАВАНИЕ ГОЛОСА (WHISPER) - без изменений
 # =============================================================================
 
 async def _convert_ogg_to_wav(ogg_bytes: bytes) -> Optional[bytes]:

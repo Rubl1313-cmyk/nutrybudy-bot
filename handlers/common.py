@@ -12,14 +12,14 @@ from keyboards.inline import (
     get_food_menu, get_water_activity_menu, get_progress_menu,
     get_lists_menu, get_profile_menu
 )
-from handlers.profile import cmd_profile, edit_profile, display_profile 
+from handlers.profile import cmd_profile, edit_profile, display_profile
 from handlers.food import cmd_log_food
 from handlers.water import cmd_water
 from handlers.progress import cmd_progress
 from handlers.shopping import cmd_shopping
 from handlers.reminders import cmd_reminders
 from handlers.activity import cmd_fitness, process_steps_input
-from handlers.ai_assistant import cmd_ask
+from handlers.ai_assistant import cmd_ask  # импорт AI команды
 from handlers.meal_plan import cmd_meal_plan
 from utils.states import StepsStates
 
@@ -159,8 +159,6 @@ async def cmd_main_menu(message: Message, state: FSMContext):
         reply_markup=get_main_keyboard()
     )
 
-# ========== Обработчики кнопок главного меню ==========
-
 @router.message(F.text == "🍽️ Питание")
 async def show_food_category(message: Message, state: FSMContext):
     await message.answer(
@@ -210,6 +208,11 @@ async def show_profile_category(message: Message, state: FSMContext):
 async def menu_help(message: Message, state: FSMContext):
     await state.clear()
     await show_help_menu(message)
+
+# ✅ НОВЫЙ ОБРАБОТЧИК ДЛЯ КНОПКИ "🤖 AI Помощник"
+@router.message(F.text == "🤖 AI Помощник")
+async def menu_ai_assistant(message: Message, state: FSMContext):
+    await cmd_ask(message, state)  # вызываем команду AI
 
 # ========== Обработчики навигационных callback'ов с передачей user_id ==========
 

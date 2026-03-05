@@ -26,22 +26,23 @@ def split_food_text(text: str) -> List[str]:
     Разделители: запятая, "и", "с", "из", "со", "от", "на", "в".
     """
     import re
-    # Заменяем разделители на запятые
     text = re.sub(r'\b(и|с|со|из|от|на|в)\b', ',', text.lower())
-    # Разбиваем по запятым и убираем пустые
     parts = [p.strip() for p in text.split(',') if p.strip()]
     return parts
 
 
 @router.message(Command("log_food"))
 @router.message(F.text == "🍽️ Дневник питания")
-async def cmd_log_food(message: Message, state: FSMContext):
+async def cmd_log_food(message: Message, state: FSMContext, user_id: int = None):
     """Начало процесса записи приёма пищи."""
     await state.clear()
 
+    if user_id is None:
+        user_id = message.from_user.id
+
     async with get_session() as session:
         result = await session.execute(
-            select(User).where(User.telegram_id == message.from_user.id)
+            select(User).where(User.telegram_id == user_id)
         )
         user = result.scalar_one_or_none()
         if not user or not user.weight:
@@ -58,6 +59,8 @@ async def cmd_log_food(message: Message, state: FSMContext):
         reply_markup=get_meal_type_keyboard(),
         parse_mode="HTML"
     )
+
+# ... остальные функции без изменений (они используют user_id из состояния или message)
 
 
 @router.callback_query(F.data.startswith("meal_"), FoodStates.choosing_meal_type)

@@ -253,7 +253,10 @@ async def _convert_ogg_to_wav(ogg_bytes: bytes) -> Optional[bytes]:
         return None
 
 async def transcribe_audio(audio_bytes: bytes, language: str = "ru") -> Optional[str]:
-    """Распознавание голоса через Cloudflare Whisper."""
+    """
+    Распознавание голоса через Cloudflare Whisper.
+    Явно задаём язык для повышения точности.
+    """
     try:
         if not BASE_URL:
             return None
@@ -272,7 +275,12 @@ async def transcribe_audio(audio_bytes: bytes, language: str = "ru") -> Optional
         audio_array = list(wav_bytes)
         logger.info(f"📊 Audio array size: {len(audio_array)} samples")
 
-        payload = {"audio": audio_array}
+        # ✅ Добавляем language в payload
+        payload = {
+            "audio": audio_array,
+            "language": language   # например, "ru"
+        }
+
         headers = {
             "Authorization": f"Bearer {CLOUDFLARE_API_TOKEN}",
             "Content-Type": "application/json"
@@ -281,18 +289,25 @@ async def transcribe_audio(audio_bytes: bytes, language: str = "ru") -> Optional
         for model in WHISPER_MODELS:
             try:
                 url = f"{BASE_URL}{model}"
-                logger.info(f"🎤 Sending to {model}")
+                logger.info(f"🎤 Sending to {model} with language={language}")
                 async with aiohttp.ClientSession() as session:
-                    async with session.post(url, headers=headers, json=payload, timeout=60) as resp:
+                    async with session.post(
+                        url,
+                        headers=headers,
+                        json=payload,
+                        timeout=60
+                    ) as resp:
                         if resp.status == 200:
                             result = await resp.json()
                             text = result.get("result", {}).get("text", "").strip()
                             if text:
                                 logger.info(f"✅ Success: {text[:100]}...")
                                 return text
+                            else:
+                                logger.warning("⚠️ Empty response")
                         else:
                             error_text = await resp.text()
-                            logger.warning(f"⚠️ {model} failed {resp.status}")
+                            logger.warning(f"⚠️ {model} failed {resp.status}: {error_text[:200]}")
             except Exception as e:
                 logger.warning(f"⚠️ {model} error: {e}")
                 continue

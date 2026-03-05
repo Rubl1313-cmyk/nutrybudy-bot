@@ -12,14 +12,6 @@ from aiogram.fsm.state import State, StatesGroup
 import logging
 import asyncio
 
-# Опциональный импорт langdetect (для проверки языка)
-try:
-    from langdetect import detect, LangDetectException
-    LANGDETECT_AVAILABLE = True
-except ImportError:
-    LANGDETECT_AVAILABLE = False
-    logging.warning("langdetect not installed. Language detection will be skipped.")
-
 from services.deepseek_client import ask_worker_ai, DEFAULT_SYSTEM_PROMPT
 from keyboards.reply import get_main_keyboard
 from services.cloudflare_ai import transcribe_audio
@@ -35,12 +27,12 @@ logger = logging.getLogger(__name__)
 class AIAssistantStates(StatesGroup):
     waiting_for_question = State()
 
-MAX_HISTORY = 10
+MAX_HISTORY = 15
 
 async def process_voice(message: Message, state: FSMContext, is_global: bool = False):
     """
     Общая логика обработки голосового сообщения.
-    Распознаёт только русский язык (проверка через langdetect, если доступно).
+    Распознаёт только русский язык (параметр language="ru" передан в API).
     """
     await message.answer("🎤 Распознаю речь...")
     try:
@@ -66,17 +58,6 @@ async def process_voice(message: Message, state: FSMContext, is_global: bool = F
         if not text:
             await message.answer("❌ Не удалось распознать речь.")
             return
-
-        # Проверяем язык, если библиотека доступна
-        if LANGDETECT_AVAILABLE:
-            try:
-                lang = detect(text)
-                if lang != 'ru':
-                    await message.answer("❌ Пожалуйста, говорите по-русски. Я понимаю только русский язык.")
-                    return
-            except LangDetectException:
-                # Если не удалось определить язык, пропускаем
-                pass
 
         await message.answer(f"📝 <b>Распознано:</b>\n{text}", parse_mode="HTML")
 

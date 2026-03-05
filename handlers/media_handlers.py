@@ -1,8 +1,7 @@
 """
 Обработчики мультимедиа: фото (распознавание еды) и голос.
 Реализован интерфейс с отдельными сообщениями для каждого продукта.
-Добавлена защита от повторной обработки одного и того же фото и выбор режима.
-Использует улучшенный перевод для названий блюд.
+Добавлена защита от повторной обработки, перевод распознанных данных.
 """
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
@@ -15,8 +14,8 @@ import traceback
 import re
 from typing import List, Dict, Optional
 
-from services.cloudflare_ai import identify_food_multimodel, transcribe_audio
-from services.food_api import search_food, get_food_data  # добавим get_food_data в food_api позже
+from services.cloudflare_ai import identify_food_multimodel, transcribe_audio, analyze_food_image
+from services.food_api import search_food, get_food_data
 from services.translator import translate_dish_name, translate_to_russian, extract_food_items
 from utils.states import FoodStates
 from database.db import get_session
@@ -161,8 +160,7 @@ async def start_food_input(
 
 @router.message(F.photo)
 async def handle_photo(message: Message, state: FSMContext):
-    """Обработка фото: улучшенное распознавание через мультимодельный JSON."""
-    # Защита от повторной обработки
+    """Обработка фото: распознавание, перевод и запуск интерфейса."""
     data = await state.get_data()
     last_photo_id = data.get('last_photo_id')
     if last_photo_id == message.message_id:
@@ -177,37 +175,64 @@ async def handle_photo(message: Message, state: FSMContext):
             return
 
         await message.answer("🔍 Анализирую изображение через AI (мультимодельный режим)...")
-        # Скачиваем и подготавливаем фото
         photo = message.photo[-1]
         file_info = await message.bot.get_file(photo.file_id)
         file_bytes = await message.bot.download_file(file_info.file_path)
         file_data = file_bytes.read()
         optimized = _prepare_image(file_data)
 
-        # Используем новую мультимодельную функцию
-        food_data = await identify_food_multimodel(optimized)
+        food_data, used_model = await identify_food_multimodel(optimized)
 
-        if food_data and 'dish_name' in food_data:
-            dish_name = food_data['dish_name']
-            ingredients = food_data.get('ingredients', [])
-            logger.info(f"🍽 Распознано: блюдо='{dish_name}', ингредиенты={ingredients}")
+        if food_data:
+            # Переводим название блюда и ингредиенты на русский
+            dish_name_en = food_data.get('dish_name', '')
+            ingredients_en = food_data.get('ingredients', [])
 
-            # Проверяем, есть ли блюдо в базе
-            dish_info = await get_food_data(dish_name)
-            if dish_info['base_calories'] > 0:
-                # Блюдо найдено – запускаем как один продукт
-                await start_food_input(message, state, [dish_name], meal_type="snack")
-                await state.update_data(last_photo_id=message.message_id)
-                return
-            elif ingredients:
-                # Используем ингредиенты
-                await start_food_input(message, state, ingredients, meal_type="snack")
-                await state.update_data(last_photo_id=message.message_id)
-                return
-            else:
-                # Есть только название, но его нет в базе – предлагаем ввести вручную или уточнить
+            dish_name_ru = await translate_dish_name(dish_name_en) if dish_name_en else ""
+            ingredients_ru = []
+            for ing in ingredients_en:
+                translated = await translate_to_russian(ing)
+                ingredients_ru.append(translated)
+
+            logger.info(f"🍽 Распознано моделью {used_model}: блюдо='{dish_name_ru}' (англ: {dish_name_en}), ингредиенты={ingredients_ru}")
+
+            # Сохраняем переведённые данные
+            food_data = {
+                'dish_name': dish_name_ru,
+                'ingredients': ingredients_ru
+            }
+
+            # Если модель UForm и dish_name — популярное конкретное блюдо, запрашиваем подтверждение
+            suspicious_dishes = ["салат цезарь", "греческий салат", "оливье", "шаурма", "салат с креветками"]
+            if used_model == "@cf/unum/uform-gen2-qwen-500m" and dish_name_ru.lower() in [d.lower() for d in suspicious_dishes]:
+                await state.update_data(
+                    recognized_dish=dish_name_ru,
+                    recognized_ingredients=ingredients_ru,
+                    last_photo_id=message.message_id
+                )
+                keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text="✅ Да", callback_data="confirm_dish")],
+                    [InlineKeyboardButton(text="❌ Нет, показать ингредиенты", callback_data="reject_dish")]
+                ])
                 await message.answer(
-                    f"🍽 Распознано блюдо: {dish_name}\n\n"
+                    f"🤖 Я думаю, это **{dish_name_ru}**. Это правильно?",
+                    reply_markup=keyboard,
+                    parse_mode="Markdown"
+                )
+                return
+
+            # Иначе продолжаем как обычно
+            dish_info = await get_food_data(dish_name_ru)
+            if dish_info['base_calories'] > 0:
+                # Блюдо найдено в базе
+                await start_food_input(message, state, [dish_name_ru], meal_type="snack")
+            elif ingredients_ru:
+                # Используем ингредиенты
+                await start_food_input(message, state, ingredients_ru, meal_type="snack")
+            else:
+                # Есть только название, но его нет в базе
+                await message.answer(
+                    f"🍽 Распознано блюдо: {dish_name_ru}\n\n"
                     "Но оно не найдено в базе. Вы можете:\n"
                     "• Ввести ингредиенты вручную\n"
                     "• Отправить другое фото",
@@ -216,93 +241,60 @@ async def handle_photo(message: Message, state: FSMContext):
                         [InlineKeyboardButton(text="❌ Отмена", callback_data="action_cancel")]
                     ])
                 )
+            await state.update_data(last_photo_id=message.message_id)
+            return
+
+        # Fallback на analyze_food_image
+        logger.info("Falling back to analyze_food_image for ingredients")
+        description = await analyze_food_image(optimized)
+        if description:
+            ingredients_en = await extract_food_items(description)
+            ingredients_ru = [await translate_to_russian(ing) for ing in ingredients_en]
+            if ingredients_ru:
+                await start_food_input(message, state, ingredients_ru, meal_type="snack")
+                await state.update_data(last_photo_id=message.message_id)
                 return
-        else:
-            # Не удалось распознать
-            logger.warning("❌ Не удалось распознать фото через мультимодельный режим")
-            await message.answer(
-                "❌ Не удалось распознать фото. Попробуйте:\n"
-                "• Отправить более чёткое фото\n"
-                "• Ввести продукты вручную",
-                reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                    [InlineKeyboardButton(text="✏️ Ввести вручную", callback_data="food_manual")],
-                    [InlineKeyboardButton(text="❌ Отмена", callback_data="action_cancel")]
-                ])
-            )
+
+        # Полный провал
+        await message.answer(
+            "❌ Не удалось распознать фото. Попробуйте:\n"
+            "• Отправить более чёткое фото\n"
+            "• Ввести продукты вручную",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="✏️ Ввести вручную", callback_data="food_manual")],
+                [InlineKeyboardButton(text="❌ Отмена", callback_data="action_cancel")]
+            ])
+        )
+        await state.update_data(last_photo_id=message.message_id)
 
     except Exception as e:
         logger.error(f"❌ Photo error: {e}\n{traceback.format_exc()}")
         await message.answer("❌ Ошибка при обработке фото. Попробуйте позже.")
         await state.clear()
 
-async def recognize_food_from_photo(message: Message) -> List[str]:
-    """Старый метод распознавания ингредиентов (на английском, с переводом)."""
-    photo = message.photo[-1]
-    file_info = await message.bot.get_file(photo.file_id)
-    file_bytes = await message.bot.download_file(file_info.file_path)
-    file_data = file_bytes.read()
-    optimized = _prepare_image(file_data)
-
-    from services.cloudflare_ai import analyze_food_image
-    description_en = await analyze_food_image(
-        optimized,
-        prompt="List all food items visible in this image. Be specific. Return as a comma-separated list."
-    )
-    if not description_en:
-        return []
-    raw_items = await extract_food_items(description_en)
-    translated_items = []
-    for item in raw_items:
-        translated = await translate_to_russian(item)
-        translated_items.append(translated)
-    return translated_items
-
-# ========== Обработчики выбора режима ==========
-
-@router.callback_query(F.data == "food_as_dish")
-async def food_as_dish_callback(callback: CallbackQuery, state: FSMContext):
-    logger.info(f"🍽️ Выбрано 'Записать как блюдо', user_id={callback.from_user.id}")
-    await callback.answer()
+# Обработчики подтверждения (без изменений)
+@router.callback_query(F.data == "confirm_dish")
+async def confirm_dish_callback(callback: CallbackQuery, state: FSMContext):
     data = await state.get_data()
-    dishes = data.get('recognized_dishes', [])
-    if dishes:
-        dish = dishes[0]
-        await start_food_input(callback.message, state, [dish['name_ru']], meal_type="snack")
+    dish = data.get('recognized_dish')
+    if dish:
+        await start_food_input(callback.message, state, [dish], meal_type="snack")
     else:
-        await callback.message.answer("❌ Данные не найдены")
+        await callback.message.answer("❌ Ошибка: данные не найдены.")
     await callback.message.delete()
-
-@router.callback_query(F.data == "food_as_ingredients")
-async def food_as_ingredients_callback(callback: CallbackQuery, state: FSMContext):
-    logger.info(f"🥗 Выбрано 'Разбить на ингредиенты', user_id={callback.from_user.id}")
     await callback.answer()
+
+@router.callback_query(F.data == "reject_dish")
+async def reject_dish_callback(callback: CallbackQuery, state: FSMContext):
     data = await state.get_data()
-    dishes = data.get('recognized_dishes', [])
-    if dishes:
-        all_ingredients = []
-        for dish in dishes:
-            all_ingredients.extend(dish.get('ingredients_ru', []))
-        if all_ingredients:
-            await start_food_input(callback.message, state, all_ingredients, meal_type="snack")
-        else:
-            logger.info("🥗 Ингредиенты не найдены, предлагаем ручной ввод")
-            await callback.message.answer(
-                "🥗 Не удалось распознать отдельные ингредиенты.\n"
-                "Введите их вручную через запятую (например: курица, салат, сыр):"
-            )
-            await state.set_state(FoodStates.searching_food)
+    ingredients = data.get('recognized_ingredients', [])
+    if ingredients:
+        await start_food_input(callback.message, state, ingredients, meal_type="snack")
     else:
-        await callback.message.answer("❌ Данные не найдены")
+        await callback.message.answer("Введите ингредиенты вручную через запятую:")
+        await state.set_state(FoodStates.searching_food)
     await callback.message.delete()
-
-@router.callback_query(F.data == "food_manual")
-async def food_manual_callback(callback: CallbackQuery, state: FSMContext):
-    logger.info(f"✏️ Выбрано 'Ввести вручную', user_id={callback.from_user.id}")
     await callback.answer()
-    await callback.message.answer("📝 Введите названия продуктов через запятую:")
-    await state.set_state(FoodStates.searching_food)
-    await callback.message.delete()
-
 # ========== Обработчики изменения веса продуктов ==========
 
 @router.callback_query(F.data.startswith("weight_"))

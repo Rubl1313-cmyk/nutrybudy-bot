@@ -19,6 +19,7 @@ from scheduler.jobs import setup_scheduler
 from handlers.universal_text_handler import universal_router
 from handlers import meal_plan
 from sqlalchemy import text
+from aiogram.fsm.strategy import FSMStrategy
 
 load_dotenv()
 
@@ -192,6 +193,7 @@ async def main():
     
     global dp
     dp = Dispatcher(storage=storage)
+    dp = Dispatcher(storage=storage, fsm_strategy=FSMStrategy.GLOBAL_USER)
     
     # Подключение роутеров (ПОРЯДОК ВАЖЕН!)
     dp.include_router(common.router)

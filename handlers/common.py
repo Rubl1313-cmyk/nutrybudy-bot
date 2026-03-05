@@ -80,7 +80,6 @@ async def show_help_menu(event: Message | CallbackQuery):
 @router.callback_query(F.data.startswith("help_"))
 async def help_callbacks(callback: CallbackQuery):
     data = callback.data
-    text = ""
     if data == "help_food_category":
         text = (
             "🍽️ <b>Питание</b>\n\n"
@@ -125,6 +124,13 @@ async def help_callbacks(callback: CallbackQuery):
         await callback.message.delete()
         await callback.answer()
         return
+    elif data == "help_back":
+        await show_help_menu(callback)
+        return
+    else:
+        # Неизвестный callback, просто ответим
+        await callback.answer()
+        return
 
     if text:
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
@@ -132,7 +138,7 @@ async def help_callbacks(callback: CallbackQuery):
         ])
         await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
         await callback.answer()
-
+        
 @router.callback_query(F.data == "help_back")
 async def help_back_callback(callback: CallbackQuery):
     """Возврат в главное меню помощи."""

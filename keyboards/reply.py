@@ -1,17 +1,19 @@
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 
 def get_main_keyboard():
-    """Главное меню с категориями."""
+    """Главное меню с категориями и кнопкой AI ассистента."""
     kb = [
         [KeyboardButton(text="🍽️ Питание")],
         [KeyboardButton(text="💧 Вода и активность")],
         [KeyboardButton(text="📊 Прогресс и статистика")],
         [KeyboardButton(text="📋 Списки и напоминания")],
         [KeyboardButton(text="👤 Профиль и настройки")],
-        [KeyboardButton(text="❓ Помощь")]
+        [KeyboardButton(text="❓ Помощь")],
+        [KeyboardButton(text="🤖 AI Помощник")]  # новая кнопка
     ]
     return ReplyKeyboardMarkup(keyboard=kb, resize_keyboard=True)
 
+# Остальные функции без изменений
 def get_cancel_keyboard():
     return ReplyKeyboardMarkup(
         keyboard=[[KeyboardButton(text="❌ Отмена")]],

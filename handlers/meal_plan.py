@@ -10,7 +10,6 @@ from aiogram.fsm.context import FSMContext
 from aiogram.exceptions import TelegramBadRequest
 from sqlalchemy import select
 import logging
-import asyncio
 from typing import Dict, List, Optional
 
 from database.db import get_session
@@ -23,7 +22,7 @@ router = Router()
 logger = logging.getLogger(__name__)
 
 # Константы
-AI_MAX_TOKENS = 2500  # увеличенный лимит, чтобы AI успевал завершить ответ
+AI_MAX_TOKENS = 2500
 MEAL_TYPES = [
     {"key": "breakfast", "name": "🥐 Завтрак"},
     {"key": "lunch", "name": "🥗 Обед"},
@@ -80,9 +79,10 @@ async def generate_meal_part(
 
 @router.message(Command("meal_plan"))
 @router.message(F.text == "🍽️ План питания")
-async def cmd_meal_plan(message: Message, state: FSMContext):
+async def cmd_meal_plan(message: Message, state: FSMContext, user_id: int = None):
     """Показывает распределение калорий и предлагает сгенерировать меню."""
-    user_id = message.from_user.id
+    if user_id is None:
+        user_id = message.from_user.id
 
     async with get_session() as session:
         result = await session.execute(

@@ -77,13 +77,16 @@ async def process_voice(message: Message, state: FSMContext, is_global: bool = F
             except LangDetectException:
                 # Если не удалось определить язык, пропускаем
                 pass
-        else:
-            logger.debug("Language detection skipped (langdetect not installed).")
 
         await message.answer(f"📝 <b>Распознано:</b>\n{text}", parse_mode="HTML")
 
+        # Вызываем универсальный обработчик с защитой от исключений
         from handlers.universal_text_handler import handle_universal_text
-        await handle_universal_text(message, state, text)
+        try:
+            await handle_universal_text(message, state, text)
+        except Exception as e:
+            logger.error(f"Ошибка в handle_universal_text: {e}", exc_info=True)
+            await message.answer("❌ Произошла внутренняя ошибка при обработке текста. Пожалуйста, попробуйте ещё раз или введите текст вручную.")
 
     except Exception as e:
         logger.error(f"Ошибка обработки голоса: {e}", exc_info=True)

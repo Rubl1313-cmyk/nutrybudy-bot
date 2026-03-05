@@ -2,6 +2,7 @@
 Cloudflare Workers AI Integration для NutriBuddy
 Улучшенная версия с поддержкой JSON, повторными попытками и перебором моделей.
 Все запросы на английском, ответы парсятся и затем переводятся.
+Сохраняет функциональность распознавания голоса (transcribe_audio).
 """
 import aiohttp
 import os
@@ -9,6 +10,8 @@ import logging
 import asyncio
 import json
 import re
+import subprocess
+import tempfile
 from typing import Optional, List, Dict
 
 logger = logging.getLogger(__name__)
@@ -28,7 +31,13 @@ VISION_MODELS = [
     "@cf/llava-hf/llava-1.5-7b-hf",   # fallback с лучшим пониманием контекста
 ]
 
-# Промпт на английском, требующий JSON
+# Модели для Whisper (голос)
+WHISPER_MODELS = [
+    "@cf/openai/whisper",                # базовая
+    "@cf/openai/whisper-large-v3-turbo", # быстрая
+]
+
+# Промпт для распознавания блюда (JSON)
 FOOD_RECOGNITION_PROMPT = """
 Analyze this food image and return a STRICT JSON object with the following structure:
 {
@@ -57,7 +66,6 @@ def _bytes_to_array(image_bytes: bytes) -> list:
 
 def _parse_json_response(text: str) -> Optional[List[Dict]]:
     """Извлекает JSON из ответа модели и возвращает список блюд с confidence >= 0.3."""
-    # Ищем JSON-блок (может быть обёрнут в ```json ... ```)
     json_match = re.search(r'```json\s*(\{.*?\})\s*```', text, re.DOTALL)
     if not json_match:
         json_match = re.search(r'\{.*\}', text, re.DOTALL)
@@ -67,7 +75,6 @@ def _parse_json_response(text: str) -> Optional[List[Dict]]:
     try:
         data = json.loads(json_match.group())
         dishes = data.get("dishes", [])
-        # Фильтруем по confidence
         valid_dishes = [d for d in dishes if d.get("confidence", 0) >= 0.3]
         return valid_dishes
     except json.JSONDecodeError as e:
@@ -121,6 +128,116 @@ async def analyze_food_image(
                 logger.warning(f"Model {model} attempt {attempt+1} timeout")
             except Exception as e:
                 logger.warning(f"Model {model} attempt {attempt+1} exception: {e}")
-            await asyncio.sleep(1 * (attempt + 1))  # exponential backoff
+            await asyncio.sleep(1 * (attempt + 1))
     logger.error("All models/attempts failed")
     return None
+
+# =============================================================================
+# 🎤 РАСПОЗНАВАНИЕ ГОЛОСА (WHISPER) – восстановлено из оригинального файла
+# =============================================================================
+
+async def _convert_ogg_to_wav(ogg_bytes: bytes) -> Optional[bytes]:
+    """Конвертирует OGG (Opus) в WAV (16-bit PCM, 16kHz, mono)."""
+    try:
+        if len(ogg_bytes) > 20 * 1024 * 1024:
+            logger.warning(f"⚠️ Audio too large: {len(ogg_bytes)/1024/1024:.1f} MB")
+            return None
+
+        with tempfile.NamedTemporaryFile(suffix='.ogg', delete=False) as f_in:
+            f_in.write(ogg_bytes)
+            in_path = f_in.name
+
+        out_path = in_path.replace('.ogg', '.wav')
+
+        try:
+            cmd = [
+                'ffmpeg', '-i', in_path,
+                '-ar', '16000',
+                '-ac', '1',
+                '-acodec', 'pcm_s16le',
+                '-y', out_path
+            ]
+            process = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            stdout, stderr = await process.communicate()
+
+            if process.returncode != 0:
+                logger.error(f"❌ ffmpeg error: {stderr.decode()[:200]}")
+                return None
+
+            with open(out_path, 'rb') as f:
+                wav_bytes = f.read()
+            logger.info(f"✅ Conversion successful: {len(wav_bytes)} bytes")
+            return wav_bytes
+
+        finally:
+            try:
+                os.unlink(in_path)
+                if os.path.exists(out_path):
+                    os.unlink(out_path)
+            except:
+                pass
+    except Exception as e:
+        logger.exception(f"💥 Conversion error: {e}")
+        return None
+
+async def transcribe_audio(audio_bytes: bytes, language: str = "ru") -> Optional[str]:
+    """Распознавание голоса через Cloudflare Whisper."""
+    try:
+        if not BASE_URL:
+            return None
+
+        file_size = len(audio_bytes)
+        logger.info(f"🎤 Original size: {file_size/1024:.1f} KB")
+
+        if file_size > 20 * 1024 * 1024:
+            logger.warning("⚠️ Audio too large (>20MB)")
+            return None
+
+        wav_bytes = await _convert_ogg_to_wav(audio_bytes)
+        if not wav_bytes:
+            return None
+
+        audio_array = list(wav_bytes)
+        logger.info(f"📊 Audio array size: {len(audio_array)} samples")
+
+        payload = {"audio": audio_array}
+        headers = {
+            "Authorization": f"Bearer {CLOUDFLARE_API_TOKEN}",
+            "Content-Type": "application/json"
+        }
+
+        for model in WHISPER_MODELS:
+            try:
+                url = f"{BASE_URL}{model}"
+                logger.info(f"🎤 Sending to {model} as JSON array")
+                async with aiohttp.ClientSession() as session:
+                    async with session.post(
+                        url,
+                        headers=headers,
+                        json=payload,
+                        timeout=60
+                    ) as resp:
+                        if resp.status == 200:
+                            result = await resp.json()
+                            text = result.get("result", {}).get("text", "").strip()
+                            if text:
+                                logger.info(f"✅ Success: {text[:100]}...")
+                                return text
+                            else:
+                                logger.warning("⚠️ Empty response")
+                        else:
+                            error_text = await resp.text()
+                            logger.warning(f"⚠️ {model} failed {resp.status}: {error_text[:200]}")
+            except Exception as e:
+                logger.warning(f"⚠️ {model} error: {e}")
+                continue
+
+        logger.error("❌ All models failed")
+        return None
+    except Exception as e:
+        logger.exception(f"💥 Critical error: {e}")
+        return None

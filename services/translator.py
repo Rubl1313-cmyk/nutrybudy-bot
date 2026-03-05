@@ -2,12 +2,225 @@
 Сервис перевода для NutriBuddy.
 Содержит более 300 распространённых продуктов и блюд.
 Использует локальный словарь + MyMemory API для редких слов.
+Добавлен словарь исключений для корректного перевода названий блюд.
 """
 import aiohttp
 import logging
 import re
 
 logger = logging.getLogger(__name__)
+COMMON_DISH_TRANSLATIONS = {
+    # Салаты
+    "caesar salad": "салат цезарь",
+    "greek salad": "греческий салат",
+    "olivier salad": "салат оливье",
+    "russian salad": "салат оливье",
+    "waldorf salad": "салат вальдорф",
+    "nicoise salad": "нисуаз",
+    "caprese salad": "капрезе",
+    "tabbouleh": "табуле",
+    "coleslaw": "коул слоу",
+    "potato salad": "картофельный салат",
+    "pasta salad": "макаронный салат",
+    "fruit salad": "фруктовый салат",
+    "shrimp salad": "салат с креветками",
+    "chicken salad": "куриный салат",
+    "tuna salad": "салат с тунцом",
+    "egg salad": "яичный салат",
+    "beet salad": "салат из свеклы",
+    "carrot salad": "салат из моркови",
+    "cucumber salad": "салат из огурцов",
+    "tomato salad": "салат из помидоров",
+    "radish salad": "салат из редиски",
+
+    # Супы
+    "borscht": "борщ",
+    "shchi": "щи",
+    "solyanka": "солянка",
+    "ukha": "уха",
+    "mushroom soup": "грибной суп",
+    "chicken soup": "куриный суп",
+    "noodle soup": "суп с лапшой",
+    "tomato soup": "томатный суп",
+    "pumpkin soup": "тыквенный суп",
+    "cream soup": "суп-пюре",
+    "lentil soup": "чечевичный суп",
+    "pea soup": "гороховый суп",
+    "fish soup": "рыбный суп",
+    "beef soup": "мясной суп",
+    "vegetable soup": "овощной суп",
+    "onion soup": "луковый суп",
+    "ramen": "рамен",
+    "pho": "фо",
+    "miso soup": "мисо суп",
+
+    # Горячие блюда из мяса и птицы
+    "roast chicken": "курица жареная",
+    "grilled chicken": "курица гриль",
+    "fried chicken": "курица жареная",
+    "baked chicken": "курица запечённая",
+    "chicken breast": "куриная грудка",
+    "chicken thigh": "куриное бедро",
+    "chicken leg": "куриная ножка",
+    "chicken wing": "куриное крылышко",
+    "turkey breast": "индюшиная грудка",
+    "roast turkey": "индейка жареная",
+    "beef steak": "стейк из говядины",
+    "roast beef": "ростбиф",
+    "beef stew": "тушеная говядина",
+    "beef stroganoff": "бефстроганов",
+    "meatballs": "тефтели",
+    "meatloaf": "мясной рулет",
+    "pork chop": "свиная отбивная",
+    "roast pork": "жареная свинина",
+    "pork ribs": "свиные ребрышки",
+    "bacon": "бекон",
+    "ham": "ветчина",
+    "sausages": "сосиски",
+    "sausage": "колбаса",
+    "lamb chop": "баранья отбивная",
+    "roast lamb": "жареная баранина",
+    "duck breast": "утиная грудка",
+    "roast duck": "жареная утка",
+
+    # Рыба и морепродукты
+    "grilled salmon": "лосось гриль",
+    "baked salmon": "запечённый лосось",
+    "fried fish": "жареная рыба",
+    "fish fillet": "рыбное филе",
+    "cod": "треска",
+    "trout": "форель",
+    "tuna steak": "стейк из тунца",
+    "shrimp": "креветки",
+    "prawns": "креветки",
+    "mussels": "мидии",
+    "clams": "моллюски",
+    "oysters": "устрицы",
+    "crab": "краб",
+    "lobster": "омар",
+    "calamari": "кальмары",
+    "octopus": "осьминог",
+    "fish and chips": "рыба с картошкой фри",
+
+    # Паста и блюда из макарон
+    "spaghetti bolognese": "спагетти болоньезе",
+    "spaghetti carbonara": "спагетти карбонара",
+    "lasagna": "лазанья",
+    "macaroni and cheese": "макароны с сыром",
+    "pasta with pesto": "паста с песто",
+    "ravioli": "равиоли",
+    "tortellini": "тортеллини",
+    "gnocchi": "ньокки",
+    "fettuccine alfredo": "феттучине альфредо",
+
+    # Блюда из риса и круп
+    "pilaf": "плов",
+    "rice with vegetables": "рис с овощами",
+    "fried rice": "жареный рис",
+    "risotto": "ризотто",
+    "buckwheat porridge": "гречневая каша",
+    "oatmeal": "овсяная каша",
+    "muesli": "мюсли",
+    "couscous": "кускус",
+    "bulgur": "булгур",
+    "quinoa": "киноа",
+
+    # Блюда из яиц
+    "omelette": "омлет",
+    "scrambled eggs": "яичница-болтунья",
+    "fried eggs": "яичница глазунья",
+    "poached eggs": "яйца пашот",
+    "boiled eggs": "варёные яйца",
+    "deviled eggs": "фаршированные яйца",
+    "egg sandwich": "бутерброд с яйцом",
+
+    # Завтраки и выпечка
+    "pancakes": "блины",
+    "crepes": "блинчики",
+    "french toast": "гренки",
+    "waffles": "вафли",
+    "toast": "тост",
+    "croissant": "круассан",
+    "bagel": "бублик",
+    "muffin": "кекс",
+    "scone": "булочка",
+    "donut": "пончик",
+    "cinnamon roll": "булочка с корицей",
+    "cheesecake": "чизкейк",
+    "pie": "пирог",
+    "apple pie": "яблочный пирог",
+    "pumpkin pie": "тыквенный пирог",
+    "cake": "торт",
+    "chocolate cake": "шоколадный торт",
+    "cupcake": "кекс",
+    "ice cream": "мороженое",
+    "yogurt": "йогурт",
+
+    # Гарниры
+    "mashed potatoes": "картофельное пюре",
+    "french fries": "картофель фри",
+    "baked potato": "печёный картофель",
+    "potato wedges": "картофельные дольки",
+    "rice": "рис",
+    "brown rice": "бурый рис",
+    "wild rice": "дикий рис",
+    "quinoa": "киноа",
+    "couscous": "кускус",
+    "bulgur": "булгур",
+    "polenta": "полента",
+    "vegetables": "овощи",
+    "steamed vegetables": "овощи на пару",
+    "grilled vegetables": "овощи гриль",
+    "roasted vegetables": "запечённые овощи",
+    "mixed vegetables": "овощная смесь",
+    "broccoli": "брокколи",
+    "cauliflower": "цветная капуста",
+    "green beans": "стручковая фасоль",
+    "asparagus": "спаржа",
+    "corn": "кукуруза",
+    "peas": "горошек",
+    "carrots": "морковь",
+    "spinach": "шпинат",
+    "kale": "капуста кале",
+
+    # Соусы и заправки
+    "ketchup": "кетчуп",
+    "mayonnaise": "майонез",
+    "mustard": "горчица",
+    "soy sauce": "соевый соус",
+    "teriyaki sauce": "соус терияки",
+    "barbecue sauce": "соус барбекю",
+    "pesto": "песто",
+    "alfredo sauce": "соус альфредо",
+    "marinara sauce": "соус маринара",
+    "bolognese sauce": "соус болоньезе",
+    "carbonara sauce": "соус карбонара",
+    "cheese sauce": "сырный соус",
+    "sour cream": "сметана",
+    "ranch dressing": "соус ранч",
+    "caesar dressing": "заправка цезарь",
+    "vinaigrette": "винегрет",
+    "olive oil": "оливковое масло",
+    "vinegar": "уксус",
+
+    # Закуски
+    "nachos": "начос",
+    "chips": "чипсы",
+    "fries": "фри",
+    "onion rings": "луковые кольца",
+    "mozzarella sticks": "сырные палочки",
+    "spring rolls": "спринг-роллы",
+    "dumplings": "пельмени",
+    "potato pancakes": "драники",
+    "bruschetta": "брускетта",
+    "guacamole": "гуакамоле",
+    "hummus": "хумус",
+    "pita bread": "пита",
+    "bread": "хлеб",
+    "garlic bread": "чесночный хлеб",
+    "cheese platter": "сырная тарелка",
+    "fruit platter": "фруктовая тарелка",
+}
 
 # Локальный словарь продуктов (более 300 наименований)
 COMMON_TRANSLATIONS = {
@@ -494,7 +707,7 @@ COMMON_TRANSLATIONS = {
 async def translate_to_russian(text: str) -> str:
     """
     Переводит текст с английского на русский.
-    Сначала проверяет локальный словарь (300+ наименований),
+    Сначала проверяет локальный словарь (COMMON_TRANSLATIONS),
     затем вызывает MyMemory API для редких слов.
     """
     # Нормализация текста
@@ -532,6 +745,21 @@ async def translate_to_russian(text: str) -> str:
         logger.error(f"❌ Translation error: {e}")
         return original
 
+async def translate_dish_name(english_name: str) -> str:
+    """
+    Переводит название блюда с английского на русский,
+    используя словарь исключений COMMON_DISH_TRANSLATIONS.
+    Если словарь не содержит, использует обычный перевод.
+    """
+    english_lower = english_name.lower().strip()
+    if english_lower in COMMON_DISH_TRANSLATIONS:
+        result = COMMON_DISH_TRANSLATIONS[english_lower]
+        logger.info(f"🍽 Dish translation from dictionary: '{english_name}' → '{result}'")
+        return result
+    # Обычный перевод
+    translated = await translate_to_russian(english_name)
+    logger.info(f"🍽 Dish translation via API: '{english_name}' → '{translated}'")
+    return translated
 
 async def extract_food_items(description: str) -> list:
     """

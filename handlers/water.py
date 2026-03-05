@@ -17,22 +17,28 @@ from utils.states import WaterStates
 router = Router()
 
 async def add_water_quick(telegram_id: int, amount: int) -> bool:
-    """Быстрое добавление воды без диалога (используется в callback)."""
-    async with get_session() as session:
-        result = await session.execute(
-            select(User).where(User.telegram_id == telegram_id)
-        )
-        user = result.scalar_one_or_none()
-        if not user:
-            return False
-        entry = WaterEntry(
-            user_id=user.id,
-            amount=amount,
-            datetime=datetime.now()
-        )
-        session.add(entry)
-        await session.commit()
-        return True
+    """Быстрое добавление воды без диалога с обработкой ошибок."""
+    try:
+        async with get_session() as session:
+            result = await session.execute(
+                select(User).where(User.telegram_id == telegram_id)
+            )
+            user = result.scalar_one_or_none()
+            if not user:
+                logger.warning(f"Пользователь {telegram_id} не найден при добавлении воды")
+                return False
+            entry = WaterEntry(
+                user_id=user.id,
+                amount=amount,
+                datetime=datetime.now()
+            )
+            session.add(entry)
+            await session.commit()
+            logger.info(f"Записано {amount} мл воды для пользователя {telegram_id}")
+            return True
+    except Exception as e:
+        logger.error(f"Ошибка при добавлении воды для {telegram_id}: {e}", exc_info=True)
+        return False
 
 @router.message(Command("log_water"))
 @router.message(F.text == "💧 Вода")

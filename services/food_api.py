@@ -341,6 +341,103 @@ LOCAL_FOOD_DB = {
     "пюре картофельное": {"name": "Пюре картофельное", "calories": 90, "protein": 2, "fat": 3, "carbs": 14},
     "борщ": {"name": "Борщ (с мясом)", "calories": 65, "protein": 4, "fat": 3, "carbs": 6},
     "суп куриный": {"name": "Суп куриный с лапшой", "calories": 45, "protein": 3, "fat": 1.5, "carbs": 5},
+
+      # ========== ДОБАВЛЯЕМ ПОПУЛЯРНЫЕ БЛЮДА ==========
+    "пицца маргарита": {"name": "Пицца Маргарита", "calories": 250, "protein": 10, "fat": 8, "carbs": 35},
+    "пицца пепперони": {"name": "Пицца Пепперони", "calories": 300, "protein": 12, "fat": 12, "carbs": 36},
+    "пицца с грибами": {"name": "Пицца с грибами", "calories": 240, "protein": 10, "fat": 8, "carbs": 34},
+    "бургер": {"name": "Бургер", "calories": 295, "protein": 17, "fat": 14, "carbs": 25},
+    "чизбургер": {"name": "Чизбургер", "calories": 313, "protein": 18, "fat": 16, "carbs": 27},
+    "гамбургер": {"name": "Гамбургер", "calories": 250, "protein": 15, "fat": 10, "carbs": 25},
+    "картофель фри": {"name": "Картофель фри", "calories": 312, "protein": 3.4, "fat": 15, "carbs": 41},
+    "наггетсы": {"name": "Куриные наггетсы", "calories": 296, "protein": 14, "fat": 18, "carbs": 20},
+    "суши": {"name": "Суши (среднее)", "calories": 45, "protein": 2, "fat": 0.5, "carbs": 8},
+    "роллы филадельфия": {"name": "Роллы Филадельфия", "calories": 180, "protein": 6, "fat": 5, "carbs": 28},
+    "роллы калифорния": {"name": "Роллы Калифорния", "calories": 140, "protein": 5, "fat": 4, "carbs": 22},
+    "сашими": {"name": "Сашими", "calories": 120, "protein": 20, "fat": 3, "carbs": 2},
+    "рамен": {"name": "Рамен", "calories": 400, "protein": 15, "fat": 12, "carbs": 55},
+    "удон": {"name": "Удон", "calories": 150, "protein": 5, "fat": 2, "carbs": 30},
+    "греческий салат": {"name": "Греческий салат", "calories": 120, "protein": 3, "fat": 8, "carbs": 6},
+    "цезарь с курицей": {"name": "Цезарь с курицей", "calories": 180, "protein": 12, "fat": 10, "carbs": 8},
+    "оладьи": {"name": "Оладьи", "calories": 210, "protein": 6, "fat": 8, "carbs": 30},
+    "сырники": {"name": "Сырники", "calories": 200, "protein": 12, "fat": 10, "carbs": 15},
+    "запеканка творожная": {"name": "Запеканка творожная", "calories": 170, "protein": 12, "fat": 7, "carbs": 15},
+    "омлет": {"name": "Омлет", "calories": 150, "protein": 10, "fat": 11, "carbs": 2},
+    "яичница": {"name": "Яичница", "calories": 180, "protein": 10, "fat": 14, "carbs": 1.5},
+    "блины": {"name": "Блины", "calories": 180, "protein": 6, "fat": 7, "carbs": 24},
+    "пирожок с капустой": {"name": "Пирожок с капустой", "calories": 200, "protein": 5, "fat": 8, "carbs": 27},
+    "пирожок с яблоком": {"name": "Пирожок с яблоком", "calories": 250, "protein": 4, "fat": 10, "carbs": 35},
+    "чебурек": {"name": "Чебурек", "calories": 350, "protein": 8, "fat": 22, "carbs": 30},
+    "беляш": {"name": "Беляш", "calories": 320, "protein": 10, "fat": 18, "carbs": 28},
+    "шаурма": {"name": "Шаурма", "calories": 200, "protein": 12, "fat": 8, "carbs": 22},
+    "шашлык": {"name": "Шашлык", "calories": 250, "protein": 20, "fat": 18, "carbs": 2},
+    "плов": {"name": "Плов", "calories": 200, "protein": 8, "fat": 7, "carbs": 27},
+    "борщ": {"name": "Борщ", "calories": 65, "protein": 4, "fat": 3, "carbs": 6},
+    "щи": {"name": "Щи", "calories": 40, "protein": 3, "fat": 2, "carbs": 4},
+    "солянка": {"name": "Солянка", "calories": 90, "protein": 5, "fat": 5, "carbs": 5},
+    "уха": {"name": "Уха", "calories": 40, "protein": 5, "fat": 1, "carbs": 2},
+    "грибной суп": {"name": "Грибной суп", "calories": 50, "protein": 2, "fat": 2, "carbs": 6},
+    "куриный суп": {"name": "Куриный суп", "calories": 45, "protein": 3, "fat": 1.5, "carbs": 5},
+    "том-ям": {"name": "Том-ям", "calories": 120, "protein": 5, "fat": 8, "carbs": 8},
+    "фо-бо": {"name": "Фо-бо", "calories": 350, "protein": 20, "fat": 10, "carbs": 45},
+    "лазанья": {"name": "Лазанья", "calories": 350, "protein": 18, "fat": 17, "carbs": 30},
+    "спагетти карбонара": {"name": "Спагетти Карбонара", "calories": 350, "protein": 12, "fat": 15, "carbs": 40},
+    "спагетти болоньезе": {"name": "Спагетти Болоньезе", "calories": 320, "protein": 14, "fat": 10, "carbs": 45},
+    "макароны с сыром": {"name": "Макароны с сыром", "calories": 300, "protein": 10, "fat": 12, "carbs": 38},
+    "ризотто": {"name": "Ризотто", "calories": 220, "protein": 5, "fat": 8, "carbs": 32},
+    "гречка с мясом": {"name": "Гречка с мясом", "calories": 180, "protein": 12, "fat": 6, "carbs": 20},
+    "рис с овощами": {"name": "Рис с овощами", "calories": 120, "protein": 3, "fat": 2, "carbs": 24},
+    "картофельное пюре": {"name": "Картофельное пюре", "calories": 90, "protein": 2, "fat": 3, "carbs": 14},
+    "овощи на пару": {"name": "Овощи на пару", "calories": 50, "protein": 2, "fat": 0.5, "carbs": 10},
+    "котлета куриная": {"name": "Котлета куриная", "calories": 200, "protein": 18, "fat": 12, "carbs": 8},
+    "котлета свиная": {"name": "Котлета свиная", "calories": 300, "protein": 15, "fat": 25, "carbs": 5},
+    "рыбное филе": {"name": "Рыбное филе", "calories": 150, "protein": 20, "fat": 7, "carbs": 0},
+    "лосось на гриле": {"name": "Лосось на гриле", "calories": 200, "protein": 22, "fat": 12, "carbs": 0},
+    "стейк из говядины": {"name": "Стейк из говядины", "calories": 250, "protein": 26, "fat": 17, "carbs": 0},
+    "куриная грудка": {"name": "Куриная грудка", "calories": 165, "protein": 31, "fat": 3.6, "carbs": 0},
+    "индейка": {"name": "Индейка", "calories": 135, "protein": 30, "fat": 1, "carbs": 0},
+    "тушеная говядина": {"name": "Тушеная говядина", "calories": 200, "protein": 25, "fat": 10, "carbs": 3},
+    "пельмени": {"name": "Пельмени", "calories": 250, "protein": 12, "fat": 10, "carbs": 28},
+    "вареники с картошкой": {"name": "Вареники с картошкой", "calories": 150, "protein": 5, "fat": 3, "carbs": 27},
+    "манты": {"name": "Манты", "calories": 200, "protein": 10, "fat": 8, "carbs": 23},
+    "хинкали": {"name": "Хинкали", "calories": 220, "protein": 12, "fat": 9, "carbs": 24},
+    "чебуреки": {"name": "Чебуреки", "calories": 350, "protein": 8, "fat": 22, "carbs": 30},
+    "беляши": {"name": "Беляши", "calories": 320, "protein": 10, "fat": 18, "carbs": 28},
+    "пицца": {"name": "Пицца", "calories": 260, "protein": 12, "fat": 10, "carbs": 30},
+    "суши": {"name": "Суши", "calories": 45, "protein": 2, "fat": 0.5, "carbs": 8},
+    "роллы": {"name": "Роллы", "calories": 150, "protein": 5, "fat": 4, "carbs": 25},
+    "салат": {"name": "Салат", "calories": 100, "protein": 3, "fat": 5, "carbs": 10},
+    "борщ": {"name": "Борщ", "calories": 65, "protein": 4, "fat": 3, "carbs": 6},
+    "щи": {"name": "Щи", "calories": 40, "protein": 3, "fat": 2, "carbs": 4},
+    "солянка": {"name": "Солянка", "calories": 90, "protein": 5, "fat": 5, "carbs": 5},
+    "уха": {"name": "Уха", "calories": 40, "protein": 5, "fat": 1, "carbs": 2},
+    "грибной суп": {"name": "Грибной суп", "calories": 50, "protein": 2, "fat": 2, "carbs": 6},
+    "куриный суп": {"name": "Куриный суп", "calories": 45, "protein": 3, "fat": 1.5, "carbs": 5},
+    "том-ям": {"name": "Том-ям", "calories": 120, "protein": 5, "fat": 8, "carbs": 8},
+    "фо-бо": {"name": "Фо-бо", "calories": 350, "protein": 20, "fat": 10, "carbs": 45},
+    "лазанья": {"name": "Лазанья", "calories": 350, "protein": 18, "fat": 17, "carbs": 30},
+    "спагетти карбонара": {"name": "Спагетти Карбонара", "calories": 350, "protein": 12, "fat": 15, "carbs": 40},
+    "спагетти болоньезе": {"name": "Спагетти Болоньезе", "calories": 320, "protein": 14, "fat": 10, "carbs": 45},
+    "макароны с сыром": {"name": "Макароны с сыром", "calories": 300, "protein": 10, "fat": 12, "carbs": 38},
+    "ризотто": {"name": "Ризотто", "calories": 220, "protein": 5, "fat": 8, "carbs": 32},
+    "гречка с мясом": {"name": "Гречка с мясом", "calories": 180, "protein": 12, "fat": 6, "carbs": 20},
+    "рис с овощами": {"name": "Рис с овощами", "calories": 120, "protein": 3, "fat": 2, "carbs": 24},
+    "картофельное пюре": {"name": "Картофельное пюре", "calories": 90, "protein": 2, "fat": 3, "carbs": 14},
+    "овощи на пару": {"name": "Овощи на пару", "calories": 50, "protein": 2, "fat": 0.5, "carbs": 10},
+    "котлета куриная": {"name": "Котлета куриная", "calories": 200, "protein": 18, "fat": 12, "carbs": 8},
+    "котлета свиная": {"name": "Котлета свиная", "calories": 300, "protein": 15, "fat": 25, "carbs": 5},
+    "рыбное филе": {"name": "Рыбное филе", "calories": 150, "protein": 20, "fat": 7, "carbs": 0},
+    "лосось на гриле": {"name": "Лосось на гриле", "calories": 200, "protein": 22, "fat": 12, "carbs": 0},
+    "стейк из говядины": {"name": "Стейк из говядины", "calories": 250, "protein": 26, "fat": 17, "carbs": 0},
+    "куриная грудка": {"name": "Куриная грудка", "calories": 165, "protein": 31, "fat": 3.6, "carbs": 0},
+    "индейка": {"name": "Индейка", "calories": 135, "protein": 30, "fat": 1, "carbs": 0},
+    "тушеная говядина": {"name": "Тушеная говядина", "calories": 200, "protein": 25, "fat": 10, "carbs": 3},
+    "пельмени": {"name": "Пельмени", "calories": 250, "protein": 12, "fat": 10, "carbs": 28},
+    "вареники с картошкой": {"name": "Вареники с картошкой", "calories": 150, "protein": 5, "fat": 3, "carbs": 27},
+    "манты": {"name": "Манты", "calories": 200, "protein": 10, "fat": 8, "carbs": 23},
+    "хинкали": {"name": "Хинкали", "calories": 220, "protein": 12, "fat": 9, "carbs": 24},
+    "чебуреки": {"name": "Чебуреки", "calories": 350, "protein": 8, "fat": 22, "carbs": 30},
+    "беляши": {"name": "Беляши", "calories": 320, "protein": 10, "fat": 18, "carbs": 28},
 }
 
 def search_local_db(query: str) -> List[Dict]:
@@ -429,14 +526,11 @@ async def search_openfoodfacts(query: str, max_results: int = 5) -> List[Dict]:
 
 # ========== ОСНОВНАЯ ФУНКЦИЯ ПОИСКА ==========
 async def search_food(query: str) -> List[Dict]:
-    """
-    Сначала локальная база, если мало результатов – OpenFoodFacts.
-    """
+    """Сначала локальная база, если мало результатов – OpenFoodFacts."""
     query = query.lower().strip()
     local_results = search_local_db(query)
 
     # Если в локальной достаточно точных совпадений – возвращаем их
-    # (например, если есть хотя бы один продукт с полным вхождением)
     exact_matches = [r for r in local_results if query in r['name'].lower()]
     if exact_matches:
         return exact_matches[:10]
@@ -456,3 +550,25 @@ async def search_food(query: str) -> List[Dict]:
     # Сортировка: локальные выше
     combined.sort(key=lambda x: 0 if x["source"] == "local" else 1)
     return combined[:10]
+
+# Новая функция для быстрого получения данных по точному названию (используется в media_handlers)
+async def get_food_data(name: str) -> Dict:
+    """Возвращает базовые данные продукта по названию (первое совпадение в локальной базе или пустой словарь)."""
+    results = await search_food(name)
+    if results:
+        best = results[0]
+        return {
+            'name': best['name'],
+            'base_calories': best.get('calories', 0),
+            'base_protein': best.get('protein', 0),
+            'base_fat': best.get('fat', 0),
+            'base_carbs': best.get('carbs', 0)
+        }
+    else:
+        return {
+            'name': name,
+            'base_calories': 0,
+            'base_protein': 0,
+            'base_fat': 0,
+            'base_carbs': 0
+        }

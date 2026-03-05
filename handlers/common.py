@@ -12,7 +12,7 @@ from keyboards.inline import (
     get_food_menu, get_water_activity_menu, get_progress_menu,
     get_lists_menu, get_profile_menu
 )
-from handlers.profile import cmd_profile, edit_profile
+from handlers.profile import cmd_profile, edit_profile, display_profile 
 from handlers.food import cmd_log_food
 from handlers.water import cmd_water
 from handlers.progress import cmd_progress
@@ -271,7 +271,8 @@ async def menu_reminders(callback: CallbackQuery, state: FSMContext):
 
 @router.callback_query(F.data == "menu_profile_view")
 async def menu_profile_view(callback: CallbackQuery, state: FSMContext):
-    await cmd_profile(callback.message, state, user_id=callback.from_user.id)
+    # Вызываем универсальную функцию отображения профиля без state
+    await display_profile(callback, callback.from_user.id)
     await callback.answer()
 
 @router.callback_query(F.data == "menu_profile_edit")

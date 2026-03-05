@@ -205,9 +205,9 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
 
     # ----- СПИСОК ПОКУПОК -----
     if intent == "shopping":
-        items = intent_data.get("items")
-        if items:
-            await add_to_shopping_list(message, ' '.join(items))
+        cleaned = intent_data.get("cleaned_text", "")
+        if cleaned:
+            await add_to_shopping_list(message, cleaned)
             await message.answer("✅ Добавлено в список покупок.")
         else:
             await cmd_shopping(message, state)

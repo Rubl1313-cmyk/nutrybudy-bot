@@ -27,7 +27,7 @@ class AIAssistantStates(StatesGroup):
     waiting_for_question = State()
 
 # Максимальное количество сообщений в истории для контекста
-MAX_HISTORY = 10
+MAX_HISTORY = 15
 
 async def process_voice(message: Message, state: FSMContext, is_global: bool = False):
     """
@@ -205,3 +205,6 @@ async def process_ai_query(message: Message, state: FSMContext, query: str):
     except Exception as e:
         logger.error(f"Исключение при запросе к AI: {e}", exc_info=True)
         await message.answer("❌ Произошла внутренняя ошибка при обращении к AI.")
+    
+    # Не очищаем состояние, остаёмся в режиме AI
+    # await state.clear() - убираем

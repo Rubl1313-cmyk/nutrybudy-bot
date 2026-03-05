@@ -23,7 +23,9 @@ COMMON_DISH_TRANSLATIONS = {
     "potato salad": "картофельный салат",
     "pasta salad": "макаронный салат",
     "fruit salad": "фруктовый салат",
-    "shrimp salad": "салат с креветками",
+    "shrimp salad": "салат с креветками",          # добавлено
+    "prawn salad": "салат с креветками",           # добавлено
+    "seafood salad": "салат с морепродуктами",     # добавлено
     "chicken salad": "куриный салат",
     "tuna salad": "салат с тунцом",
     "egg salad": "яичный салат",
@@ -225,6 +227,15 @@ COMMON_DISH_TRANSLATIONS = {
 # Локальный словарь продуктов (более 300 наименований)
 COMMON_TRANSLATIONS = {
     # Основные продукты
+    "shrimp": "креветки",
+    "prawns": "креветки",
+    "lettuce": "салат",
+    "bread": "хлеб",
+    "tomatoes": "помидоры",
+    "garlic": "чеснок",
+    "cheese": "сыр",
+    "salt": "соль",
+    "pepper": "перец",
     "chicken": "курица",
     "chicken breast": "куриная грудка",
     "chicken thigh": "куриное бедро",
@@ -719,7 +730,6 @@ async def translate_to_russian(text: str) -> str:
         return translated
 
     try:
-        # Используем Google Translator (бесплатно, без ключа)
         translator = GoogleTranslator(source='en', target='ru')
         translated = translator.translate(original)
         if translated and translated != original:
@@ -749,18 +759,11 @@ async def translate_dish_name(english_name: str) -> str:
     return translated
 
 async def extract_food_items(description: str) -> list:
-    """
-    Извлекает отдельные продукты из описания.
-    Заменяет союзы на запятые и разбивает.
-    """
-    # Заменяем 'and', 'with', 'in', 'from', 'for', 'of' на запятые
+    """Извлекает отдельные продукты из описания."""
     text = re.sub(r'\b(and|with|in|from|for|of|on|at|by)\b', ',', description.lower())
-    # Разбиваем по запятым и точкам с запятой
     items = [item.strip() for item in re.split(r'[,;]', text) if item.strip()]
-    # Убираем возможные артикли в начале
     cleaned = []
     for item in items:
-        # Удаляем артикли и лишние пробелы
         item = re.sub(r'^(a|an|the)\s+', '', item)
         item = re.sub(r'\s+', ' ', item).strip()
         cleaned.append(item)

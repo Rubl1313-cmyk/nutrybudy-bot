@@ -5,20 +5,31 @@
 - перечисления через запятые
 - разбиение по числам (2 хлеба молоко → хлеб:2, молоко:1)
 - нормализацию слов
-- разделение по пробелам с проверкой по базе продуктов
+- удаление стоп-слов (купить, добавь и т.п.)
+- объединение слов в названия продуктов на основе базы данных
 """
 import re
-from typing import List, Tuple
-from utils.normalizer import normalize_product_name
-from services.food_api import LOCAL_FOOD_DB  # импортируем базу продуктов
 import logging
+from typing import List, Tuple, Set
+from utils.normalizer import normalize_product_name
+from services.food_api import LOCAL_FOOD_DB
 
 logger = logging.getLogger(__name__)
 
-STOP_WORDS = {"и", "с", "со", "в", "на", "из", "для", "от", "по", "за", "про", "без", "до"}
+# Стоп-слова, которые следует удалить из запроса
+STOP_WORDS = {
+    "купить", "куплю", "надо", "нужно", "добавь", "добавить", "список", "покупок",
+    "в", "и", "с", "со", "для", "от", "по", "за", "про", "без", "до", "на", "из"
+}
 
 # Множество всех известных названий продуктов (для проверки)
-KNOWN_PRODUCTS = set(LOCAL_FOOD_DB.keys())
+KNOWN_PRODUCTS: Set[str] = set(LOCAL_FOOD_DB.keys())
+
+def _remove_stop_words(text: str) -> str:
+    """Удаляет стоп-слова из текста."""
+    words = text.split()
+    filtered = [w for w in words if w not in STOP_WORDS]
+    return ' '.join(filtered)
 
 def _tokenize(text: str) -> List[str]:
     """Разбивает текст на токены, удаляя лишние пробелы."""
@@ -27,7 +38,8 @@ def _tokenize(text: str) -> List[str]:
 def _is_number(token: str) -> bool:
     """Проверяет, является ли токен числом (целым или дробным)."""
     token = token.strip()
-    if token.replace('.', '', 1).replace(',', '', 1).isdigit():
+    # Проверяем, что строка содержит только цифры, точку или запятую
+    if re.fullmatch(r'\d+([.,]\d+)?', token):
         return True
     return False
 
@@ -42,8 +54,9 @@ def _find_longest_product(tokens: List[str], start_idx: int) -> int:
     Возвращает количество токенов, которые нужно объединить (минимум 1).
     """
     max_len = 0
-    # Пробуем объединить до 3 слов (чтобы не перебирать слишком много)
-    for length in range(1, min(4, len(tokens) - start_idx + 1)):
+    # Пробуем объединить до 4 слов (чтобы охватить составные названия)
+    max_possible = min(4, len(tokens) - start_idx)
+    for length in range(1, max_possible + 1):
         candidate = ' '.join(tokens[start_idx:start_idx+length])
         if candidate in KNOWN_PRODUCTS:
             max_len = length
@@ -57,24 +70,27 @@ def parse_shopping_items(text: str) -> List[Tuple[str, int, str]]:
     text = text.lower().strip()
     logger.info(f"📝 parse_shopping_items: входной текст: {original_text}")
 
-    # 1. Если есть запятые, разбиваем по ним
+    # 1. Удаляем стоп-слова
+    text = _remove_stop_words(text)
+    logger.info(f"📝 после удаления стоп-слов: {text}")
+
+    # 2. Если есть запятые, разбиваем по ним
     if ',' in text:
         parts = [p.strip() for p in text.split(',') if p.strip()]
         items = []
         for part in parts:
-            # Для каждой части применяем алгоритм разбора по числам
             items.extend(_parse_part_by_numbers(part))
         logger.info(f"📝 parse_shopping_items (по запятым): {items}")
         return items
 
-    # 2. Если есть числа, используем алгоритм разбора по числам
+    # 3. Если есть числа, используем алгоритм разбора по числам
     if re.search(r'\d', text):
         items = _parse_part_by_numbers(text)
         if items:
             logger.info(f"📝 parse_shopping_items (по числам): {items}")
             return items
 
-    # 3. Нет ни запятых, ни чисел — разбиваем по пробелам с умным объединением
+    # 4. Нет ни запятых, ни чисел — разбиваем по пробелам с умным объединением
     tokens = _tokenize(text)
     if not tokens:
         return []
@@ -116,10 +132,13 @@ def _parse_part_by_numbers(part: str) -> List[Tuple[str, int, str]]:
                 items.append((normalized_name, current_qty, "шт"))
                 current_name_parts = []
             # Теперь это новое количество
-            current_qty = int(_parse_number(token)) if token.isdigit() else int(token)
+            current_qty = int(_parse_number(token))
             # Проверяем, не является ли следующее слово единицей измерения
-            if i + 1 < len(tokens) and tokens[i+1] in ['г', 'кг', 'мл', 'л']:
-                # Если да, то единица будет частью следующего названия? Пока игнорируем
+            if i + 1 < len(tokens) and tokens[i+1] in ['г', 'кг', 'мл', 'л', 'шт']:
+                # Если да, то это единица для текущего количества, но мы пока не сохраняем единицы,
+                # так как в модели ShoppingItem они есть, но в базе мы используем "шт" по умолчанию.
+                # Можно сохранять единицу для будущего использования.
+                # Пока просто пропускаем.
                 pass
             i += 1
         else:

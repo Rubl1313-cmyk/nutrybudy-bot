@@ -7,18 +7,18 @@ from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKe
 from aiogram.filters import CommandStart, Command
 from aiogram.fsm.context import FSMContext
 
-from keyboards.reply import get_main_keyboard, get_cancel_keyboard
+from keyboards.reply import get_main_keyboard
 from keyboards.inline import (
     get_food_menu, get_water_activity_menu, get_progress_menu,
     get_lists_menu, get_profile_menu
 )
-from handlers.profile import cmd_profile, edit_profile, display_profile
+from handlers.profile import cmd_profile, display_profile
 from handlers.food import cmd_log_food
 from handlers.water import cmd_water
 from handlers.progress import cmd_progress
 from handlers.shopping import cmd_shopping
 from handlers.reminders import cmd_reminders
-from handlers.activity import cmd_fitness, process_steps_input
+from handlers.activity import cmd_fitness
 from handlers.ai_assistant import cmd_ask
 from handlers.meal_plan import cmd_meal_plan
 from utils.states import StepsStates
@@ -27,34 +27,23 @@ router = Router()
 
 @router.message(CommandStart())
 async def cmd_start(message: Message, state: FSMContext):
-    """Приветственное сообщение с полным описанием возможностей."""
+    """Приветственное сообщение — лаконичное и современное."""
     await state.clear()
     welcome_text = (
-        "✨ <b>Добро пожаловать в NutriBuddy!</b> ✨\n\n"
-        "Я — твой персональный помощник в мире здорового питания и активного образа жизни.\n\n"
-        "🔹 <b>Что я умею:</b>\n"
-        "• 👤 Настраивать профиль и считать нормы\n"
-        "• 🍽️ Вести дневник питания (по фото или тексту)\n"
-        "• 💧 Отслеживать воду\n"
-        "• 🏋️ Записывать тренировки и шаги\n"
-        "• 📊 Строить графики прогресса\n"
-        "• 📋 Создавать списки покупок\n"
-        "• 🔔 Устанавливать напоминания\n"
-        "• 🤖 Отвечать на вопросы через AI\n"
-        "• 🍽️ Планировать питание и распределять калории\n\n"
-        "🎯 <b>Начни с настройки профиля:</b>\n"
-        "Нажми 👤 Профиль или введи /set_profile\n\n"
-        "💡 <b>Совет:</b> Отправь фото еды — я распознаю продукты!\n"
-        "Для подробной информации нажми ❓ Помощь."
+        "🚀 <b>Добро пожаловать в NutriBuddy!</b>\n\n"
+        "Твой умный помощник для здорового питания и активного образа жизни.\n\n"
+        "⚡️ <b>Быстрый старт:</b>\n"
+        "1. Настрой профиль → /set_profile или кнопка 👤 Профиль\n"
+        "2. Начинай записывать еду, воду и тренировки\n"
+        "3. Следи за прогрессом и получай рекомендации\n\n"
+        "✨ <b>Возможности:</b>\n"
+        "• Распознавание еды по фото\n"
+        "• AI-ассистент с поддержкой диалога\n"
+        "• Планировщик питания\n"
+        "• Графики прогресса\n\n"
+        "👇 Выбери раздел в меню или просто напиши вопрос."
     )
     await message.answer(welcome_text, reply_markup=get_main_keyboard(), parse_mode="HTML")
-
-# ========== НОВЫЙ ОБРАБОТЧИК ДЛЯ ТЕКСТОВОЙ КОМАНДЫ "ПРОФИЛЬ" ==========
-@router.message(F.text.lower() == "профиль")
-async def text_profile(message: Message, state: FSMContext):
-    """Обработка текста 'профиль' как команды вызова профиля."""
-    from handlers.profile import cmd_profile
-    await cmd_profile(message, state)
 
 @router.message(Command("help"))
 async def cmd_help(message: Message, state: FSMContext):
@@ -66,7 +55,7 @@ async def show_help_menu(event: Message | CallbackQuery):
     """Отображает главное меню помощи с инлайн-кнопками."""
     text = (
         "📚 <b>Разделы помощи</b>\n\n"
-        "Выберите интересующую тему:"
+        "Выбери тему, чтобы узнать подробнее:"
     )
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🍽️ Питание", callback_data="help_food_category")],
@@ -90,42 +79,55 @@ async def help_callbacks(callback: CallbackQuery):
     if data == "help_food_category":
         text = (
             "🍽️ <b>Питание</b>\n\n"
-            "• 📸 Отправить фото еды – бот распознает продукты и предложит выбрать вес.\n"
-            "• ✏️ Ввести продукты вручную – например, «курица, рис, брокколи».\n"
-            "• 🍽️ План питания – сгенерировать меню на день.\n"
-            "• 💬 AI Помощник – задать вопрос о питании, рецептах и т.д."
+            "📸 <b>Фото еды</b> – отправь фото, я распознаю продукты и предложу ввести вес.\n"
+            "   <i>Пример: сфотографируй тарелку с едой</i>\n\n"
+            "✏️ <b>Ручной ввод</b> – напиши продукты через запятую.\n"
+            "   <i>Пример: «гречка, куриная грудка, огурец»</i>\n\n"
+            "🍽️ <b>План питания</b> – сгенерирую меню на день с учётом твоих норм.\n\n"
+            "🔍 <b>Поиск продукта</b> – просто название, и я покажу калорийность и БЖУ.\n"
+            "   <i>Пример: «авокадо»</i>"
         )
     elif data == "help_water_category":
         text = (
             "💧 <b>Вода и активность</b>\n\n"
-            "• 💧 Записать воду – можно выбрать объём или ввести число.\n"
-            "• 👟 Записать шаги – введите количество шагов.\n"
-            "• 🏃 Записать активность – бег, ходьба, велосипед и др."
+            "💧 <b>Записать воду</b> – выбери объём из предложенных или введи вручную.\n"
+            "   <i>Пример: «250 мл» или «стакан воды»</i>\n\n"
+            "👟 <b>Записать шаги</b> – введи количество шагов, я пересчитаю в километры и калории.\n"
+            "   <i>Пример: «прошёл 5000 шагов»</i>\n\n"
+            "🏃 <b>Записать активность</b> – выбери тип тренировки и укажи длительность.\n"
+            "   <i>Пример: «бег 30 минут»</i>"
         )
     elif data == "help_progress_category":
         text = (
             "📊 <b>Прогресс</b>\n\n"
-            "• Просмотр статистики по калориям, воде, весу и активности за день, неделю или месяц.\n"
-            "• Графики и прогресс-бары."
+            "📈 <b>Статистика</b> – просмотр потреблённых калорий, воды, веса и активности.\n"
+            "📅 <b>Периоды</b> – можно посмотреть статистику за день, неделю или месяц.\n"
+            "📉 <b>Графики</b> – наглядная динамика изменений веса и потребления."
         )
     elif data == "help_lists_category":
         text = (
             "📋 <b>Списки и напоминания</b>\n\n"
-            "• 📋 Список покупок – добавление товаров, изменение количества, отметка о покупке.\n"
-            "• 🔔 Напоминания – создание напоминаний о приёме пищи, воде и других делах."
+            "📝 <b>Список покупок</b> – добавляй товары, меняй количество, отмечай купленное.\n"
+            "   <i>Пример: «купить 2 яйца, молоко»</i>\n\n"
+            "🔔 <b>Напоминания</b> – создавай напоминания о приёме пищи, воде или других делах.\n"
+            "   <i>Пример: «напомни выпить воду в 15:00»</i>"
         )
     elif data == "help_profile_category":
         text = (
             "👤 <b>Профиль</b>\n\n"
-            "• Просмотр и редактирование ваших данных (вес, рост, возраст, пол, активность, цель, город).\n"
-            "• Бот автоматически рассчитывает нормы калорий, БЖУ и воды."
+            "⚖️ <b>Данные</b> – вес, рост, возраст, пол, уровень активности, цель, город.\n"
+            "📊 <b>Нормы</b> – я автоматически рассчитаю дневную норму калорий, БЖУ и воды.\n"
+            "✏️ <b>Редактирование</b> – можно изменить данные в любое время."
         )
     elif data == "help_ai_category":
         text = (
             "🤖 <b>AI Помощник</b>\n\n"
-            "• Задайте любой вопрос о питании, здоровье, тренировках или рецептах.\n"
-            "• Может сообщить погоду в любом городе.\n"
-            "• Поддерживает голосовые сообщения."
+            "💬 <b>Диалоговый режим</b> – задавай вопросы, я помню контекст беседы.\n"
+            "   <i>Пример: «Какой рецепт пасты?» → «А с морепродуктами?»</i>\n\n"
+            "🌦️ <b>Погода</b> – могу сказать погоду в любом городе.\n"
+            "   <i>Пример: «погода в Москве»</i>\n\n"
+            "📝 <b>Советы</b> – спрашивай о питании, тренировках, здоровье.\n\n"
+            "❌ <b>Выход</b> – напиши «выход» или /cancel, чтобы выйти из режима."
         )
     elif data == "help_close":
         await callback.message.delete()
@@ -144,7 +146,7 @@ async def help_callbacks(callback: CallbackQuery):
         ])
         await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
         await callback.answer()
-        
+
 @router.callback_query(F.data == "help_back")
 async def help_back_callback(callback: CallbackQuery):
     """Возврат в главное меню помощи."""
@@ -225,7 +227,7 @@ async def menu_help(message: Message, state: FSMContext):
 async def menu_ai_assistant(message: Message, state: FSMContext):
     await cmd_ask(message, state)
 
-# ========== Обработчики навигационных callback'ов с передачей user_id ==========
+# ========== Обработчики навигационных callback'ов ==========
 
 @router.callback_query(F.data == "menu_back")
 async def menu_back_callback(callback: CallbackQuery, state: FSMContext):

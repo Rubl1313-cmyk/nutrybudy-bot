@@ -82,7 +82,7 @@ INTENT_KEYWORDS = {
         r'\bпомоги\b', r'\bрецепт\b', r'\bчто такое\b', r'\bкак сделать\b',
         r'\bпочему\b', r'\bзачем\b', r'\bкогда\b', r'\bгде\b', r'\bкто\b',
         r'\bнапиши\b', r'\bсоставь\b', r'\bпридумай\b', r'\bрасскажи\b',
-        r'\bобъясни\b', r'\bпосоветуй\b', r'\bджарвис\b'  # добавлено
+        r'\bобъясни\b', r'\bпосоветуй\b', r'\bджарвис\b'
     ]
 }
 
@@ -182,8 +182,20 @@ def classify(text: str) -> Dict[str, Any]:
         result["cleaned_text"] = cleaned
         return result
 
-    # ----- 9. Неопределённое намерение -----
-    if ',' in text_lower:
+    # ----- 9. Неопределённое намерение (перечисление продуктов без ключевых слов) -----
+    # Проверяем, есть ли запятая или союзы "и", "с" (признаки списка)
+    has_separators = ',' in text_lower or re.search(r'\bи\b|\bс\b', text_lower)
+    # Если есть разделители и нет ключевых слов других намерений, считаем unknown
+    if has_separators:
+        result["intent"] = "unknown"
+        result["possible_food"] = True
+        return result
+
+    # Также, если текст состоит из нескольких слов и не содержит ключевых слов AI
+    # (но AI мы уже проверили выше)
+    if ' ' in text_lower and len(text_lower.split()) >= 2:
+        # Дополнительно проверим, что это не просто приветствие (например, "привет")
+        # Здесь можно добавить проверку по словарю продуктов, но для простоты считаем unknown
         result["intent"] = "unknown"
         result["possible_food"] = True
         return result

@@ -3,6 +3,7 @@
 Если намерение не определено, показывает меню выбора.
 Исправлены все ошибки: шаги, дублирование, обработка исключений.
 После выбора типа приёма пищи автоматически подставляет ранее введённый текст.
+Добавлена защита от ошибочного вызова AI после выхода.
 """
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
@@ -14,6 +15,7 @@ from datetime import datetime
 
 from services.intent_classifier import classify
 from utils.water_parser import parse_water_amount
+from utils.helpers import normalize_exit_command  # <-- добавлен импорт
 from handlers.food import cmd_log_food, process_next_food, process_food_search
 from handlers.water import cmd_water, add_water_quick
 from handlers.shopping import cmd_shopping, add_to_shopping_list, update_list_message, get_or_create_default_list
@@ -26,7 +28,7 @@ from database.models import User, Activity
 from utils.ai_tools import get_weather
 from services.activity import CALORIES_PER_MINUTE
 from handlers.ai_assistant import process_ai_query
-from keyboards.reply import get_main_keyboard, get_cancel_keyboard
+from keyboards.reply import get_main_keyboard
 
 logger = logging.getLogger(__name__)
 universal_router = Router()
@@ -41,6 +43,19 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
     if text is None:
         text = message.text
     logger.info(f"📨 Получен текст: {text}")
+
+    # Проверка на выход из режима AI (на случай, если сообщение не попало в ai_assistant)
+    current_state = await state.get_state()
+    if current_state == "AIAssistantStates:waiting_for_question":
+        normalized = normalize_exit_command(text)
+        if normalized in ['выход', 'выйти', 'выходи', 'завершить', 'закончить', 'стоп', 'хватит', '/cancel']:
+            await state.clear()
+            await message.answer(
+                "👋 Выход из режима AI-ассистента.\n"
+                "Используйте меню для навигации.",
+                reply_markup=get_main_keyboard()
+            )
+            return
 
     intent_data = classify(text)
     intent = intent_data.get("intent")
@@ -92,7 +107,6 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
         distance_km = intent_data.get("distance_km")
         steps = intent_data.get("steps")
 
-        # Если есть шаги (приоритет)
         if steps:
             user_id = message.from_user.id
             calories = round(steps * 0.04, 1)
@@ -119,7 +133,6 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
             await message.answer(f"✅ Записано {steps} шагов (сожжено ~{calories} ккал).")
             return
 
-        # Если есть расстояние, но нет длительности – рассчитываем длительность по темпу
         if distance_km and not duration:
             if act_type == "running":
                 pace = 6.0
@@ -131,9 +144,7 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
                 pace = 8.0
             duration = int(distance_km * pace)
 
-        # Если есть длительность или расстояние
         if act_type and (duration or distance_km):
-            # Если есть только длительность (без расстояния), запрашиваем подтверждение
             if duration and not distance_km:
                 await state.update_data(activity_type=act_type, duration=duration)
                 await state.set_state(ActivityStates.confirming)
@@ -145,7 +156,6 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
                     ])
                 )
                 return
-            # Если есть расстояние – сразу считаем и сохраняем
             else:
                 user_id = message.from_user.id
                 async with get_session() as session:
@@ -184,13 +194,11 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
                 await message.answer(" ".join(msg_parts))
                 return
 
-        # Если нет ни длительности, ни расстояния, но есть тип активности – запускаем диалог
         if act_type:
             await state.update_data(activity_type=act_type)
             await cmd_fitness(message, state)
             return
 
-        # Если ничего не распознано – запускаем общий диалог
         await cmd_fitness(message, state)
         return
 
@@ -226,24 +234,19 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
         items = intent_data.get("items")
         cleaned = intent_data.get("cleaned_text", "")
 
-        # Если есть очищенный текст (например, "гречка"), сохраняем его для последующего использования
         if cleaned:
             await state.update_data(pending_food_text=cleaned)
 
-        # Запускаем выбор типа приёма пищи, если тип не указан
         if not meal_type:
             await state.update_data(food_intent_data=intent_data)
             await cmd_log_food(message, state)
         else:
-            # Если тип уже определён, сразу переходим к поиску
             if items:
                 from handlers.media_handlers import start_food_input
                 await start_food_input(message, state, items, meal_type)
             elif cleaned:
-                # Запускаем поиск продукта с сохранённым текстом
                 await state.update_data(meal_type=meal_type)
                 await state.set_state(FoodStates.searching_food)
-                # Имитируем сообщение с текстом продукта
                 fake_message = message
                 fake_message.text = cleaned
                 await process_food_search(fake_message, state)
@@ -274,9 +277,19 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
 
     # ----- AI-ЗАПРОСЫ -----
     if intent == "ai":
-        logger.info(f"🤖 AI запрос от {message.from_user.id}: {text}")
-        await process_ai_query(message, state, text)
-        return
+        # Проверяем, не короткое ли это слово после выхода
+        # (дополнительная защита, если по какой-то причине не сработала проверка выше)
+        words = text.split()
+        question_words = ["что", "как", "почему", "зачем", "кто", "где", "когда", "сколько", "?"]
+        if len(words) <= 3 and not any(q in text_lower for q in question_words):
+            # Короткое слово без вопроса - скорее всего, не AI запрос
+            logger.info(f"Short text '{text}' classified as AI, but treating as unknown")
+            # Переходим к блоку unknown
+            pass
+        else:
+            logger.info(f"🤖 AI запрос от {message.from_user.id}: {text}")
+            await process_ai_query(message, state, text)
+            return
 
     # ----- НЕОПРЕДЕЛЁННОЕ -----
     await state.update_data(pending_text=text)
@@ -292,6 +305,7 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
     )
     return
 
+# ... остальные обработчики (water_drink, water_buy, choose_shopping и т.д.) без изменений
 
 # ========== ОБРАБОТЧИКИ КНОПОК ДЛЯ ВОДЫ ==========
 

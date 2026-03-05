@@ -1,16 +1,14 @@
 """
-Cloudflare Workers AI Integration для NutriBuddy
-Содержит:
-- identify_dish_from_image: распознавание названия блюда (LLaVA)
-- analyze_food_image: распознавание ингредиентов (старый метод, для fallback)
-- transcribe_audio: распознавание голоса
+Cloudflare Workers AI Integration for NutriBuddy
+                                
+Расширено: identify_food_multimodel для мультимодельного распознавания с JSON-ответом.
 """
 import aiohttp
 import os
 import logging
 import asyncio
-import tempfile
-from typing import Optional, List, Dict
+import json
+from typing import Optional, Dict, Any
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +25,8 @@ else:
 VISION_MODELS = [
     "@cf/llava-hf/llava-1.5-7b-hf",
     "@cf/unum/uform-gen2-qwen-500m",
+    # Можно добавить другие модели, например:
+    # "@cf/microsoft/resnet-50",
 ]
 
 WHISPER_MODELS = [
@@ -37,7 +37,17 @@ WHISPER_MODELS = [
 def _bytes_to_array(image_bytes: bytes) -> list:
     return list(image_bytes)
 
-async def identify_dish_from_image(image_bytes: bytes) -> Optional[str]:
+async def identify_food_multimodel(
+    image_bytes: bytes,
+    prompt: str = None,
+    max_tokens: int = 300,
+    temperature: float = 0.1
+) -> Optional[Dict[str, Any]]:
+    """
+    Пробует несколько vision-моделей для распознавания еды.
+    Возвращает структурированный JSON с ключами 'dish_name' и 'ingredients'.
+    Если ни одна модель не вернула валидный JSON, возвращает None.
+    """
     if not BASE_URL:
         return None
 
@@ -47,12 +57,14 @@ async def identify_dish_from_image(image_bytes: bytes) -> Optional[str]:
         "Content-Type": "application/json"
     }
 
-    # Максимально простой и короткий промпт
-    prompt = (
-        "Identify the specific dish in this image. If it's a salad, name its type (e.g., 'Caesar salad', 'Greek salad', 'Salmon salad'). "
-        "If it's a main course, name it precisely (e.g., 'Grilled chicken breast', 'Roast beef'). "
-        "Answer with only the dish name, nothing else."
-    )
+    # Улучшенный промпт с запросом JSON
+    if prompt is None:
+        prompt = (
+            "You are a food recognition AI. Look at this image and return a JSON object with:\n"
+            '- "dish_name": the name of the dish in Russian (if known, otherwise in English),\n'
+            '- "ingredients": list of main ingredients in Russian (each as a string).\n'
+            "Only output valid JSON, no other text. Example: {\"dish_name\": \"Цезарь с курицей\", \"ingredients\": [\"курица\", \"салат\", \"сыр\", \"сухарики\"]}"
+        )
 
     for model in VISION_MODELS:
         try:
@@ -60,73 +72,57 @@ async def identify_dish_from_image(image_bytes: bytes) -> Optional[str]:
             payload = {
                 "image": image_array,
                 "prompt": prompt,
-                "max_tokens": 50,
-                "temperature": 0.1
+                "max_tokens": max_tokens,
+                "temperature": temperature
             }
-            logger.info(f"Trying vision model {model} for dish name")
+            logger.info(f"Trying vision model {model} for food recognition")
             async with aiohttp.ClientSession() as session:
                 async with session.post(url, headers=headers, json=payload, timeout=30) as resp:
                     if resp.status == 200:
                         result = await resp.json()
                         description = result.get("result", {}).get("description", "").strip()
-                        # Простейшая валидация
-                        if description and len(description) < 100:
-                            logger.info(f"✅ Model {model} identified dish: {description}")
-                            return description
-                        else:
-                            logger.warning(f"Model {model} returned invalid: {description}")
+                        if description:
+                            # Пытаемся извлечь JSON из ответа
+                            try:
+                                # Ищем JSON в тексте (модель может добавить пояснения)
+                                start = description.find('{')
+                                end = description.rfind('}') + 1
+                                if start != -1 and end > start:
+                                    json_str = description[start:end]
+                                    data = json.loads(json_str)
+                                    if isinstance(data, dict) and 'dish_name' in data:
+                                        logger.info(f"✅ Model {model} returned valid JSON: {data}")
+                                        return data
+                            except json.JSONDecodeError:
+                                logger.warning(f"Model {model} returned invalid JSON: {description[:200]}")
+                            # Если не JSON, пытаемся просто вернуть текст как название блюда (fallback)
+                            # Но лучше вернуть None, чтобы другие модели попробовали
+                            logger.warning(f"Model {model} returned non-JSON, trying next")
                     else:
                         logger.warning(f"Model {model} failed with status {resp.status}")
         except Exception as e:
             logger.warning(f"Model {model} error: {e}")
             continue
 
-    logger.error("All vision models failed to identify dish")
-    return None
-    
-async def analyze_food_image(
-    image_bytes: bytes,
-    prompt: str = "List all food items visible in this image. Be specific. Return as a comma-separated list.",
-    max_retries: int = 2
-) -> Optional[str]:
-    """
-    Анализирует изображение и возвращает текстовое описание (например, список ингредиентов).
-    Используется для fallback, когда нужно получить ингредиенты.
-    """
-    if not BASE_URL:
-        return None
-
-    image_array = _bytes_to_array(image_bytes)
-    headers = {
-        "Authorization": f"Bearer {CLOUDFLARE_API_TOKEN}",
-        "Content-Type": "application/json"
-    }
-
-    for model in VISION_MODELS:
-        for attempt in range(max_retries):
-            try:
-                url = f"{BASE_URL}{model}"
-                payload = {
-                    "image": image_array,
-                    "prompt": prompt,
-                    "max_tokens": 150,
-                    "temperature": 0.3
-                }
-                logger.info(f"Trying vision model {model}, attempt {attempt+1}")
-                async with aiohttp.ClientSession() as session:
-                    async with session.post(url, headers=headers, json=payload, timeout=30) as resp:
-                        if resp.status == 200:
-                            result = await resp.json()
-                            description = result.get("result", {}).get("description", "").strip()
-                            if description:
-                                logger.info(f"✅ Model {model} returned description")
-                                return description
-            except Exception as e:
-                logger.warning(f"Model {model} attempt {attempt+1} failed: {e}")
-            await asyncio.sleep(1)
-    logger.error("All models failed to analyze food image")
+    logger.error("All vision models failed to return valid JSON")
     return None
 
+# Для обратной совместимости оставляем старые функции, но можно их переиспользовать
+async def identify_dish_from_image(image_bytes: bytes) -> Optional[str]:
+    """Старая функция – только название блюда (не JSON)."""
+    data = await identify_food_multimodel(image_bytes, max_tokens=50)
+    if data:
+        return data.get("dish_name")
+    return None
+
+async def analyze_food_image(image_bytes: bytes, prompt: str = None) -> Optional[str]:
+    """Старая функция – текстовое описание (ингредиенты)."""
+    if prompt is None:
+        prompt = "List all food items visible in this image. Be specific. Return as a comma-separated list."
+    data = await identify_food_multimodel(image_bytes, prompt=prompt, max_tokens=150)
+    if data and "ingredients" in data:
+        return ", ".join(data["ingredients"])
+    return None
 # =============================================================================
 # 🎤 РАСПОЗНАВАНИЕ ГОЛОСА (WHISPER)
 # =============================================================================

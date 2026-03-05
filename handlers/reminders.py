@@ -26,14 +26,15 @@ router = Router()
 
 @router.message(Command("reminders"))
 @router.message(F.text == "🔔 Напоминания")
-async def cmd_reminders(message: Message, state: FSMContext):
+async def cmd_reminders(message: Message, state: FSMContext, user_id: int = None):
     """Показать напоминания."""
     await state.clear()
-    telegram_id = message.from_user.id
+    if user_id is None:
+        user_id = message.from_user.id
 
     async with get_session() as session:
         user_result = await session.execute(
-            select(User).where(User.telegram_id == telegram_id)
+            select(User).where(User.telegram_id == user_id)
         )
         user = user_result.scalar_one_or_none()
         if not user:
@@ -75,6 +76,8 @@ async def cmd_reminders(message: Message, state: FSMContext):
         text += "\n<i>Нажми ➕ чтобы добавить ещё</i>"
 
         await message.answer(text, reply_markup=keyboard, parse_mode="HTML")
+
+# ... остальные функции без изменений
 
 
 @router.message(F.text == "➕ Создать напоминание")

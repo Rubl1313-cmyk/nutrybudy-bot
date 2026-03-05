@@ -142,7 +142,7 @@ async def process_ai_query(message: Message, state: FSMContext, query: str):
             prompt=query,
             system_prompt=DEFAULT_SYSTEM_PROMPT,
             model="@cf/qwen/qwen2.5-coder-32b-instruct",
-            max_tokens=1500
+            max_tokens=3000
         )
 
         if "error" in response:

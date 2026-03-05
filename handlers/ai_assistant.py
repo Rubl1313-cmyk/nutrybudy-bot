@@ -1,6 +1,7 @@
 """
 Обработчик AI-ассистента.
 Использует intent_classifier для выполнения действий (например, погода) или вызова AI.
+Поддерживает диалоги с контекстом. Для выхода используйте /cancel или "выход".
 """
 from aiogram import Router, F
 from aiogram.types import Message
@@ -24,6 +25,9 @@ logger = logging.getLogger(__name__)
 
 class AIAssistantStates(StatesGroup):
     waiting_for_question = State()
+
+# Максимальное количество сообщений в истории для контекста
+MAX_HISTORY = 10
 
 async def process_voice(message: Message, state: FSMContext, is_global: bool = False):
     """
@@ -78,13 +82,17 @@ async def cmd_ask(message: Message, state: FSMContext, user_id: int = None):
     """Вход в режим AI-ассистента."""
     if user_id is None:
         user_id = message.from_user.id
+
+    # Инициализируем историю в состоянии
     await state.set_state(AIAssistantStates.waiting_for_question)
+    await state.update_data(history=[])
     await message.answer(
         "🤖 <b>Режим AI-ассистента</b>\n\n"
         "Задайте любой вопрос, и я постараюсь на него ответить.\n"
         "Я также могу сообщить погоду, если спросить 'погода в Москве'.\n"
-        "Вы можете отправить текст или голосовое сообщение.\n\n"
-        "Для выхода используйте /cancel",
+        "Вы можете отправить текст или голосовое сообщение.\n"
+        "Для выхода используйте /cancel или напишите 'выход'.\n\n"
+        "Чем я могу помочь?",
         parse_mode="HTML"
     )
     logger.info(f"Пользователь {user_id} вошёл в режим AI")
@@ -97,25 +105,40 @@ async def handle_voice_question(message: Message, state: FSMContext):
 @router.message(AIAssistantStates.waiting_for_question, F.text)
 async def handle_text_question(message: Message, state: FSMContext):
     """Обработка текста в режиме /ask."""
-    await process_ai_query(message, state, message.text)
+    text = message.text.strip()
+    
+    # Проверка на выход из режима
+    if text.lower() in ['выход', 'выйти', '/cancel']:
+        await state.clear()
+        await message.answer(
+            "👋 Выход из режима AI-ассистента.\n"
+            "Используйте меню для навигации.",
+            reply_markup=get_main_keyboard()
+        )
+        return
+
+    await process_ai_query(message, state, text)
 
 async def process_ai_query(message: Message, state: FSMContext, query: str):
-    """Основная логика: классификация и выполнение или вызов AI."""
+    """Основная логика: классификация и выполнение или вызов AI с контекстом."""
     if not query or not query.strip():
         await message.answer("❌ Пустой запрос. Пожалуйста, напишите что-нибудь.")
         return
+
+    # Получаем историю из состояния
+    data = await state.get_data()
+    history = data.get('history', [])
 
     # Классифицируем намерение
     intent_data = classify(query)
     intent = intent_data.get("intent")
 
-    # Если это запрос погоды, обрабатываем отдельно
+    # Если это запрос погоды, обрабатываем отдельно и остаёмся в режиме
     if intent == "weather":
         await message.answer("⏳ Узнаю погоду...")
         user_id = message.from_user.id
         city = intent_data.get("city")
 
-        # Если город не указан, берём из профиля
         if not city:
             async with get_session() as session:
                 result = await session.execute(
@@ -130,17 +153,27 @@ async def process_ai_query(message: Message, state: FSMContext, query: str):
 
         weather_info = await get_weather(city)
         await message.answer(weather_info)
-        await state.clear()
+        # Не очищаем состояние, остаёмся в режиме AI
         return
 
-    # Иначе отправляем запрос в AI
+    # Иначе отправляем запрос в AI с контекстом
     await message.answer("⏳ Думаю...")
     logger.info(f"🚀 Запрос в AI от {message.from_user.id}: {query[:100]}...")
+
+    # Формируем системный промпт с учётом истории
+    system_prompt = DEFAULT_SYSTEM_PROMPT
+    if history:
+        # Добавляем в системный промпт информацию о предыдущих сообщениях
+        history_text = "\n".join([
+            f"{msg['role']}: {msg['content']}" 
+            for msg in history[-MAX_HISTORY:]
+        ])
+        system_prompt += f"\n\nИстория диалога:\n{history_text}"
 
     try:
         response = await ask_worker_ai(
             prompt=query,
-            system_prompt=DEFAULT_SYSTEM_PROMPT,
+            system_prompt=system_prompt,
             model="@cf/qwen/qwen2.5-coder-32b-instruct",
             max_tokens=3000
         )
@@ -151,6 +184,15 @@ async def process_ai_query(message: Message, state: FSMContext, query: str):
             await message.answer(f"❌ Ошибка при обращении к AI: {error_msg}")
         elif response.get("choices"):
             content = response["choices"][0]["message"]["content"]
+            
+            # Добавляем в историю
+            history.append({"role": "user", "content": query})
+            history.append({"role": "assistant", "content": content})
+            # Ограничиваем историю
+            if len(history) > MAX_HISTORY * 2:
+                history = history[-MAX_HISTORY*2:]
+            await state.update_data(history=history)
+
             if len(content) > 4000:
                 parts = [content[i:i+4000] for i in range(0, len(content), 4000)]
                 for part in parts:
@@ -163,5 +205,3 @@ async def process_ai_query(message: Message, state: FSMContext, query: str):
     except Exception as e:
         logger.error(f"Исключение при запросе к AI: {e}", exc_info=True)
         await message.answer("❌ Произошла внутренняя ошибка при обращении к AI.")
-    finally:
-        await state.clear()

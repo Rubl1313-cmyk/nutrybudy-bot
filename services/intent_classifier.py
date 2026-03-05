@@ -1,7 +1,7 @@
 """
 Модуль для классификации намерений пользователя по тексту.
 Использует приоритеты и строгие регулярные выражения для точного определения.
-Добавлена поддержка чисел, записанных словами.
+Добавлена поддержка чисел, записанных словами, и женского рода.
 """
 import re
 from typing import Dict, Any, Optional, List
@@ -21,22 +21,30 @@ ACTIVITY_TYPES = {
     "ходьба": "walking",
     "прогулка": "walking",
     "гулял": "walking",
+    "гуляла": "walking",
     "пешком": "walking",
     "бег": "running",
     "побегал": "running",
+    "побегала": "running",
     "бегал": "running",
+    "бегала": "running",
     "пробежка": "running",
     "пробежал": "running",
+    "пробежала": "running",
     "йога": "yoga",
     "позанимался йогой": "yoga",
+    "позанималась йогой": "yoga",
     "плавание": "swimming",
     "поплавал": "swimming",
+    "поплавала": "swimming",
     "велосипед": "cycling",
     "покатался на велосипеде": "cycling",
+    "покаталась на велосипеде": "cycling",
     "тренажёрный зал": "gym",
     "тренажерный зал": "gym",
     "тренировка": "workout",
     "потренировался": "workout",
+    "потренировалась": "workout",
     "спортзал": "gym",
     "лыжи": "skiing_cross_country",
     "беговые лыжи": "skiing_cross_country",
@@ -47,12 +55,12 @@ ACTIVITY_TYPES = {
     "фигурное катание": "ice_skating_figure"
 }
 
-# Ключевые слова для разных намерений
+# Ключевые слова для разных намерений (с учётом женского рода)
 INTENT_KEYWORDS = {
     "water": [
-        r'\bвода\b', r'\bводы\b', r'\bвыпил\b', r'\bпопил\b', r'\bпить\b',
-        r'\bхочу пить\b', r'\bвыпей\b', r'\bнапился\b', r'\bстакан воды\b',
-        r'\bводы выпил\b'
+        r'\bвода\b', r'\bводы\b', r'\bвыпил\b', r'\bвыпила\b', r'\bпопил\b',
+        r'\bпопила\b', r'\bпить\b', r'\bхочу пить\b', r'\bвыпей\b', r'\bнапился\b',
+        r'\bнапилась\b', r'\bстакан воды\b', r'\bводы выпил\b', r'\bводы выпила\b'
     ],
     "shopping": [
         r'\bкупить\b', r'\bсписок покупок\b', r'\bдобавь в список\b',
@@ -68,9 +76,10 @@ INTENT_KEYWORDS = {
         r'\bсоздай напоминание\b'
     ],
     "food": [
-        r'\bзапиши еду\b', r'\bдобавь еду\b', r'\bсъел\b', r'\bпоел\b',
-        r'\bприем пищи\b', r'\bеда\b', r'\bпокушать\b', r'\bпокушал\b',
-        r'\bпоесть\b', r'\bплотно поел\b', r'\bчто я ел\b'
+        r'\bзапиши еду\b', r'\bдобавь еду\b', r'\bсъел\b', r'\bсъела\b',
+        r'\bпоел\b', r'\bпоела\b', r'\bпокушать\b', r'\bпокушал\b', r'\bпокушала\b',
+        r'\bприем пищи\b', r'\bеда\b', r'\bпоесть\b', r'\bплотно поел\b',
+        r'\bплотно поела\b', r'\bчто я ел\b', r'\bчто я ела\b'
     ],
     "weather": [
         r'\bпогода\b', r'\bсколько градусов\b', r'\bтемпература\b',
@@ -116,7 +125,6 @@ def classify(text: str) -> Dict[str, Any]:
                     result["distance_km"] = distance_km
                 return result
             else:
-                # Есть ключевое слово активности, но нет параметров
                 result["intent"] = "activity"
                 result["activity_type"] = act_en
                 return result
@@ -157,14 +165,11 @@ def classify(text: str) -> Dict[str, Any]:
     # ----- 6. Погода -----
     if any(re.search(kw, text_lower) for kw in INTENT_KEYWORDS["weather"]):
         result["intent"] = "weather"
-        # Пытаемся извлечь город из различных форматов
         city = None
-        # 1. После "в" или "для" (например, "погода в москве", "температура для спб")
         match = re.search(r'(?:в|для)\s+([а-яё\-\s]+)', text_lower)
         if match:
             city = match.group(1).strip()
         else:
-            # 2. Если нет предлога, ищем слово после "погода" или "температура"
             match = re.search(r'(?:погода|температура|прогноз)\s+([а-яё\-\s]+)', text_lower)
             if match:
                 city = match.group(1).strip()
@@ -189,27 +194,17 @@ def classify(text: str) -> Dict[str, Any]:
         result["cleaned_text"] = cleaned
         return result
 
-    # ----- 9. Неопределённое намерение (перечисление продуктов без ключевых слов) -----
-    # Проверяем, есть ли запятая или союзы "и", "с" (признаки списка)
+    # ----- 9. Неопределённое намерение -----
     has_separators = ',' in text_lower or re.search(r'\bи\b|\bс\b', text_lower)
-    # Если есть разделители и нет ключевых слов других намерений, считаем unknown
-    if has_separators:
+    if has_separators or (' ' in text_lower and len(text_lower.split()) >= 2):
         result["intent"] = "unknown"
         result["possible_food"] = True
         return result
 
-    # Также, если текст состоит из нескольких слов и не содержит ключевых слов AI
-    # (но AI мы уже проверили выше)
-    if ' ' in text_lower and len(text_lower.split()) >= 2:
-        # Дополнительно проверим, что это не просто приветствие (например, "привет")
-        # Здесь можно добавить проверку по словарю продуктов, но для простоты считаем unknown
-        result["intent"] = "unknown"
-        result["possible_food"] = True
-        return result
-
-    # Всё остальное отправляем в AI (как fallback)
+    # Всё остальное отправляем в AI
     result["intent"] = "ai"
     return result
+
     
 def _extract_steps(text: str) -> Optional[int]:
     """Извлекает количество шагов из текста (цифры или слова)."""

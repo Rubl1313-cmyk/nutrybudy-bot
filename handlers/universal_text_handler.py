@@ -264,13 +264,26 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
 async def water_drink_callback(callback: CallbackQuery, state: FSMContext):
     data = await state.get_data()
     amount = data.get('water_amount')
-    if amount:
-        await add_water_quick(callback.from_user.id, amount)
-        await callback.message.answer(f"✅ Записано {amount} мл воды.")
-    else:
-        await cmd_water(callback.message, state)
-    await callback.message.delete()
-    await callback.answer()
+    user_id = callback.from_user.id
+    try:
+        if amount:
+            success = await add_water_quick(user_id, amount)
+            if success:
+                await callback.message.answer(f"✅ Записано {amount} мл воды.")
+            else:
+                await callback.message.answer(
+                    "❌ Пользователь не найден. Сначала настройте профиль через /set_profile.",
+                    reply_markup=get_main_keyboard()
+                )
+        else:
+            # Если количество не распознано, запускаем обычный процесс записи воды
+            await cmd_water(callback.message, state)
+        await callback.message.delete()
+    except Exception as e:
+        logger.error(f"Ошибка в water_drink_callback: {e}", exc_info=True)
+        await callback.message.answer("❌ Произошла внутренняя ошибка. Попробуйте позже.")
+    finally:
+        await callback.answer()
 
 @universal_router.callback_query(lambda c: c.data == "water_buy")
 async def water_buy_callback(callback: CallbackQuery, state: FSMContext):

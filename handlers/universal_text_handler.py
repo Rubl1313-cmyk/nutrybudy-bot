@@ -268,29 +268,29 @@ async def debug_water_callback(callback: CallbackQuery):
 # ----- ОБРАБОТЧИКИ КНОПОК ДЛЯ ВОДЫ -----
 @universal_router.callback_query(lambda c: c.data == "water_drink")
 async def water_drink_callback(callback: CallbackQuery, state: FSMContext):
-    logger.info(f"🍷 water_drink_callback вызван: user_id={callback.from_user.id}")
+    logger.info(f"🍷 water_drink_callback: начало, user_id={callback.from_user.id}")
     data = await state.get_data()
     amount = data.get('water_amount')
-    logger.info(f"🍷 amount из state: {amount}")
+    logger.info(f"🍷 water_drink_callback: amount из state = {amount}")
     user_id = callback.from_user.id
     try:
         if amount:
-            logger.info(f"🍷 Попытка добавить {amount} мл для пользователя {user_id}")
+            logger.info(f"🍷 water_drink_callback: вызываем add_water_quick с amount={amount}")
             success = await add_water_quick(user_id, amount)
-            logger.info(f"🍷 Результат add_water_quick: {success}")
+            logger.info(f"🍷 water_drink_callback: add_water_quick вернула {success}")
             if success:
                 await callback.message.answer(f"✅ Записано {amount} мл воды.")
             else:
                 await callback.message.answer(
-                    "❌ Не удалось записать воду. Возможно, профиль не настроен.",
+                    "❌ Пользователь не найден. Сначала настройте профиль через /set_profile.",
                     reply_markup=get_main_keyboard()
                 )
         else:
-            logger.info("🍷 amount не найден, запускаем cmd_water")
-            await cmd_water(callback.message, state, user_id=user_id)
+            logger.info("🍷 water_drink_callback: amount отсутствует, вызываем cmd_water")
+            await cmd_water(callback.message, state)
         await callback.message.delete()
     except Exception as e:
-        logger.error(f"🍷 Ошибка в water_drink_callback: {e}", exc_info=True)
+        logger.error(f"🍷 water_drink_callback: исключение {e}", exc_info=True)
         await callback.message.answer("❌ Произошла внутренняя ошибка. Попробуйте позже.")
     finally:
         await callback.answer()

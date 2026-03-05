@@ -262,12 +262,15 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
 # ----- ОБРАБОТЧИКИ КНОПОК ДЛЯ ВОДЫ -----
 @universal_router.callback_query(lambda c: c.data == "water_drink")
 async def water_drink_callback(callback: CallbackQuery, state: FSMContext):
+    logger.info(f"water_drink_callback вызван для пользователя {callback.from_user.id}")
     data = await state.get_data()
     amount = data.get('water_amount')
+    logger.info(f"Извлечён amount из state: {amount}")
     user_id = callback.from_user.id
     try:
         if amount:
             success = await add_water_quick(user_id, amount)
+            logger.info(f"Результат add_water_quick: {success}")
             if success:
                 await callback.message.answer(f"✅ Записано {amount} мл воды.")
             else:
@@ -276,7 +279,7 @@ async def water_drink_callback(callback: CallbackQuery, state: FSMContext):
                     reply_markup=get_main_keyboard()
                 )
         else:
-            # Если количество не распознано, запускаем обычный процесс записи воды
+            logger.info("amount не найден, запускаем cmd_water")
             await cmd_water(callback.message, state)
         await callback.message.delete()
     except Exception as e:

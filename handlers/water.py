@@ -36,12 +36,15 @@ async def add_water_quick(telegram_id: int, amount: int) -> bool:
 
 @router.message(Command("log_water"))
 @router.message(F.text == "💧 Вода")
-async def cmd_water(message: Message, state: FSMContext):
+async def cmd_water(message: Message, state: FSMContext, user_id: int = None):
     """Начало записи воды."""
+    if user_id is None:
+        user_id = message.from_user.id
+
     # Проверяем, есть ли профиль
     async with get_session() as session:
         user_result = await session.execute(
-            select(User).where(User.telegram_id == message.from_user.id)
+            select(User).where(User.telegram_id == user_id)
         )
         user = user_result.scalar_one_or_none()
         if not user:
@@ -72,6 +75,8 @@ async def cmd_water(message: Message, state: FSMContext):
         f"Сколько воды выпили?",
         reply_markup=get_water_preset_keyboard()
     )
+
+# ... остальные функции без изменений
 
 @router.callback_query(F.data.startswith("water_"))
 async def preset_water(callback: CallbackQuery, state: FSMContext):

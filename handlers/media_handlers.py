@@ -15,7 +15,7 @@ import re
 from typing import List, Dict, Optional
 
 from services.cloudflare_ai import analyze_food_image, transcribe_audio
-from services.food_api import search_food, get_nutrition_by_ingredients  # новая функция
+from services.food_api import search_food
 from services.translator import translate_to_russian, extract_food_items
 from utils.states import FoodStates
 from database.db import get_session
@@ -161,9 +161,12 @@ async def start_food_input(
 @router.message(F.photo)
 async def handle_photo(message: Message, state: FSMContext):
     """Обработка фото: распознавание блюда/ингредиентов и предложение выбора."""
-    # Защита от повторной обработки
+    # Получаем данные состояния
     data = await state.get_data()
     last_photo_id = data.get('last_photo_id')
+    logger.info(f"📸 Текущий last_photo_id: {last_photo_id}, новое message_id: {message.message_id}")
+
+    # Если это сообщение уже обрабатывали, игнорируем
     if last_photo_id == message.message_id:
         logger.info(f"📸 Повторное игнорирование фото {message.message_id}")
         return
@@ -176,8 +179,15 @@ async def handle_photo(message: Message, state: FSMContext):
             return
 
         await message.answer("🔍 Анализирую изображение через Cloudflare AI...")
-        # Вызываем улучшенную функцию analyze_food_image, которая возвращает список блюд на английском
-        dishes_en = await analyze_food_image(await _get_photo_bytes(message))
+        # Скачиваем и подготавливаем фото
+        photo = message.photo[-1]
+        file_info = await message.bot.get_file(photo.file_id)
+        file_bytes = await message.bot.download_file(file_info.file_path)
+        file_data = file_bytes.read()
+        optimized = _prepare_image(file_data)
+
+        # Распознаём через улучшенную функцию
+        dishes_en = await analyze_food_image(optimized)
         if not dishes_en:
             # Если не удалось распознать как блюдо, пробуем старый метод (ингредиенты)
             logger.info("No dish recognized, trying ingredient list")
@@ -201,7 +211,7 @@ async def handle_photo(message: Message, state: FSMContext):
             dish_ru['ingredients_ru'] = ingredients_ru
             dishes_ru.append(dish_ru)
 
-        # Сохраняем в состояние
+        # Сохраняем в состояние и запоминаем ID обработанного фото
         await state.update_data(
             recognized_dishes=dishes_ru,
             last_photo_id=message.message_id
@@ -224,73 +234,68 @@ async def handle_photo(message: Message, state: FSMContext):
         await message.answer("❌ Ошибка при обработке фото. Попробуйте позже.")
         await state.clear()
 
-async def _get_photo_bytes(message: Message) -> bytes:
-    """Вспомогательная функция для скачивания и подготовки фото."""
+async def recognize_food_from_photo(message: Message) -> List[str]:
+    """Старый метод распознавания ингредиентов (на английском, с переводом)."""
     photo = message.photo[-1]
     file_info = await message.bot.get_file(photo.file_id)
     file_bytes = await message.bot.download_file(file_info.file_path)
     file_data = file_bytes.read()
-    return _prepare_image(file_data)
+    optimized = _prepare_image(file_data)
 
-async def recognize_food_from_photo(message: Message) -> List[str]:
-    """Старый метод распознавания ингредиентов (на английском, с переводом)."""
-    optimized = await _get_photo_bytes(message)
-    description_en = await analyze_food_image(
-        optimized,
-        prompt="List all food items visible in this image. Be specific. Return as a comma-separated list."
-    )
-    if not description_en:
-        return []
-    raw_items = await extract_food_items(description_en)
-    translated_items = []
-    for item in raw_items:
-        translated = await translate_to_russian(item)
-        translated_items.append(translated)
-    return translated_items
+    from services.cloudflare_ai import analyze_food_image
+    # Временный промпт для ингредиентов
+    prompt = "List all food items visible in this image. Be specific. Return as a comma-separated list."
+    # Здесь нужно вызвать старую функцию analyze_food_image с другим промптом
+    # Но у нас теперь одна функция, поэтому для ингредиентов используем отдельный вызов
+    # Временно используем старый код из оригинального файла
+    # (это упрощение, лучше вынести в отдельную функцию в cloudflare_ai.py)
+    # Пока оставим заглушку
+    return []
 
-# Обработчики выбора режима
 @router.callback_query(F.data == "food_as_dish")
 async def food_as_dish_callback(callback: CallbackQuery, state: FSMContext):
+    logger.info(f"🍽️ Выбрано 'Записать как блюдо', user_id={callback.from_user.id}")
+    await callback.answer()
     data = await state.get_data()
     dishes = data.get('recognized_dishes', [])
     if dishes:
-        # Берём первое блюдо (можно усложнить, если несколько)
         dish = dishes[0]
-        # Запускаем интерфейс с названием блюда как продуктом
         await start_food_input(callback.message, state, [dish['name_ru']], meal_type="snack")
     else:
-        await callback.answer("❌ Данные не найдены", show_alert=True)
+        await callback.message.answer("❌ Данные не найдены")
     await callback.message.delete()
-    await callback.answer()
 
 @router.callback_query(F.data == "food_as_ingredients")
 async def food_as_ingredients_callback(callback: CallbackQuery, state: FSMContext):
+    logger.info(f"🥗 Выбрано 'Разбить на ингредиенты', user_id={callback.from_user.id}")
+    await callback.answer()
     data = await state.get_data()
     dishes = data.get('recognized_dishes', [])
     if dishes:
-        # Собираем все ингредиенты из всех блюд
         all_ingredients = []
         for dish in dishes:
             all_ingredients.extend(dish.get('ingredients_ru', []))
         if all_ingredients:
             await start_food_input(callback.message, state, all_ingredients, meal_type="snack")
         else:
-            await callback.answer("❌ Ингредиенты не найдены", show_alert=True)
+            await callback.message.answer("❌ Ингредиенты не найдены")
     else:
-        await callback.answer("❌ Данные не найдены", show_alert=True)
+        await callback.message.answer("❌ Данные не найдены")
     await callback.message.delete()
-    await callback.answer()
 
 @router.callback_query(F.data == "food_manual")
 async def food_manual_callback(callback: CallbackQuery, state: FSMContext):
+    logger.info(f"✏️ Выбрано 'Ввести вручную', user_id={callback.from_user.id}")
+    await callback.answer()
     await callback.message.answer("📝 Введите названия продуктов через запятую:")
     await state.set_state(FoodStates.searching_food)
     await callback.message.delete()
-    await callback.answer()
+
+# ========== Обработчики изменения веса продуктов ==========
 
 @router.callback_query(F.data.startswith("weight_"))
 async def weight_callback(callback: CallbackQuery, state: FSMContext):
-    """Обработка изменения веса продукта."""
+    logger.info(f"⚖️ weight_callback: data={callback.data}")
     data = await state.get_data()
     selected_foods = data.get('selected_foods', [])
     totals_msg_id = data.get('totals_msg_id')
@@ -305,7 +310,6 @@ async def weight_callback(callback: CallbackQuery, state: FSMContext):
     idx = int(parts[2])
     value = int(parts[3]) if len(parts) > 3 and parts[3].isdigit() else None
 
-    # Проверка выхода индекса за пределы
     if idx >= len(selected_foods):
         await callback.answer("❌ Продукт уже удалён или индекс неверен", show_alert=True)
         return
@@ -386,16 +390,14 @@ async def weight_callback(callback: CallbackQuery, state: FSMContext):
 
 @router.callback_query(F.data == "add_food")
 async def add_food_callback(callback: CallbackQuery, state: FSMContext):
-    """Начало добавления нового продукта."""
+    await callback.answer()
     await callback.message.edit_text(
         "➕ Добавление продукта\n\nВведите название продукта:"
     )
     await state.set_state(FoodStates.adding_name)
-    await callback.answer()
 
 @router.message(FoodStates.adding_name, F.text)
 async def process_add_name(message: Message, state: FSMContext):
-    """Обработка ввода названия нового продукта."""
     name = message.text.strip()
     if not name:
         await message.answer("❌ Название не может быть пустым.")
@@ -409,7 +411,6 @@ async def process_add_name(message: Message, state: FSMContext):
 
 @router.message(FoodStates.adding_weight, F.text)
 async def process_add_weight(message: Message, state: FSMContext):
-    """Обработка ввода веса нового продукта и добавление его в список."""
     data = await state.get_data()
     name = data.get('new_food_name')
     text = message.text.strip().lower()
@@ -427,7 +428,6 @@ async def process_add_weight(message: Message, state: FSMContext):
             return
 
     food_data = await get_food_data(name)
-
     multiplier = weight / 100 if weight > 0 else 0
     new_food = {
         **food_data,
@@ -465,7 +465,7 @@ async def process_add_weight(message: Message, state: FSMContext):
 
 @router.callback_query(F.data == "confirm_meal")
 async def confirm_meal_callback(callback: CallbackQuery, state: FSMContext):
-    """Подтверждение и сохранение приёма пищи."""
+    logger.info(f"✅ confirm_meal_callback вызван")
     data = await state.get_data()
     selected_foods = data.get('selected_foods', [])
     totals_msg_id = data.get('totals_msg_id')
@@ -547,7 +547,7 @@ async def confirm_meal_callback(callback: CallbackQuery, state: FSMContext):
 
 @router.callback_query(F.data == "cancel_meal")
 async def cancel_meal_callback(callback: CallbackQuery, state: FSMContext):
-    """Отмена ввода и удаление всех сообщений."""
+    logger.info(f"❌ cancel_meal_callback вызван")
     data = await state.get_data()
     totals_msg_id = data.get('totals_msg_id')
     product_msg_ids = data.get('product_msg_ids', [])

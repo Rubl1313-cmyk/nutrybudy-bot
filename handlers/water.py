@@ -17,8 +17,7 @@ from utils.states import WaterStates
 router = Router()
 
 async def add_water_quick(telegram_id: int, amount: int) -> bool:
-    """Быстрое добавление воды без диалога с обработкой ошибок."""
-    logger.info(f"add_water_quick вызван для {telegram_id} с amount={amount}")
+    """Быстрое добавление воды без диалога (используется в callback)."""
     try:
         async with get_session() as session:
             result = await session.execute(
@@ -26,7 +25,6 @@ async def add_water_quick(telegram_id: int, amount: int) -> bool:
             )
             user = result.scalar_one_or_none()
             if not user:
-                logger.warning(f"Пользователь {telegram_id} не найден")
                 return False
             entry = WaterEntry(
                 user_id=user.id,
@@ -35,10 +33,8 @@ async def add_water_quick(telegram_id: int, amount: int) -> bool:
             )
             session.add(entry)
             await session.commit()
-            logger.info(f"Записано {amount} мл воды для пользователя {telegram_id}")
             return True
-    except Exception as e:
-        logger.error(f"Ошибка при добавлении воды для {telegram_id}: {e}", exc_info=True)
+    except Exception:
         return False
 
 @router.message(Command("log_water"))
@@ -48,7 +44,6 @@ async def cmd_water(message: Message, state: FSMContext, user_id: int = None):
     if user_id is None:
         user_id = message.from_user.id
 
-    # Проверяем, есть ли профиль
     async with get_session() as session:
         user_result = await session.execute(
             select(User).where(User.telegram_id == user_id)
@@ -63,7 +58,6 @@ async def cmd_water(message: Message, state: FSMContext, user_id: int = None):
 
     await state.set_state(WaterStates.entering_amount)
 
-    # Статистика за сегодня
     today = datetime.now().date()
     async with get_session() as session:
         result = await session.execute(
@@ -83,9 +77,8 @@ async def cmd_water(message: Message, state: FSMContext, user_id: int = None):
         reply_markup=get_water_preset_keyboard()
     )
 
-# ... остальные функции без изменений
-
-@router.callback_query(F.data.startswith("water_"))
+# ✅ Исправлено: обработчик только для числовых значений (water_200, water_500 и т.д.)
+@router.callback_query(F.data.regexp(r'^water_(\d+)$'))
 async def preset_water(callback: CallbackQuery, state: FSMContext):
     """Выбор предустановленного объёма."""
     try:
@@ -97,7 +90,6 @@ async def preset_water(callback: CallbackQuery, state: FSMContext):
     await state.set_state(WaterStates.confirming)
     await callback.message.edit_text(
         f"💧 Добавить {amount} мл?",
-        # 🔥 Уникальный action="water"
         reply_markup=get_confirmation_keyboard("water")
     )
     await callback.answer()
@@ -150,7 +142,6 @@ async def confirm_water(callback: CallbackQuery, state: FSMContext):
         session.add(entry)
         await session.commit()
 
-        # Обновлённая статистика за сегодня
         today = datetime.now().date()
         result = await session.execute(
             select(func.sum(WaterEntry.amount)).where(
@@ -168,7 +159,6 @@ async def confirm_water(callback: CallbackQuery, state: FSMContext):
         f"📊 Всего: {consumed:.0f} / {goal:.0f} мл ({progress}%)"
     )
     await callback.answer()
-
 
 @router.callback_query(F.data == "cancel_water", WaterStates.confirming)
 async def cancel_water(callback: CallbackQuery, state: FSMContext):

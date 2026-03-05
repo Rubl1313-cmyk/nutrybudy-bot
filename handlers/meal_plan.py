@@ -1,7 +1,6 @@
 """
 Обработчик планировщика питания.
-Генерирует меню по частям: завтрак, обед, ужин, перекус.
-Исключает дублирование рецептов и гарантирует полноту ответа.
+Генерирует полное меню на день одним запросом к AI.
 """
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
@@ -21,7 +20,7 @@ router = Router()
 logger = logging.getLogger(__name__)
 
 # Константы
-AI_MAX_TOKENS = 2500
+AI_MAX_TOKENS = 3000  # увеличено для полного меню
 MEAL_TYPES = [
     {"key": "breakfast", "name": "🥐 Завтрак"},
     {"key": "lunch", "name": "🥗 Обед"},
@@ -29,35 +28,27 @@ MEAL_TYPES = [
     {"key": "snack", "name": "🍎 Перекус"}
 ]
 
-async def generate_meal_part(
-    user_data: Dict,
-    meal_key: str,
-    meal_name: str,
-    calories: float,
-    previous_meals: str = ""
-) -> str:
+async def generate_full_meal_plan(user_data: Dict, distribution: Dict) -> str:
     """
-    Генерирует один приём пищи через AI.
-    previous_meals содержит описания уже сгенерированных блюд, чтобы AI не повторялся.
+    Генерирует полное меню на день одним запросом к AI.
     """
     prompt = (
-        f"Ты диетолог. Составь рецепт для {meal_name.lower()} в рамках здорового питания.\n"
-        f"Цель пользователя: {user_data['goal']}\n"
+        f"Ты диетолог. Составь подробное меню на один день для человека со следующими параметрами:\n"
+        f"Цель: {user_data['goal']}\n"
         f"Пол: {user_data['gender']}, возраст: {user_data['age']}, вес: {user_data['weight']} кг, рост: {user_data['height']} см.\n"
-        f"Активность: {user_data['activity_level']}\n\n"
-        f"Требуемая калорийность этого приёма: {calories:.0f} ккал.\n\n"
-    )
-
-    if previous_meals:
-        prompt += f"Ранее были предложены такие блюда:\n{previous_meals}\n\n"
-        prompt += "❗️ ВАЖНО: Предложи ДРУГОЕ блюдо, не повторяй уже использованные рецепты. Например, если на обед был салат, на ужин сделай горячее.\n\n"
-
-    prompt += (
-        "Опиши рецепт полно и структурированно:\n"
-        "1. Название блюда\n"
-        "2. Ингредиенты с калориями в скобках на указанное количество (не на 100г)\n"
-        "3. Пошаговая инструкция приготовления\n\n"
-        "Не используй markdown, только обычный текст и эмодзи. Закончи рецепт обязательно."
+        f"Активность: {user_data['activity_level']}\n"
+        f"Дневная норма калорий: {user_data['daily_calories']:.0f} ккал.\n\n"
+        f"Распределение калорий по приёмам:\n"
+        f"- Завтрак: {distribution['breakfast']:.0f} ккал\n"
+        f"- Обед: {distribution['lunch']:.0f} ккал\n"
+        f"- Ужин: {distribution['dinner']:.0f} ккал\n"
+        f"- Перекус: {distribution['snack']:.0f} ккал\n\n"
+        f"Составь меню, включив для каждого приёма пищи:\n"
+        f"1. Название блюда\n"
+        f"2. Список ингредиентов с примерной калорийностью (на порцию)\n"
+        f"3. Краткое описание приготовления (опционально)\n\n"
+        f"Старайся, чтобы блюда были разнообразными, полезными и соответствовали указанной калорийности. "
+        f"Используй русский язык, обычный текст и эмодзи. Заверши ответ обязательно."
     )
 
     response = await ask_worker_ai(
@@ -67,14 +58,13 @@ async def generate_meal_part(
     )
 
     if "error" in response:
-        return f"❌ Ошибка генерации {meal_name}: {response['error']}"
+        return f"❌ Ошибка генерации меню: {response['error']}"
 
     if response.get("choices"):
         content = response["choices"][0]["message"]["content"]
-        return f"**{meal_name}** (~{calories:.0f} ккал)\n{content}\n"
+        return content
     else:
-        return f"❌ Не удалось сгенерировать {meal_name}."
-
+        return "❌ Не удалось сгенерировать меню."
 
 @router.message(Command("meal_plan"))
 @router.message(F.text == "🍽️ План питания")
@@ -110,10 +100,9 @@ async def cmd_meal_plan(message: Message, state: FSMContext, user_id: int = None
 
     await message.answer(text, reply_markup=keyboard, parse_mode="HTML")
 
-
 @router.callback_query(F.data == "generate_full_menu")
 async def generate_full_menu_callback(callback: CallbackQuery, state: FSMContext):
-    """Генерирует полное меню по частям."""
+    """Генерирует полное меню одним запросом."""
     await callback.answer()
 
     user_id = callback.from_user.id
@@ -140,23 +129,8 @@ async def generate_full_menu_callback(callback: CallbackQuery, state: FSMContext
 
     distribution = distribute_calories(user.daily_calorie_goal)
 
-    full_menu = f"🍽️ <b>Меню на день ({user.daily_calorie_goal:.0f} ккал)</b>\n\n"
-    previous_descriptions = ""
-
-    for meal in MEAL_TYPES:
-        await callback.message.edit_text(f"⏳ Генерирую {meal['name'].lower()}...")
-        part = await generate_meal_part(
-            user_data,
-            meal['key'],
-            meal['name'],
-            distribution[meal['key']],
-            previous_descriptions
-        )
-        full_menu += part + "\n"
-        lines = part.split('\n')
-        if len(lines) > 1:
-            first_line = lines[1].strip() if lines[1].strip() else "блюдо"
-            previous_descriptions += f"{meal['name']}: {first_line}\n"
+    full_menu = await generate_full_meal_plan(user_data, distribution)
+    full_menu = f"🍽️ <b>Меню на день ({user.daily_calorie_goal:.0f} ккал)</b>\n\n{full_menu}"
 
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🔄 Другой вариант", callback_data="generate_full_menu")],
@@ -165,8 +139,14 @@ async def generate_full_menu_callback(callback: CallbackQuery, state: FSMContext
         [InlineKeyboardButton(text="🏠 Главное меню", callback_data="main_menu")]
     ])
 
-    await callback.message.edit_text(full_menu, reply_markup=keyboard, parse_mode="HTML")
-
+    # Если ответ слишком длинный, разбиваем на части
+    if len(full_menu) > 4000:
+        parts = [full_menu[i:i+4000] for i in range(0, len(full_menu), 4000)]
+        await callback.message.edit_text(parts[0] + "...", reply_markup=keyboard, parse_mode="HTML")
+        for part in parts[1:]:
+            await callback.message.answer(part, parse_mode="HTML")
+    else:
+        await callback.message.edit_text(full_menu, reply_markup=keyboard, parse_mode="HTML")
 
 @router.callback_query(F.data == "save_menu")
 async def save_menu_callback(callback: CallbackQuery, state: FSMContext):
@@ -176,7 +156,6 @@ async def save_menu_callback(callback: CallbackQuery, state: FSMContext):
         f"📎 <b>Сохранённый рацион</b>\n\n{callback.message.text}",
         parse_mode="HTML"
     )
-
 
 @router.callback_query(F.data == "back_to_distribution")
 async def back_to_distribution_callback(callback: CallbackQuery, state: FSMContext):
@@ -205,7 +184,6 @@ async def back_to_distribution_callback(callback: CallbackQuery, state: FSMConte
 
     await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
     await callback.answer()
-
 
 @router.callback_query(F.data == "main_menu")
 async def back_to_main_menu(callback: CallbackQuery, state: FSMContext):

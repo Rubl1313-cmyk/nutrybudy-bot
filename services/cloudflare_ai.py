@@ -1,6 +1,6 @@
 """
 Cloudflare Workers AI Integration для NutriBuddy
-Улучшенная версия с поддержкой JSON, повторными попытками и перебором моделей.
+Использует ResNet-50 для классификации еды и LLaVA как fallback.
 Все запросы на английском, ответы парсятся и затем переводятся.
 Сохраняет функциональность распознавания голоса (transcribe_audio).
 """
@@ -12,7 +12,7 @@ import json
 import re
 import subprocess
 import tempfile
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Any
 
 logger = logging.getLogger(__name__)
 
@@ -25,132 +25,149 @@ if not CLOUDFLARE_ACCOUNT_ID or not CLOUDFLARE_API_TOKEN:
 else:
     BASE_URL = f"https://api.cloudflare.com/client/v4/accounts/{CLOUDFLARE_ACCOUNT_ID}/ai/run/"
 
-# Модели для Vision (основная и запасная)
+# Модели в порядке приоритета
+CLASSIFICATION_MODELS = [
+    "@cf/microsoft/resnet-50",  # Быстрая классификация ImageNet [citation:1]
+]
+
 VISION_MODELS = [
-    "@cf/unum/uform-gen2-qwen-500m",  # основная
-    "@cf/llava-hf/llava-1.5-7b-hf",   # fallback с лучшим пониманием контекста
+    "@cf/llava-hf/llava-1.5-7b-hf",  # Fallback для сложных случаев [citation:4]
 ]
 
 # Модели для Whisper (голос)
 WHISPER_MODELS = [
-    "@cf/openai/whisper",                # базовая
-    "@cf/openai/whisper-large-v3-turbo", # быстрая
+    "@cf/openai/whisper",
+    "@cf/openai/whisper-large-v3-turbo",
 ]
 
-# Улучшенный промпт для распознавания блюда (JSON)
-FOOD_RECOGNITION_PROMPT = """
-Analyze this food image and return a STRICT JSON object with the following structure:
-{
-  "dishes": [
-    {
-      "name_en": "Specific dish name in English, e.g., 'Grilled chicken breast', 'Caesar salad' – DO NOT use placeholders like 'Name of the dish'",
-      "confidence": 0.9,
-      "ingredients": ["list of specific ingredients, e.g., 'chicken breast', 'romaine lettuce'"],
-      "estimated_weight_g": 250,
-      "preparation": "e.g., grilled, fried, baked"
-    }
-  ],
-  "total_items": 1,
-  "notes": ""
-}
-Rules:
-- Use English for all text fields.
-- Be extremely specific.
-- If unsure, set confidence < 0.5.
-- NEVER use placeholder text like 'Name of the dish' or 'ingredient1'.
-- Return ONLY the JSON, no other text.
+# Промпт для LLaVA (упрощённый, без примеров)
+LLAVA_FALLBACK_PROMPT = """
+What food is in this image? Answer with the name of the dish in English only, nothing else.
+Example: "Caesar salad" or "Grilled chicken breast"
 """
 
 def _bytes_to_array(image_bytes: bytes) -> list:
     """Конвертирует bytes в список целых чисел 0-255."""
     return list(image_bytes)
 
-def _is_valid_dish_name(name: str) -> bool:
-    """Проверяет, что название выглядит как реальное (не шаблон)."""
-    if not name or len(name) < 3:
+def _is_valid_food_label(label: str) -> bool:
+    """Проверяет, что метка выглядит как еда (не шаблон)."""
+    if not label or len(label) < 3:
         return False
-    name_lower = name.lower()
-    forbidden = [
-        'name of the dish', 'dish name', 'placeholder', 'unknown',
-        'example dish', 'sample', 'name_en', 'name_ru', 'ingredient'
-    ]
-    for phrase in forbidden:
-        if phrase in name_lower:
+    
+    label_lower = label.lower()
+    # Исключаем общие категории, не относящиеся к еде
+    non_food = ['person', 'people', 'man', 'woman', 'child', 'dog', 'cat', 
+                'car', 'truck', 'building', 'house', 'animal', 'furniture']
+    
+    for item in non_food:
+        if item in label_lower:
             return False
     return True
 
-def _parse_json_response(text: str) -> Optional[List[Dict]]:
-    """Извлекает JSON из ответа модели и возвращает список валидных блюд."""
-    # Ищем JSON-блок (может быть обёрнут в ```json ... ```)
-    json_match = re.search(r'```json\s*(\{.*?\})\s*```', text, re.DOTALL)
-    if not json_match:
-        json_match = re.search(r'\{.*\}', text, re.DOTALL)
-    if not json_match:
-        logger.warning("No JSON found in response")
+def _format_classification_result(classes: List[Dict[str, Any]]) -> Optional[List[Dict]]:
+    """
+    Преобразует результат ResNet-50 в формат, ожидаемый media_handlers.
+    """
+    if not classes:
         return None
-    try:
-        data = json.loads(json_match.group())
-        dishes = data.get("dishes", [])
-        valid_dishes = []
-        for d in dishes:
-            if d.get("confidence", 0) >= 0.3 and _is_valid_dish_name(d.get("name_en", "")):
-                valid_dishes.append(d)
-            else:
-                logger.warning(f"Invalid dish data discarded: {d}")
-        return valid_dishes if valid_dishes else None
-    except json.JSONDecodeError as e:
-        logger.warning(f"Failed to parse JSON: {e}")
+    
+    # Берём топ-1 результат с достаточной уверенностью
+    top_result = classes[0]
+    confidence = top_result.get("score", 0)
+    label = top_result.get("label", "")
+    
+    if confidence < 0.3 or not _is_valid_food_label(label):
+        logger.info(f"Classification confidence too low or non-food: {label} ({confidence})")
         return None
+    
+    return [{
+        "name_en": label,
+        "confidence": confidence,
+        "ingredients": [],
+        "estimated_weight_g": None,
+        "preparation": None
+    }]
 
 async def analyze_food_image(
     image_bytes: bytes,
-    prompt: str = FOOD_RECOGNITION_PROMPT,
     max_retries: int = 2
 ) -> Optional[List[Dict]]:
     """
-    Распознаёт еду на изображении и возвращает список блюд с деталями на английском.
-    Использует несколько моделей и повторные попытки.
+    Распознаёт еду на изображении, используя ResNet-50 в приоритете.
+    Возвращает список блюд с деталями на английском.
     """
     if not BASE_URL:
         return None
 
     image_array = _bytes_to_array(image_bytes)
-    payload = {
-        "image": image_array,
-        "prompt": prompt,
-        "max_tokens": 300
-    }
     headers = {
         "Authorization": f"Bearer {CLOUDFLARE_API_TOKEN}",
         "Content-Type": "application/json"
     }
 
+    # 1. Сначала пробуем ResNet-50 для классификации [citation:1]
+    for model in CLASSIFICATION_MODELS:
+        try:
+            url = f"{BASE_URL}{model}"
+            payload = {"image": image_array}  # ResNet-50 не требует промпта [citation:1]
+            
+            logger.info(f"Trying classification model {model}")
+            async with aiohttp.ClientSession() as session:
+                async with session.post(url, headers=headers, json=payload, timeout=30) as resp:
+                    if resp.status == 200:
+                        result = await resp.json()
+                        classes = result.get("result", {}).get("classes", [])
+                        
+                        if classes:
+                            formatted = _format_classification_result(classes)
+                            if formatted:
+                                logger.info(f"✅ ResNet-50 identified: {classes[0].get('label')} ({classes[0].get('score')})")
+                                return formatted
+                            else:
+                                logger.info("ResNet-50 result rejected (low confidence or non-food)")
+        except Exception as e:
+            logger.warning(f"Classification model {model} failed: {e}")
+            continue
+
+    # 2. Если ResNet-50 не сработал, пробуем LLaVA [citation:4]
+    logger.info("Classification failed, falling back to LLaVA")
     for model in VISION_MODELS:
         for attempt in range(max_retries):
             try:
                 url = f"{BASE_URL}{model}"
-                logger.info(f"Trying model {model}, attempt {attempt+1}")
+                payload = {
+                    "image": image_array,
+                    "prompt": LLAVA_FALLBACK_PROMPT,
+                    "max_tokens": 50
+                }
+                
+                logger.info(f"Trying vision model {model}, attempt {attempt+1}")
                 async with aiohttp.ClientSession() as session:
                     async with session.post(url, headers=headers, json=payload, timeout=30) as resp:
                         if resp.status == 200:
                             result = await resp.json()
-                            description = result.get("result", {}).get("description", "")
-                            if description:
-                                dishes = _parse_json_response(description)
-                                if dishes:
-                                    logger.info(f"✅ Recognized {len(dishes)} dishes with model {model}")
-                                    return dishes
-                                else:
-                                    logger.warning(f"Model {model} returned no valid dishes")
+                            description = result.get("result", {}).get("description", "").strip()
+                            
+                            if description and len(description) < 100 and not description.startswith("What food"):
+                                logger.info(f"✅ LLaVA identified: {description}")
+                                return [{
+                                    "name_en": description,
+                                    "confidence": 0.7,  # Условная уверенность
+                                    "ingredients": [],
+                                    "estimated_weight_g": None,
+                                    "preparation": None
+                                }]
                         else:
                             error_text = await resp.text()
-                            logger.warning(f"Model {model} attempt {attempt+1} failed: {resp.status} - {error_text[:200]}")
+                            logger.warning(f"Model {model} attempt {attempt+1} failed: {resp.status}")
             except asyncio.TimeoutError:
                 logger.warning(f"Model {model} attempt {attempt+1} timeout")
             except Exception as e:
                 logger.warning(f"Model {model} attempt {attempt+1} exception: {e}")
             await asyncio.sleep(1 * (attempt + 1))
-    logger.error("All models/attempts failed")
+
+    logger.error("All models failed to identify food")
     return None
 
 # =============================================================================
@@ -234,25 +251,18 @@ async def transcribe_audio(audio_bytes: bytes, language: str = "ru") -> Optional
         for model in WHISPER_MODELS:
             try:
                 url = f"{BASE_URL}{model}"
-                logger.info(f"🎤 Sending to {model} as JSON array")
+                logger.info(f"🎤 Sending to {model}")
                 async with aiohttp.ClientSession() as session:
-                    async with session.post(
-                        url,
-                        headers=headers,
-                        json=payload,
-                        timeout=60
-                    ) as resp:
+                    async with session.post(url, headers=headers, json=payload, timeout=60) as resp:
                         if resp.status == 200:
                             result = await resp.json()
                             text = result.get("result", {}).get("text", "").strip()
                             if text:
                                 logger.info(f"✅ Success: {text[:100]}...")
                                 return text
-                            else:
-                                logger.warning("⚠️ Empty response")
                         else:
                             error_text = await resp.text()
-                            logger.warning(f"⚠️ {model} failed {resp.status}: {error_text[:200]}")
+                            logger.warning(f"⚠️ {model} failed {resp.status}")
             except Exception as e:
                 logger.warning(f"⚠️ {model} error: {e}")
                 continue

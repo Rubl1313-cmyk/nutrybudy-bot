@@ -366,13 +366,15 @@ async def search_openfoodfacts(query: str, max_results: int = 5) -> List[Dict]:
     Требуется User-Agent, иначе возвращает ошибку 403/429.
     """
     url = "https://world.openfoodfacts.org/cgi/search.pl"
-    params = {
+   params = {
         "search_terms": query,
         "search_simple": 1,
         "action": "process",
         "json": 1,
-        "page_size": max_results * 2,  # запрашиваем с запасом
-        "lang": "ru"
+        "page_size": max_results * 2,
+        "lang": "ru",
+        "countries": "russia",  # Фильтр по стране
+        "countries_tags": "en:russia",
     }
     headers = {
         "User-Agent": "NutriBuddyBot/1.0 (https://t.me/nutri_buddy_aibot)"

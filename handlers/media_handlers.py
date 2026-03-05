@@ -272,14 +272,22 @@ async def food_as_ingredients_callback(callback: CallbackQuery, state: FSMContex
     data = await state.get_data()
     dishes = data.get('recognized_dishes', [])
     if dishes:
+        # Собираем все ингредиенты из всех блюд
         all_ingredients = []
         for dish in dishes:
             all_ingredients.extend(dish.get('ingredients_ru', []))
         if all_ingredients:
+            logger.info(f"🍽 Найдены ингредиенты: {all_ingredients}")
             await start_food_input(callback.message, state, all_ingredients, meal_type="snack")
         else:
-            await callback.message.answer("❌ Ингредиенты не найдены")
+            logger.info("🥗 Ингредиенты не найдены, предлагаем ручной ввод")
+            await callback.message.answer(
+                "🥗 Не удалось распознать отдельные ингредиенты.\n"
+                "Введите их вручную через запятую (например: курица, салат, сыр):"
+            )
+            await state.set_state(FoodStates.searching_food)
     else:
+        logger.warning("❌ Данные о блюдах не найдены в состоянии")
         await callback.message.answer("❌ Данные не найдены")
     await callback.message.delete()
 

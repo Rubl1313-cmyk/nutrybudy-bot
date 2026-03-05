@@ -14,7 +14,7 @@ from database.models import User, Activity
 from keyboards.inline import get_activity_type_keyboard, get_confirmation_keyboard
 from keyboards.reply import get_main_keyboard, get_cancel_keyboard
 from utils.states import ActivityStates, StepsStates
-from services.activity import CALORIES_PER_MINUTE  # ✅ используем общий словарь
+from services.activity import CALORIES_PER_MINUTE
 
 router = Router()
 
@@ -29,10 +29,13 @@ async def check_user_exists(user_id: int) -> bool:
 
 @router.message(Command("fitness"))
 @router.message(F.text == "🏋️ Активность")
-async def cmd_fitness(message: Message, state: FSMContext):
+async def cmd_fitness(message: Message, state: FSMContext, user_id: int = None):
     """Начало записи активности (выбор типа)."""
+    if user_id is None:
+        user_id = message.from_user.id
+
     # Проверяем, есть ли профиль
-    if not await check_user_exists(message.from_user.id):
+    if not await check_user_exists(user_id):
         await message.answer(
             "❌ Сначала настройте профиль через /set_profile.",
             reply_markup=get_main_keyboard()
@@ -40,12 +43,14 @@ async def cmd_fitness(message: Message, state: FSMContext):
         return
 
     await state.clear()
-    await state.set_state(ActivityStates.waiting_for_type)  # ✅ исправлено
+    await state.set_state(ActivityStates.waiting_for_type)
     await message.answer(
         "🏋️ <b>Запись активности</b>\n\n"
         "Выберите тип активности (ходьба теперь записывается через 'Записать шаги'):",
         reply_markup=get_activity_type_keyboard()
     )
+
+# ... остальные функции без изменений, так как они используют user_id из состояния или message
 
 @router.callback_query(F.data.startswith("activity_"), ActivityStates.waiting_for_type)  # ✅ исправлено
 async def process_activity_type(callback: CallbackQuery, state: FSMContext):

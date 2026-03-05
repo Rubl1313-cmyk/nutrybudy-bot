@@ -1,14 +1,16 @@
 """
 Cloudflare Workers AI Integration для NutriBuddy
-Использует LLaVA как основную модель, UForm-Gen2 как fallback.
-Возвращает название блюда на английском.
+Содержит:
+- identify_dish_from_image: распознавание названия блюда (LLaVA)
+- analyze_food_image: распознавание ингредиентов (старый метод, для fallback)
+- transcribe_audio: распознавание голоса
 """
 import aiohttp
 import os
 import logging
 import asyncio
 import tempfile
-from typing import Optional
+from typing import Optional, List, Dict
 
 logger = logging.getLogger(__name__)
 
@@ -21,17 +23,18 @@ if not CLOUDFLARE_ACCOUNT_ID or not CLOUDFLARE_API_TOKEN:
 else:
     BASE_URL = f"https://api.cloudflare.com/client/v4/accounts/{CLOUDFLARE_ACCOUNT_ID}/ai/run/"
 
-# Модели в порядке приоритета
+# Модели
 VISION_MODELS = [
-    "@cf/llava-hf/llava-1.5-7b-hf",  # основная
-    "@cf/unum/uform-gen2-qwen-500m",  # запасная
+    "@cf/llava-hf/llava-1.5-7b-hf",
+    "@cf/unum/uform-gen2-qwen-500m",
 ]
 
-# Максимальное количество токенов для ответа (чтобы получить только название)
-MAX_TOKENS = 50
+WHISPER_MODELS = [
+    "@cf/openai/whisper",
+    "@cf/openai/whisper-large-v3-turbo",
+]
 
 def _bytes_to_array(image_bytes: bytes) -> list:
-    """Конвертирует bytes в список целых чисел 0-255."""
     return list(image_bytes)
 
 async def identify_dish_from_image(image_bytes: bytes) -> Optional[str]:
@@ -48,27 +51,26 @@ async def identify_dish_from_image(image_bytes: bytes) -> Optional[str]:
         "Content-Type": "application/json"
     }
 
+    prompt = "What is the name of the dish in this image? Answer with only the dish name, nothing else."
+
     for model in VISION_MODELS:
         try:
             url = f"{BASE_URL}{model}"
             payload = {
                 "image": image_array,
-                "prompt": "What is the name of the dish in this image? Answer with only the dish name, nothing else.",
-                "max_tokens": MAX_TOKENS,
-                "temperature": 0.2  # низкая температура для более точного ответа
+                "prompt": prompt,
+                "max_tokens": 50,
+                "temperature": 0.2
             }
-            logger.info(f"Trying vision model {model}")
+            logger.info(f"Trying vision model {model} for dish name")
             async with aiohttp.ClientSession() as session:
                 async with session.post(url, headers=headers, json=payload, timeout=30) as resp:
                     if resp.status == 200:
                         result = await resp.json()
                         description = result.get("result", {}).get("description", "").strip()
-                        # Простейшая валидация: не пусто, не слишком длинное, не содержит лишних слов
-                        if description and len(description) < 100 and not any(word in description.lower() for word in ["image", "photo", "picture", "looks like"]):
-                            logger.info(f"✅ Model {model} identified: {description}")
+                        if description and len(description) < 100:
+                            logger.info(f"✅ Model {model} identified dish: {description}")
                             return description
-                        else:
-                            logger.warning(f"Model {model} returned invalid description: {description}")
                     else:
                         logger.warning(f"Model {model} failed with status {resp.status}")
         except Exception as e:
@@ -78,8 +80,51 @@ async def identify_dish_from_image(image_bytes: bytes) -> Optional[str]:
     logger.error("All vision models failed to identify dish")
     return None
 
+async def analyze_food_image(
+    image_bytes: bytes,
+    prompt: str = "List all food items visible in this image. Be specific. Return as a comma-separated list.",
+    max_retries: int = 2
+) -> Optional[str]:
+    """
+    Анализирует изображение и возвращает текстовое описание (например, список ингредиентов).
+    Используется для fallback, когда нужно получить ингредиенты.
+    """
+    if not BASE_URL:
+        return None
+
+    image_array = _bytes_to_array(image_bytes)
+    headers = {
+        "Authorization": f"Bearer {CLOUDFLARE_API_TOKEN}",
+        "Content-Type": "application/json"
+    }
+
+    for model in VISION_MODELS:
+        for attempt in range(max_retries):
+            try:
+                url = f"{BASE_URL}{model}"
+                payload = {
+                    "image": image_array,
+                    "prompt": prompt,
+                    "max_tokens": 150,
+                    "temperature": 0.3
+                }
+                logger.info(f"Trying vision model {model}, attempt {attempt+1}")
+                async with aiohttp.ClientSession() as session:
+                    async with session.post(url, headers=headers, json=payload, timeout=30) as resp:
+                        if resp.status == 200:
+                            result = await resp.json()
+                            description = result.get("result", {}).get("description", "").strip()
+                            if description:
+                                logger.info(f"✅ Model {model} returned description")
+                                return description
+            except Exception as e:
+                logger.warning(f"Model {model} attempt {attempt+1} failed: {e}")
+            await asyncio.sleep(1)
+    logger.error("All models failed to analyze food image")
+    return None
+
 # =============================================================================
-# 🎤 РАСПОЗНАВАНИЕ ГОЛОСА (WHISPER) — без изменений
+# 🎤 РАСПОЗНАВАНИЕ ГОЛОСА (WHISPER)
 # =============================================================================
 
 async def _convert_ogg_to_wav(ogg_bytes: bytes) -> Optional[bytes]:

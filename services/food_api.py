@@ -359,6 +359,23 @@ def search_local_db(query: str) -> List[Dict]:
             })
     return results
 
+# ========== ПОИСК В ЛОКАЛЬНОЙ БАЗЕ ==========
+def search_local_db(query: str) -> List[Dict]:
+    """Поиск в локальной базе по частичному совпадению."""
+    results = []
+    query_lower = query.lower().strip()
+    for key, item in LOCAL_FOOD_DB.items():
+        if query_lower in key:
+            results.append({
+                'name': item['name'],
+                'calories': item['calories'],
+                'protein': item['protein'],
+                'fat': item['fat'],
+                'carbs': item['carbs'],
+                'source': 'local'
+            })
+    return results
+
 # ========== ПОИСК В OPENFOODFACTS ==========
 async def search_openfoodfacts(query: str, max_results: int = 5) -> List[Dict]:
     """
@@ -391,7 +408,7 @@ async def search_openfoodfacts(query: str, max_results: int = 5) -> List[Dict]:
                     if not name or len(name) < 3 or name in seen_names:
                         continue
                     nutriments = p.get('nutriments', {})
-                    # Пропускаем продукты с нулевой калорийностью (вода, соль и т.д.)
+                    # Пропускаем продукты с нулевой калорийностью
                     calories = nutriments.get('energy-kcal_100g', 0) or 0
                     if calories == 0:
                         continue
@@ -444,3 +461,42 @@ async def search_food(query: str) -> List[Dict]:
     combined.sort(key=lambda x: 0 if x["source"] == "local" else 1)
 
     return combined[:10]
+
+# ========== НОВАЯ ФУНКЦИЯ: СУММИРОВАНИЕ ПО ИНГРЕДИЕНТАМ ==========
+async def get_nutrition_by_ingredients(ingredients: List[str]) -> Dict:
+    """
+    Суммирует КБЖУ по списку ингредиентов.
+    Возвращает общие значения и разбивку по каждому ингредиенту (на 100г).
+    """
+    total = {"calories": 0, "protein": 0, "fat": 0, "carbs": 0}
+    breakdown = []
+    for ing in ingredients:
+        results = await search_food(ing)
+        if results:
+            item = results[0]  # берём лучший результат
+            entry = {
+                "name": item["name"],
+                "calories_100g": item["calories"],
+                "protein_100g": item["protein"],
+                "fat_100g": item["fat"],
+                "carbs_100g": item["carbs"],
+                "weight_g": 100  # по умолчанию
+            }
+            breakdown.append(entry)
+            for key in total:
+                total[key] += entry[f"{key}_100g"]
+        else:
+            # Если ингредиент не найден, добавляем с нулевыми значениями
+            breakdown.append({
+                "name": ing,
+                "calories_100g": 0,
+                "protein_100g": 0,
+                "fat_100g": 0,
+                "carbs_100g": 0,
+                "weight_g": 100
+            })
+    return {
+        "total": {k: round(v, 1) for k, v in total.items()},
+        "breakdown": breakdown,
+        "items_count": len(breakdown)
+    }

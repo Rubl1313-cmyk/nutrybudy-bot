@@ -262,6 +262,7 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
 # ----- ОБРАБОТЧИКИ КНОПОК ДЛЯ ВОДЫ -----
 @universal_router.callback_query(lambda c: c.data == "water_drink")
 async def water_drink_callback(callback: CallbackQuery, state: FSMContext):
+    logger.info(f"🍷 water_drink_callback вызван: user_id={callback.from_user.id}, data={callback.data}")
     logger.info(f"water_drink_callback вызван для пользователя {callback.from_user.id}")
     data = await state.get_data()
     amount = data.get('water_amount')

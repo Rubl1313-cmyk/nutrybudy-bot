@@ -22,6 +22,7 @@ from handlers.activity import cmd_fitness
 from handlers.ai_assistant import cmd_ask
 from handlers.meal_plan import cmd_meal_plan
 from utils.states import StepsStates
+from handlers.weight import cmd_log_weight
 
 router = Router()
 
@@ -217,7 +218,12 @@ async def show_profile_category(message: Message, state: FSMContext):
         reply_markup=get_profile_menu(),
         parse_mode="HTML"
     )
-
+@router.callback_query(F.data == "menu_log_weight")
+async def menu_log_weight_callback(callback: CallbackQuery, state: FSMContext):
+    """Обработка нажатия на кнопку записи веса в меню профиля."""
+    await cmd_log_weight(callback.message, state)
+    await callback.answer()
+    
 @router.message(F.text == "❓ Помощь")
 async def menu_help(message: Message, state: FSMContext):
     await state.clear()

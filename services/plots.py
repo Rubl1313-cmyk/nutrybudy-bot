@@ -3,10 +3,12 @@
 ✅ Линейные графики с заливкой области
 ✅ Горизонтальная линия нормы (где применимо)
 ✅ Поддержка периода: день (почасово + итоги), неделя/месяц (подневно)
+✅ Исправлено отображение эмодзи через системные шрифты
 """
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+import matplotlib.font_manager as fm
 import io
 from datetime import datetime, timedelta
 from database.models import WeightEntry, WaterEntry, Meal, Activity
@@ -15,6 +17,7 @@ from sqlalchemy import select, func
 from typing import Optional, Literal
 import logging
 import numpy as np
+import sys
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +30,48 @@ COLORS = {
     'trend': '#A23B72',        # фиолетовый для тренда
     'goal': '#E15554'          # красный для линии нормы
 }
+
+# ========== ФУНКЦИЯ ДЛЯ ЗАГРУЗКИ ШРИФТА С ЭМОДЗИ ==========
+def get_emoji_font():
+    """
+    Возвращает шрифт с поддержкой эмодзи в зависимости от ОС.
+    Источник: https://github.com/matplotlib/matplotlib/issues/4492
+    """
+    if sys.platform == 'win32':
+        # Windows: Segoe UI Emoji
+        font_path = 'C:/Windows/Fonts/seguiemj.ttf'
+    elif sys.platform == 'darwin':
+        # macOS: Apple Color Emoji
+        font_path = '/System/Library/Fonts/Apple Color Emoji.ttc'
+    else:
+        # Linux: Noto Color Emoji (нужно установить: apt install fonts-noto-color-emoji)
+        font_path = '/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf'
+    
+    try:
+        # Проверяем существование файла
+        import os
+        if os.path.exists(font_path):
+            return fm.FontProperties(fname=font_path)
+        else:
+            logger.warning(f"Шрифт с эмодзи не найден по пути: {font_path}")
+            return None
+    except Exception as e:
+        logger.warning(f"Ошибка загрузки шрифта с эмодзи: {e}")
+        return None
+
+# ========== ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ ДЛЯ ТЕКСТА ==========
+def add_text_with_emoji(ax, x, y, text, **kwargs):
+    """
+    Добавляет текст с поддержкой эмодзи.
+    Если доступен шрифт с эмодзи, использует его, иначе обычный шрифт.
+    """
+    emoji_font = get_emoji_font()
+    if emoji_font:
+        ax.text(x, y, text, fontproperties=emoji_font, **kwargs)
+    else:
+        ax.text(x, y, text, **kwargs)
+
+# ========== ОСНОВНЫЕ ФУНКЦИИ ГРАФИКОВ ==========
 
 async def generate_weight_plot(user_id: int, session: AsyncSession) -> Optional[bytes]:
     """
@@ -56,7 +101,13 @@ async def generate_weight_plot(user_id: int, session: AsyncSession) -> Optional[
         plt.plot(dates, p(range(len(weights))), '--', linewidth=2,
                  color=COLORS['trend'], label='Тренд')
 
-    plt.title('📈 Динамика веса', fontsize=16, fontweight='bold', pad=20)
+    # Заголовок с эмодзи
+    title_font = get_emoji_font()
+    if title_font:
+        plt.title('📈 Динамика веса', fontsize=16, fontweight='bold', pad=20, fontproperties=title_font)
+    else:
+        plt.title('Динамика веса', fontsize=16, fontweight='bold', pad=20)
+    
     plt.xlabel('Дата', fontsize=12)
     plt.ylabel('Вес (кг)', fontsize=12)
     plt.grid(True, alpha=0.3, linestyle='--')
@@ -181,14 +232,21 @@ async def _generate_consumption_plot(
         bars = plt.bar(x, values, color=['#1f77b4']*len(hours) + ['#ff7f0e', '#2ca02c'],
                        alpha=0.8, edgecolor='white', linewidth=1)
 
-        # Подписи значений
+        # Подписи значений с поддержкой эмодзи
         for bar, val in zip(bars, values):
             if val > 0:
                 plt.text(bar.get_x() + bar.get_width()/2., bar.get_height(),
                          f'{int(val)}', ha='center', va='bottom', fontsize=9, fontweight='bold')
 
         plt.xticks(x, labels, rotation=45, ha='right')
-        plt.title(f'{title} (последние 24 часа)', fontsize=16, fontweight='bold', pad=20)
+        
+        # Заголовок с эмодзи
+        title_font = get_emoji_font()
+        if title_font:
+            plt.title(f'{title} (последние 24 часа)', fontsize=16, fontweight='bold', pad=20, fontproperties=title_font)
+        else:
+            plt.title(f'{title} (последние 24 часа)', fontsize=16, fontweight='bold', pad=20)
+        
         plt.xlabel('Время', fontsize=12)
         plt.ylabel(ylabel, fontsize=12)
         plt.grid(True, axis='y', alpha=0.3, linestyle='--')
@@ -247,7 +305,14 @@ async def _generate_consumption_plot(
                          ha='center', va='bottom', fontsize=8, rotation=0)
 
         plt.xticks(range(len(labels)), labels, rotation=45, ha='right')
-        plt.title(title + title_suffix, fontsize=16, fontweight='bold', pad=20)
+        
+        # Заголовок с эмодзи
+        title_font = get_emoji_font()
+        if title_font:
+            plt.title(title + title_suffix, fontsize=16, fontweight='bold', pad=20, fontproperties=title_font)
+        else:
+            plt.title(title + title_suffix, fontsize=16, fontweight='bold', pad=20)
+        
         plt.xlabel('Дата', fontsize=12)
         plt.ylabel(ylabel, fontsize=12)
         plt.grid(True, alpha=0.3, linestyle='--')

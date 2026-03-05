@@ -39,8 +39,7 @@ def _bytes_to_array(image_bytes: bytes) -> list:
 
 async def identify_dish_from_image(image_bytes: bytes) -> Optional[str]:
     """
-    Распознаёт название блюда на изображении.
-    Возвращает название на английском или None.
+    Распознаёт название блюда на изображении, используя правильный формат LLaVA.
     """
     if not BASE_URL:
         return None
@@ -51,11 +50,13 @@ async def identify_dish_from_image(image_bytes: bytes) -> Optional[str]:
         "Content-Type": "application/json"
     }
 
-    # Улучшенный промпт с требованием конкретного названия
+    # Правильный промпт в формате LLaVA
     prompt = (
-        "Identify the specific dish in this image. Be precise and use the exact name, "
-        "e.g., 'Caesar salad', 'Greek salad', 'Grilled chicken breast', 'Spaghetti bolognese'. "
-        "If it's a salad, name its type. Answer with only the dish name, nothing else."
+        "USER: <image>\n"
+        "What is the exact name of the dish shown in this image? Be specific. "
+        "If it's a salad, name its type (e.g., 'Caesar salad', 'Greek salad'). "
+        "If it's a main course, name it precisely (e.g., 'Grilled chicken breast', 'Spaghetti bolognese'). "
+        "Answer with only the dish name, nothing else. ASSISTANT:"
     )
 
     for model in VISION_MODELS:
@@ -65,18 +66,22 @@ async def identify_dish_from_image(image_bytes: bytes) -> Optional[str]:
                 "image": image_array,
                 "prompt": prompt,
                 "max_tokens": 50,
-                "temperature": 0.2
+                "temperature": 0.2,  # низкая температура для более детерминированных ответов [citation:1]
+                "top_p": 0.9
             }
-            logger.info(f"Trying vision model {model} for dish name")
+            logger.info(f"Trying vision model {model} with LLaVA format")
             async with aiohttp.ClientSession() as session:
                 async with session.post(url, headers=headers, json=payload, timeout=30) as resp:
                     if resp.status == 200:
                         result = await resp.json()
                         description = result.get("result", {}).get("description", "").strip()
-                        # Проверяем, что ответ не слишком общий
-                        if description and len(description) < 100 and not any(word in description.lower() for word in ["image", "photo", "picture", "looks like"]):
-                            # Дополнительно отсеиваем слишком общие слова
-                            if description.lower() in ["salad", "soup", "meat", "fish", "pasta", "rice"]:
+                        # LLaVA может вернуть ответ с префиксом "ASSISTANT:"
+                        if description.startswith("ASSISTANT:"):
+                            description = description[10:].strip()
+                        
+                        # Фильтруем слишком общие ответы
+                        if description and len(description) < 100:
+                            if description.lower() in ["salad", "soup", "meat", "fish", "pasta", "rice", "dish", "food", "plate"]:
                                 logger.warning(f"Model {model} returned too generic: {description}")
                                 continue
                             logger.info(f"✅ Model {model} identified dish: {description}")
@@ -91,7 +96,7 @@ async def identify_dish_from_image(image_bytes: bytes) -> Optional[str]:
 
     logger.error("All vision models failed to identify dish")
     return None
-
+    
 async def analyze_food_image(
     image_bytes: bytes,
     prompt: str = "List all food items visible in this image. Be specific. Return as a comma-separated list.",

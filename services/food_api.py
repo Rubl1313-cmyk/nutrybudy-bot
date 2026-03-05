@@ -366,7 +366,7 @@ async def search_openfoodfacts(query: str, max_results: int = 5) -> List[Dict]:
     Требуется User-Agent, иначе возвращает ошибку 403/429.
     """
     url = "https://world.openfoodfacts.org/cgi/search.pl"
-   params = {
+    params = {
         "search_terms": query,
         "search_simple": 1,
         "action": "process",

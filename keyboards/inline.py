@@ -163,11 +163,11 @@ def get_food_menu() -> InlineKeyboardMarkup:
         [InlineKeyboardButton(text="📸 Отправить фото еды", callback_data="menu_food_photo")],
         [InlineKeyboardButton(text="✏️ Ввести продукты вручную", callback_data="menu_food_manual")],
         [InlineKeyboardButton(text="🍽️ План питания", callback_data="menu_meal_plan")],
-        [InlineKeyboardButton(text="💬 AI Помощник", callback_data="menu_ai")],
+        # [InlineKeyboardButton(text="💬 AI Помощник", callback_data="menu_ai")],  # удалено
         [InlineKeyboardButton(text="🔙 Назад", callback_data="menu_back")]
     ]
     return InlineKeyboardMarkup(inline_keyboard=buttons)
-
+    
 def get_water_activity_menu() -> InlineKeyboardMarkup:
     """Подменю «Вода и активность»."""
     buttons = [

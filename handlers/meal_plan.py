@@ -15,6 +15,7 @@ from database.models import User
 from services.meal_planner import distribute_calories
 from services.deepseek_client import ask_worker_ai
 from keyboards.reply import get_main_keyboard
+from handlers.profile import is_profile_complete
 
 router = Router()
 logger = logging.getLogger(__name__)
@@ -78,9 +79,18 @@ async def cmd_meal_plan(message: Message, state: FSMContext, user_id: int = None
             select(User).where(User.telegram_id == user_id)
         )
         user = result.scalar_one_or_none()
-        if not user or not user.daily_calorie_goal:
+
+        # Проверяем наличие всех необходимых полей
+        if not user or not await is_profile_complete(user):
             await message.answer(
-                "❌ Сначала настройте профиль через /set_profile.",
+                "❌ Сначала настройте профиль через /set_profile (заполните все данные: вес, рост, возраст, пол, активность, цель, город).",
+                reply_markup=get_main_keyboard()
+            )
+            return
+
+        if not user.daily_calorie_goal:
+            await message.answer(
+                "❌ В вашем профиле не рассчитана норма калорий. Пожалуйста, перезаполните профиль через /set_profile.",
                 reply_markup=get_main_keyboard()
             )
             return

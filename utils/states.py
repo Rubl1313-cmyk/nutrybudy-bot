@@ -62,3 +62,8 @@ class ProgressStates(StatesGroup):
     Если появятся, добавьте сюда нужные состояния.
     """
     pass
+
+# ========== НОВОЕ СОСТОЯНИЕ ДЛЯ ЗАПИСИ ВЕСА ==========
+class WeightStates(StatesGroup):
+    """Состояние для ввода веса."""
+    waiting_for_weight = State()

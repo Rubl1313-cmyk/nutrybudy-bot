@@ -2,6 +2,7 @@
 Обработчик профиля пользователя
 ✅ Все запросы к БД — асинхронные
 ✅ Нет lazy loading в клавиатурах
+✅ Универсальная функция display_profile для проверки и отображения
 """
 import logging
 from aiogram import Router, F
@@ -19,6 +20,18 @@ from utils.states import ProfileStates
 logger = logging.getLogger(__name__)
 router = Router()
 
+# Список обязательных полей профиля
+REQUIRED_FIELDS = ['weight', 'height', 'age', 'gender', 'activity_level', 'goal', 'city']
+
+async def is_profile_complete(user) -> bool:
+    """Проверяет, заполнены ли все обязательные поля профиля."""
+    if not user:
+        return False
+    for field in REQUIRED_FIELDS:
+        if getattr(user, field) is None:
+            return False
+    return True
+
 async def display_profile(target: Message | CallbackQuery, user_id: int, state: FSMContext = None):
     """
     Универсальная функция для отображения профиля.
@@ -31,11 +44,8 @@ async def display_profile(target: Message | CallbackQuery, user_id: int, state: 
         )
         user = result.scalar_one_or_none()
 
-        # Проверяем наличие всех обязательных полей
-        required_fields = ['weight', 'height', 'age', 'gender', 'activity_level', 'goal', 'city']
-        is_complete = user and all(getattr(user, field) is not None for field in required_fields)
-
-        if is_complete:
+        if user and await is_profile_complete(user):
+            # Профиль полностью заполнен — показываем данные
             gender_emoji = "♂️" if user.gender == "male" else "♀️"
             goal_emoji = {"lose": "⬇️", "maintain": "➡️", "gain": "⬆️"}.get(user.goal, "🎯")
 
@@ -71,7 +81,7 @@ async def display_profile(target: Message | CallbackQuery, user_id: int, state: 
                 await target.message.answer(text, reply_markup=keyboard, parse_mode="HTML")
                 await target.answer()
         else:
-            # Профиль неполный
+            # Профиль неполный или отсутствует
             if state is not None:
                 # Запускаем процесс настройки
                 await state.set_state(ProfileStates.weight)
@@ -90,24 +100,25 @@ async def display_profile(target: Message | CallbackQuery, user_id: int, state: 
                     await target.message.answer(msg, reply_markup=get_main_keyboard())
                     await target.answer()
 
-
 @router.message(Command("set_profile"))
 @router.message(F.text == "👤 Профиль")
-async def cmd_profile(message: Message, state: FSMContext):
-    """Показать профиль или начать настройку (обработчик сообщений)."""
-    await display_profile(message, message.from_user.id, state)
-
+async def cmd_profile(message: Message, state: FSMContext, user_id: int = None):
+    """Показать профиль или начать настройку."""
+    if user_id is None:
+        user_id = message.from_user.id
+    await display_profile(message, user_id, state)
 
 @router.message(F.text == "✏️ Изменить профиль")
-async def edit_profile(message: Message, state: FSMContext):
+async def edit_profile(message: Message, state: FSMContext, user_id: int = None):
     """Начало редактирования профиля."""
+    if user_id is None:
+        user_id = message.from_user.id
     await state.clear()
     await state.set_state(ProfileStates.weight)
     await message.answer(
         "⚖️ Введи новый вес (кг):",
         reply_markup=get_cancel_keyboard()
     )
-
 
 @router.message(ProfileStates.weight)
 async def process_weight(message: Message, state: FSMContext):
@@ -138,7 +149,6 @@ async def process_weight(message: Message, state: FSMContext):
             parse_mode="HTML"
         )
 
-
 @router.message(ProfileStates.height)
 async def process_height(message: Message, state: FSMContext):
     """Ввод роста"""
@@ -163,7 +173,6 @@ async def process_height(message: Message, state: FSMContext):
     except (ValueError, IndexError, AttributeError, TypeError):
         await message.answer("❌ Введи число от 100 до 250")
 
-
 @router.message(ProfileStates.age)
 async def process_age(message: Message, state: FSMContext):
     """Ввод возраста"""
@@ -187,7 +196,6 @@ async def process_age(message: Message, state: FSMContext):
     except (ValueError, TypeError):
         await message.answer("❌ Введи целое число от 10 до 120")
 
-
 @router.message(ProfileStates.gender)
 async def process_gender(message: Message, state: FSMContext):
     """Выбор пола"""
@@ -209,7 +217,6 @@ async def process_gender(message: Message, state: FSMContext):
         resize_keyboard=True
     )
     await message.answer(f"✅ {message.text}\n\n🏋️ Активность:", reply_markup=keyboard)
-
 
 @router.message(ProfileStates.activity)
 async def process_activity(message: Message, state: FSMContext):
@@ -233,7 +240,6 @@ async def process_activity(message: Message, state: FSMContext):
     )
     await message.answer(f"✅ {message.text}\n\n🎯 Цель:", reply_markup=keyboard)
 
-
 @router.message(ProfileStates.goal)
 async def process_goal(message: Message, state: FSMContext):
     """Выбор цели"""
@@ -246,7 +252,6 @@ async def process_goal(message: Message, state: FSMContext):
     await state.update_data(goal=goal_map[message.text])
     await state.set_state(ProfileStates.city)
     await message.answer(f"✅ {message.text}\n\n🌆 Город:", reply_markup=get_cancel_keyboard())
-
 
 @router.message(ProfileStates.city)
 async def process_city(message: Message, state: FSMContext):

@@ -377,61 +377,6 @@ def search_local_db(query: str) -> List[Dict]:
     return results
 
 # ========== ПОИСК В OPENFOODFACTS ==========
-async def search_openfoodfacts(query: str, max_results: int = 5) -> List[Dict]:
-    """
-    Поиск продуктов в OpenFoodFacts (бесплатно, без ключа).
-    """
-    url = "https://world.openfoodfacts.org/cgi/search.pl"
-    params = {
-        "search_terms": query,
-        "search_simple": 1,
-        "action": "process",
-        "json": 1,
-        "page_size": 20,
-        "language": "ru"
-    }
-    headers = {
-        "User-Agent": "NutriBuddyBot/1.0 (https://t.me/nutri_buddy_aibot)"
-    }
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url, params=params, headers=headers, timeout=15) as resp:
-                if resp.status != 200:
-                    logger.warning(f"OpenFoodFacts error {resp.status}")
-                    return []
-                data = await resp.json()
-                products = data.get('products', [])
-                results = []
-                seen_names = set()
-                for p in products:
-                    name = p.get('product_name', '') or p.get('product_name_en', '') or 'Неизвестно'
-                    if not name or len(name) < 3 or name in seen_names:
-                        continue
-                    nutriments = p.get('nutriments', {})
-                    # Пропускаем продукты с нулевой калорийностью
-                    calories = nutriments.get('energy-kcal_100g', 0) or 0
-                    if calories == 0:
-                        continue
-                    results.append({
-                        'name': name,
-                        'calories': calories,
-                        'protein': nutriments.get('proteins_100g', 0) or 0,
-                        'fat': nutriments.get('fat_100g', 0) or 0,
-                        'carbs': nutriments.get('carbohydrates_100g', 0) or 0,
-                        'source': 'openfoodfacts'
-                    })
-                    seen_names.add(name)
-                    if len(results) >= max_results:
-                        break
-                return results
-    except asyncio.TimeoutError:
-        logger.warning("OpenFoodFacts timeout")
-        return []
-    except Exception as e:
-        logger.warning(f"OpenFoodFacts exception: {e}")
-        return []
-
-# ========== ОСНОВНАЯ ФУНКЦИЯ ПОИСКА ==========
 async def search_food(query: str) -> List[Dict]:
     """
     Основная функция поиска продуктов.
@@ -440,14 +385,18 @@ async def search_food(query: str) -> List[Dict]:
     query = query.lower().strip()
     local_results = search_local_db(query)
 
-    # Если локальных результатов достаточно, возвращаем их
-    if len(local_results) >= 3:
-        return local_results[:10]
+    # Если в локальной базе есть точные совпадения, возвращаем их
+    # (можно настроить порог, например, если есть хотя бы 1 результат с высоким совпадением)
+    if local_results:
+        # Простая эвристика: если есть результаты, где запрос полностью входит в ключ
+        exact_matches = [r for r in local_results if query in r['name'].lower()]
+        if exact_matches:
+            return exact_matches[:10]
 
-    # Иначе пробуем OpenFoodFacts
-    off_results = await search_openfoodfacts(query)
-
-    # Объединяем результаты
+    # Если локальных результатов мало или нет, ищем в OpenFoodFacts
+    off_results = await search_openfoodfacts_sdk(query)
+    
+    # Объединяем результаты, убираем дубликаты
     seen_names = set()
     combined = []
 
@@ -457,46 +406,7 @@ async def search_food(query: str) -> List[Dict]:
             seen_names.add(name_lower)
             combined.append(item)
 
-    # Сортировка: локальные выше
+    # Сортируем: локальные выше, затем OpenFoodFacts
     combined.sort(key=lambda x: 0 if x["source"] == "local" else 1)
 
     return combined[:10]
-
-# ========== НОВАЯ ФУНКЦИЯ: СУММИРОВАНИЕ ПО ИНГРЕДИЕНТАМ ==========
-async def get_nutrition_by_ingredients(ingredients: List[str]) -> Dict:
-    """
-    Суммирует КБЖУ по списку ингредиентов.
-    Возвращает общие значения и разбивку по каждому ингредиенту (на 100г).
-    """
-    total = {"calories": 0, "protein": 0, "fat": 0, "carbs": 0}
-    breakdown = []
-    for ing in ingredients:
-        results = await search_food(ing)
-        if results:
-            item = results[0]  # берём лучший результат
-            entry = {
-                "name": item["name"],
-                "calories_100g": item["calories"],
-                "protein_100g": item["protein"],
-                "fat_100g": item["fat"],
-                "carbs_100g": item["carbs"],
-                "weight_g": 100  # по умолчанию
-            }
-            breakdown.append(entry)
-            for key in total:
-                total[key] += entry[f"{key}_100g"]
-        else:
-            # Если ингредиент не найден, добавляем с нулевыми значениями
-            breakdown.append({
-                "name": ing,
-                "calories_100g": 0,
-                "protein_100g": 0,
-                "fat_100g": 0,
-                "carbs_100g": 0,
-                "weight_g": 100
-            })
-    return {
-        "total": {k: round(v, 1) for k, v in total.items()},
-        "breakdown": breakdown,
-        "items_count": len(breakdown)
-    }

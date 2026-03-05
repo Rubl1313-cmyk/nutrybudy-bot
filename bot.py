@@ -13,7 +13,7 @@ from aiohttp import web
 from database.db import init_db, close_db, engine
 from handlers import (
     common, profile, food, water, shopping,
-    reminders, activity, progress, media_handlers, ai_assistant
+    reminders, activity, progress, media_handlers, ai_assistant, weight
 )
 from scheduler.jobs import setup_scheduler
 from handlers.universal_text_handler import universal_router
@@ -204,6 +204,7 @@ async def main():
     dp.include_router(reminders.router)
     dp.include_router(activity.router)
     dp.include_router(progress.router)
+    dp.include_router(weight.router)     
     dp.include_router(media_handlers.router)
     dp.include_router(meal_plan.router)
     dp.include_router(universal_router)

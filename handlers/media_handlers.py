@@ -1,8 +1,8 @@
 """
 Обработчики мультимедиа: фото (распознавание еды) и голос.
 Реализован интерфейс с отдельными сообщениями для каждого продукта.
-Добавлена защита от повторной обработки одного и того же фото, перевод распознанных данных,
-сопоставление с базой блюд и выбор: использовать как готовое блюдо или разбить на ингредиенты.
+Добавлена защита от повторной обработки, перевод, сопоставление с базой блюд,
+подтверждение пользователя и безопасная обработка callback'ов.
 """
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
@@ -159,6 +159,31 @@ async def start_food_input(
         original_items=food_names,
         meal_type=meal_type
     )
+
+# Безопасная функция для ответа на callback
+async def safe_callback_answer(callback: CallbackQuery, text: str = None, show_alert: bool = False):
+    """Безопасный ответ на callback с обработкой ошибки устаревшего запроса."""
+    try:
+        if text:
+            await callback.answer(text, show_alert=show_alert)
+        else:
+            await callback.answer()
+    except TelegramBadRequest as e:
+        if "query is too old" in str(e) or "query ID is invalid" in str(e):
+            logger.warning("Callback query expired, skipping answer")
+        else:
+            raise e
+
+# Безопасная функция для удаления сообщения
+async def safe_delete_message(bot, chat_id: int, message_id: int):
+    """Безопасное удаление сообщения с обработкой ошибки, если сообщение не найдено."""
+    try:
+        await bot.delete_message(chat_id, message_id)
+    except TelegramBadRequest as e:
+        if "message to delete not found" in str(e):
+            logger.debug(f"Message {message_id} already deleted, skipping")
+        else:
+            raise e
 
 @router.message(F.photo)
 async def handle_photo(message: Message, state: FSMContext):
@@ -318,19 +343,21 @@ async def handle_photo(message: Message, state: FSMContext):
 # ========== ОБРАБОТЧИКИ ПОДТВЕРЖДЕНИЯ БЛЮДА ==========
 @router.callback_query(F.data == "confirm_dish")
 async def confirm_dish_callback(callback: CallbackQuery, state: FSMContext):
-    """Пользователь подтвердил использование блюда как готового."""
+    """Пользователь подтвердил распознанное блюдо (использовать как готовое)."""
+    await safe_callback_answer(callback)
     data = await state.get_data()
     dish = data.get('recognized_dish')
     if dish:
         await start_food_input(callback.message, state, [dish], meal_type="snack")
     else:
         await callback.message.answer("❌ Ошибка: данные не найдены. Попробуйте ещё раз.")
-    await callback.message.delete()
-    await callback.answer()
+    # Удаляем сообщение с выбором
+    await safe_delete_message(callback.bot, callback.message.chat.id, callback.message.message_id)
 
 @router.callback_query(F.data == "reject_dish")
 async def reject_dish_callback(callback: CallbackQuery, state: FSMContext):
-    """Пользователь отверг блюдо и хочет использовать ингредиенты."""
+    """Пользователь отверг блюдо - используем ингредиенты."""
+    await safe_callback_answer(callback)
     data = await state.get_data()
     ingredients = data.get('recognized_ingredients', [])
     if ingredients:
@@ -339,16 +366,17 @@ async def reject_dish_callback(callback: CallbackQuery, state: FSMContext):
         # Если ингредиентов нет, предлагаем ручной ввод
         await callback.message.answer("Введите ингредиенты вручную через запятую:")
         await state.set_state(FoodStates.searching_food)
-    await callback.message.delete()
-    await callback.answer()
-# ========== ОСТАЛЬНЫЕ ОБРАБОТЧИКИ (без изменений) ==========
+    # Удаляем сообщение с выбором
+    await safe_delete_message(callback.bot, callback.message.chat.id, callback.message.message_id)
+
+# ========== ОСТАЛЬНЫЕ ОБРАБОТЧИКИ ==========
 @router.callback_query(F.data == "food_manual")
 async def food_manual_callback(callback: CallbackQuery, state: FSMContext):
     """Пользователь выбрал ручной ввод."""
-    await callback.answer()
+    await safe_callback_answer(callback)
     await callback.message.answer("📝 Введите названия продуктов через запятую:")
     await state.set_state(FoodStates.searching_food)
-    await callback.message.delete()
+    await safe_delete_message(callback.bot, callback.message.chat.id, callback.message.message_id)
 
 @router.callback_query(F.data.startswith("weight_"))
 async def weight_callback(callback: CallbackQuery, state: FSMContext):
@@ -360,7 +388,7 @@ async def weight_callback(callback: CallbackQuery, state: FSMContext):
     product_msg_ids = data.get('product_msg_ids', [])
 
     if not selected_foods:
-        await callback.answer("❌ Нет данных", show_alert=True)
+        await safe_callback_answer(callback, "❌ Нет данных", show_alert=True)
         return
 
     parts = callback.data.split('_')
@@ -369,7 +397,7 @@ async def weight_callback(callback: CallbackQuery, state: FSMContext):
     value = int(parts[3]) if len(parts) > 3 and parts[3].isdigit() else None
 
     if idx >= len(selected_foods):
-        await callback.answer("❌ Продукт уже удалён или индекс неверен", show_alert=True)
+        await safe_callback_answer(callback, "❌ Продукт уже удалён", show_alert=True)
         return
 
     food = selected_foods[idx]
@@ -377,17 +405,17 @@ async def weight_callback(callback: CallbackQuery, state: FSMContext):
     if action == "del":
         del selected_foods[idx]
         try:
-            await callback.bot.delete_message(callback.message.chat.id, product_msg_ids[idx])
+            await safe_delete_message(callback.bot, callback.message.chat.id, product_msg_ids[idx])
         except:
             pass
         del product_msg_ids[idx]
         await state.update_data(selected_foods=selected_foods, product_msg_ids=product_msg_ids)
         await update_totals_message(callback.message.chat.id, totals_msg_id, callback.bot, selected_foods)
-        await callback.answer("✅ Продукт удалён")
+        await safe_callback_answer(callback, "✅ Продукт удалён")
         return
 
     if value is None:
-        await callback.answer("❌ Нет значения", show_alert=True)
+        await safe_callback_answer(callback, "❌ Нет значения", show_alert=True)
         return
 
     current_weight = food.get('weight', 0) or 0
@@ -399,11 +427,11 @@ async def weight_callback(callback: CallbackQuery, state: FSMContext):
     elif action == "set":
         new_weight = value
     else:
-        await callback.answer()
+        await safe_callback_answer(callback)
         return
 
     if new_weight == current_weight:
-        await callback.answer()
+        await safe_callback_answer(callback)
         return
 
     food['weight'] = new_weight
@@ -444,12 +472,12 @@ async def weight_callback(callback: CallbackQuery, state: FSMContext):
         logger.error(f"Edit error: {e}")
 
     await update_totals_message(callback.message.chat.id, totals_msg_id, callback.bot, selected_foods)
-    await callback.answer()
+    await safe_callback_answer(callback)
 
 @router.callback_query(F.data == "add_food")
 async def add_food_callback(callback: CallbackQuery, state: FSMContext):
     """Начало добавления нового продукта."""
-    await callback.answer()
+    await safe_callback_answer(callback)
     await callback.message.edit_text(
         "➕ Добавление продукта\n\nВведите название продукта:"
     )
@@ -534,7 +562,7 @@ async def confirm_meal_callback(callback: CallbackQuery, state: FSMContext):
     product_msg_ids = data.get('product_msg_ids', [])
 
     if not any(f['weight'] for f in selected_foods):
-        await callback.answer("❌ Укажите вес хотя бы одного продукта", show_alert=True)
+        await safe_callback_answer(callback, "❌ Укажите вес хотя бы одного продукта", show_alert=True)
         return
 
     user_id = callback.from_user.id
@@ -584,15 +612,10 @@ async def confirm_meal_callback(callback: CallbackQuery, state: FSMContext):
         await session.commit()
 
     chat_id = callback.message.chat.id
+    # Удаляем все сообщения продуктов и итогов
     for msg_id in product_msg_ids:
-        try:
-            await callback.bot.delete_message(chat_id, msg_id)
-        except:
-            pass
-    try:
-        await callback.bot.delete_message(chat_id, totals_msg_id)
-    except:
-        pass
+        await safe_delete_message(callback.bot, chat_id, msg_id)
+    await safe_delete_message(callback.bot, chat_id, totals_msg_id)
 
     lines = [f"🍽️ Записан приём пищи ({meal_type}):"]
     for f in selected_foods:
@@ -601,11 +624,11 @@ async def confirm_meal_callback(callback: CallbackQuery, state: FSMContext):
     lines.append(f"\n🔥 Всего: {total_cal:.0f} ккал")
     lines.append(f"🥩 {total_prot:.1f}г | 🥑 {total_fat:.1f}г | 🍚 {total_carbs:.1f}г")
 
-    # Сбрасываем флаг обработанного фото, чтобы новые фото обрабатывались
+    # Сбрасываем флаг обработанного фото
     await state.update_data(last_photo_id=None)
     await callback.message.answer("\n".join(lines), parse_mode="HTML")
     await state.clear()
-    await callback.answer()
+    await safe_callback_answer(callback)
 
 @router.callback_query(F.data == "cancel_meal")
 async def cancel_meal_callback(callback: CallbackQuery, state: FSMContext):
@@ -616,18 +639,21 @@ async def cancel_meal_callback(callback: CallbackQuery, state: FSMContext):
     product_msg_ids = data.get('product_msg_ids', [])
     chat_id = callback.message.chat.id
 
+    # Удаляем все сообщения
     for msg_id in product_msg_ids:
-        try:
-            await callback.bot.delete_message(chat_id, msg_id)
-        except:
-            pass
-    try:
-        await callback.bot.delete_message(chat_id, totals_msg_id)
-    except:
-        pass
+        await safe_delete_message(callback.bot, chat_id, msg_id)
+    await safe_delete_message(callback.bot, chat_id, totals_msg_id)
 
     # Сбрасываем флаг обработанного фото
     await state.update_data(last_photo_id=None)
     await callback.message.answer("❌ Ввод отменён.")
     await state.clear()
-    await callback.answer()
+    await safe_callback_answer(callback)
+
+@router.callback_query(F.data == "action_cancel")
+async def action_cancel_callback(callback: CallbackQuery, state: FSMContext):
+    """Отмена любого действия."""
+    await safe_callback_answer(callback)
+    await state.clear()
+    await safe_delete_message(callback.bot, callback.message.chat.id, callback.message.message_id)
+    await callback.message.answer("❌ Действие отменено.")

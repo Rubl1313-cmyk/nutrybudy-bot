@@ -1,16 +1,11 @@
 """
-API для поиска продуктов в FatSecret и OpenFoodFacts (резервный).
+API для поиска продуктов. Использует локальную базу и OpenFoodFacts (резервный).
+FatSecret отключён из-за отсутствия ключей.
 """
 import aiohttp
-import hashlib
-import hmac
-import time
 import logging
 from typing import List, Dict, Optional
-from urllib.parse import quote, urlencode
-from googletrans import Translator
-import base64
-import os
+import asyncio
 
 logger = logging.getLogger(__name__)
 
@@ -364,162 +359,7 @@ def search_local_db(query: str) -> List[Dict]:
             })
     return results
 
-# ========== КОНФИГУРАЦИЯ FATSECRET ==========
-FATSECRET_CONSUMER_KEY = os.getenv("FATSECRET_CONSUMER_KEY", "")
-FATSECRET_CONSUMER_SECRET = os.getenv("FATSECRET_CONSUMER_SECRET", "")
-FATSECRET_ACCESS_TOKEN = None
-
-# Если ключи не заданы, отключаем FatSecret
-USE_FATSECRET = bool(FATSECRET_CONSUMER_KEY and FATSECRET_CONSUMER_SECRET)
-
-translator = Translator()
-
-async def get_fatsecret_token() -> Optional[str]:
-    """Получение OAuth-токена для FatSecret API."""
-    if not USE_FATSECRET:
-        return None
-    global FATSECRET_ACCESS_TOKEN
-    if FATSECRET_ACCESS_TOKEN:
-        return FATSECRET_ACCESS_TOKEN
-    try:
-        # OAuth 1.0a параметры
-        oauth_params = {
-            'oauth_consumer_key': FATSECRET_CONSUMER_KEY,
-            'oauth_signature_method': 'HMAC-SHA1',
-            'oauth_timestamp': str(int(time.time())),
-            'oauth_nonce': hashlib.md5(str(time.time()).encode()).hexdigest(),
-            'oauth_version': '1.0'
-        }
-        
-        # Формирование базовой строки для подписи
-        base_string = 'POST&' + quote('https://oauth.fatsecret.com/connect/token', safe='') + '&' + quote(urlencode(sorted(oauth_params.items()), quote_via=quote))
-        
-        # Подпись
-        signing_key = f"{FATSECRET_CONSUMER_SECRET}&"
-        signature = base64.b64encode(hmac.new(signing_key.encode(), base_string.encode(), hashlib.sha1).digest()).decode()
-        oauth_params['oauth_signature'] = signature
-        
-        # Заголовок авторизации
-        auth_header = 'OAuth ' + ', '.join([f'{k}="{v}"' for k, v in oauth_params.items()])
-        
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                'https://oauth.fatsecret.com/connect/token',
-                headers={'Authorization': auth_header},
-                data={'grant_type': 'client_credentials'},
-                timeout=10
-            ) as resp:
-                if resp.status == 200:
-                    data = await resp.json()
-                    FATSECRET_ACCESS_TOKEN = data.get('access_token')
-                    return FATSECRET_ACCESS_TOKEN
-                else:
-                    logger.error(f"FatSecret token error: {resp.status}")
-                    return None
-    except Exception as e:
-        logger.error(f"FatSecret auth error: {e}", exc_info=True)
-        return None
-async def search_fatsecret(query: str) -> List[Dict]:
-    """Поиск продуктов в FatSecret API."""
-    if not USE_FATSECRET:
-        return []
-    token = await get_fatsecret_token()
-    if not token:
-        return []
-    
-    # Переводим запрос на английский (база FatSecret преимущественно англоязычная)
-    try:
-        translated = await translator.translate(query, dest='en')
-        english_query = translated.text
-    except:
-        english_query = query  # Если перевод не удался, используем оригинал
-    
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(
-                'https://platform.fatsecret.com/rest/server.api',
-                params={
-                    'method': 'foods.search',
-                    'search_expression': english_query,
-                    'format': 'json',
-                    'max_results': 5
-                },
-                headers={'Authorization': f'Bearer {token}'},
-                timeout=10
-            ) as resp:
-                if resp.status == 200:
-                    data = await resp.json()
-                    results = []
-                    
-                    foods = data.get('foods', {}).get('food', [])
-                    if isinstance(foods, dict):  # Если только один результат
-                        foods = [foods]
-                    
-                    for f in foods:
-                        # Получаем детальную информацию о продукте
-                        food_id = f.get('food_id')
-                        if food_id:
-                            details = await get_food_details(food_id, token)
-                            if details:
-                                results.append(details)
-                    
-                    return results
-                else:
-                    logger.warning(f"FatSecret search error: {resp.status}")
-                    return []
-    except Exception as e:
-        logger.error(f"FatSecret search error: {e}", exc_info=True)
-        return []
-
-async def get_food_details(food_id: str, token: str) -> Optional[Dict]:
-    if not USE_FATSECRET:
-        return None
-    """Получение детальной информации о продукте по ID."""
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(
-                'https://platform.fatsecret.com/rest/server.api',
-                params={
-                    'method': 'food.get.v2',
-                    'food_id': food_id,
-                    'format': 'json'
-                },
-                headers={'Authorization': f'Bearer {token}'},
-                timeout=10
-            ) as resp:
-                if resp.status == 200:
-                    data = await resp.json()
-                    food = data.get('food', {})
-                    
-                    # Берём первую порцию (обычно на 100г)
-                    servings = food.get('servings', {}).get('serving', [])
-                    if isinstance(servings, dict):
-                        servings = [servings]
-                    
-                    if servings:
-                        s = servings[0]
-                        # Переводим название обратно на русский
-                        try:
-                            translated_name = await translator.translate(food.get('food_name', ''), dest='ru')
-                            name = translated_name.text
-                        except:
-                            name = food.get('food_name', '')
-                        
-                        return {
-                            "name": name,
-                            "calories": float(s.get('calories', 0)),
-                            "protein": float(s.get('protein', 0)),
-                            "fat": float(s.get('fat', 0)),
-                            "carbs": float(s.get('carbohydrate', 0)),
-                            "source": "FatSecret"
-                        }
-                return None
-    except Exception as e:
-        logger.error(f"FatSecret auth error: {e}", exc_info=True)
-        return None
-
-
-# ========== ПОИСК В OPENFOODFACTS (ВНЕШНИЙ API) ==========
+# ========== ПОИСК В OPENFOODFACTS ==========
 async def search_openfoodfacts(query: str, max_results: int = 5) -> List[Dict]:
     """
     Поиск продуктов в OpenFoodFacts (бесплатно, без ключа).
@@ -530,12 +370,15 @@ async def search_openfoodfacts(query: str, max_results: int = 5) -> List[Dict]:
         "search_simple": 1,
         "action": "process",
         "json": 1,
-        "page_size": 10,
+        "page_size": 20,
         "language": "ru"
+    }
+    headers = {
+        "User-Agent": "NutriBuddyBot/1.0 (https://t.me/nutri_buddy_aibot)"
     }
     try:
         async with aiohttp.ClientSession() as session:
-            async with session.get(url, params=params, timeout=10) as resp:
+            async with session.get(url, params=params, headers=headers, timeout=15) as resp:
                 if resp.status != 200:
                     logger.warning(f"OpenFoodFacts error {resp.status}")
                     return []
@@ -548,9 +391,13 @@ async def search_openfoodfacts(query: str, max_results: int = 5) -> List[Dict]:
                     if not name or len(name) < 3 or name in seen_names:
                         continue
                     nutriments = p.get('nutriments', {})
+                    # Пропускаем продукты с нулевой калорийностью (вода, соль и т.д.)
+                    calories = nutriments.get('energy-kcal_100g', 0) or 0
+                    if calories == 0:
+                        continue
                     results.append({
                         'name': name,
-                        'calories': nutriments.get('energy-kcal_100g', 0) or 0,
+                        'calories': calories,
                         'protein': nutriments.get('proteins_100g', 0) or 0,
                         'fat': nutriments.get('fat_100g', 0) or 0,
                         'carbs': nutriments.get('carbohydrates_100g', 0) or 0,
@@ -560,39 +407,40 @@ async def search_openfoodfacts(query: str, max_results: int = 5) -> List[Dict]:
                     if len(results) >= max_results:
                         break
                 return results
+    except asyncio.TimeoutError:
+        logger.warning("OpenFoodFacts timeout")
+        return []
     except Exception as e:
         logger.warning(f"OpenFoodFacts exception: {e}")
         return []
-
 
 # ========== ОСНОВНАЯ ФУНКЦИЯ ПОИСКА ==========
 async def search_food(query: str) -> List[Dict]:
     """
     Основная функция поиска продуктов.
-    Приоритет: локальная база → FatSecret → OpenFoodFacts.
+    Приоритет: локальная база → OpenFoodFacts.
     """
     query = query.lower().strip()
     local_results = search_local_db(query)
-    if len(local_results) >= 5:
+
+    # Если локальных результатов достаточно, возвращаем их
+    if len(local_results) >= 3:
         return local_results[:10]
 
-    external_results = []
-    if USE_FATSECRET:
-        external_results = await search_fatsecret(query)
-    if not external_results:
-        external_results = await search_openfoodfacts(query)
+    # Иначе пробуем OpenFoodFacts
+    off_results = await search_openfoodfacts(query)
 
     # Объединяем результаты
     seen_names = set()
     combined = []
-    for item in local_results + external_results:
+
+    for item in local_results + off_results:
         name_lower = item["name"].lower()
         if name_lower not in seen_names:
             seen_names.add(name_lower)
             combined.append(item)
 
-    combined.sort(key=lambda x: (
-        0 if x["source"] == "local" else 1 if x["source"] == "FatSecret" else 2,
-        x["name"]
-    ))
+    # Сортировка: локальные выше
+    combined.sort(key=lambda x: 0 if x["source"] == "local" else 1)
+
     return combined[:10]

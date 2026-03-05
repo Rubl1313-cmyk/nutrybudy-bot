@@ -14,20 +14,19 @@ from datetime import datetime
 
 from services.intent_classifier import classify
 from utils.water_parser import parse_water_amount
-from handlers.food import cmd_log_food, process_next_food
+from handlers.food import cmd_log_food, process_next_food, process_food_search
 from handlers.water import cmd_water, add_water_quick
 from handlers.shopping import cmd_shopping, add_to_shopping_list, update_list_message, get_or_create_default_list
 from handlers.activity import cmd_fitness
 from handlers.reminders import cmd_reminders, quick_create_reminder
 from utils.parsers import parse_shopping_items
-from utils.states import ActivityStates
+from utils.states import ActivityStates, FoodStates
 from database.db import get_session
 from database.models import User, Activity
 from utils.ai_tools import get_weather
 from services.activity import CALORIES_PER_MINUTE
 from handlers.ai_assistant import process_ai_query
-from handlers.food import process_next_food
-from utils.states import FoodStates  
+from keyboards.reply import get_main_keyboard, get_cancel_keyboard
 
 logger = logging.getLogger(__name__)
 universal_router = Router()
@@ -247,7 +246,6 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
                 # Имитируем сообщение с текстом продукта
                 fake_message = message
                 fake_message.text = cleaned
-                from handlers.food import process_food_search
                 await process_food_search(fake_message, state)
             else:
                 await cmd_log_food(message, state)

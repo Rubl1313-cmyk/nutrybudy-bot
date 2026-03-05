@@ -27,6 +27,7 @@ from utils.ai_tools import get_weather
 from services.activity import CALORIES_PER_MINUTE
 from handlers.ai_assistant import process_ai_query
 from handlers.food import process_next_food
+from utils.states import FoodStates  
 
 logger = logging.getLogger(__name__)
 universal_router = Router()

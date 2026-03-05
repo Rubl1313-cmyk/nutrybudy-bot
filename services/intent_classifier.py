@@ -5,7 +5,7 @@
 """
 import re
 from typing import Dict, Any, Optional, List
-from utils.number_parser import parse_russian_number  # новый импорт
+from utils.number_parser import parse_russian_number
 
 # Константы
 MEAL_TYPES = {
@@ -82,7 +82,7 @@ INTENT_KEYWORDS = {
         r'\bпомоги\b', r'\bрецепт\b', r'\bчто такое\b', r'\bкак сделать\b',
         r'\bпочему\b', r'\bзачем\b', r'\bкогда\b', r'\bгде\b', r'\bкто\b',
         r'\bнапиши\b', r'\bсоставь\b', r'\bпридумай\b', r'\bрасскажи\b',
-        r'\bобъясни\b', r'\bпосоветуй\b', r'\джарвис\b'
+        r'\bобъясни\b', r'\bпосоветуй\b', r'\bджарвис\b'  # добавлено
     ]
 }
 
@@ -154,7 +154,22 @@ def classify(text: str) -> Dict[str, Any]:
             result["reminder_time"] = time
         return result
 
-    # ----- 6. Приём пищи -----
+    # ----- 6. Погода -----
+    if any(re.search(kw, text_lower) for kw in INTENT_KEYWORDS["weather"]):
+        result["intent"] = "weather"
+        city_match = re.search(r'(?:в|для)\s+([а-яё\-\s]+)', text_lower)
+        if city_match:
+            result["city"] = city_match.group(1).strip()
+        else:
+            result["city"] = None
+        return result
+
+    # ----- 7. AI-запросы (явные) -----
+    if any(re.search(kw, text_lower) for kw in INTENT_KEYWORDS["ai"]):
+        result["intent"] = "ai"
+        return result
+
+    # ----- 8. Приём пищи -----
     if any(re.search(kw, text_lower) for kw in INTENT_KEYWORDS["food"]) or any(
         re.search(r'\b' + re.escape(meal) + r'\b', text_lower) for meal in MEAL_TYPES
     ):
@@ -167,21 +182,6 @@ def classify(text: str) -> Dict[str, Any]:
         result["cleaned_text"] = cleaned
         return result
 
-    # ----- 7. Погода -----
-    if any(re.search(kw, text_lower) for kw in INTENT_KEYWORDS["weather"]):
-        result["intent"] = "weather"
-        city_match = re.search(r'(?:в|для)\s+([а-яё\-\s]+)', text_lower)
-        if city_match:
-            result["city"] = city_match.group(1).strip()
-        else:
-            result["city"] = None
-        return result
-
-    # ----- 8. AI-запросы (явные) -----
-    if any(re.search(kw, text_lower) for kw in INTENT_KEYWORDS["ai"]):
-        result["intent"] = "ai"
-        return result
-
     # ----- 9. Неопределённое намерение -----
     if ',' in text_lower:
         result["intent"] = "unknown"
@@ -191,7 +191,7 @@ def classify(text: str) -> Dict[str, Any]:
     # Всё остальное отправляем в AI (как fallback)
     result["intent"] = "ai"
     return result
-
+    
 def _extract_steps(text: str) -> Optional[int]:
     """Извлекает количество шагов из текста (цифры или слова)."""
     # Ищем ключевое слово "шаг" в разных формах

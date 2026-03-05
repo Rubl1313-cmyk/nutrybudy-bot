@@ -51,7 +51,12 @@ async def identify_dish_from_image(image_bytes: bytes) -> Optional[str]:
         "Content-Type": "application/json"
     }
 
-    prompt = "What is the name of the dish in this image? Answer with only the dish name, nothing else."
+    # Улучшенный промпт с требованием конкретного названия
+    prompt = (
+        "Identify the specific dish in this image. Be precise and use the exact name, "
+        "e.g., 'Caesar salad', 'Greek salad', 'Grilled chicken breast', 'Spaghetti bolognese'. "
+        "If it's a salad, name its type. Answer with only the dish name, nothing else."
+    )
 
     for model in VISION_MODELS:
         try:
@@ -68,9 +73,16 @@ async def identify_dish_from_image(image_bytes: bytes) -> Optional[str]:
                     if resp.status == 200:
                         result = await resp.json()
                         description = result.get("result", {}).get("description", "").strip()
-                        if description and len(description) < 100:
+                        # Проверяем, что ответ не слишком общий
+                        if description and len(description) < 100 and not any(word in description.lower() for word in ["image", "photo", "picture", "looks like"]):
+                            # Дополнительно отсеиваем слишком общие слова
+                            if description.lower() in ["salad", "soup", "meat", "fish", "pasta", "rice"]:
+                                logger.warning(f"Model {model} returned too generic: {description}")
+                                continue
                             logger.info(f"✅ Model {model} identified dish: {description}")
                             return description
+                        else:
+                            logger.warning(f"Model {model} returned invalid description: {description}")
                     else:
                         logger.warning(f"Model {model} failed with status {resp.status}")
         except Exception as e:

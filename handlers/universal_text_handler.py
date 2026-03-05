@@ -268,42 +268,52 @@ async def debug_water_callback(callback: CallbackQuery):
 # ----- ОБРАБОТЧИКИ КНОПОК ДЛЯ ВОДЫ -----
 @universal_router.callback_query(lambda c: c.data == "water_drink")
 async def water_drink_callback(callback: CallbackQuery, state: FSMContext):
-    logger.info(f"🍷 water_drink_callback вызван: user_id={callback.from_user.id}, data={callback.data}")
-    logger.info(f"water_drink_callback вызван для пользователя {callback.from_user.id}")
+    logger.info(f"🍷 water_drink_callback вызван: user_id={callback.from_user.id}")
     data = await state.get_data()
     amount = data.get('water_amount')
-    logger.info(f"Извлечён amount из state: {amount}")
+    logger.info(f"🍷 amount из state: {amount}")
     user_id = callback.from_user.id
     try:
         if amount:
+            logger.info(f"🍷 Попытка добавить {amount} мл для пользователя {user_id}")
             success = await add_water_quick(user_id, amount)
-            logger.info(f"Результат add_water_quick: {success}")
+            logger.info(f"🍷 Результат add_water_quick: {success}")
             if success:
                 await callback.message.answer(f"✅ Записано {amount} мл воды.")
             else:
                 await callback.message.answer(
-                    "❌ Пользователь не найден. Сначала настройте профиль через /set_profile.",
+                    "❌ Не удалось записать воду. Возможно, профиль не настроен.",
                     reply_markup=get_main_keyboard()
                 )
         else:
-            logger.info("amount не найден, запускаем cmd_water")
-            await cmd_water(callback.message, state)
+            logger.info("🍷 amount не найден, запускаем cmd_water")
+            await cmd_water(callback.message, state, user_id=user_id)
         await callback.message.delete()
     except Exception as e:
-        logger.error(f"Ошибка в water_drink_callback: {e}", exc_info=True)
+        logger.error(f"🍷 Ошибка в water_drink_callback: {e}", exc_info=True)
         await callback.message.answer("❌ Произошла внутренняя ошибка. Попробуйте позже.")
     finally:
         await callback.answer()
 
 @universal_router.callback_query(lambda c: c.data == "water_buy")
 async def water_buy_callback(callback: CallbackQuery, state: FSMContext):
+    logger.info(f"🛒 water_buy_callback вызван: user_id={callback.from_user.id}")
     data = await state.get_data()
     amount = data.get('water_amount')
+    logger.info(f"🛒 amount из state: {amount}")
     item_text = f"вода {amount} мл" if amount else "вода"
-    await add_to_shopping_list(callback.message, item_text)
-    await callback.message.answer("✅ Добавлено в список покупок.")
-    await callback.message.delete()
-    await callback.answer()
+    try:
+        logger.info(f"🛒 Добавление в список покупок: {item_text}")
+        # add_to_shopping_list ожидает event (CallbackQuery) и текст
+        await add_to_shopping_list(callback, item_text)
+        logger.info("🛒 Товар добавлен")
+        await callback.message.answer("✅ Добавлено в список покупок.")
+    except Exception as e:
+        logger.error(f"🛒 Ошибка в water_buy_callback: {e}", exc_info=True)
+        await callback.message.answer("❌ Ошибка при добавлении в список покупок.")
+    finally:
+        await callback.message.delete()
+        await callback.answer()
 
 @universal_router.callback_query(lambda c: c.data == "action_cancel")
 async def action_cancel_callback(callback: CallbackQuery, state: FSMContext):

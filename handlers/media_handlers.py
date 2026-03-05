@@ -17,6 +17,7 @@ from typing import List, Dict, Optional
 from services.cloudflare_ai import identify_food_multimodel, transcribe_audio, analyze_food_image
 from services.food_api import search_food, get_food_data
 from services.translator import translate_dish_name, translate_to_russian, extract_food_items
+from services.dish_db import find_matching_dish
 from utils.states import FoodStates
 from database.db import get_session
 from database.models import Meal, FoodItem, User
@@ -42,7 +43,6 @@ def _prepare_image(image_bytes: bytes) -> bytes:
 
 async def get_food_data(name: str) -> Dict:
     """Получает базовые данные продукта из локальной базы."""
-    # Эта функция уже есть в этом же файле, оставляем как есть
     search_results = await search_food(name)
     if search_results:
         best = search_results[0]
@@ -61,6 +61,7 @@ async def get_food_data(name: str) -> Dict:
             'base_fat': 0,
             'base_carbs': 0
         }
+
 async def update_totals_message(chat_id: int, message_id: int, bot, selected_foods: List[Dict]):
     """Обновляет сообщение с итогами."""
     total_cal = sum(f['calories'] for f in selected_foods)
@@ -123,7 +124,6 @@ async def start_food_input(
 ):
     """
     Публичная функция для запуска интерфейса ввода продуктов.
-    Используется как из обработчика фото, так и из универсального обработчика текста.
     """
     selected_foods = []
     for name in food_names:
@@ -181,79 +181,98 @@ async def handle_photo(message: Message, state: FSMContext):
         file_data = file_bytes.read()
         optimized = _prepare_image(file_data)
 
+        # Пытаемся получить структурированные данные
         food_data, used_model = await identify_food_multimodel(optimized)
 
-        if food_data:
-            # Переводим название блюда и ингредиенты на русский
+        # Проверяем, что вернулся словарь
+        if isinstance(food_data, dict):
             dish_name_en = food_data.get('dish_name', '')
             ingredients_en = food_data.get('ingredients', [])
 
+            # Переводим на русский
             dish_name_ru = await translate_dish_name(dish_name_en) if dish_name_en else ""
-            ingredients_ru = []
-            for ing in ingredients_en:
-                translated = await translate_to_russian(ing)
-                ingredients_ru.append(translated)
+            ingredients_ru = [await translate_to_russian(ing) for ing in ingredients_en]
 
             logger.info(f"🍽 Распознано моделью {used_model}: блюдо='{dish_name_ru}' (англ: {dish_name_en}), ингредиенты={ingredients_ru}")
 
-            # Сохраняем переведённые данные
-            food_data = {
-                'dish_name': dish_name_ru,
-                'ingredients': ingredients_ru
-            }
-
-            # Если модель UForm и dish_name — популярное конкретное блюдо, запрашиваем подтверждение
-            suspicious_dishes = ["салат цезарь", "греческий салат", "оливье", "шаурма", "салат с креветками"]
-            if used_model == "@cf/unum/uform-gen2-qwen-500m" and dish_name_ru.lower() in [d.lower() for d in suspicious_dishes]:
-                await state.update_data(
-                    recognized_dish=dish_name_ru,
-                    recognized_ingredients=ingredients_ru,
-                    last_photo_id=message.message_id
-                )
-                keyboard = InlineKeyboardMarkup(inline_keyboard=[
-                    [InlineKeyboardButton(text="✅ Да", callback_data="confirm_dish")],
-                    [InlineKeyboardButton(text="❌ Нет, показать ингредиенты", callback_data="reject_dish")]
-                ])
-                await message.answer(
-                    f"🤖 Я думаю, это **{dish_name_ru}**. Это правильно?",
-                    reply_markup=keyboard,
-                    parse_mode="Markdown"
-                )
-                return
-
-            # Иначе продолжаем как обычно
+            # Проверяем, есть ли блюдо в продуктовой базе
             dish_info = await get_food_data(dish_name_ru)
             if dish_info['base_calories'] > 0:
-                # Блюдо найдено в базе
+                # Блюдо найдено в базе продуктов
                 await start_food_input(message, state, [dish_name_ru], meal_type="snack")
-            elif ingredients_ru:
-                # Используем ингредиенты
-                await start_food_input(message, state, ingredients_ru, meal_type="snack")
+                await state.update_data(last_photo_id=message.message_id)
+                return
+
+            # Если не найдено, пробуем сопоставить по ингредиентам с базой блюд
+            if ingredients_ru:
+                matched_dish, score = find_matching_dish(ingredients_ru, threshold=0.5)
+                if matched_dish:
+                    # Нашли подходящее блюдо
+                    await state.update_data(
+                        recognized_dish=matched_dish,
+                        recognized_ingredients=ingredients_ru,
+                        last_photo_id=message.message_id
+                    )
+                    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                        [InlineKeyboardButton(text="✅ Да", callback_data="confirm_dish")],
+                        [InlineKeyboardButton(text="❌ Нет, использовать ингредиенты", callback_data="reject_dish")]
+                    ])
+                    await message.answer(
+                        f"🤖 Похоже, это **{matched_dish}** (сходство {score:.0%}). Это правильно?",
+                        reply_markup=keyboard,
+                        parse_mode="Markdown"
+                    )
+                    return
+                else:
+                    # Не нашли, используем ингредиенты
+                    await start_food_input(message, state, ingredients_ru, meal_type="snack")
+                    await state.update_data(last_photo_id=message.message_id)
+                    return
             else:
-                # Есть только название, но его нет в базе
+                # Нет ингредиентов
                 await message.answer(
                     f"🍽 Распознано блюдо: {dish_name_ru}\n\n"
-                    "Но оно не найдено в базе. Вы можете:\n"
-                    "• Ввести ингредиенты вручную\n"
-                    "• Отправить другое фото",
+                    "Но оно не найдено в базе и нет ингредиентов. Введите вручную.",
                     reply_markup=InlineKeyboardMarkup(inline_keyboard=[
                         [InlineKeyboardButton(text="✏️ Ввести вручную", callback_data="food_manual")],
                         [InlineKeyboardButton(text="❌ Отмена", callback_data="action_cancel")]
                     ])
                 )
-            await state.update_data(last_photo_id=message.message_id)
-            return
+                await state.update_data(last_photo_id=message.message_id)
+                return
+        else:
+            # food_data не словарь (возможно None или строка) — логируем и идём на fallback
+            logger.error(f"Unexpected food_data type: {type(food_data)} - {food_data}")
 
-        # Fallback на analyze_food_image
+        # Fallback: пытаемся получить список ингредиентов через analyze_food_image
         logger.info("Falling back to analyze_food_image for ingredients")
         description = await analyze_food_image(optimized)
         if description:
             ingredients_en = await extract_food_items(description)
             ingredients_ru = [await translate_to_russian(ing) for ing in ingredients_en]
             if ingredients_ru:
-                await start_food_input(message, state, ingredients_ru, meal_type="snack")
-                await state.update_data(last_photo_id=message.message_id)
-                return
+                # Сначала попробуем найти блюдо по ингредиентам
+                matched_dish, score = find_matching_dish(ingredients_ru, threshold=0.5)
+                if matched_dish:
+                    await state.update_data(
+                        recognized_dish=matched_dish,
+                        recognized_ingredients=ingredients_ru,
+                        last_photo_id=message.message_id
+                    )
+                    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                        [InlineKeyboardButton(text="✅ Да", callback_data="confirm_dish")],
+                        [InlineKeyboardButton(text="❌ Нет, использовать ингредиенты", callback_data="reject_dish")]
+                    ])
+                    await message.answer(
+                        f"🤖 Похоже, это **{matched_dish}** (сходство {score:.0%}). Это правильно?",
+                        reply_markup=keyboard,
+                        parse_mode="Markdown"
+                    )
+                    return
+                else:
+                    await start_food_input(message, state, ingredients_ru, meal_type="snack")
+                    await state.update_data(last_photo_id=message.message_id)
+                    return
 
         # Полный провал
         await message.answer(
@@ -272,7 +291,7 @@ async def handle_photo(message: Message, state: FSMContext):
         await message.answer("❌ Ошибка при обработке фото. Попробуйте позже.")
         await state.clear()
 
-# Обработчики подтверждения (без изменений)
+# ========== Обработчики подтверждения блюда ==========
 @router.callback_query(F.data == "confirm_dish")
 async def confirm_dish_callback(callback: CallbackQuery, state: FSMContext):
     data = await state.get_data()
@@ -295,6 +314,26 @@ async def reject_dish_callback(callback: CallbackQuery, state: FSMContext):
         await state.set_state(FoodStates.searching_food)
     await callback.message.delete()
     await callback.answer()
+
+# ========== Обработчики выбора режима ==========
+@router.callback_query(F.data == "food_manual")
+async def food_manual_callback(callback: CallbackQuery, state: FSMContext):
+    logger.info(f"✏️ Выбрано 'Ввести вручную', user_id={callback.from_user.id}")
+    await callback.answer()
+    await callback.message.answer("📝 Введите названия продуктов через запятую:")
+    await state.set_state(FoodStates.searching_food)
+    await callback.message.delete()
+
+@router.callback_query(F.data == "action_cancel")
+async def action_cancel_callback(callback: CallbackQuery, state: FSMContext):
+    await callback.answer()
+    await state.clear()
+    try:
+        await callback.message.delete()
+    except:
+        pass
+    await callback.message.answer("❌ Действие отменено.")
+
 # ========== Обработчики изменения веса продуктов ==========
 
 @router.callback_query(F.data.startswith("weight_"))

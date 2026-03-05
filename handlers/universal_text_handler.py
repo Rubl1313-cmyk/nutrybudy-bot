@@ -47,6 +47,7 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
     # ----- ВОДА -----
     if intent == "water":
         amount = parse_water_amount(text)
+        logger.info(f"💧 Извлечено количество воды: {amount}")
 
         if "купить" in text_lower or "покупки" in text_lower:
             item_text = f"вода {amount} мл" if amount else "вода"

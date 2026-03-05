@@ -23,7 +23,7 @@ async def ask_worker_ai(
     system_prompt: str = DEFAULT_SYSTEM_PROMPT,
     model: str = "@cf/qwen/qwen2.5-coder-32b-instruct",  # ← новая модель
     temperature: float = 0.7,
-    max_tokens: int = 1000
+    max_tokens: int = 3000
 ) -> Optional[Dict[str, Any]]:
     """
     Отправляет запрос к собственному Cloudflare Worker и возвращает ответ.

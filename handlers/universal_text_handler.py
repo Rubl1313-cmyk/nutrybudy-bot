@@ -305,36 +305,24 @@ async def water_drink_callback(callback: CallbackQuery, state: FSMContext):
 
 @universal_router.callback_query(F.data == "water_buy")
 async def water_buy_callback(callback: CallbackQuery, state: FSMContext):
-    """Обработка кнопки 'Купить воду'."""
-    logger.info(f"🛒 water_buy_callback: вызван, user_id={callback.from_user.id}")
-    
     data = await state.get_data()
     amount = data.get('water_amount')
     item_text = f"вода {amount} мл" if amount else "вода"
-    logger.info(f"🛒 water_buy_callback: item_text='{item_text}'")
-    
-    # Сначала отвечаем на callback
+
     await callback.answer()
-    
+
     try:
-        # Вызываем функцию добавления в список покупок
-        logger.info("🛒 Вызываем add_to_shopping_list")
-        await add_to_shopping_list(callback.message, item_text)
-        logger.info("🛒 add_to_shopping_list выполнена")
-        
-        # Отправляем подтверждение
+        # ✅ ИСПРАВЛЕНО: передаём callback, а не callback.message
+        await add_to_shopping_list(callback, item_text)
         await callback.message.answer("✅ Добавлено в список покупок.")
-        logger.info("🛒 Подтверждение отправлено")
     except Exception as e:
         logger.error(f"🛒 Ошибка в water_buy_callback: {e}", exc_info=True)
         await callback.message.answer("❌ Произошла ошибка при добавлении в список покупок.")
     finally:
-        # Удаляем исходное сообщение с кнопками
         try:
             await callback.message.delete()
-            logger.info("🛒 Исходное сообщение удалено")
-        except Exception as e:
-            logger.warning(f"🛒 Не удалось удалить сообщение: {e}")
+        except:
+            pass
             
 @universal_router.callback_query(F.data == "action_cancel")
 async def action_cancel_callback(callback: CallbackQuery, state: FSMContext):

@@ -40,9 +40,10 @@ def _prepare_image(image_bytes: bytes) -> bytes:
         logger.warning(f"⚠️ Image prep error: {e}")
         return image_bytes
 
-async def identify_dish_from_photo(message: Message) -> Optional[Dict]:
+async def identify_dish_from_photo(message: Message) -> Optional[str]:
     """
-    Распознаёт название блюда на фото и возвращает словарь с названием и ингредиентами.
+    Распознаёт название блюда на фото.
+    Возвращает название на русском или None.
     """
     photo = message.photo[-1]
     file_info = await message.bot.get_file(photo.file_id)
@@ -50,60 +51,24 @@ async def identify_dish_from_photo(message: Message) -> Optional[Dict]:
     file_data = file_bytes.read()
     optimized = _prepare_image(file_data)
 
-    # Промпт на английском для получения названия блюда и ингредиентов
-    prompt = (
-        "What dish is shown in this image? "
-        "First, provide the dish name (if it's a known dish, e.g., 'Caesar salad', 'Borscht', 'Olivier salad'). "
-        "Then, list all visible ingredients. "
-        "Format your response exactly like this:\n"
-        "Dish: [dish name]\n"
-        "Ingredients: [ingredient1, ingredient2, ...]"
-    )
-    description_en = await analyze_food_image(optimized, prompt=prompt, max_tokens=200)
+    # Простой промпт: только название блюда на английском
+    prompt = "What dish is shown in this image? Answer with the dish name only, in English."
+    description_en = await analyze_food_image(optimized, prompt=prompt, max_tokens=50)
     if not description_en:
         return None
 
-    logger.info(f"Vision raw response: {description_en}")
-
-    # Парсим ответ
-    dish_match = re.search(r'Dish:\s*(.+?)(?:\n|$)', description_en, re.IGNORECASE)
-    ingredients_match = re.search(r'Ingredients:\s*(.+)', description_en, re.IGNORECASE)
-
-    dish_name = dish_match.group(1).strip() if dish_match else None
-    ingredients_text = ingredients_match.group(1).strip() if ingredients_match else None
-
-    # Если нет ингредиентов, пробуем старый метод
-    if not ingredients_text:
-        ingredients_text = description_en
-
-    # Переводим ингредиенты на русский
-    raw_items = await extract_food_items(ingredients_text)
-    translated_items = []
-    for item in raw_items:
-        translated = await translate_to_russian(item)
-        if translated and translated != item:
-            translated_items.append(translated)
-        else:
-            # Если перевод не удался, оставляем оригинал
-            translated_items.append(item)
-
-    # Переводим название блюда (если есть) для поиска в базе
-    if dish_name:
-        dish_name_ru = await translate_to_russian(dish_name)
-    else:
-        dish_name_ru = None
-
-    result = {
-        "dish_name": dish_name_ru,
-        "ingredients": translated_items
-    }
-    logger.info(f"Parsed dish info: {result}")
-    return result
+    logger.info(f"📸 Dish name raw: {description_en}")
+    # Переводим на русский
+    dish_name_ru = await translate_to_russian(description_en.strip())
+    if dish_name_ru and dish_name_ru != description_en:
+        logger.info(f"📸 Dish name translated: {dish_name_ru}")
+        return dish_name_ru
+    return None
 
 async def recognize_food_from_photo(message: Message) -> List[str]:
     """
     Распознаёт продукты на фото и возвращает список названий на русском.
-    (Старый метод, используется как fallback)
+    (Используется как fallback, если не удалось определить блюдо)
     """
     photo = message.photo[-1]
     file_info = await message.bot.get_file(photo.file_id)
@@ -115,7 +80,6 @@ async def recognize_food_from_photo(message: Message) -> List[str]:
         optimized,
         prompt="List all food items visible in this image. Be specific. Return as a comma-separated list."
     )
-    logger.info(f"📸 Vision raw response: {description_en}")  # <- добавьте эту строку
     if not description_en:
         return []
 
@@ -267,22 +231,24 @@ async def handle_photo(message: Message, state: FSMContext):
 
         await message.answer("🔍 Анализирую изображение через Cloudflare AI...")
 
-        # Пытаемся определить блюдо целиком
-        dish_info = await identify_dish_from_photo(message)
-        logger.info(f"📸 Parsed dish info: {dish_info}")
-        if dish_info and dish_info['dish_name']:
-            # Ищем блюдо в локальной базе
-            dish_data = await get_food_data(dish_info['dish_name'])
-            logger.info(f"📸 Dish data from DB: {dish_data}") 
-            if dish_data['base_calories'] > 0:  # если нашлось в базе
-                # Используем блюдо как один продукт
-                await start_food_input(message, state, [dish_info['dish_name']], meal_type="snack")
+        # 1. Пытаемся определить название блюда
+        dish_name = await identify_dish_from_photo(message)
+        if dish_name:
+            logger.info(f"📸 Распознано блюдо: {dish_name}")
+            # Ищем в базе
+            dish_data = await get_food_data(dish_name)
+            if dish_data['base_calories'] > 0:
+                # Блюдо найдено в базе, запускаем интерфейс с одним продуктом
+                await start_food_input(message, state, [dish_name], meal_type="snack")
                 await state.update_data(last_photo_id=message.message_id)
                 return
+            else:
+                logger.info(f"📸 Блюдо '{dish_name}' не найдено в базе, переходим к ингредиентам")
+        else:
+            logger.info("📸 Не удалось определить название блюда")
 
-        # Если блюдо не найдено, распознаём ингредиенты
+        # 2. Если блюдо не определено или не найдено в базе, распознаём ингредиенты
         translated_items = await recognize_food_from_photo(message)
-
         if not translated_items:
             await message.answer(
                 "❌ Не удалось распознать фото. Попробуйте ввести вручную через /log_food."

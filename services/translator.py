@@ -1,12 +1,12 @@
 """
 Сервис перевода для NutriBuddy.
 Содержит более 300 распространённых продуктов и блюд.
-Использует локальный словарь + MyMemory API для редких слов.
-Добавлен словарь исключений для корректного перевода названий блюд.
+Использует локальный словарь + DeepL/Google Translate API для редких слов.
 """
 import aiohttp
 import logging
 import re
+from deep_translator import GoogleTranslator  # требуется pip install deep-translator
 
 logger = logging.getLogger(__name__)
 COMMON_DISH_TRANSLATIONS = {
@@ -708,39 +708,26 @@ async def translate_to_russian(text: str) -> str:
     """
     Переводит текст с английского на русский.
     Сначала проверяет локальный словарь (COMMON_TRANSLATIONS),
-    затем вызывает MyMemory API для редких слов.
+    затем вызывает Google Translate через deep-translator.
     """
-    # Нормализация текста
     original = text.strip()
     text_lower = original.lower()
 
-    # Проверка в словаре
     if text_lower in COMMON_TRANSLATIONS:
         translated = COMMON_TRANSLATIONS[text_lower]
         logger.info(f"🔄 Using cached translation: '{original}' → '{translated}'")
         return translated
 
-    # Если не нашли в словаре, пробуем API
     try:
-        url = "https://api.mymemory.translated.net/get"
-        params = {
-            "q": original,
-            "langpair": "en|ru"
-        }
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url, params=params, timeout=10) as resp:
-                if resp.status == 200:
-                    data = await resp.json()
-                    translated = data.get('responseData', {}).get('translatedText', original)
-                    if translated != original and translated:
-                        logger.info(f"🔄 API translation: '{original}' → '{translated}'")
-                        return translated
-                    else:
-                        logger.warning(f"⚠️ Translation API returned unchanged text for '{original}'")
-                        return original
-                else:
-                    logger.warning(f"⚠️ Translation API error: {resp.status}")
-                    return original
+        # Используем Google Translator (бесплатно, без ключа)
+        translator = GoogleTranslator(source='en', target='ru')
+        translated = translator.translate(original)
+        if translated and translated != original:
+            logger.info(f"🔄 Google Translate: '{original}' → '{translated}'")
+            return translated
+        else:
+            logger.warning(f"⚠️ Google Translate returned unchanged text for '{original}'")
+            return original
     except Exception as e:
         logger.error(f"❌ Translation error: {e}")
         return original

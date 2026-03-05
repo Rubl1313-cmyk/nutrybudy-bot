@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 LOCAL_FOOD_DB = {
     # ========== ОСНОВНЫЕ ПРОДУКТЫ (МЯСО, ПТИЦА) ==========
     "курица": {"name": "Курица (средняя)", "calories": 165, "protein": 31, "fat": 3.6, "carbs": 0},
+    "запеченная курица": {"name": "Курица запечённая", "calories": 220, "protein": 26, "fat": 12, "carbs": 0},
     "куриная грудка": {"name": "Куриная грудка (филе)", "calories": 165, "protein": 31, "fat": 3.6, "carbs": 0},
     "куриное филе": {"name": "Куриное филе", "calories": 165, "protein": 31, "fat": 3.6, "carbs": 0},
     "куриные ножки": {"name": "Куриные ножки", "calories": 215, "protein": 18.4, "fat": 16.1, "carbs": 0},
@@ -378,7 +379,7 @@ async def search_openfoodfacts(query: str, max_results: int = 5) -> List[Dict]:
     }
     try:
         async with aiohttp.ClientSession() as session:
-            async with session.get(url, params=params, headers=headers, timeout=15) as resp:
+            async with session.get(url, params=params, headers=headers, timeout=30) as resp:
                 if resp.status != 200:
                     logger.warning(f"OpenFoodFacts error {resp.status}")
                     return []

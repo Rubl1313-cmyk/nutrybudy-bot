@@ -1,7 +1,7 @@
 """
 Обработчики мультимедиа: фото (распознавание еды) и голос.
 Реализован интерфейс с отдельными сообщениями для каждого продукта.
-Добавлена публичная функция start_food_input для использования из других модулей.
+Добавлено распознавание целых блюд (поиск в локальной базе по названию).
 """
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
@@ -12,10 +12,10 @@ from PIL import Image
 import io
 import traceback
 import re
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Tuple
 
 from services.cloudflare_ai import analyze_food_image, transcribe_audio
-from services.food_api import search_food
+from services.food_api import search_food, search_local_db  # добавим импорт локального поиска
 from services.translator import translate_to_russian, extract_food_items
 from utils.states import FoodStates
 from database.db import get_session
@@ -40,45 +40,100 @@ def _prepare_image(image_bytes: bytes) -> bytes:
         logger.warning(f"⚠️ Image prep error: {e}")
         return image_bytes
 
-# ========== В ФУНКЦИИ recognize_food_from_photo ==========
-async def recognize_food_from_photo(message: Message) -> List[str]:
-    """Распознаёт продукты/блюда на фото и возвращает список названий на русском."""
+async def identify_dish_from_photo(message: Message) -> Tuple[Optional[str], List[str]]:
+    """
+    Распознаёт блюдо на фото.
+    Возвращает кортеж (название_блюда, список_ингредиентов).
+    Если название не удалось выделить, название = None.
+    """
     photo = message.photo[-1]
     file_info = await message.bot.get_file(photo.file_id)
     file_bytes = await message.bot.download_file(file_info.file_path)
     file_data = file_bytes.read()
     optimized = _prepare_image(file_data)
-    
-    # 🔥 ИСПРАВЛЕННЫЙ ПРОМПТ: приоритет готовым блюдам
+
     prompt = (
-        "Analyze this food image. "
-        "FIRST: Try to identify if this is a KNOWN DISH (e.g., 'Caesar salad with shrimp', 'borscht', 'pasta carbonara'). "
-        "If it's a known dish, return ONLY the dish name. "
-        "SECOND: If it's not a known dish or contains multiple separate items, list the MAIN visible food items (max 5). "
-        "Return as a comma-separated list in English. "
-        "Examples: 'caesar salad with shrimp', 'grilled chicken with rice', 'tomato, cucumber, cheese'."
+        "You are a culinary expert. Identify the dish in this image. "
+        "If it's a known dish (like borscht, pizza, etc.), return its name in Russian and the main ingredients. "
+        "Format your response as:\n"
+        "Dish: [название блюда]\n"
+        "Ingredients: [ингредиенты через запятую]"
     )
-    
-    description_en = await analyze_food_image(optimized, prompt=prompt)
-    
+    description_en = await analyze_food_image(
+        optimized,
+        prompt=prompt
+    )
+    if not description_en:
+        return None, []
+
+    # Парсим ответ
+    dish_name = None
+    ingredients = []
+    lines = description_en.split('\n')
+    for line in lines:
+        if line.lower().startswith('dish:'):
+            dish_name = line[5:].strip()
+        elif line.lower().startswith('ingredients:'):
+            ingredients_raw = line[11:].strip()
+            # Извлекаем ингредиенты через translate_to_russian
+            ingredients = await extract_food_items(ingredients_raw)
+            break
+
+    # Если не нашли по формату, пробуем старый метод
+    if not dish_name and not ingredients:
+        raw_items = await extract_food_items(description_en)
+        for item in raw_items:
+            translated = await translate_to_russian(item)
+            ingredients.append(translated)
+
+    # Переводим название блюда, если есть
+    if dish_name:
+        dish_name = await translate_to_russian(dish_name)
+
+    return dish_name, ingredients
+
+async def recognize_food_from_photo(message: Message) -> List[str]:
+    """Старый метод: просто список продуктов на русском."""
+    photo = message.photo[-1]
+    file_info = await message.bot.get_file(photo.file_id)
+    file_bytes = await message.bot.download_file(file_info.file_path)
+    file_data = file_bytes.read()
+    optimized = _prepare_image(file_data)
+
+    description_en = await analyze_food_image(
+        optimized,
+        prompt="List all food items visible in this image. Be specific. Return as a comma-separated list."
+    )
     if not description_en:
         return []
-    
-    # 🔥 Пост-обработка: если распознано как одно блюдо — возвращаем как есть
-    if ',' not in description_en and len(description_en.split()) <= 6:
-        # Возможно, это название блюда
-        translated = await translate_to_russian(description_en.strip())
-        return [translated]
-    
-    # Иначе разбиваем на ингредиенты как раньше
+
     raw_items = await extract_food_items(description_en)
     translated_items = []
-    for item in raw_items[:5]:  # 🔥 Ограничиваем до 5 продуктов
-        if item.lower() not in ['bowl', 'plate', 'table', 'fork', 'knife']:  # Исключаем посуду
-            translated = await translate_to_russian(item)
-            translated_items.append(translated)
-    
+    for item in raw_items:
+        translated = await translate_to_russian(item)
+        translated_items.append(translated)
     return translated_items
+
+async def get_food_data(name: str) -> Dict:
+    """Получает базовые данные продукта из локальной базы."""
+    search_results = await search_food(name)
+    if search_results:
+        best = search_results[0]
+        return {
+            'name': best['name'],
+            'base_calories': best.get('calories', 0),
+            'base_protein': best.get('protein', 0),
+            'base_fat': best.get('fat', 0),
+            'base_carbs': best.get('carbs', 0)
+        }
+    else:
+        return {
+            'name': name,
+            'base_calories': 0,
+            'base_protein': 0,
+            'base_fat': 0,
+            'base_carbs': 0
+        }
 
 async def update_totals_message(chat_id: int, message_id: int, bot, selected_foods: List[Dict]):
     """Обновляет сообщение с итогами."""
@@ -183,7 +238,7 @@ async def start_food_input(
 
 @router.message(F.photo)
 async def handle_photo(message: Message, state: FSMContext):
-    """Обработка фото: распознавание и запуск интерфейса ввода."""
+    """Обработка фото: распознавание блюда и запуск интерфейса ввода."""
     logger.info("📸 Photo received, starting recognition...")
     try:
         current_state = await state.get_state()
@@ -192,8 +247,31 @@ async def handle_photo(message: Message, state: FSMContext):
             return
 
         await message.answer("🔍 Анализирую изображение через Cloudflare AI...")
-        translated_items = await recognize_food_from_photo(message)
 
+        # Сначала пытаемся определить целое блюдо
+        dish_name, ingredients = await identify_dish_from_photo(message)
+
+        if dish_name:
+            # Ищем блюдо в локальной базе
+            local_results = search_local_db(dish_name)
+            if local_results:
+                # Нашли блюдо в базе – предлагаем как один продукт
+                await message.answer(f"🍽️ Распознано блюдо: <b>{dish_name}</b>", parse_mode="HTML")
+                await start_food_input(message, state, [dish_name], meal_type="snack")
+                return
+            else:
+                # Блюдо не найдено в базе, но есть ингредиенты – используем их
+                if ingredients:
+                    await message.answer(
+                        f"🍽️ Блюдо: <b>{dish_name}</b>\n"
+                        f"Ингредиенты: {', '.join(ingredients)}",
+                        parse_mode="HTML"
+                    )
+                    await start_food_input(message, state, ingredients, meal_type="snack")
+                    return
+
+        # Если не удалось определить блюдо, используем старый метод
+        translated_items = await recognize_food_from_photo(message)
         if not translated_items:
             await message.answer(
                 "❌ Не удалось распознать фото. Попробуйте ввести вручную через /log_food."
@@ -224,7 +302,7 @@ async def weight_callback(callback: CallbackQuery, state: FSMContext):
     idx = int(parts[2])
     value = int(parts[3]) if len(parts) > 3 and parts[3].isdigit() else None
 
-    # ✅ Проверка выхода индекса за пределы
+    # Проверка выхода индекса за пределы
     if idx >= len(selected_foods):
         await callback.answer("❌ Продукт уже удалён или индекс неверен", show_alert=True)
         return

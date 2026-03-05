@@ -1,18 +1,15 @@
 """
 Cloudflare Workers AI Integration для NutriBuddy
-✅ Полный набор функций:
-- Распознавание голоса (Whisper) с автоматической конвертацией OGG → WAV
-- Анализ изображений еды (Vision)
-- Генерация текста (LLM)
+Улучшенная версия с поддержкой JSON, повторными попытками и перебором моделей.
+Все запросы на английском, ответы парсятся и затем переводятся.
 """
-
 import aiohttp
 import os
 import logging
-import subprocess
 import asyncio
-import tempfile
-from typing import Optional, List
+import json
+import re
+from typing import Optional, List, Dict
 
 logger = logging.getLogger(__name__)
 
@@ -25,310 +22,105 @@ if not CLOUDFLARE_ACCOUNT_ID or not CLOUDFLARE_API_TOKEN:
 else:
     BASE_URL = f"https://api.cloudflare.com/client/v4/accounts/{CLOUDFLARE_ACCOUNT_ID}/ai/run/"
 
-# 🔥 Модели
-WHISPER_MODELS = [
-    "@cf/openai/whisper",                # базовая
-    "@cf/openai/whisper-large-v3-turbo", # быстрая
-]
-
+# Модели для Vision (основная и запасная)
 VISION_MODELS = [
-    "@cf/unum/uform-gen2-qwen-500m",     # анализ изображений
-    "@cf/llava-hf/llava-1.5-7b-hf",      # альтернатива
+    "@cf/unum/uform-gen2-qwen-500m",  # основная
+    "@cf/llava-hf/llava-1.5-7b-hf",   # fallback с лучшим пониманием контекста
 ]
 
-LLM_MODELS = {
-    "llama3": "@cf/meta/llama-3-8b-instruct",
-    "llama3.1": "@cf/meta/llama-3.1-8b-instruct",
-    "mistral": "@cf/mistral/mistral-7b-instruct-v0.1",
-    "qwen": "@cf/qwen/qwen1.5-7b-chat-awq",
+# Промпт на английском, требующий JSON
+FOOD_RECOGNITION_PROMPT = """
+Analyze this food image and return a STRICT JSON object with the following structure:
+{
+  "dishes": [
+    {
+      "name_en": "Name of the dish in English",
+      "confidence": 0.8,
+      "ingredients": ["ingredient1", "ingredient2"],
+      "estimated_weight_g": 150,
+      "preparation": "boiled/fried/baked"
+    }
+  ],
+  "total_items": 1,
+  "notes": "additional context if needed"
 }
+Rules:
+- Be specific: "grilled chicken breast", not just "chicken"
+- If unsure, set confidence < 0.5
+- For mixed dishes, list main ingredients
+- Return ONLY the JSON, no other text
+"""
 
-
-# =============================================================================
-# 🔧 ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
-# =============================================================================
-
-def _bytes_to_array(image_bytes: bytes) -> List[int]:
-    """Конвертирует bytes в список целых чисел 0-255 (для Vision API)"""
+def _bytes_to_array(image_bytes: bytes) -> list:
+    """Конвертирует bytes в список целых чисел 0-255."""
     return list(image_bytes)
 
-
-async def _convert_ogg_to_wav(ogg_bytes: bytes) -> Optional[bytes]:
-    """
-    Конвертирует OGG (Opus) в WAV (16-bit PCM, 16kHz, mono).
-    Требует ffmpeg в системе.
-    """
+def _parse_json_response(text: str) -> Optional[List[Dict]]:
+    """Извлекает JSON из ответа модели и возвращает список блюд с confidence >= 0.3."""
+    # Ищем JSON-блок (может быть обёрнут в ```json ... ```)
+    json_match = re.search(r'```json\s*(\{.*?\})\s*```', text, re.DOTALL)
+    if not json_match:
+        json_match = re.search(r'\{.*\}', text, re.DOTALL)
+    if not json_match:
+        logger.warning("No JSON found in response")
+        return None
     try:
-        if len(ogg_bytes) > 20 * 1024 * 1024:  # лимит Telegram
-            logger.warning(f"⚠️ Audio too large: {len(ogg_bytes)/1024/1024:.1f} MB")
-            return None
-
-        with tempfile.NamedTemporaryFile(suffix='.ogg', delete=False) as f_in:
-            f_in.write(ogg_bytes)
-            in_path = f_in.name
-
-        out_path = in_path.replace('.ogg', '.wav')
-
-        try:
-            cmd = [
-                'ffmpeg', '-i', in_path,
-                '-ar', '16000',      # 16 kHz
-                '-ac', '1',           # mono
-                '-acodec', 'pcm_s16le',  # 16-bit PCM
-                '-y',                 # перезаписать
-                out_path
-            ]
-
-            process = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
-            )
-            stdout, stderr = await process.communicate()
-
-            if process.returncode != 0:
-                logger.error(f"❌ ffmpeg error: {stderr.decode()[:200]}")
-                return None
-
-            with open(out_path, 'rb') as f:
-                wav_bytes = f.read()
-
-            logger.info(f"✅ Conversion successful: {len(wav_bytes)} bytes")
-            return wav_bytes
-
-        finally:
-            try:
-                os.unlink(in_path)
-                if os.path.exists(out_path):
-                    os.unlink(out_path)
-            except:
-                pass
-
-    except Exception as e:
-        logger.exception(f"💥 Conversion error: {e}")
+        data = json.loads(json_match.group())
+        dishes = data.get("dishes", [])
+        # Фильтруем по confidence
+        valid_dishes = [d for d in dishes if d.get("confidence", 0) >= 0.3]
+        return valid_dishes
+    except json.JSONDecodeError as e:
+        logger.warning(f"Failed to parse JSON: {e}")
         return None
-
-
-# =============================================================================
-# 🎤 РАСПОЗНАВАНИЕ ГОЛОСА (WHISPER)
-# =============================================================================
-
-async def transcribe_audio(audio_bytes: bytes, language: str = "ru") -> Optional[str]:
-    """
-    Распознавание голоса через Cloudflare Whisper.
-    🔥 API ожидает JSON с массивом байтов, а не multipart/form-data!
-    """
-    try:
-        if not BASE_URL:
-            return None
-
-        file_size = len(audio_bytes)
-        logger.info(f"🎤 Original size: {file_size/1024:.1f} KB")
-
-        if file_size > 20 * 1024 * 1024:
-            logger.warning("⚠️ Audio too large (>20MB)")
-            return None
-
-        # Конвертируем OGG → WAV (всё ещё нужно)
-        wav_bytes = None
-        with tempfile.NamedTemporaryFile(suffix='.ogg', delete=False) as f_in:
-            f_in.write(audio_bytes)
-            in_path = f_in.name
-        out_path = in_path.replace('.ogg', '.wav')
-
-        try:
-            # Конвертируем с правильными параметрами
-            cmd = [
-                'ffmpeg', '-i', in_path,
-                '-ar', '16000', '-ac', '1', '-acodec', 'pcm_s16le',
-                '-y', out_path
-            ]
-            process = await asyncio.create_subprocess_exec(*cmd)
-            await process.communicate()
-
-            with open(out_path, 'rb') as f:
-                wav_bytes = f.read()
-            logger.info(f"✅ Conversion successful: {len(wav_bytes)} bytes")
-
-        finally:
-            if os.path.exists(in_path):
-                os.unlink(in_path)
-            if os.path.exists(out_path):
-                os.unlink(out_path)
-
-        if not wav_bytes:
-            return None
-
-        # 🔥 ПОДГОТОВКА ДАННЫХ ДЛЯ API
-        # Конвертируем WAV-байты в массив целых чисел (0-255)
-        audio_array = list(wav_bytes)
-        logger.info(f"📊 Audio array size: {len(audio_array)} samples")
-
-        # Формируем JSON-запрос
-        payload = {
-            "audio": audio_array  # ← массив байтов, как требует документация!
-        }
-
-        headers = {
-            "Authorization": f"Bearer {CLOUDFLARE_API_TOKEN}",
-            "Content-Type": "application/json"
-        }
-
-        # 🔥 Пробуем модели по очереди
-        for model in WHISPER_MODELS:
-            try:
-                url = f"{BASE_URL}{model}"
-                logger.info(f"🎤 Sending to {model} as JSON array")
-
-                async with aiohttp.ClientSession() as session:
-                    async with session.post(
-                        url,
-                        headers=headers,
-                        json=payload,  # ← ВАЖНО: JSON, а не FormData!
-                        timeout=aiohttp.ClientTimeout(total=60)
-                    ) as resp:
-
-                        if resp.status == 200:
-                            result = await resp.json()
-                            text = result.get("result", {}).get("text", "").strip()
-                            if text:
-                                logger.info(f"✅ Success: {text[:100]}...")
-                                return text
-                            else:
-                                logger.warning("⚠️ Empty response")
-                        else:
-                            error_text = await resp.text()
-                            logger.warning(f"⚠️ {model} failed {resp.status}: {error_text[:200]}")
-
-            except Exception as e:
-                logger.warning(f"⚠️ {model} error: {e}")
-                continue
-
-        logger.error("❌ All models failed")
-        return None
-
-    except Exception as e:
-        logger.exception(f"💥 Critical error: {e}")
-        return None
-
-# =============================================================================
-# 📸 АНАЛИЗ ИЗОБРАЖЕНИЙ (VISION)
-# =============================================================================
 
 async def analyze_food_image(
     image_bytes: bytes,
-    prompt: str = "Describe the food in this image briefly in Russian.",
-    max_tokens: int = 150
-) -> Optional[str]:
+    prompt: str = FOOD_RECOGNITION_PROMPT,
+    max_retries: int = 2
+) -> Optional[List[Dict]]:
     """
-    Анализирует изображение еды через Cloudflare Vision API.
+    Распознаёт еду на изображении и возвращает список блюд с деталями на английском.
+    Использует несколько моделей и повторные попытки.
     """
-    try:
-        if not BASE_URL:
-            return None
+    if not BASE_URL:
+        return None
 
-        image_array = _bytes_to_array(image_bytes)
+    image_array = _bytes_to_array(image_bytes)
+    payload = {
+        "image": image_array,
+        "prompt": prompt,
+        "max_tokens": 300
+    }
+    headers = {
+        "Authorization": f"Bearer {CLOUDFLARE_API_TOKEN}",
+        "Content-Type": "application/json"
+    }
 
-        payload = {
-            "image": image_array,
-            "prompt": prompt,
-            "max_tokens": max_tokens
-        }
-
-        headers = {
-            "Authorization": f"Bearer {CLOUDFLARE_API_TOKEN}",
-            "Content-Type": "application/json"
-        }
-
-        for model in VISION_MODELS:
+    for model in VISION_MODELS:
+        for attempt in range(max_retries):
             try:
                 url = f"{BASE_URL}{model}"
-
+                logger.info(f"Trying model {model}, attempt {attempt+1}")
                 async with aiohttp.ClientSession() as session:
-                    async with session.post(
-                        url,
-                        headers=headers,
-                        json=payload,
-                        timeout=30
-                    ) as resp:
-
+                    async with session.post(url, headers=headers, json=payload, timeout=30) as resp:
                         if resp.status == 200:
                             result = await resp.json()
                             description = result.get("result", {}).get("description", "")
-                            if description and 5 < len(description.strip()) < 500:
-                                logger.info(f"✅ Vision success ({model}): {description[:100]}...")
-                                return description.strip()
+                            if description:
+                                dishes = _parse_json_response(description)
+                                if dishes:
+                                    logger.info(f"✅ Recognized {len(dishes)} dishes with model {model}")
+                                    return dishes
+                                else:
+                                    logger.warning(f"Model {model} returned no valid dishes")
                         else:
                             error_text = await resp.text()
-                            logger.warning(f"⚠️ {model} failed {resp.status}: {error_text[:200]}")
+                            logger.warning(f"Model {model} attempt {attempt+1} failed: {resp.status} - {error_text[:200]}")
+            except asyncio.TimeoutError:
+                logger.warning(f"Model {model} attempt {attempt+1} timeout")
             except Exception as e:
-                logger.warning(f"⚠️ {model} exception: {e}")
-                continue
-
-        logger.error("❌ All vision models failed")
-        return None
-
-    except Exception as e:
-        logger.exception(f"💥 analyze_food_image error: {e}")
-        return None
-
-
-# =============================================================================
-# 🧠 ГЕНЕРАЦИЯ ТЕКСТА (LLM)
-# =============================================================================
-
-async def generate_text(
-    prompt: str,
-    system_prompt: str = "Ты полезный ассистент. Отвечай на русском.",
-    model: str = "llama3",
-    max_tokens: int = 500,
-    temperature: float = 0.7
-) -> Optional[str]:
-    """
-    Генерация текста через Cloudflare LLM (например, Llama 3).
-    """
-    try:
-        if not BASE_URL:
-            return None
-
-        model_id = LLM_MODELS.get(model, LLM_MODELS["llama3"])
-
-        payload = {
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": prompt}
-            ],
-            "max_tokens": max_tokens,
-            "temperature": temperature
-        }
-
-        headers = {
-            "Authorization": f"Bearer {CLOUDFLARE_API_TOKEN}",
-            "Content-Type": "application/json"
-        }
-
-        url = f"{BASE_URL}{model_id}"
-
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                url,
-                headers=headers,
-                json=payload,
-                timeout=30
-            ) as resp:
-
-                if resp.status == 200:
-                    result = await resp.json()
-                    text = result.get("result", {}).get("response", "")
-                    if text and len(text.strip()) > 10:
-                        logger.info(f"✅ LLM success: {text[:100]}...")
-                        return text.strip()
-                else:
-                    error_text = await resp.text()
-                    logger.warning(f"⚠️ LLM error {resp.status}: {error_text[:200]}")
-
-        return None
-
-    except Exception as e:
-        logger.exception(f"💥 generate_text error: {e}")
-        return None
+                logger.warning(f"Model {model} attempt {attempt+1} exception: {e}")
+            await asyncio.sleep(1 * (attempt + 1))  # exponential backoff
+    logger.error("All models/attempts failed")
+    return None

@@ -2,7 +2,7 @@
 Обработчики мультимедиа: фото (распознавание еды) и голос.
 Реализован интерфейс с отдельными сообщениями для каждого продукта.
 Добавлена защита от повторной обработки одного и того же фото и выбор режима.
-Использует LLaVA для распознавания названия блюда, затем переводит и ищет в базе.
+Использует улучшенный перевод для названий блюд.
 """
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
@@ -17,7 +17,7 @@ from typing import List, Dict, Optional
 
 from services.cloudflare_ai import identify_dish_from_image, transcribe_audio, analyze_food_image
 from services.food_api import search_food
-from services.translator import translate_to_russian, extract_food_items
+from services.translator import translate_dish_name, translate_to_russian, extract_food_items
 from utils.states import FoodStates
 from database.db import get_session
 from database.models import Meal, FoodItem, User
@@ -187,9 +187,10 @@ async def handle_photo(message: Message, state: FSMContext):
         # Пытаемся определить название блюда через новую функцию
         dish_name_en = await identify_dish_from_image(optimized)
         if dish_name_en:
-            dish_name_ru = await translate_to_russian(dish_name_en)
-            logger.info(f"🍽 Распознано блюдо: {dish_name_ru} (оригинал: {dish_name_en})")
-            # Проверяем, есть ли блюдо в базе
+            # Используем улучшенный перевод для названий блюд
+            dish_name_ru = await translate_dish_name(dish_name_en)
+            logger.info(f"🍽 Распознано блюдо: {dish_name_en} → {dish_name_ru}")
+            # Проверяем, есть ли блюдо в базе (по русскому названию)
             dish_data = await get_food_data(dish_name_ru)
             if dish_data['base_calories'] > 0:
                 # Блюдо найдено, запускаем интерфейс с одним продуктом
@@ -197,10 +198,9 @@ async def handle_photo(message: Message, state: FSMContext):
                 await state.update_data(last_photo_id=message.message_id)
                 return
             else:
-                logger.info(f"🍽 Блюдо '{dish_name_ru}' не найдено в базе, будем использовать ингредиенты")
-                # Здесь можно было бы запросить ингредиенты, но пока используем старый метод
-                # (можно добавить второй запрос к модели для ингредиентов, но пока fallback)
-                pass
+                logger.info(f"🍽 Блюдо '{dish_name_ru}' не найдено в базе, переходим к ингредиентам")
+        else:
+            logger.info("🍽 Не удалось распознать название блюда")
 
         # Если не удалось распознать блюдо или оно не найдено, пробуем старый метод (ингредиенты)
         logger.info("No dish recognized or not in DB, trying ingredient list")

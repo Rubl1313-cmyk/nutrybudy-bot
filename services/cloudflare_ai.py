@@ -37,8 +37,7 @@ WHISPER_MODELS = [
     "@cf/openai/whisper-large-v3-turbo", # быстрая
 ]
 
-# Промпт для распознавания блюда (JSON)
-# Новый промпт с явным запретом шаблонов
+# Улучшенный промпт для распознавания блюда (JSON)
 FOOD_RECOGNITION_PROMPT = """
 Analyze this food image and return a STRICT JSON object with the following structure:
 {
@@ -62,6 +61,10 @@ Rules:
 - Return ONLY the JSON, no other text.
 """
 
+def _bytes_to_array(image_bytes: bytes) -> list:
+    """Конвертирует bytes в список целых чисел 0-255."""
+    return list(image_bytes)
+
 def _is_valid_dish_name(name: str) -> bool:
     """Проверяет, что название выглядит как реальное (не шаблон)."""
     if not name or len(name) < 3:
@@ -77,8 +80,14 @@ def _is_valid_dish_name(name: str) -> bool:
     return True
 
 def _parse_json_response(text: str) -> Optional[List[Dict]]:
-    """Извлекает JSON и возвращает только валидные блюда."""
-    # ... (поиск JSON как раньше)
+    """Извлекает JSON из ответа модели и возвращает список валидных блюд."""
+    # Ищем JSON-блок (может быть обёрнут в ```json ... ```)
+    json_match = re.search(r'```json\s*(\{.*?\})\s*```', text, re.DOTALL)
+    if not json_match:
+        json_match = re.search(r'\{.*\}', text, re.DOTALL)
+    if not json_match:
+        logger.warning("No JSON found in response")
+        return None
     try:
         data = json.loads(json_match.group())
         dishes = data.get("dishes", [])
@@ -89,8 +98,8 @@ def _parse_json_response(text: str) -> Optional[List[Dict]]:
             else:
                 logger.warning(f"Invalid dish data discarded: {d}")
         return valid_dishes if valid_dishes else None
-    except json.JSONDecodeError:
-        logger.warning("Failed to parse JSON")
+    except json.JSONDecodeError as e:
+        logger.warning(f"Failed to parse JSON: {e}")
         return None
 
 async def analyze_food_image(
@@ -145,7 +154,7 @@ async def analyze_food_image(
     return None
 
 # =============================================================================
-# 🎤 РАСПОЗНАВАНИЕ ГОЛОСА (WHISPER) – восстановлено из оригинального файла
+# 🎤 РАСПОЗНАВАНИЕ ГОЛОСА (WHISPER)
 # =============================================================================
 
 async def _convert_ogg_to_wav(ogg_bytes: bytes) -> Optional[bytes]:

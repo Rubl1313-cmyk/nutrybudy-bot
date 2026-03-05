@@ -12,6 +12,13 @@ logger = logging.getLogger(__name__)
 # ========== ЛОКАЛЬНАЯ БАЗА ПРОДУКТОВ (более 1000 записей) ==========
 # Ключи — это слова, по которым бот будет искать (в нижнем регистре)
 LOCAL_FOOD_DB = {
+      # ========== ЛИСТОВОЙ САЛАТ И ЗЕЛЕНЬ ==========
+    "салат": {"name": "Салат листовой", "calories": 15, "protein": 1.2, "fat": 0.2, "carbs": 2.5},
+    "салат айсберг": {"name": "Салат Айсберг", "calories": 14, "protein": 1, "fat": 0.1, "carbs": 2},
+    "салат романо": {"name": "Салат Романо", "calories": 17, "protein": 1.5, "fat": 0.3, "carbs": 2.5},
+    "руккола": {"name": "Руккола", "calories": 25, "protein": 2.5, "fat": 0.5, "carbs": 3.5},
+    "шпинат": {"name": "Шпинат", "calories": 23, "protein": 2.9, "fat": 0.4, "carbs": 3.6},
+    "зелень": {"name": "Зелень (укроп, петрушка)", "calories": 35, "protein": 2.5, "fat": 0.5, "carbs": 6},
     # ========== ОСНОВНЫЕ ПРОДУКТЫ (МЯСО, ПТИЦА) ==========
     "курица": {"name": "Курица (средняя)", "calories": 165, "protein": 31, "fat": 3.6, "carbs": 0},
     "запеченная курица": {"name": "Курица запечённая", "calories": 220, "protein": 26, "fat": 12, "carbs": 0},
@@ -441,10 +448,29 @@ LOCAL_FOOD_DB = {
 }
 
 def search_local_db(query: str) -> List[Dict]:
-    """Поиск в локальной базе по частичному совпадению."""
-    results = []
+    """
+    Поиск в локальной базе с приоритетом точных совпадений.
+    """
     query_lower = query.lower().strip()
+    results = []
+    
+    # Сначала ищем точное совпадение ключа
+    if query_lower in LOCAL_FOOD_DB:
+        item = LOCAL_FOOD_DB[query_lower]
+        results.append({
+            'name': item['name'],
+            'calories': item['calories'],
+            'protein': item['protein'],
+            'fat': item['fat'],
+            'carbs': item['carbs'],
+            'source': 'local',
+            'match_type': 'exact'
+        })
+    
+    # Затем ищем частичные совпадения, исключая точные дубли
     for key, item in LOCAL_FOOD_DB.items():
+        if key == query_lower:
+            continue  # уже добавили
         if query_lower in key:
             results.append({
                 'name': item['name'],
@@ -452,8 +478,12 @@ def search_local_db(query: str) -> List[Dict]:
                 'protein': item['protein'],
                 'fat': item['fat'],
                 'carbs': item['carbs'],
-                'source': 'local'
+                'source': 'local',
+                'match_type': 'partial'
             })
+    
+    # Сортируем: точные выше, потом по длине ключа (чем короче, тем выше приоритет)
+    results.sort(key=lambda x: (0 if x['match_type'] == 'exact' else 1, len(x['name'])))
     return results
 
 # ========== OPEN FOOD FACTS ==========
@@ -553,8 +583,8 @@ async def search_food(query: str) -> List[Dict]:
 
 # Новая функция для быстрого получения данных по точному названию (используется в media_handlers)
 async def get_food_data(name: str) -> Dict:
-    """Возвращает базовые данные продукта по названию (первое совпадение в локальной базе или пустой словарь)."""
-    results = await search_food(name)
+    """Возвращает базовые данные продукта по названию."""
+    results = await search_food(name)  # search_food уже использует search_local_db
     if results:
         best = results[0]
         return {

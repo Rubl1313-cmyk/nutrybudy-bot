@@ -211,7 +211,7 @@ async def menu_help(message: Message, state: FSMContext):
     await state.clear()
     await show_help_menu(message)
 
-# ========== Обработчики навигационных callback'ов ==========
+# ========== Обработчики навигационных callback'ов с передачей user_id ==========
 
 @router.callback_query(F.data == "menu_back")
 async def menu_back_callback(callback: CallbackQuery, state: FSMContext):
@@ -229,51 +229,52 @@ async def menu_food_photo(callback: CallbackQuery, state: FSMContext):
 
 @router.callback_query(F.data == "menu_food_manual")
 async def menu_food_manual(callback: CallbackQuery, state: FSMContext):
-    await cmd_log_food(callback.message, state)
+    await cmd_log_food(callback.message, state, user_id=callback.from_user.id)
     await callback.answer()
 
 @router.callback_query(F.data == "menu_meal_plan")
 async def menu_meal_plan(callback: CallbackQuery, state: FSMContext):
-    await cmd_meal_plan(callback.message, state)
+    await cmd_meal_plan(callback.message, state, user_id=callback.from_user.id)
     await callback.answer()
 
 @router.callback_query(F.data == "menu_ai")
 async def menu_ai(callback: CallbackQuery, state: FSMContext):
-    await cmd_ask(callback.message, state)
+    await cmd_ask(callback.message, state, user_id=callback.from_user.id)
     await callback.answer()
 
 @router.callback_query(F.data == "menu_water")
 async def menu_water(callback: CallbackQuery, state: FSMContext):
-    await cmd_water(callback.message, state)
+    await cmd_water(callback.message, state, user_id=callback.from_user.id)
     await callback.answer()
 
 @router.callback_query(F.data == "menu_activity")
 async def menu_activity(callback: CallbackQuery, state: FSMContext):
-    await cmd_fitness(callback.message, state)
+    await cmd_fitness(callback.message, state, user_id=callback.from_user.id)
     await callback.answer()
 
 @router.callback_query(F.data == "menu_steps")
 async def menu_steps(callback: CallbackQuery, state: FSMContext):
     await state.set_state(StepsStates.waiting_for_steps)
+    # Для шагов отдельная функция, которая принимает message, user_id не нужен
     await callback.message.answer("👟 Введите количество шагов (только число):")
     await callback.answer()
 
 @router.callback_query(F.data == "menu_shopping")
 async def menu_shopping(callback: CallbackQuery, state: FSMContext):
-    await cmd_shopping(callback.message, state)
+    await cmd_shopping(callback.message, state, user_id=callback.from_user.id)
     await callback.answer()
 
 @router.callback_query(F.data == "menu_reminders")
 async def menu_reminders(callback: CallbackQuery, state: FSMContext):
-    await cmd_reminders(callback.message, state)
+    await cmd_reminders(callback.message, state, user_id=callback.from_user.id)
     await callback.answer()
 
 @router.callback_query(F.data == "menu_profile_view")
 async def menu_profile_view(callback: CallbackQuery, state: FSMContext):
-    await cmd_profile(callback.message, state)
+    await cmd_profile(callback.message, state, user_id=callback.from_user.id)
     await callback.answer()
 
 @router.callback_query(F.data == "menu_profile_edit")
 async def menu_profile_edit(callback: CallbackQuery, state: FSMContext):
-    await edit_profile(callback.message, state)
+    await edit_profile(callback.message, state, user_id=callback.from_user.id)
     await callback.answer()

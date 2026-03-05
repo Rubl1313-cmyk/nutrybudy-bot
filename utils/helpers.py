@@ -29,3 +29,16 @@ def get_activity_type_emoji(activity_type: str) -> str:
         'sports': '⚽'
     }
     return emojis.get(activity_type, '🏃')
+
+# ========== НОВАЯ ФУНКЦИЯ ==========
+import re
+
+def normalize_exit_command(text: str) -> str:
+    """
+    Нормализует текст для проверки на выход: убирает пунктуацию, лишние пробелы.
+    Используется для команд "выход", "выйти" и т.п.
+    """
+    # Удаляем все знаки препинания и лишние пробелы
+    text = re.sub(r'[^\w\s]', '', text)
+    text = text.strip().lower()
+    return text

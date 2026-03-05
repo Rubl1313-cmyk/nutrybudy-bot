@@ -238,6 +238,12 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
         await message.answer(weather_info)
         return
 
+    # ----- AI-запросы -----
+    if intent == "ai":
+        from handlers.ai_assistant import process_ai_query
+        await process_ai_query(message, state, text)
+        return
+        
     # ----- НЕОПРЕДЕЛЁННОЕ -----
     await state.update_data(pending_text=text)
     keyboard = InlineKeyboardMarkup(inline_keyboard=[

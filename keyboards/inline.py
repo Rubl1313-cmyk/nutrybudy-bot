@@ -198,10 +198,11 @@ def get_lists_menu() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 def get_profile_menu() -> InlineKeyboardMarkup:
-    """Подменю «Профиль»."""
+    """Подменю «Профиль» с кнопкой записи веса."""
     buttons = [
         [InlineKeyboardButton(text="👤 Просмотр профиля", callback_data="menu_profile_view")],
         [InlineKeyboardButton(text="✏️ Редактировать профиль", callback_data="menu_profile_edit")],
+        [InlineKeyboardButton(text="⚖️ Записать вес", callback_data="menu_log_weight")],
         [InlineKeyboardButton(text="🔙 Назад", callback_data="menu_back")]
     ]
     return InlineKeyboardMarkup(inline_keyboard=buttons)

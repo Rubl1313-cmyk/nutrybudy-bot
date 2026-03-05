@@ -1,11 +1,13 @@
 """
 Парсинг объёмов воды из текста.
 Поддерживает числа с единицами (л, мл, стакан, кружка и т.д.) и словесные объёмы.
+Добавлена поддержка словесных чисел.
 """
 import re
 from typing import Optional
+from utils.number_parser import parse_russian_number
 
-# Словарь для преобразования словесных объёмов в миллилитры
+# Словарь для преобразования словесных объёмов в миллилитры (оставляем как есть)
 VOLUME_WORDS = {
     "литр": 1000,
     "литра": 1000,
@@ -44,7 +46,6 @@ UNIT_MAP = {
     "бутылки": 500,
 }
 
-
 def parse_water_amount(text: str) -> Optional[int]:
     """
     Извлекает количество воды в миллилитрах из текста.
@@ -68,7 +69,19 @@ def parse_water_amount(text: str) -> Optional[int]:
         multiplier = UNIT_MAP.get(unit, 1)
         return int(qty * multiplier)
 
-    # 3. Просто число (без единицы) – считаем, что это миллилитры
+    # 3. Словесное число с единицей
+    for unit, multiplier in UNIT_MAP.items():
+        if unit in text_lower:
+            parts = text_lower.split(unit)
+            before = parts[0].strip()
+            num = parse_russian_number(before)
+            if num is not None:
+                return int(num * multiplier)
+            # Если числа нет, возможно подразумевается 1 (например, "литр воды")
+            # Но мы уже обработали словесные объёмы в п.1, сюда не должны попадать
+            # Поэтому просто продолжаем
+
+    # 4. Просто число (без единицы) – считаем, что это миллилитры
     match = re.search(r'\b(\d+)\b', text_lower)
     if match:
         return int(match.group(1))

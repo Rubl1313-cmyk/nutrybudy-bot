@@ -38,9 +38,6 @@ def _bytes_to_array(image_bytes: bytes) -> list:
     return list(image_bytes)
 
 async def identify_dish_from_image(image_bytes: bytes) -> Optional[str]:
-    """
-    Распознаёт название блюда на изображении, используя правильный формат LLaVA.
-    """
     if not BASE_URL:
         return None
 
@@ -50,14 +47,8 @@ async def identify_dish_from_image(image_bytes: bytes) -> Optional[str]:
         "Content-Type": "application/json"
     }
 
-    # Правильный промпт в формате LLaVA
-    prompt = (
-        "USER: <image>\n"
-        "What is the exact name of the dish shown in this image? Be specific. "
-        "If it's a salad, name its type (e.g., 'Caesar salad', 'Greek salad'). "
-        "If it's a main course, name it precisely (e.g., 'Grilled chicken breast', 'Spaghetti bolognese'). "
-        "Answer with only the dish name, nothing else. ASSISTANT:"
-    )
+    # Максимально простой и короткий промпт
+    prompt = "What is the exact name of the dish? Answer with only the dish name."
 
     for model in VISION_MODELS:
         try:
@@ -65,29 +56,21 @@ async def identify_dish_from_image(image_bytes: bytes) -> Optional[str]:
             payload = {
                 "image": image_array,
                 "prompt": prompt,
-                "max_tokens": 50,
-                "temperature": 0.2,  # низкая температура для более детерминированных ответов [citation:1]
-                "top_p": 0.9
+                "max_tokens": 30,
+                "temperature": 0.1
             }
-            logger.info(f"Trying vision model {model} with LLaVA format")
+            logger.info(f"Trying vision model {model} for dish name")
             async with aiohttp.ClientSession() as session:
                 async with session.post(url, headers=headers, json=payload, timeout=30) as resp:
                     if resp.status == 200:
                         result = await resp.json()
                         description = result.get("result", {}).get("description", "").strip()
-                        # LLaVA может вернуть ответ с префиксом "ASSISTANT:"
-                        if description.startswith("ASSISTANT:"):
-                            description = description[10:].strip()
-                        
-                        # Фильтруем слишком общие ответы
+                        # Простейшая валидация
                         if description and len(description) < 100:
-                            if description.lower() in ["salad", "soup", "meat", "fish", "pasta", "rice", "dish", "food", "plate"]:
-                                logger.warning(f"Model {model} returned too generic: {description}")
-                                continue
                             logger.info(f"✅ Model {model} identified dish: {description}")
                             return description
                         else:
-                            logger.warning(f"Model {model} returned invalid description: {description}")
+                            logger.warning(f"Model {model} returned invalid: {description}")
                     else:
                         logger.warning(f"Model {model} failed with status {resp.status}")
         except Exception as e:

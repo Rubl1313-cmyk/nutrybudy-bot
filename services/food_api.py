@@ -1,4 +1,3 @@
-python
 """
 services/food_api.py
 Поиск продуктов: локальная база → Open Food Facts API.

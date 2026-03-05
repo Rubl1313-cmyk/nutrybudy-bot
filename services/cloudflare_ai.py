@@ -48,7 +48,11 @@ async def identify_dish_from_image(image_bytes: bytes) -> Optional[str]:
     }
 
     # Максимально простой и короткий промпт
-    prompt = "What is the exact name of the dish? Answer with only the dish name."
+    prompt = (
+        "Identify the specific dish in this image. If it's a salad, name its type (e.g., 'Caesar salad', 'Greek salad', 'Salmon salad'). "
+        "If it's a main course, name it precisely (e.g., 'Grilled chicken breast', 'Roast beef'). "
+        "Answer with only the dish name, nothing else."
+    )
 
     for model in VISION_MODELS:
         try:
@@ -56,7 +60,7 @@ async def identify_dish_from_image(image_bytes: bytes) -> Optional[str]:
             payload = {
                 "image": image_array,
                 "prompt": prompt,
-                "max_tokens": 30,
+                "max_tokens": 50,
                 "temperature": 0.1
             }
             logger.info(f"Trying vision model {model} for dish name")

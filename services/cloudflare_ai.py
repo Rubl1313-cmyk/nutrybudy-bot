@@ -10,7 +10,6 @@ import logging
 import asyncio
 import json
 import re
-import subprocess
 import tempfile
 from typing import Optional, List, Dict, Any
 
@@ -27,20 +26,18 @@ else:
 
 # Модели в порядке приоритета
 CLASSIFICATION_MODELS = [
-    "@cf/microsoft/resnet-50",  # Быстрая классификация ImageNet [citation:1]
+    "@cf/microsoft/resnet-50",  # Быстрая классификация ImageNet
 ]
 
 VISION_MODELS = [
-    "@cf/llava-hf/llava-1.5-7b-hf",  # Fallback для сложных случаев [citation:4]
+    "@cf/llava-hf/llava-1.5-7b-hf",  # Fallback для сложных случаев
 ]
 
-# Модели для Whisper (голос)
 WHISPER_MODELS = [
     "@cf/openai/whisper",
     "@cf/openai/whisper-large-v3-turbo",
 ]
 
-# Промпт для LLaVA (упрощённый, без примеров)
 LLAVA_FALLBACK_PROMPT = """
 What food is in this image? Answer with the name of the dish in English only, nothing else.
 Example: "Caesar salad" or "Grilled chicken breast"
@@ -54,31 +51,60 @@ def _is_valid_food_label(label: str) -> bool:
     """Проверяет, что метка выглядит как еда (не шаблон)."""
     if not label or len(label) < 3:
         return False
-    
     label_lower = label.lower()
-    # Исключаем общие категории, не относящиеся к еде
     non_food = ['person', 'people', 'man', 'woman', 'child', 'dog', 'cat', 
                 'car', 'truck', 'building', 'house', 'animal', 'furniture']
-    
     for item in non_food:
         if item in label_lower:
             return False
     return True
 
-def _format_classification_result(classes: List[Dict[str, Any]]) -> Optional[List[Dict]]:
+def _format_classification_result(api_result: Any) -> Optional[List[Dict]]:
     """
     Преобразует результат ResNet-50 в формат, ожидаемый media_handlers.
+    Учитывает возможные варианты структуры ответа.
     """
-    if not classes:
+    logger.info(f"Raw API result type: {type(api_result)}")
+    logger.info(f"Raw API result preview: {str(api_result)[:200]}")
+    
+    # Если результат — словарь, ищем массив в нём
+    if isinstance(api_result, dict):
+        # Пробуем получить массив по ключу 'result'
+        if 'result' in api_result:
+            classes_data = api_result['result']
+        else:
+            # Если нет 'result', возможно, массив в другом ключе
+            classes_data = api_result.get('classes', [])
+    else:
+        # Если результат уже массив
+        classes_data = api_result
+    
+    # Убеждаемся, что работаем со списком
+    if not isinstance(classes_data, list):
+        logger.warning(f"Classes data is not a list: {type(classes_data)}")
         return None
     
-    # Берём топ-1 результат с достаточной уверенностью
-    top_result = classes[0]
-    confidence = top_result.get("score", 0)
-    label = top_result.get("label", "")
+    if not classes_data:
+        logger.info("Empty classes list")
+        return None
+    
+    # Берём первый элемент (самый вероятный)
+    first_item = classes_data[0]
+    logger.info(f"First item type: {type(first_item)}")
+    
+    # Извлекаем данные (может быть словарь или другой объект)
+    if isinstance(first_item, dict):
+        confidence = first_item.get("score", 0)
+        label = first_item.get("label", "")
+    elif isinstance(first_item, (list, tuple)) and len(first_item) >= 2:
+        # Если пришёл кортеж [label, score]
+        label, confidence = first_item[0], first_item[1]
+    else:
+        logger.warning(f"Unexpected item format: {first_item}")
+        return None
     
     if confidence < 0.3 or not _is_valid_food_label(label):
-        logger.info(f"Classification confidence too low or non-food: {label} ({confidence})")
+        logger.info(f"Classification rejected: {label} ({confidence})")
         return None
     
     return [{
@@ -106,31 +132,32 @@ async def analyze_food_image(
         "Content-Type": "application/json"
     }
 
-    # 1. Сначала пробуем ResNet-50 для классификации [citation:1]
+    # 1. Сначала пробуем ResNet-50 для классификации
     for model in CLASSIFICATION_MODELS:
         try:
             url = f"{BASE_URL}{model}"
-            payload = {"image": image_array}  # ResNet-50 не требует промпта [citation:1]
+            payload = {"image": image_array}
             
             logger.info(f"Trying classification model {model}")
             async with aiohttp.ClientSession() as session:
                 async with session.post(url, headers=headers, json=payload, timeout=30) as resp:
                     if resp.status == 200:
                         result = await resp.json()
-                        classes = result.get("result", {}).get("classes", [])
+                        # Логируем полный ответ для отладки
+                        logger.info(f"ResNet-50 raw response: {json.dumps(result)[:500]}")
                         
-                        if classes:
-                            formatted = _format_classification_result(classes)
-                            if formatted:
-                                logger.info(f"✅ ResNet-50 identified: {classes[0].get('label')} ({classes[0].get('score')})")
-                                return formatted
-                            else:
-                                logger.info("ResNet-50 result rejected (low confidence or non-food)")
+                        formatted = _format_classification_result(result)
+                        if formatted:
+                            logger.info(f"✅ ResNet-50 identified: {formatted[0]['name_en']}")
+                            return formatted
+                    else:
+                        error_text = await resp.text()
+                        logger.warning(f"ResNet-50 failed: {resp.status}")
         except Exception as e:
             logger.warning(f"Classification model {model} failed: {e}")
             continue
 
-    # 2. Если ResNet-50 не сработал, пробуем LLaVA [citation:4]
+    # 2. Если ResNet-50 не сработал, пробуем LLaVA
     logger.info("Classification failed, falling back to LLaVA")
     for model in VISION_MODELS:
         for attempt in range(max_retries):
@@ -149,22 +176,17 @@ async def analyze_food_image(
                             result = await resp.json()
                             description = result.get("result", {}).get("description", "").strip()
                             
-                            if description and len(description) < 100 and not description.startswith("What food"):
+                            if description and len(description) < 100:
                                 logger.info(f"✅ LLaVA identified: {description}")
                                 return [{
                                     "name_en": description,
-                                    "confidence": 0.7,  # Условная уверенность
+                                    "confidence": 0.7,
                                     "ingredients": [],
                                     "estimated_weight_g": None,
                                     "preparation": None
                                 }]
-                        else:
-                            error_text = await resp.text()
-                            logger.warning(f"Model {model} attempt {attempt+1} failed: {resp.status}")
-            except asyncio.TimeoutError:
-                logger.warning(f"Model {model} attempt {attempt+1} timeout")
             except Exception as e:
-                logger.warning(f"Model {model} attempt {attempt+1} exception: {e}")
+                logger.warning(f"LLaVA attempt {attempt+1} failed: {e}")
             await asyncio.sleep(1 * (attempt + 1))
 
     logger.error("All models failed to identify food")

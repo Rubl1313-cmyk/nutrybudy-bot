@@ -19,7 +19,7 @@ from handlers.progress import cmd_progress
 from handlers.shopping import cmd_shopping
 from handlers.reminders import cmd_reminders
 from handlers.activity import cmd_fitness, process_steps_input
-from handlers.ai_assistant import cmd_ask  # импорт AI команды
+from handlers.ai_assistant import cmd_ask
 from handlers.meal_plan import cmd_meal_plan
 from utils.states import StepsStates
 
@@ -48,6 +48,13 @@ async def cmd_start(message: Message, state: FSMContext):
         "Для подробной информации нажми ❓ Помощь."
     )
     await message.answer(welcome_text, reply_markup=get_main_keyboard(), parse_mode="HTML")
+
+# ========== НОВЫЙ ОБРАБОТЧИК ДЛЯ ТЕКСТОВОЙ КОМАНДЫ "ПРОФИЛЬ" ==========
+@router.message(F.text.lower() == "профиль")
+async def text_profile(message: Message, state: FSMContext):
+    """Обработка текста 'профиль' как команды вызова профиля."""
+    from handlers.profile import cmd_profile
+    await cmd_profile(message, state)
 
 @router.message(Command("help"))
 async def cmd_help(message: Message, state: FSMContext):
@@ -128,7 +135,6 @@ async def help_callbacks(callback: CallbackQuery):
         await show_help_menu(callback)
         return
     else:
-        # Неизвестный callback, просто ответим
         await callback.answer()
         return
 
@@ -215,10 +221,9 @@ async def menu_help(message: Message, state: FSMContext):
     await state.clear()
     await show_help_menu(message)
 
-# ✅ НОВЫЙ ОБРАБОТЧИК ДЛЯ КНОПКИ "🤖 AI Помощник"
 @router.message(F.text == "🤖 AI Помощник")
 async def menu_ai_assistant(message: Message, state: FSMContext):
-    await cmd_ask(message, state)  # вызываем команду AI
+    await cmd_ask(message, state)
 
 # ========== Обработчики навигационных callback'ов с передачей user_id ==========
 
@@ -264,7 +269,6 @@ async def menu_activity(callback: CallbackQuery, state: FSMContext):
 @router.callback_query(F.data == "menu_steps")
 async def menu_steps(callback: CallbackQuery, state: FSMContext):
     await state.set_state(StepsStates.waiting_for_steps)
-    # Для шагов отдельная функция, которая принимает message, user_id не нужен
     await callback.message.answer("👟 Введите количество шагов (только число):")
     await callback.answer()
 
@@ -280,7 +284,6 @@ async def menu_reminders(callback: CallbackQuery, state: FSMContext):
 
 @router.callback_query(F.data == "menu_profile_view")
 async def menu_profile_view(callback: CallbackQuery, state: FSMContext):
-    # Вызываем универсальную функцию отображения профиля без state
     await display_profile(callback, callback.from_user.id)
     await callback.answer()
 

@@ -41,6 +41,7 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
 
     intent_data = classify(text)
     intent = intent_data.get("intent")
+    logger.info(f"📊 Определён intent: {intent} для текста: {text}")
     text_lower = text.lower()
 
     # ----- ВОДА -----

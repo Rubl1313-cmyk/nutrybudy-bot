@@ -52,12 +52,12 @@ async def identify_dish_from_photo(message: Message) -> Optional[Dict]:
 
     # Промпт на английском, чтобы модель понимала
     prompt = (
-        "What dish is shown in this image? "
-        "First, provide the dish name in English (e.g., 'Caesar salad', 'Borscht', 'Olivier salad'). "
-        "Then, list all visible ingredients in English, as a comma-separated list. "
-        "Format your response exactly like this:\n"
-        "Dish: [dish name]\n"
-        "Ingredients: [ingredient1, ingredient2, ...]"
+"Analyze this food image. "
+        "FIRST: Try to identify if this is a KNOWN DISH"
+        "If it's a known dish, return ONLY the dish name. "
+        "SECOND: If it's not a known dish or contains multiple separate items, list the MAIN visible food items (max 5). "
+        "Return as a comma-separated list in English. "
+        "Examples: 'caesar salad with shrimp', 'grilled chicken with rice', 'tomato, cucumber, cheese'."
     )
     description_en = await analyze_food_image(optimized, prompt=prompt, max_tokens=200)
     if not description_en:

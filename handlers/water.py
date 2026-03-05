@@ -18,6 +18,7 @@ router = Router()
 
 async def add_water_quick(telegram_id: int, amount: int) -> bool:
     """Быстрое добавление воды без диалога с обработкой ошибок."""
+    logger.info(f"add_water_quick вызван для {telegram_id} с amount={amount}")
     try:
         async with get_session() as session:
             result = await session.execute(
@@ -25,7 +26,7 @@ async def add_water_quick(telegram_id: int, amount: int) -> bool:
             )
             user = result.scalar_one_or_none()
             if not user:
-                logger.warning(f"Пользователь {telegram_id} не найден при добавлении воды")
+                logger.warning(f"Пользователь {telegram_id} не найден")
                 return False
             entry = WaterEntry(
                 user_id=user.id,

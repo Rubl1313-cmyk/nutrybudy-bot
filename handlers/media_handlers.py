@@ -115,6 +115,7 @@ async def recognize_food_from_photo(message: Message) -> List[str]:
         optimized,
         prompt="List all food items visible in this image. Be specific. Return as a comma-separated list."
     )
+    logger.info(f"📸 Vision raw response: {description_en}")  # <- добавьте эту строку
     if not description_en:
         return []
 
@@ -268,9 +269,11 @@ async def handle_photo(message: Message, state: FSMContext):
 
         # Пытаемся определить блюдо целиком
         dish_info = await identify_dish_from_photo(message)
+        logger.info(f"📸 Parsed dish info: {dish_info}")
         if dish_info and dish_info['dish_name']:
             # Ищем блюдо в локальной базе
             dish_data = await get_food_data(dish_info['dish_name'])
+            logger.info(f"📸 Dish data from DB: {dish_data}") 
             if dish_data['base_calories'] > 0:  # если нашлось в базе
                 # Используем блюдо как один продукт
                 await start_food_input(message, state, [dish_info['dish_name']], meal_type="snack")

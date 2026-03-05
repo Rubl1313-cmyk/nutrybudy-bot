@@ -292,7 +292,7 @@ async def menu_reminders(callback: CallbackQuery, state: FSMContext):
 
 @router.callback_query(F.data == "menu_profile_view")
 async def menu_profile_view(callback: CallbackQuery, state: FSMContext):
-    await display_profile(callback, callback.from_user.id)
+    await display_profile(callback, callback.from_user.id, state)
     await callback.answer()
 
 @router.callback_query(F.data == "menu_profile_edit")

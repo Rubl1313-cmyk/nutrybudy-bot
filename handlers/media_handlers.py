@@ -40,48 +40,45 @@ def _prepare_image(image_bytes: bytes) -> bytes:
         logger.warning(f"⚠️ Image prep error: {e}")
         return image_bytes
 
+# ========== В ФУНКЦИИ recognize_food_from_photo ==========
 async def recognize_food_from_photo(message: Message) -> List[str]:
-    """Распознаёт продукты на фото и возвращает список названий на русском."""
+    """Распознаёт продукты/блюда на фото и возвращает список названий на русском."""
     photo = message.photo[-1]
     file_info = await message.bot.get_file(photo.file_id)
     file_bytes = await message.bot.download_file(file_info.file_path)
     file_data = file_bytes.read()
     optimized = _prepare_image(file_data)
-
-    description_en = await analyze_food_image(
-        optimized,
-        prompt="List all food items visible in this image. Be specific. Return as a comma-separated list."
+    
+    # 🔥 ИСПРАВЛЕННЫЙ ПРОМПТ: приоритет готовым блюдам
+    prompt = (
+        "Analyze this food image. "
+        "FIRST: Try to identify if this is a KNOWN DISH (e.g., 'Caesar salad with shrimp', 'borscht', 'pasta carbonara'). "
+        "If it's a known dish, return ONLY the dish name. "
+        "SECOND: If it's not a known dish or contains multiple separate items, list the MAIN visible food items (max 5). "
+        "Return as a comma-separated list in English. "
+        "Examples: 'caesar salad with shrimp', 'grilled chicken with rice', 'tomato, cucumber, cheese'."
     )
+    
+    description_en = await analyze_food_image(optimized, prompt=prompt)
+    
     if not description_en:
         return []
-
+    
+    # 🔥 Пост-обработка: если распознано как одно блюдо — возвращаем как есть
+    if ',' not in description_en and len(description_en.split()) <= 6:
+        # Возможно, это название блюда
+        translated = await translate_to_russian(description_en.strip())
+        return [translated]
+    
+    # Иначе разбиваем на ингредиенты как раньше
     raw_items = await extract_food_items(description_en)
     translated_items = []
-    for item in raw_items:
-        translated = await translate_to_russian(item)
-        translated_items.append(translated)
+    for item in raw_items[:5]:  # 🔥 Ограничиваем до 5 продуктов
+        if item.lower() not in ['bowl', 'plate', 'table', 'fork', 'knife']:  # Исключаем посуду
+            translated = await translate_to_russian(item)
+            translated_items.append(translated)
+    
     return translated_items
-
-async def get_food_data(name: str) -> Dict:
-    """Получает базовые данные продукта из локальной базы."""
-    search_results = await search_food(name)
-    if search_results:
-        best = search_results[0]
-        return {
-            'name': best['name'],
-            'base_calories': best.get('calories', 0),
-            'base_protein': best.get('protein', 0),
-            'base_fat': best.get('fat', 0),
-            'base_carbs': best.get('carbs', 0)
-        }
-    else:
-        return {
-            'name': name,
-            'base_calories': 0,
-            'base_protein': 0,
-            'base_fat': 0,
-            'base_carbs': 0
-        }
 
 async def update_totals_message(chat_id: int, message_id: int, bot, selected_foods: List[Dict]):
     """Обновляет сообщение с итогами."""

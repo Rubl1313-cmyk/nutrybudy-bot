@@ -2,7 +2,7 @@
 Обработчики мультимедиа: фото (распознавание еды) и голос.
 Реализован интерфейс с отдельными сообщениями для каждого продукта.
 Добавлена защита от повторной обработки одного и того же фото, перевод распознанных данных,
-сопоставление с базой блюд и подтверждение пользователя.
+сопоставление с базой блюд и выбор: использовать как готовое блюдо или разбить на ингредиенты.
 """
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
@@ -211,9 +211,22 @@ async def handle_photo(message: Message, state: FSMContext):
             # Сначала проверяем, есть ли блюдо в продуктовой базе по названию
             dish_info = await get_food_data(dish_name_ru) if dish_name_ru else {'base_calories': 0}
             if dish_info['base_calories'] > 0:
-                # Блюдо найдено в продуктовой базе - используем его как один продукт
-                await start_food_input(message, state, [dish_name_ru], meal_type="snack")
-                await state.update_data(last_photo_id=message.message_id)
+                # Блюдо найдено в продуктовой базе - предлагаем выбор
+                await state.update_data(
+                    recognized_dish=dish_name_ru,
+                    recognized_ingredients=ingredients_ru,
+                    last_photo_id=message.message_id
+                )
+                keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text="✅ Использовать блюдо", callback_data="confirm_dish")],
+                    [InlineKeyboardButton(text="🔍 Разбить на ингредиенты", callback_data="reject_dish")]
+                ])
+                await message.answer(
+                    f"🍽 Распознано блюдо: **{dish_name_ru}**.\n"
+                    f"Хотите использовать его как готовое блюдо или разбить на ингредиенты?",
+                    reply_markup=keyboard,
+                    parse_mode="Markdown"
+                )
                 return
 
             # Если не найдено, пробуем сопоставить по ингредиентам
@@ -305,7 +318,7 @@ async def handle_photo(message: Message, state: FSMContext):
 # ========== ОБРАБОТЧИКИ ПОДТВЕРЖДЕНИЯ БЛЮДА ==========
 @router.callback_query(F.data == "confirm_dish")
 async def confirm_dish_callback(callback: CallbackQuery, state: FSMContext):
-    """Пользователь подтвердил распознанное блюдо."""
+    """Пользователь подтвердил использование блюда как готового."""
     data = await state.get_data()
     dish = data.get('recognized_dish')
     if dish:
@@ -317,7 +330,7 @@ async def confirm_dish_callback(callback: CallbackQuery, state: FSMContext):
 
 @router.callback_query(F.data == "reject_dish")
 async def reject_dish_callback(callback: CallbackQuery, state: FSMContext):
-    """Пользователь отверг блюдо, используем ингредиенты."""
+    """Пользователь отверг блюдо и хочет использовать ингредиенты."""
     data = await state.get_data()
     ingredients = data.get('recognized_ingredients', [])
     if ingredients:
@@ -328,7 +341,6 @@ async def reject_dish_callback(callback: CallbackQuery, state: FSMContext):
         await state.set_state(FoodStates.searching_food)
     await callback.message.delete()
     await callback.answer()
-
 # ========== ОСТАЛЬНЫЕ ОБРАБОТЧИКИ (без изменений) ==========
 @router.callback_query(F.data == "food_manual")
 async def food_manual_callback(callback: CallbackQuery, state: FSMContext):

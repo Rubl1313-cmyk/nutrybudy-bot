@@ -369,19 +369,18 @@ FATSECRET_CONSUMER_KEY = os.getenv("FATSECRET_CONSUMER_KEY", "")
 FATSECRET_CONSUMER_SECRET = os.getenv("FATSECRET_CONSUMER_SECRET", "")
 FATSECRET_ACCESS_TOKEN = None
 
+# Если ключи не заданы, отключаем FatSecret
+USE_FATSECRET = bool(FATSECRET_CONSUMER_KEY and FATSECRET_CONSUMER_SECRET)
+
 translator = Translator()
 
 async def get_fatsecret_token() -> Optional[str]:
     """Получение OAuth-токена для FatSecret API."""
-    global FATSECRET_ACCESS_TOKEN
-    
-    if not FATSECRET_CONSUMER_KEY or not FATSECRET_CONSUMER_SECRET:
-        logger.warning("⚠️ FatSecret credentials not set")
+    if not USE_FATSECRET:
         return None
-    
+    global FATSECRET_ACCESS_TOKEN
     if FATSECRET_ACCESS_TOKEN:
         return FATSECRET_ACCESS_TOKEN
-    
     try:
         # OAuth 1.0a параметры
         oauth_params = {
@@ -420,9 +419,10 @@ async def get_fatsecret_token() -> Optional[str]:
     except Exception as e:
         logger.error(f"FatSecret auth error: {e}", exc_info=True)
         return None
-
 async def search_fatsecret(query: str) -> List[Dict]:
     """Поиск продуктов в FatSecret API."""
+    if not USE_FATSECRET:
+        return []
     token = await get_fatsecret_token()
     if not token:
         return []
@@ -472,6 +472,8 @@ async def search_fatsecret(query: str) -> List[Dict]:
         return []
 
 async def get_food_details(food_id: str, token: str) -> Optional[Dict]:
+    if not USE_FATSECRET:
+        return None
     """Получение детальной информации о продукте по ID."""
     try:
         async with aiohttp.ClientSession() as session:
@@ -513,7 +515,7 @@ async def get_food_details(food_id: str, token: str) -> Optional[Dict]:
                         }
                 return None
     except Exception as e:
-        logger.error(f"FatSecret details error: {e}")
+        logger.error(f"FatSecret auth error: {e}", exc_info=True)
         return None
 
 
@@ -570,41 +572,27 @@ async def search_food(query: str) -> List[Dict]:
     Приоритет: локальная база → FatSecret → OpenFoodFacts.
     """
     query = query.lower().strip()
-    local_results = []
-
-    # 1. Поиск в локальной базе
-    for key, data in LOCAL_FOOD_DB.items():
-        if query in key or query in data["name"].lower():
-            result = data.copy()
-            result["source"] = "local"
-            local_results.append(result)
-
-    # Если локальных результатов много, возвращаем их
+    local_results = search_local_db(query)
     if len(local_results) >= 5:
         return local_results[:10]
 
-    # 2. Поиск в FatSecret
-    fatsecret_results = await search_fatsecret(query)
-    
-    # 3. Если FatSecret не дал результатов, пробуем OpenFoodFacts
-    external_results = fatsecret_results
+    external_results = []
+    if USE_FATSECRET:
+        external_results = await search_fatsecret(query)
     if not external_results:
         external_results = await search_openfoodfacts(query)
 
     # Объединяем результаты
     seen_names = set()
     combined = []
-
     for item in local_results + external_results:
         name_lower = item["name"].lower()
         if name_lower not in seen_names:
             seen_names.add(name_lower)
             combined.append(item)
 
-    # Сортировка: локальные → FatSecret → OpenFoodFacts
     combined.sort(key=lambda x: (
         0 if x["source"] == "local" else 1 if x["source"] == "FatSecret" else 2,
         x["name"]
     ))
-
     return combined[:10]

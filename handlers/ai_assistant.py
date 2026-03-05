@@ -11,7 +11,14 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 import logging
 import asyncio
-from langdetect import detect, LangDetectException  # для проверки языка
+
+# Опциональный импорт langdetect (для проверки языка)
+try:
+    from langdetect import detect, LangDetectException
+    LANGDETECT_AVAILABLE = True
+except ImportError:
+    LANGDETECT_AVAILABLE = False
+    logging.warning("langdetect not installed. Language detection will be skipped.")
 
 from services.deepseek_client import ask_worker_ai, DEFAULT_SYSTEM_PROMPT
 from keyboards.reply import get_main_keyboard
@@ -33,7 +40,7 @@ MAX_HISTORY = 10
 async def process_voice(message: Message, state: FSMContext, is_global: bool = False):
     """
     Общая логика обработки голосового сообщения.
-    Распознаёт только русский язык.
+    Распознаёт только русский язык (проверка через langdetect, если доступно).
     """
     await message.answer("🎤 Распознаю речь...")
     try:
@@ -60,15 +67,18 @@ async def process_voice(message: Message, state: FSMContext, is_global: bool = F
             await message.answer("❌ Не удалось распознать речь.")
             return
 
-        # Проверяем, что текст на русском
-        try:
-            lang = detect(text)
-            if lang != 'ru':
-                await message.answer("❌ Пожалуйста, говорите по-русски. Я понимаю только русский язык.")
-                return
-        except LangDetectException:
-            # Если не удалось определить язык, пропускаем проверку
-            pass
+        # Проверяем язык, если библиотека доступна
+        if LANGDETECT_AVAILABLE:
+            try:
+                lang = detect(text)
+                if lang != 'ru':
+                    await message.answer("❌ Пожалуйста, говорите по-русски. Я понимаю только русский язык.")
+                    return
+            except LangDetectException:
+                # Если не удалось определить язык, пропускаем
+                pass
+        else:
+            logger.debug("Language detection skipped (langdetect not installed).")
 
         await message.answer(f"📝 <b>Распознано:</b>\n{text}", parse_mode="HTML")
 

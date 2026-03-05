@@ -13,7 +13,7 @@ from datetime import datetime
 
 from services.intent_classifier import classify
 from utils.water_parser import parse_water_amount
-from handlers.food import cmd_log_food, process_next_food  # ✅ добавлен импорт
+from handlers.food import cmd_log_food, process_next_food
 from handlers.water import cmd_water, add_water_quick
 from handlers.shopping import cmd_shopping, add_to_shopping_list, update_list_message, get_or_create_default_list
 from handlers.activity import cmd_fitness
@@ -24,6 +24,7 @@ from database.db import get_session
 from database.models import User, Activity
 from utils.ai_tools import get_weather
 from services.activity import CALORIES_PER_MINUTE
+from handlers.ai_assistant import process_ai_query
 
 logger = logging.getLogger(__name__)
 universal_router = Router()
@@ -41,7 +42,6 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
 
     intent_data = classify(text)
     intent = intent_data.get("intent")
-    logger.info(f"📊 Определён intent: {intent} для текста: {text}")
     text_lower = text.lower()
 
     # ----- ВОДА -----
@@ -57,8 +57,14 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
 
         elif "выпил" in text_lower or "попил" in text_lower:
             if amount:
-                await add_water_quick(message.from_user.id, amount)
-                await message.answer(f"✅ Записано {amount} мл воды.")
+                success = await add_water_quick(message.from_user.id, amount)
+                if success:
+                    await message.answer(f"✅ Записано {amount} мл воды.")
+                else:
+                    await message.answer(
+                        "❌ Пользователь не найден. Сначала настройте профиль через /set_profile.",
+                        reply_markup=get_main_keyboard()
+                    )
             else:
                 await cmd_water(message, state)
             return
@@ -87,7 +93,7 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
         # Если есть шаги (приоритет)
         if steps:
             user_id = message.from_user.id
-            calories = round(steps * 0.04, 1)  # приблизительно
+            calories = round(steps * 0.04, 1)
             async with get_session() as session:
                 user_result = await session.execute(
                     select(User).where(User.telegram_id == user_id)
@@ -151,7 +157,6 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
                     weight = user.weight or 70
 
                 met = CALORIES_PER_MINUTE.get(act_type, 5)
-                # Если длительность не указана, используем рассчитанную из расстояния (уже есть)
                 calories = met * weight * (duration / 60)
 
                 async with get_session() as session:
@@ -240,12 +245,12 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
         await message.answer(weather_info)
         return
 
-    # ----- AI-запросы -----
+    # ----- AI-ЗАПРОСЫ -----
     if intent == "ai":
-        from handlers.ai_assistant import process_ai_query
+        logger.info(f"🤖 AI запрос от {message.from_user.id}: {text}")
         await process_ai_query(message, state, text)
         return
-        
+
     # ----- НЕОПРЕДЕЛЁННОЕ -----
     await state.update_data(pending_text=text)
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
@@ -259,21 +264,20 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
         reply_markup=keyboard
     )
     return
-    
-@universal_router.callback_query(F.data.startswith("water_"))
-async def debug_water_callback(callback: CallbackQuery):
-    logger.info(f"🐞 DEBUG: Получен callback с data = {callback.data}")
-    # Не отвечаем на callback, чтобы дать возможность сработать другим обработчикам
-    # await callback.answer()  # раскомментируйте, если нужно сразу ответить
 
-# ----- ОБРАБОТЧИКИ КНОПОК ДЛЯ ВОДЫ -----
-@universal_router.callback_query(lambda c: c.data == "water_drink")
+
+# ========== ОБРАБОТЧИКИ КНОПОК ДЛЯ ВОДЫ ==========
+
+@universal_router.callback_query(F.data == "water_drink")
 async def water_drink_callback(callback: CallbackQuery, state: FSMContext):
-    logger.info(f"🍷 water_drink_callback: начало, user_id={callback.from_user.id}")
+    """✅ Исправлено: правильный порядок операций"""
     data = await state.get_data()
     amount = data.get('water_amount')
-    logger.info(f"🍷 water_drink_callback: amount из state = {amount}")
     user_id = callback.from_user.id
+
+    # Сначала отвечаем на callback, чтобы убрать "часики"
+    await callback.answer()
+
     try:
         if amount:
             logger.info(f"🍷 water_drink_callback: вызываем add_water_quick с amount={amount}")
@@ -289,45 +293,55 @@ async def water_drink_callback(callback: CallbackQuery, state: FSMContext):
         else:
             logger.info("🍷 water_drink_callback: amount отсутствует, вызываем cmd_water")
             await cmd_water(callback.message, state)
-        await callback.message.delete()
     except Exception as e:
         logger.error(f"🍷 water_drink_callback: исключение {e}", exc_info=True)
         await callback.message.answer("❌ Произошла внутренняя ошибка. Попробуйте позже.")
     finally:
-        await callback.answer()
+        # Удаляем исходное сообщение с кнопками
+        try:
+            await callback.message.delete()
+        except:
+            pass
 
-@universal_router.callback_query(lambda c: c.data == "water_buy")
+@universal_router.callback_query(F.data == "water_buy")
 async def water_buy_callback(callback: CallbackQuery, state: FSMContext):
-    logger.info(f"🛒 water_buy_callback вызван: user_id={callback.from_user.id}")
+    """✅ Исправлено: правильный порядок операций"""
     data = await state.get_data()
     amount = data.get('water_amount')
-    logger.info(f"🛒 amount из state: {amount}")
     item_text = f"вода {amount} мл" if amount else "вода"
-    try:
-        logger.info(f"🛒 Добавление в список покупок: {item_text}")
-        # add_to_shopping_list ожидает event (CallbackQuery) и текст
-        await add_to_shopping_list(callback, item_text)
-        logger.info("🛒 Товар добавлен")
-        await callback.message.answer("✅ Добавлено в список покупок.")
-    except Exception as e:
-        logger.error(f"🛒 Ошибка в water_buy_callback: {e}", exc_info=True)
-        await callback.message.answer("❌ Ошибка при добавлении в список покупок.")
-    finally:
-        await callback.message.delete()
-        await callback.answer()
 
-@universal_router.callback_query(lambda c: c.data == "action_cancel")
-async def action_cancel_callback(callback: CallbackQuery, state: FSMContext):
-    await state.clear()
-    await callback.message.delete()
-    await callback.message.answer("❌ Действие отменено.")
     await callback.answer()
 
-# ----- ОБРАБОТЧИКИ КНОПОК ДЛЯ НЕОПРЕДЕЛЁННЫХ ТЕКСТОВ -----
-@universal_router.callback_query(lambda c: c.data == "choose_shopping")
+    try:
+        await add_to_shopping_list(callback.message, item_text)
+        await callback.message.answer("✅ Добавлено в список покупок.")
+    except Exception as e:
+        logger.error(f"🍷 water_buy_callback: исключение {e}", exc_info=True)
+        await callback.message.answer("❌ Произошла внутренняя ошибка. Попробуйте позже.")
+    finally:
+        try:
+            await callback.message.delete()
+        except:
+            pass
+
+@universal_router.callback_query(F.data == "action_cancel")
+async def action_cancel_callback(callback: CallbackQuery, state: FSMContext):
+    await callback.answer()
+    await state.clear()
+    try:
+        await callback.message.delete()
+    except:
+        pass
+    await callback.message.answer("❌ Действие отменено.")
+
+
+# ========== ОБРАБОТЧИКИ КНОПОК ДЛЯ НЕОПРЕДЕЛЁННЫХ ТЕКСТОВ ==========
+
+@universal_router.callback_query(F.data == "choose_shopping")
 async def choose_shopping_callback(callback: CallbackQuery, state: FSMContext):
     data = await state.get_data()
     text = data.get('pending_text', '')
+    await callback.answer()
     await add_to_shopping_list(callback, text)
 
     async with get_session() as session:
@@ -335,10 +349,12 @@ async def choose_shopping_callback(callback: CallbackQuery, state: FSMContext):
         if shopping_list:
             await update_list_message(callback, shopping_list.id)
 
-    await callback.message.delete()
-    await callback.answer("✅ Добавлено в список покупок")
+    try:
+        await callback.message.delete()
+    except:
+        pass
 
-@universal_router.callback_query(lambda c: c.data == "choose_food")
+@universal_router.callback_query(F.data == "choose_food")
 async def choose_food_callback(callback: CallbackQuery, state: FSMContext):
     data = await state.get_data()
     text = data.get('pending_text', '')
@@ -349,26 +365,34 @@ async def choose_food_callback(callback: CallbackQuery, state: FSMContext):
         selected_foods=[],
         meal_type="snack"
     )
-    await process_next_food(callback.message, state)
-    await callback.message.delete()
     await callback.answer()
+    await process_next_food(callback.message, state)
+    try:
+        await callback.message.delete()
+    except:
+        pass
 
-@universal_router.callback_query(lambda c: c.data == "choose_ai")
+@universal_router.callback_query(F.data == "choose_ai")
 async def choose_ai_callback(callback: CallbackQuery, state: FSMContext):
     data = await state.get_data()
     text = data.get('pending_text', '')
-    from handlers.ai_assistant import process_ai_query
-    await process_ai_query(callback.message, state, text)
-    await callback.message.delete()
     await callback.answer()
+    await process_ai_query(callback.message, state, text)
+    try:
+        await callback.message.delete()
+    except:
+        pass
 
-# ----- ОБРАБОТЧИКИ ДЛЯ ПОДТВЕРЖДЕНИЯ АКТИВНОСТИ -----
-@universal_router.callback_query(lambda c: c.data == "confirm_activity")
+
+# ========== ОБРАБОТЧИКИ ДЛЯ ПОДТВЕРЖДЕНИЯ АКТИВНОСТИ ==========
+
+@universal_router.callback_query(F.data == "confirm_activity")
 async def confirm_activity_callback(callback: CallbackQuery, state: FSMContext):
     data = await state.get_data()
     act_type = data.get('activity_type')
     duration = data.get('duration')
     if not act_type or not duration:
+        await callback.answer()
         await safe_edit(callback, "❌ Ошибка: данные активности не найдены.")
         await state.clear()
         return
@@ -380,6 +404,7 @@ async def confirm_activity_callback(callback: CallbackQuery, state: FSMContext):
         )
         user = user_result.scalar_one_or_none()
         if not user:
+            await callback.answer()
             await safe_edit(callback, "❌ Пользователь не найден.")
             await state.clear()
             return
@@ -402,18 +427,19 @@ async def confirm_activity_callback(callback: CallbackQuery, state: FSMContext):
         session.add(activity)
         await session.commit()
 
+    await callback.answer()
     await safe_edit(
         callback,
         f"✅ Активность записана: {act_type} {duration} мин, сожжено ~{calories:.0f} ккал."
     )
     await state.clear()
-    await callback.answer()
 
-@universal_router.callback_query(lambda c: c.data == "cancel_activity")
+@universal_router.callback_query(F.data == "cancel_activity")
 async def cancel_activity_callback(callback: CallbackQuery, state: FSMContext):
+    await callback.answer()
     await state.clear()
     await safe_edit(callback, "❌ Запись активности отменена.")
-    await callback.answer()
+
 
 async def safe_edit(callback: CallbackQuery, text: str, reply_markup=None):
     """Безопасное редактирование сообщения с обработкой ошибки 'message not modified'."""

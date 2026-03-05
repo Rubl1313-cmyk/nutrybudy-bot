@@ -13,7 +13,9 @@ from database.models import User, WaterEntry
 from keyboards.inline import get_water_preset_keyboard, get_confirmation_keyboard
 from keyboards.reply import get_main_keyboard, get_cancel_keyboard
 from utils.states import WaterStates
+import logging
 
+logger = logging.getLogger(__name__)
 router = Router()
 
 async def add_water_quick(telegram_id: int, amount: int) -> bool:
@@ -41,7 +43,7 @@ async def add_water_quick(telegram_id: int, amount: int) -> bool:
     except Exception as e:
         logger.error(f"💧 add_water_quick: ошибка {e}", exc_info=True)
         return False
-        
+
 @router.message(Command("log_water"))
 @router.message(F.text == "💧 Вода")
 async def cmd_water(message: Message, state: FSMContext, user_id: int = None):
@@ -82,7 +84,6 @@ async def cmd_water(message: Message, state: FSMContext, user_id: int = None):
         reply_markup=get_water_preset_keyboard()
     )
 
-# ✅ Исправлено: обработчик только для числовых значений (water_200, water_500 и т.д.)
 @router.callback_query(F.data.regexp(r'^water_(\d+)$'))
 async def preset_water(callback: CallbackQuery, state: FSMContext):
     """Выбор предустановленного объёма."""

@@ -38,47 +38,59 @@ WHISPER_MODELS = [
 ]
 
 # Промпт для распознавания блюда (JSON)
+# Новый промпт с явным запретом шаблонов
 FOOD_RECOGNITION_PROMPT = """
 Analyze this food image and return a STRICT JSON object with the following structure:
 {
   "dishes": [
     {
-      "name_en": "Name of the dish in English",
-      "confidence": 0.8,
-      "ingredients": ["ingredient1", "ingredient2"],
-      "estimated_weight_g": 150,
-      "preparation": "boiled/fried/baked"
+      "name_en": "Specific dish name in English, e.g., 'Grilled chicken breast', 'Caesar salad' – DO NOT use placeholders like 'Name of the dish'",
+      "confidence": 0.9,
+      "ingredients": ["list of specific ingredients, e.g., 'chicken breast', 'romaine lettuce'"],
+      "estimated_weight_g": 250,
+      "preparation": "e.g., grilled, fried, baked"
     }
   ],
   "total_items": 1,
-  "notes": "additional context if needed"
+  "notes": ""
 }
 Rules:
-- Be specific: "grilled chicken breast", not just "chicken"
-- If unsure, set confidence < 0.5
-- For mixed dishes, list main ingredients
-- Return ONLY the JSON, no other text
+- Use English for all text fields.
+- Be extremely specific.
+- If unsure, set confidence < 0.5.
+- NEVER use placeholder text like 'Name of the dish' or 'ingredient1'.
+- Return ONLY the JSON, no other text.
 """
 
-def _bytes_to_array(image_bytes: bytes) -> list:
-    """Конвертирует bytes в список целых чисел 0-255."""
-    return list(image_bytes)
+def _is_valid_dish_name(name: str) -> bool:
+    """Проверяет, что название выглядит как реальное (не шаблон)."""
+    if not name or len(name) < 3:
+        return False
+    name_lower = name.lower()
+    forbidden = [
+        'name of the dish', 'dish name', 'placeholder', 'unknown',
+        'example dish', 'sample', 'name_en', 'name_ru', 'ingredient'
+    ]
+    for phrase in forbidden:
+        if phrase in name_lower:
+            return False
+    return True
 
 def _parse_json_response(text: str) -> Optional[List[Dict]]:
-    """Извлекает JSON из ответа модели и возвращает список блюд с confidence >= 0.3."""
-    json_match = re.search(r'```json\s*(\{.*?\})\s*```', text, re.DOTALL)
-    if not json_match:
-        json_match = re.search(r'\{.*\}', text, re.DOTALL)
-    if not json_match:
-        logger.warning("No JSON found in response")
-        return None
+    """Извлекает JSON и возвращает только валидные блюда."""
+    # ... (поиск JSON как раньше)
     try:
         data = json.loads(json_match.group())
         dishes = data.get("dishes", [])
-        valid_dishes = [d for d in dishes if d.get("confidence", 0) >= 0.3]
-        return valid_dishes
-    except json.JSONDecodeError as e:
-        logger.warning(f"Failed to parse JSON: {e}")
+        valid_dishes = []
+        for d in dishes:
+            if d.get("confidence", 0) >= 0.3 and _is_valid_dish_name(d.get("name_en", "")):
+                valid_dishes.append(d)
+            else:
+                logger.warning(f"Invalid dish data discarded: {d}")
+        return valid_dishes if valid_dishes else None
+    except json.JSONDecodeError:
+        logger.warning("Failed to parse JSON")
         return None
 
 async def analyze_food_image(

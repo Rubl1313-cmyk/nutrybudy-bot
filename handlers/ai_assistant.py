@@ -2,6 +2,7 @@
 Обработчик AI-ассистента.
 Использует intent_classifier для выполнения действий (например, погода) или вызова AI.
 Поддерживает диалоги с контекстом. Для выхода используйте /cancel или "выход".
+Голос распознаётся только на русском языке.
 """
 from aiogram import Router, F
 from aiogram.types import Message
@@ -10,9 +11,10 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 import logging
 import asyncio
+from langdetect import detect, LangDetectException  # для проверки языка
 
 from services.deepseek_client import ask_worker_ai, DEFAULT_SYSTEM_PROMPT
-from keyboards.reply import get_main_keyboard, get_cancel_keyboard
+from keyboards.reply import get_main_keyboard
 from services.cloudflare_ai import transcribe_audio
 from services.intent_classifier import classify
 from utils.ai_tools import get_weather
@@ -26,13 +28,12 @@ logger = logging.getLogger(__name__)
 class AIAssistantStates(StatesGroup):
     waiting_for_question = State()
 
-# Максимальное количество сообщений в истории для контекста
-MAX_HISTORY = 15
+MAX_HISTORY = 10
 
 async def process_voice(message: Message, state: FSMContext, is_global: bool = False):
     """
     Общая логика обработки голосового сообщения.
-    is_global=True означает, что обработчик вызван вне состояния /ask.
+    Распознаёт только русский язык.
     """
     await message.answer("🎤 Распознаю речь...")
     try:
@@ -52,11 +53,22 @@ async def process_voice(message: Message, state: FSMContext, is_global: bool = F
             return
 
         file_data = file_bytes.read()
-        text = await transcribe_audio(file_data)
+        # Явно указываем язык - русский
+        text = await transcribe_audio(file_data, language="ru")
 
         if not text:
             await message.answer("❌ Не удалось распознать речь.")
             return
+
+        # Проверяем, что текст на русском
+        try:
+            lang = detect(text)
+            if lang != 'ru':
+                await message.answer("❌ Пожалуйста, говорите по-русски. Я понимаю только русский язык.")
+                return
+        except LangDetectException:
+            # Если не удалось определить язык, пропускаем проверку
+            pass
 
         await message.answer(f"📝 <b>Распознано:</b>\n{text}", parse_mode="HTML")
 
@@ -70,7 +82,6 @@ async def process_voice(message: Message, state: FSMContext, is_global: bool = F
 @router.message(F.voice)
 async def handle_voice_global(message: Message, state: FSMContext):
     """Обрабатывает ЛЮБОЕ голосовое сообщение вне зависимости от состояния."""
-    # Не перехватывать если пользователь в состоянии ввода еды/воды
     current_state = await state.get_state()
     if current_state and any(x in current_state for x in ['Food', 'Water', 'Activity', 'Steps']):
         return
@@ -83,7 +94,6 @@ async def cmd_ask(message: Message, state: FSMContext, user_id: int = None):
     if user_id is None:
         user_id = message.from_user.id
 
-    # Инициализируем историю в состоянии
     await state.set_state(AIAssistantStates.waiting_for_question)
     await state.update_data(history=[])
     await message.answer(
@@ -107,7 +117,6 @@ async def handle_text_question(message: Message, state: FSMContext):
     """Обработка текста в режиме /ask."""
     text = message.text.strip()
     
-    # Проверка на выход из режима
     if text.lower() in ['выход', 'выйти', '/cancel']:
         await state.clear()
         await message.answer(
@@ -125,15 +134,12 @@ async def process_ai_query(message: Message, state: FSMContext, query: str):
         await message.answer("❌ Пустой запрос. Пожалуйста, напишите что-нибудь.")
         return
 
-    # Получаем историю из состояния
     data = await state.get_data()
     history = data.get('history', [])
 
-    # Классифицируем намерение
     intent_data = classify(query)
     intent = intent_data.get("intent")
 
-    # Если это запрос погоды, обрабатываем отдельно и остаёмся в режиме
     if intent == "weather":
         await message.answer("⏳ Узнаю погоду...")
         user_id = message.from_user.id
@@ -153,17 +159,13 @@ async def process_ai_query(message: Message, state: FSMContext, query: str):
 
         weather_info = await get_weather(city)
         await message.answer(weather_info)
-        # Не очищаем состояние, остаёмся в режиме AI
         return
 
-    # Иначе отправляем запрос в AI с контекстом
     await message.answer("⏳ Думаю...")
     logger.info(f"🚀 Запрос в AI от {message.from_user.id}: {query[:100]}...")
 
-    # Формируем системный промпт с учётом истории
     system_prompt = DEFAULT_SYSTEM_PROMPT
     if history:
-        # Добавляем в системный промпт информацию о предыдущих сообщениях
         history_text = "\n".join([
             f"{msg['role']}: {msg['content']}" 
             for msg in history[-MAX_HISTORY:]
@@ -185,10 +187,8 @@ async def process_ai_query(message: Message, state: FSMContext, query: str):
         elif response.get("choices"):
             content = response["choices"][0]["message"]["content"]
             
-            # Добавляем в историю
             history.append({"role": "user", "content": query})
             history.append({"role": "assistant", "content": content})
-            # Ограничиваем историю
             if len(history) > MAX_HISTORY * 2:
                 history = history[-MAX_HISTORY*2:]
             await state.update_data(history=history)
@@ -205,6 +205,3 @@ async def process_ai_query(message: Message, state: FSMContext, query: str):
     except Exception as e:
         logger.error(f"Исключение при запросе к AI: {e}", exc_info=True)
         await message.answer("❌ Произошла внутренняя ошибка при обращении к AI.")
-    
-    # Не очищаем состояние, остаёмся в режиме AI
-    # await state.clear() - убираем

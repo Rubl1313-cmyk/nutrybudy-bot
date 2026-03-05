@@ -17,6 +17,7 @@ from keyboards.reply import get_main_keyboard
 from services.cloudflare_ai import transcribe_audio
 from services.intent_classifier import classify
 from utils.ai_tools import get_weather
+from utils.helpers import normalize_exit_command  # <-- добавлен импорт
 from database.db import get_session
 from database.models import User
 from sqlalchemy import select
@@ -27,7 +28,7 @@ logger = logging.getLogger(__name__)
 class AIAssistantStates(StatesGroup):
     waiting_for_question = State()
 
-MAX_HISTORY = 15
+MAX_HISTORY = 10
 
 async def process_voice(message: Message, state: FSMContext, is_global: bool = False):
     """
@@ -109,9 +110,12 @@ async def handle_voice_question(message: Message, state: FSMContext):
 @router.message(AIAssistantStates.waiting_for_question, F.text)
 async def handle_text_question(message: Message, state: FSMContext):
     """Обработка текста в режиме /ask."""
-    text = message.text.strip()
-    
-    if text.lower() in ['выход', 'выйти', '/cancel']:
+    raw_text = message.text
+    text = raw_text.strip()
+    normalized = normalize_exit_command(text)
+
+    # Проверяем различные варианты команд выхода
+    if normalized in ['выход', 'выйти', 'выходи', 'завершить', 'закончить', 'стоп', 'хватит', '/cancel']:
         await state.clear()
         await message.answer(
             "👋 Выход из режима AI-ассистента.\n"

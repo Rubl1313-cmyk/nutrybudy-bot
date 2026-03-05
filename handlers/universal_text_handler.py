@@ -2,6 +2,7 @@
 Универсальный обработчик текстовых сообщений.
 Если намерение не определено, показывает меню выбора.
 Исправлены все ошибки: шаги, дублирование, обработка исключений.
+После выбора типа приёма пищи автоматически подставляет ранее введённый текст.
 """
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
@@ -25,6 +26,7 @@ from database.models import User, Activity
 from utils.ai_tools import get_weather
 from services.activity import CALORIES_PER_MINUTE
 from handlers.ai_assistant import process_ai_query
+from handlers.food import process_next_food
 
 logger = logging.getLogger(__name__)
 universal_router = Router()
@@ -55,7 +57,7 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
             await message.answer("✅ Добавлено в список покупок.")
             return
 
-        elif "выпил" in text_lower or "попил" in text_lower:
+        elif "выпил" in text_lower or "попил" in text_lower or "выпила" in text_lower or "попила" in text_lower:
             if amount:
                 success = await add_water_quick(message.from_user.id, amount)
                 if success:
@@ -205,23 +207,49 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
 
     # ----- СПИСОК ПОКУПОК -----
     if intent == "shopping":
-        cleaned = intent_data.get("cleaned_text", "")
-        if cleaned:
-            await add_to_shopping_list(message, cleaned)
+        items = intent_data.get("items")
+        if items:
+            await add_to_shopping_list(message, ' '.join(items))
             await message.answer("✅ Добавлено в список покупок.")
         else:
-            await cmd_shopping(message, state)
+            cleaned = intent_data.get("cleaned_text", "")
+            if cleaned:
+                await add_to_shopping_list(message, cleaned)
+                await message.answer("✅ Добавлено в список покупок.")
+            else:
+                await cmd_shopping(message, state)
         return
 
     # ----- ПРИЁМ ПИЩИ -----
     if intent == "food":
         meal_type = intent_data.get("meal_type", "snack")
         items = intent_data.get("items")
-        if items:
-            from handlers.media_handlers import start_food_input
-            await start_food_input(message, state, items, meal_type)
-        else:
+        cleaned = intent_data.get("cleaned_text", "")
+
+        # Если есть очищенный текст (например, "гречка"), сохраняем его для последующего использования
+        if cleaned:
+            await state.update_data(pending_food_text=cleaned)
+
+        # Запускаем выбор типа приёма пищи, если тип не указан
+        if not meal_type:
+            await state.update_data(food_intent_data=intent_data)
             await cmd_log_food(message, state)
+        else:
+            # Если тип уже определён, сразу переходим к поиску
+            if items:
+                from handlers.media_handlers import start_food_input
+                await start_food_input(message, state, items, meal_type)
+            elif cleaned:
+                # Запускаем поиск продукта с сохранённым текстом
+                await state.update_data(meal_type=meal_type)
+                await state.set_state(FoodStates.searching_food)
+                # Имитируем сообщение с текстом продукта
+                fake_message = message
+                fake_message.text = cleaned
+                from handlers.food import process_food_search
+                await process_food_search(fake_message, state)
+            else:
+                await cmd_log_food(message, state)
         return
 
     # ----- ПОГОДА -----
@@ -305,6 +333,7 @@ async def water_drink_callback(callback: CallbackQuery, state: FSMContext):
 
 @universal_router.callback_query(F.data == "water_buy")
 async def water_buy_callback(callback: CallbackQuery, state: FSMContext):
+    """✅ Исправлено: правильный порядок операций"""
     data = await state.get_data()
     amount = data.get('water_amount')
     item_text = f"вода {amount} мл" if amount else "вода"
@@ -312,18 +341,18 @@ async def water_buy_callback(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
 
     try:
-        # ✅ ИСПРАВЛЕНО: передаём callback, а не callback.message
+        # Передаём callback, а не callback.message, чтобы user_id был правильным
         await add_to_shopping_list(callback, item_text)
         await callback.message.answer("✅ Добавлено в список покупок.")
     except Exception as e:
-        logger.error(f"🛒 Ошибка в water_buy_callback: {e}", exc_info=True)
-        await callback.message.answer("❌ Произошла ошибка при добавлении в список покупок.")
+        logger.error(f"🍷 water_buy_callback: исключение {e}", exc_info=True)
+        await callback.message.answer("❌ Произошла внутренняя ошибка. Попробуйте позже.")
     finally:
         try:
             await callback.message.delete()
         except:
             pass
-            
+
 @universal_router.callback_query(F.data == "action_cancel")
 async def action_cancel_callback(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
@@ -358,15 +387,11 @@ async def choose_shopping_callback(callback: CallbackQuery, state: FSMContext):
 async def choose_food_callback(callback: CallbackQuery, state: FSMContext):
     data = await state.get_data()
     text = data.get('pending_text', '')
-    items = [name for name, _, _ in parse_shopping_items(text)]
-    await state.update_data(
-        pending_items=items,
-        current_index=0,
-        selected_foods=[],
-        meal_type="snack"
-    )
+    # Сохраняем текст для последующего использования
+    await state.update_data(pending_food_text=text)
     await callback.answer()
-    await process_next_food(callback.message, state)
+    # Запускаем выбор типа приёма пищи
+    await cmd_log_food(callback.message, state)
     try:
         await callback.message.delete()
     except:

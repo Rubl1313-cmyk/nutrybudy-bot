@@ -50,7 +50,12 @@ async def recognize_food_from_photo(message: Message) -> List[str]:
 
     description_en = await analyze_food_image(
         optimized,
-        prompt="List all food items visible in this image. Be specific. Return as a comma-separated list."
+        prompt="Analyze this food image. "
+        "FIRST: Try to identify if this is a KNOWN DISH "
+        "If it's a known dish, return ONLY the dish name. "
+        "SECOND: If it's not a known dish or contains multiple separate items, list the MAIN visible food items (max 5). "
+        "Return as a comma-separated list in English. "
+        "Examples: 'caesar salad with shrimp', 'grilled chicken with rice', 'tomato, cucumber, cheese'.""
     )
     if not description_en:
         return []

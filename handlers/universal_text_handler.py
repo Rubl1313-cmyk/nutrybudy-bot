@@ -258,6 +258,12 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
         reply_markup=keyboard
     )
     return
+    
+@universal_router.callback_query(F.data.startswith("water_"))
+async def debug_water_callback(callback: CallbackQuery):
+    logger.info(f"🐞 DEBUG: Получен callback с data = {callback.data}")
+    # Не отвечаем на callback, чтобы дать возможность сработать другим обработчикам
+    # await callback.answer()  # раскомментируйте, если нужно сразу ответить
 
 # ----- ОБРАБОТЧИКИ КНОПОК ДЛЯ ВОДЫ -----
 @universal_router.callback_query(lambda c: c.data == "water_drink")

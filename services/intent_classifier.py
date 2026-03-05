@@ -1,10 +1,11 @@
 """
 Модуль для классификации намерений пользователя по тексту.
 Использует приоритеты и строгие регулярные выражения для точного определения.
-Добавлено распознавание расстояния в километрах и улучшен парсинг длительности.
+Добавлена поддержка чисел, записанных словами.
 """
 import re
 from typing import Dict, Any, Optional, List
+from utils.number_parser import parse_russian_number  # новый импорт
 
 # Константы
 MEAL_TYPES = {
@@ -46,7 +47,7 @@ ACTIVITY_TYPES = {
     "фигурное катание": "ice_skating_figure"
 }
 
-# Ключевые слова для разных намерений (с учётом границ слов)
+# Ключевые слова для разных намерений
 INTENT_KEYWORDS = {
     "water": [
         r'\bвода\b', r'\bводы\b', r'\bвыпил\b', r'\bпопил\b', r'\bпить\b',
@@ -81,7 +82,7 @@ INTENT_KEYWORDS = {
         r'\bпомоги\b', r'\bрецепт\b', r'\bчто такое\b', r'\bкак сделать\b',
         r'\bпочему\b', r'\bзачем\b', r'\bкогда\b', r'\bгде\b', r'\bкто\b',
         r'\bнапиши\b', r'\bсоставь\b', r'\bпридумай\b', r'\bрасскажи\b',
-        r'\bобъясни\b', r'\bпосоветуй\b'
+        r'\bобъясни\b', r'\bпосоветуй\b', r'\джарвис\b'
     ]
 }
 
@@ -94,11 +95,8 @@ def classify(text: str) -> Dict[str, Any]:
     result = {"intent": "unknown", "original_text": text}
 
     # ----- 1. Шаги (наивысший приоритет) -----
-    steps_match = re.search(r'(\d+)(?:\s*(?:тысяч|тыс|к|км))?\s*(?:шаг|шага|шагов|шаги)', text_lower)
-    if steps_match:
-        steps = int(steps_match.group(1))
-        if any(x in text_lower for x in ['тысяч', 'тыс', 'к']):
-            steps *= 1000
+    steps = _extract_steps(text_lower)
+    if steps is not None:
         result["intent"] = "activity"
         result["activity_type"] = "walking"
         result["steps"] = steps
@@ -133,9 +131,9 @@ def classify(text: str) -> Dict[str, Any]:
 
     if any(re.search(kw, text_lower) for kw in INTENT_KEYWORDS["water"]):
         result["intent"] = "water"
-        amount_match = re.search(r'(\d+)\s*(?:мл|литр|л|бутыл[а-я]*)', text_lower)
-        if amount_match:
-            result["amount"] = int(amount_match.group(1))
+        amount = _extract_water_amount(text_lower)
+        if amount:
+            result["amount"] = amount
         return result
 
     # ----- 4. Покупки -----
@@ -194,39 +192,130 @@ def classify(text: str) -> Dict[str, Any]:
     result["intent"] = "ai"
     return result
 
+def _extract_steps(text: str) -> Optional[int]:
+    """Извлекает количество шагов из текста (цифры или слова)."""
+    # Ищем ключевое слово "шаг" в разных формах
+    step_match = re.search(r'\b(шаг|шага|шагов|шаги)\b', text)
+    if not step_match:
+        return None
+    # Пытаемся найти число перед или после ключевого слова
+    # Сначала ищем цифры
+    digit_match = re.search(r'(\d+(?:\s*тысяч|\s*тыс)?)\s*(?:шаг|шага|шагов|шаги)', text)
+    if digit_match:
+        num_str = digit_match.group(1).replace('тысяч', '').replace('тыс', '').strip()
+        try:
+            num = int(num_str)
+            if 'тыс' in digit_match.group(0) or 'тысяч' in digit_match.group(0):
+                num *= 1000
+            return num
+        except:
+            pass
+    # Ищем словесное число
+    # Получаем текст до ключевого слова или после
+    parts = re.split(r'\b(шаг|шага|шагов|шаги)\b', text, maxsplit=1)
+    # Берём часть перед ключевым словом
+    before = parts[0].strip()
+    if before:
+        num = parse_russian_number(before)
+        if num is not None:
+            return int(num)
+    # Если не нашли, возможно число после (например, "шагов пять")
+    if len(parts) > 2:
+        after = parts[2].strip()
+        num = parse_russian_number(after)
+        if num is not None:
+            return int(num)
+    return None
+
 def _extract_duration(text: str) -> Optional[int]:
     """
     Извлекает длительность в минутах.
-    Поддерживает форматы: "30 минут", "1 час", "2 часа 30 минут", "полчаса", "час".
+    Поддерживает цифры и словесные числа, а также "полчаса", "час", "минута" и т.д.
     """
-    # Проверка на словесные обозначения
-    if re.search(r'\bполчаса\b', text):
+    # Проверка на специальные слова
+    if 'полчаса' in text:
         return 30
-    if re.search(r'\bчас\b', text) and not re.search(r'\bполчаса\b', text):
-        # Проверим, нет ли рядом числа (например, "1 час" обработается ниже)
-        # Если есть слово "час" без числа, считаем 60 минут
-        if not re.search(r'\d+\s*час', text):
+    if 'час' in text and not re.search(r'\d+\s*час', text):
+        # Если есть слово "час" без числа, но нет других указателей, считаем 1 час
+        # Но нужно проверить, не является ли это частью составного (например, "полтора часа")
+        if 'полтора' in text or 'полторы' in text:
+            return 90
+        if 'два часа' in text or 'три часа' in text:
+            # такие случаи обработаются ниже через числа
+            pass
+        else:
             return 60
 
     # Поиск числа с единицей (минуты, часы)
-    match = re.search(r'(\d+)\s*(минут|мин|м|час|ч|часа|часов)', text)
+    # Сначала ищем цифры
+    match = re.search(r'(\d+(?:[.,]\d+)?)\s*(минут|мин|м|час|ч|часа|часов)', text)
     if match:
-        num = int(match.group(1))
+        num = float(match.group(1).replace(',', '.'))
         unit = match.group(2)
         if 'ч' in unit:
             num *= 60
-        return num
+        return int(num)
 
-    # Поиск только числа, если рядом есть слово "минут" или "час" (уже покрыто выше)
-    # Дополнительно: "30 мин" уже покрыто, но "30" без единицы не будем считать длительностью
+    # Ищем словесное число перед единицей
+    # Попробуем найти паттерн: слово-число + (минута/час)
+    patterns = [
+        (r'(\b[а-яё]+(?:\s+[а-яё]+)*?)\s+(минут|мин|час|часа|часов|ч)\b', 1),
+        (r'(минут|мин|час|часа|часов|ч)\s+(\b[а-яё]+(?:\s+[а-яё]+)*?)\b', 2)
+    ]
+    for pattern, group_idx in patterns:
+        match = re.search(pattern, text)
+        if match:
+            num_text = match.group(group_idx)
+            num = parse_russian_number(num_text)
+            if num is not None:
+                unit = match.group(2) if group_idx == 1 else match.group(1)
+                if 'ч' in unit:
+                    num *= 60
+                return int(num)
     return None
 
 def _extract_distance(text: str) -> Optional[float]:
-    """Извлекает расстояние в километрах."""
+    """Извлекает расстояние в километрах (цифры или слова)."""
+    # Сначала ищем цифры
     match = re.search(r'(\d+(?:[.,]\d+)?)\s*(?:км|километр|километра|километров)', text)
     if match:
-        dist_str = match.group(1).replace(',', '.')
-        return float(dist_str)
+        return float(match.group(1).replace(',', '.'))
+    # Ищем словесное число
+    patterns = [
+        (r'(\b[а-яё]+(?:\s+[а-яё]+)*?)\s+(?:км|километр|километра|километров)\b', 1),
+        (r'(?:км|километр|километра|километров)\s+(\b[а-яё]+(?:\s+[а-яё]+)*?)\b', 1)
+    ]
+    for pattern, group_idx in patterns:
+        match = re.search(pattern, text)
+        if match:
+            num_text = match.group(group_idx)
+            num = parse_russian_number(num_text)
+            if num is not None:
+                return float(num)
+    return None
+
+def _extract_water_amount(text: str) -> Optional[int]:
+    """Извлекает количество воды в миллилитрах из текста."""
+    # Сначала стандартный парсер из water_parser (цифры с единицами)
+    from utils.water_parser import parse_water_amount
+    amount = parse_water_amount(text)
+    if amount:
+        return amount
+    # Если не нашли, пробуем словесные числа
+    # Ищем ключевые слова: литр, мл, стакан и т.д.
+    for word, ml in [('литр', 1000), ('литра', 1000), ('литров', 1000),
+                     ('стакан', 250), ('стакана', 250), ('стаканов', 250),
+                     ('кружка', 300), ('кружки', 300), ('бутылка', 500)]:
+        if word in text:
+            # Ищем число перед словом
+            parts = text.split(word)
+            before = parts[0].strip()
+            num = parse_russian_number(before)
+            if num is not None:
+                return int(num * ml)
+            else:
+                # Если числа нет, возможно подразумевается 1
+                return ml
     return None
 
 def _extract_reminder_title(text: str) -> Optional[str]:
@@ -241,6 +330,7 @@ def _extract_time(text: str) -> Optional[str]:
     match = re.search(r'\bв\s*(\d{1,2})[:.](\d{2})\b', text)
     if match:
         return f"{match.group(1).zfill(2)}:{match.group(2)}"
+    # Можно добавить распознавание словесного времени, но пока оставим
     return None
 
 def _remove_keywords(text: str, keywords: List[str]) -> str:

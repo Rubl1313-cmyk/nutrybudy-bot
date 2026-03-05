@@ -268,17 +268,9 @@ async def debug_water_callback(callback: CallbackQuery):
 
 # ----- ОБРАБОТЧИКИ КНОПОК ДЛЯ ВОДЫ -----
 @universal_router.callback_query(lambda c: c.data == "water_drink")
-async def water_drink_callback(callback: CallbackQuery, state: FSMContext, bot: Bot, dispatcher: Dispatcher):
+async def water_drink_callback(callback: CallbackQuery, state: FSMContext):
     logger.info(f"🍷 water_drink_callback: начало, user_id={callback.from_user.id}")
-    
-    # Правильный способ получения состояния
-    correct_state = dispatcher.fsm.get_context(
-        bot=bot,
-        chat_id=callback.from_user.id,
-        user_id=callback.from_user.id
-    )
-    
-    data = await correct_state.get_data()
+    data = await state.get_data()
     amount = data.get('water_amount')
     logger.info(f"🍷 water_drink_callback: amount из state = {amount}")
     user_id = callback.from_user.id

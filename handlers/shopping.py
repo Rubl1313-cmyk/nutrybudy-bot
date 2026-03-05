@@ -66,10 +66,11 @@ async def get_or_create_default_list(telegram_id: int, session, event=None):
 
 @router.message(Command("shopping"))
 @router.message(F.text == "📋 Списки покупок")
-async def cmd_shopping(message: Message, state: FSMContext):
+async def cmd_shopping(message: Message, state: FSMContext, user_id: int = None):
     """Показать основной список покупок."""
     await state.clear()
-    user_id = message.from_user.id
+    if user_id is None:
+        user_id = message.from_user.id
 
     async with get_session() as session:
         shopping_list = await get_or_create_default_list(user_id, session, message)
@@ -104,6 +105,7 @@ async def cmd_shopping(message: Message, state: FSMContext):
             parse_mode="HTML"
         )
 
+# ... остальные функции без изменений
 async def add_to_shopping_list(event, text: str):
     """
     Добавляет товары в список покупок из текста.

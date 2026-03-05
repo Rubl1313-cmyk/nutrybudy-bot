@@ -157,11 +157,18 @@ def classify(text: str) -> Dict[str, Any]:
     # ----- 6. Погода -----
     if any(re.search(kw, text_lower) for kw in INTENT_KEYWORDS["weather"]):
         result["intent"] = "weather"
-        city_match = re.search(r'(?:в|для)\s+([а-яё\-\s]+)', text_lower)
-        if city_match:
-            result["city"] = city_match.group(1).strip()
+        # Пытаемся извлечь город из различных форматов
+        city = None
+        # 1. После "в" или "для" (например, "погода в москве", "температура для спб")
+        match = re.search(r'(?:в|для)\s+([а-яё\-\s]+)', text_lower)
+        if match:
+            city = match.group(1).strip()
         else:
-            result["city"] = None
+            # 2. Если нет предлога, ищем слово после "погода" или "температура"
+            match = re.search(r'(?:погода|температура|прогноз)\s+([а-яё\-\s]+)', text_lower)
+            if match:
+                city = match.group(1).strip()
+        result["city"] = city
         return result
 
     # ----- 7. AI-запросы (явные) -----

@@ -15,8 +15,8 @@ import traceback
 import re
 from typing import List, Dict, Optional
 
-from services.cloudflare_ai import identify_dish_from_image, transcribe_audio, analyze_food_image
-from services.food_api import search_food
+from services.cloudflare_ai import identify_food_multimodel, transcribe_audio
+from services.food_api import search_food, get_food_data  # добавим get_food_data в food_api позже
 from services.translator import translate_dish_name, translate_to_russian, extract_food_items
 from utils.states import FoodStates
 from database.db import get_session
@@ -43,6 +43,7 @@ def _prepare_image(image_bytes: bytes) -> bytes:
 
 async def get_food_data(name: str) -> Dict:
     """Получает базовые данные продукта из локальной базы."""
+    # Эта функция уже есть в этом же файле, оставляем как есть
     search_results = await search_food(name)
     if search_results:
         best = search_results[0]
@@ -61,7 +62,6 @@ async def get_food_data(name: str) -> Dict:
             'base_fat': 0,
             'base_carbs': 0
         }
-
 async def update_totals_message(chat_id: int, message_id: int, bot, selected_foods: List[Dict]):
     """Обновляет сообщение с итогами."""
     total_cal = sum(f['calories'] for f in selected_foods)
@@ -161,7 +161,7 @@ async def start_food_input(
 
 @router.message(F.photo)
 async def handle_photo(message: Message, state: FSMContext):
-    """Обработка фото: распознавание блюда/ингредиентов и предложение выбора."""
+    """Обработка фото: улучшенное распознавание через мультимодельный JSON."""
     # Защита от повторной обработки
     data = await state.get_data()
     last_photo_id = data.get('last_photo_id')
@@ -176,7 +176,7 @@ async def handle_photo(message: Message, state: FSMContext):
             logger.info(f"User in state {current_state}, ignoring photo")
             return
 
-        await message.answer("🔍 Анализирую изображение через Cloudflare AI...")
+        await message.answer("🔍 Анализирую изображение через AI (мультимодельный режим)...")
         # Скачиваем и подготавливаем фото
         photo = message.photo[-1]
         file_info = await message.bot.get_file(photo.file_id)
@@ -184,33 +184,51 @@ async def handle_photo(message: Message, state: FSMContext):
         file_data = file_bytes.read()
         optimized = _prepare_image(file_data)
 
-        # Пытаемся определить название блюда через новую функцию
-        dish_name_en = await identify_dish_from_image(optimized)
-        if dish_name_en:
-            # Используем улучшенный перевод для названий блюд
-            dish_name_ru = await translate_dish_name(dish_name_en)
-            logger.info(f"🍽 Распознано блюдо: {dish_name_en} → {dish_name_ru}")
-            # Проверяем, есть ли блюдо в базе (по русскому названию)
-            dish_data = await get_food_data(dish_name_ru)
-            if dish_data['base_calories'] > 0:
-                # Блюдо найдено, запускаем интерфейс с одним продуктом
-                await start_food_input(message, state, [dish_name_ru], meal_type="snack")
+        # Используем новую мультимодельную функцию
+        food_data = await identify_food_multimodel(optimized)
+
+        if food_data and 'dish_name' in food_data:
+            dish_name = food_data['dish_name']
+            ingredients = food_data.get('ingredients', [])
+            logger.info(f"🍽 Распознано: блюдо='{dish_name}', ингредиенты={ingredients}")
+
+            # Проверяем, есть ли блюдо в базе
+            dish_info = await get_food_data(dish_name)
+            if dish_info['base_calories'] > 0:
+                # Блюдо найдено – запускаем как один продукт
+                await start_food_input(message, state, [dish_name], meal_type="snack")
+                await state.update_data(last_photo_id=message.message_id)
+                return
+            elif ingredients:
+                # Используем ингредиенты
+                await start_food_input(message, state, ingredients, meal_type="snack")
                 await state.update_data(last_photo_id=message.message_id)
                 return
             else:
-                logger.info(f"🍽 Блюдо '{dish_name_ru}' не найдено в базе, переходим к ингредиентам")
+                # Есть только название, но его нет в базе – предлагаем ввести вручную или уточнить
+                await message.answer(
+                    f"🍽 Распознано блюдо: {dish_name}\n\n"
+                    "Но оно не найдено в базе. Вы можете:\n"
+                    "• Ввести ингредиенты вручную\n"
+                    "• Отправить другое фото",
+                    reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                        [InlineKeyboardButton(text="✏️ Ввести вручную", callback_data="food_manual")],
+                        [InlineKeyboardButton(text="❌ Отмена", callback_data="action_cancel")]
+                    ])
+                )
+                return
         else:
-            logger.info("🍽 Не удалось распознать название блюда")
-
-        # Если не удалось распознать блюдо или оно не найдено, пробуем старый метод (ингредиенты)
-        logger.info("No dish recognized or not in DB, trying ingredient list")
-        translated_items = await recognize_food_from_photo(message)
-        if not translated_items:
-            await message.answer("❌ Не удалось распознать фото. Попробуйте ввести вручную через /log_food.")
-            return
-
-        await state.update_data(last_photo_id=message.message_id)
-        await start_food_input(message, state, translated_items, meal_type="snack")
+            # Не удалось распознать
+            logger.warning("❌ Не удалось распознать фото через мультимодельный режим")
+            await message.answer(
+                "❌ Не удалось распознать фото. Попробуйте:\n"
+                "• Отправить более чёткое фото\n"
+                "• Ввести продукты вручную",
+                reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text="✏️ Ввести вручную", callback_data="food_manual")],
+                    [InlineKeyboardButton(text="❌ Отмена", callback_data="action_cancel")]
+                ])
+            )
 
     except Exception as e:
         logger.error(f"❌ Photo error: {e}\n{traceback.format_exc()}")

@@ -113,8 +113,13 @@ async def add_to_shopping_list(event, text: str):
     """
     from aiogram.types import Message, CallbackQuery
     user_id = event.from_user.id
+    logger.info(f"🛒 add_to_shopping_list: начало, user_id={user_id}, text='{text}'")
+    
     parsed = parse_shopping_items(text)
+    logger.info(f"🛒 parse_shopping_items вернул: {parsed}")
+    
     if not parsed:
+        logger.warning("🛒 parse_shopping_items не нашёл товаров")
         if isinstance(event, Message):
             await event.answer("❌ Не удалось распознать товары.")
         elif isinstance(event, CallbackQuery):
@@ -125,6 +130,7 @@ async def add_to_shopping_list(event, text: str):
     async with get_session() as session:
         shopping_list = await get_or_create_default_list(user_id, session, event)
         if not shopping_list:
+            logger.error(f"🛒 Не удалось получить список покупок для user_id={user_id}")
             if isinstance(event, Message):
                 await event.answer("❌ Не удалось получить список покупок.")
             elif isinstance(event, CallbackQuery):
@@ -134,6 +140,7 @@ async def add_to_shopping_list(event, text: str):
 
         added = []
         for name, qty, unit in parsed:
+            logger.info(f"🛒 Добавляем товар: name={name}, qty={qty}, unit={unit}")
             item = ShoppingItem(
                 list_id=shopping_list.id,
                 name=name,
@@ -144,6 +151,7 @@ async def add_to_shopping_list(event, text: str):
             session.add(item)
             added.append(f"{name} — {qty} {unit}")
         await session.commit()
+        logger.info(f"🛒 Добавлено {len(added)} товаров: {added}")
 
     if added:
         if isinstance(event, Message):

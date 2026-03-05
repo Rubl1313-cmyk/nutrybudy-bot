@@ -14,7 +14,7 @@ import traceback
 import re
 from typing import List, Dict, Optional
 
-from services.cloudflare_ai import analyze_food_image, transcribe_audio
+from services.cloudflare_ai import analyze_food_image, transcribe_audio, identify_dish_from_image
 from services.food_api import search_food
 from services.translator import translate_to_russian, extract_food_items
 from utils.states import FoodStates
@@ -165,7 +165,9 @@ async def handle_photo(message: Message, state: FSMContext):
     data = await state.get_data()
     last_photo_id = data.get('last_photo_id')
     logger.info(f"📸 Текущий last_photo_id: {last_photo_id}, новое message_id: {message.message_id}")
-
+     dish_name_en = await identify_dish_from_image(optimized)
+    if dish_name_en:
+        dish_name_ru = await translate_to_russian(dish_name_en)
     # Если это сообщение уже обрабатывали, игнорируем
     if last_photo_id == message.message_id:
         logger.info(f"📸 Повторное игнорирование фото {message.message_id}")

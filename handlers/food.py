@@ -56,7 +56,7 @@ async def perform_food_search(message: Message, state: FSMContext, search_text: 
     logger.info(f"✅ Найдено {len(foods)} продуктов, показываем список (show_skip={show_skip})")
     await message.answer(
         "✅ Выберите продукт:",
-        reply_markup=get_food_selection_keyboard(foods[:5], show_skip=show_skip)
+        reply_markup=get_food_selection_keyboard(foods[:10], show_skip=len(pending) > 0)
     )
 
 async def handle_food_text(message: Message, state: FSMContext, text: str):

@@ -231,6 +231,7 @@ async def menu_help(message: Message, state: FSMContext):
 
 @router.message(F.text == "🤖 AI Помощник")
 async def menu_ai_assistant(message: Message, state: FSMContext):
+    from handlers.ai_assistant import cmd_ask
     await cmd_ask(message, state)
 
 # ========== Обработчики навигационных callback'ов ==========

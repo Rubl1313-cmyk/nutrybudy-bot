@@ -2,6 +2,7 @@
 Обработчик дневника питания (ручной ввод)
 ✅ Поддержка составных блюд: разбивка на компоненты, пошаговый ввод
 ✅ Проверка полноты профиля через is_profile_complete
+✅ Запоминание ранее введённого текста из universal_text_handler
 """
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery
@@ -17,7 +18,7 @@ from services.food_api import search_food
 from keyboards.inline import get_meal_type_keyboard, get_food_selection_keyboard, get_confirmation_keyboard
 from keyboards.reply import get_main_keyboard, get_cancel_keyboard
 from utils.states import FoodStates
-from handlers.profile import is_profile_complete  # импортируем функцию проверки
+from handlers.profile import is_profile_complete
 
 router = Router()
 
@@ -43,7 +44,6 @@ async def cmd_log_food(message: Message, state: FSMContext, user_id: int = None)
             select(User).where(User.telegram_id == user_id)
         )
         user = result.scalar_one_or_none()
-        # Проверяем наличие всех обязательных полей профиля
         if not user or not await is_profile_complete(user):
             await message.answer(
                 "❌ Сначала полностью настройте профиль через /set_profile.\n"
@@ -52,7 +52,7 @@ async def cmd_log_food(message: Message, state: FSMContext, user_id: int = None)
             )
             return
 
-    await state.clear()
+    # НЕ очищаем состояние, чтобы сохранить pending_food_text
     await state.set_state(FoodStates.choosing_meal_type)
     await message.answer(
         "🍽️ <b>Выбери тип приёма пищи:</b>\n\n"
@@ -63,12 +63,27 @@ async def cmd_log_food(message: Message, state: FSMContext, user_id: int = None)
 
 @router.callback_query(F.data.startswith("meal_"), FoodStates.choosing_meal_type)
 async def process_meal_type(callback: CallbackQuery, state: FSMContext):
+    """Обработка выбора типа приёма пищи."""
     meal_type = callback.data.split("_")[1]
     await state.update_data(meal_type=meal_type)
-    await state.set_state(FoodStates.searching_food)
-    await callback.message.edit_text(
-        "🔍 Введи название продукта или блюда (можно перечислить через запятую):"
-    )
+    
+    # Проверяем, есть ли сохранённый текст для поиска
+    data = await state.get_data()
+    pending_text = data.get('pending_food_text')
+    if pending_text:
+        # Удаляем его, чтобы не использовать повторно
+        await state.update_data(pending_food_text=None)
+        # Устанавливаем состояние поиска
+        await state.set_state(FoodStates.searching_food)
+        # Создаём фиктивное сообщение для process_food_search
+        fake_message = callback.message
+        fake_message.text = pending_text
+        await process_food_search(fake_message, state)
+    else:
+        await state.set_state(FoodStates.searching_food)
+        await callback.message.edit_text(
+            "🔍 Введи название продукта или блюда (можно перечислить через запятую):"
+        )
     await callback.answer()
 
 @router.message(FoodStates.searching_food, F.text)

@@ -140,47 +140,33 @@ async def process_food_search(message: Message, state: FSMContext):
 @router.callback_query(F.data.startswith("food_"), FoodStates.selecting_food)
 async def process_food_selection(callback: CallbackQuery, state: FSMContext):
     if callback.data == "food_manual":
-        logger.info("✏️ Пользователь выбрал ручной ввод")
         await state.set_state(FoodStates.manual_food_name)
         await callback.message.edit_text("📝 Введите название продукта:")
         await callback.answer()
         return
-
-    if callback.data == "food_skip":
-        logger.info("⏭️ Пользователь пропустил продукт")
-        data = await state.get_data()
-        idx = data.get('current_index', 0)
-        pending = data.get('pending_items', [])
-        if pending:
-            await state.update_data(current_index=idx + 1)
-            await process_next_food(callback.message, state)
-        else:
-            await state.set_state(FoodStates.searching_food)
-            await callback.message.edit_text("🔍 Введи название продукта или блюда:")
-        await callback.answer()
-        return
-
     try:
         index = int(callback.data.split("_")[1])
     except (IndexError, ValueError):
         await callback.answer("❌ Ошибка", show_alert=True)
         return
-
     data = await state.get_data()
     foods = data.get('foods', [])
     if index >= len(foods):
         await callback.answer("❌ Ошибка", show_alert=True)
         return
-
     selected = foods[index]
     await state.update_data(selected_food=selected)
     await state.set_state(FoodStates.entering_weight)
-    logger.info(f"✅ Выбран продукт: {selected['name']}, переход к вводу веса")
-
+    
+    # 🔥 Показываем полное КБЖУ
     await callback.message.edit_text(
-        f"✅ {selected['name']}\n"
-        f"📊 {selected.get('calories', 0)} ккал/100г\n\n"
-        f"⚖️ Введите вес в граммах:",
+        f"✅ <b>{selected['name']}</b>\n"
+        f"📊 <b>На 100г:</b>\n"
+        f"🔥 {selected.get('calories', 0):.0f} ккал\n"
+        f"🥩 {selected.get('protein', 0):.1f}г белков\n"
+        f"🥑 {selected.get('fat', 0):.1f}г жиров\n"
+        f"🍚 {selected.get('carbs', 0):.1f}г углеводов\n"
+        f"\n⚖️ <b>Введите вес в граммах:</b>",
         parse_mode="HTML"
     )
     await callback.answer()

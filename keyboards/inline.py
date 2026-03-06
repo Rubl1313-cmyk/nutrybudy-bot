@@ -62,6 +62,10 @@ def get_food_selection_keyboard(foods: List[dict], show_skip: bool = False):
     return builder.as_markup()
 
 def get_confirmation_keyboard(action: str = ""):
+    """
+    Универсальная клавиатура подтверждения.
+    action может быть пустым (для общих случаев) или специфичным, например "reminder_delete".
+    """
     builder = InlineKeyboardBuilder()
     if action:
         builder.button(text="✅ Да", callback_data=f"confirm_{action}")
@@ -138,6 +142,24 @@ def get_reminder_type_keyboard():
     builder.adjust(2)
     return builder.as_markup()
 
+def get_reminders_list_keyboard(reminders):
+    """
+    Создаёт inline-клавиатуру для списка напоминаний.
+    Каждое напоминание отображается в виде строки с названием, временем и кнопкой удаления.
+    """
+    builder = InlineKeyboardBuilder()
+    for rem in reminders:
+        # Кнопка с информацией о напоминании (название и время)
+        info_text = f"{rem.title} — {rem.time}"
+        builder.row(
+            InlineKeyboardButton(text=info_text, callback_data=f"reminder_info_{rem.id}"),
+            InlineKeyboardButton(text="❌", callback_data=f"delete_reminder_{rem.id}"),
+            width=2
+        )
+    # Кнопка для создания нового напоминания
+    builder.row(InlineKeyboardButton(text="➕ Создать напоминание", callback_data="new_reminder"))
+    return builder.as_markup()
+
 def get_progress_options_keyboard():
     builder = InlineKeyboardBuilder()
     builder.button(text="📅 Сегодня", callback_data="progress_day")
@@ -169,11 +191,10 @@ def get_food_menu() -> InlineKeyboardMarkup:
         [InlineKeyboardButton(text="📸 Отправить фото еды", callback_data="menu_food_photo")],
         [InlineKeyboardButton(text="✏️ Ввести продукты вручную", callback_data="menu_food_manual")],
         [InlineKeyboardButton(text="🍽️ План питания", callback_data="menu_meal_plan")],
-        # [InlineKeyboardButton(text="💬 AI Помощник", callback_data="menu_ai")],  # удалено
         [InlineKeyboardButton(text="🔙 Назад", callback_data="menu_back")]
     ]
     return InlineKeyboardMarkup(inline_keyboard=buttons)
-    
+
 def get_water_activity_menu() -> InlineKeyboardMarkup:
     """Подменю «Вода и активность»."""
     buttons = [
@@ -204,7 +225,7 @@ def get_lists_menu() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 def get_profile_menu() -> InlineKeyboardMarkup:
-    """Подменю «Профиль» с кнопкой записи веса."""
+    """Подменю «Профиль»."""
     buttons = [
         [InlineKeyboardButton(text="👤 Просмотр профиля", callback_data="menu_profile_view")],
         [InlineKeyboardButton(text="✏️ Редактировать профиль", callback_data="menu_profile_edit")],

@@ -44,23 +44,22 @@ def get_food_edit_keyboard() -> InlineKeyboardMarkup:
         [InlineKeyboardButton(text="↩️ Назад", callback_data="back_to_overview")]
     ])
 
-def get_food_selection_keyboard(foods: List[dict], show_skip: bool = False):
-    """
-    Клавиатура для выбора продукта из списка.
-    Если show_skip=True, добавляется кнопка пропуска.
-    """
+def get_food_selection_keyboard(foods: List[dict]):
+    """Клавиатура выбора продукта с полным КБЖУ."""
     builder = InlineKeyboardBuilder()
     for i, food in enumerate(foods[:5]):
+        # 🔥 Показываем полное КБЖУ
+        kb_text = (
+            f"{food['name']} — {food.get('calories', 0):.0f} ккал | "
+            f"Б:{food.get('protein', 0):.1f} Ж:{food.get('fat', 0):.1f} У:{food.get('carbs', 0):.1f}"
+        )
         builder.button(
-            text=f"{food['name']} — {food['calories']} ккал",
+            text=kb_text,
             callback_data=f"food_{i}"
         )
     builder.button(text="🔄 Ввести вручную", callback_data="food_manual")
-    if show_skip:
-        builder.button(text="⏭️ Пропустить", callback_data="food_skip")
     builder.adjust(1)
     return builder.as_markup()
-
 def get_confirmation_keyboard(action: str = ""):
     """
     Универсальная клавиатура подтверждения.

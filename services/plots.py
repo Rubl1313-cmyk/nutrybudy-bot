@@ -89,56 +89,63 @@ async def generate_weight_plot(user_id: int, session: AsyncSession) -> Optional[
     """
     График динамики веса (все записи).
     Линейный график + линия тренда.
-    Ось X отформатирована как ДД.ММ.
     """
-    from database.models import WeightEntry
-    result = await session.execute(
-        select(WeightEntry).where(WeightEntry.user_id == user_id).order_by(WeightEntry.datetime)
-    )
-    entries = result.scalars().all()
-    if len(entries) < 2:
-        return None
+    try:
+        from database.models import WeightEntry
+        result = await session.execute(
+            select(WeightEntry).where(WeightEntry.user_id == user_id).order_by(WeightEntry.datetime)
+        )
+        entries = result.scalars().all()
+        logger.info(f"📊 generate_weight_plot: получено {len(entries)} записей для user_id={user_id}")
 
-    dates = [e.datetime for e in entries]
-    weights = [e.weight for e in entries]
+        if len(entries) < 2:
+            logger.warning(f"⚠️ Недостаточно записей веса для графика: {len(entries)}")
+            return None
 
-    plt.figure(figsize=(12, 6))
-    ax = plt.gca()
+        dates = [e.datetime for e in entries]
+        weights = [e.weight for e in entries]
 
-    # Основная линия
-    ax.plot(dates, weights, marker='o', linestyle='-', linewidth=2.5,
-            color=COLORS['weight'], markersize=6, label='Вес')
-    ax.fill_between(dates, min(weights)-1, weights, alpha=0.15, color=COLORS['weight'])
+        plt.figure(figsize=(12, 6))
+        ax = plt.gca()
 
-    # Линия тренда (полиномиальная регрессия 1-й степени)
-    if len(weights) > 3:
-        z = np.polyfit(range(len(weights)), weights, 1)
-        p = np.poly1d(z)
-        ax.plot(dates, p(range(len(weights))), '--', linewidth=2,
-                color=COLORS['trend'], label='Тренд')
+        # Основная линия
+        ax.plot(dates, weights, marker='o', linestyle='-', linewidth=2.5,
+                color=COLORS['weight'], markersize=6, label='Вес')
+        ax.fill_between(dates, min(weights)-1, weights, alpha=0.15, color=COLORS['weight'])
 
-    # Настройка оси X
-    ax.xaxis.set_major_formatter(mdates.DateFormatter('%d.%m'))  # формат: день.месяц
-    # Устанавливаем локатор на каждый день, где есть данные
-    ax.xaxis.set_major_locator(mdates.DayLocator(interval=1))
-    plt.xticks(rotation=45, ha='right')
+        # Линия тренда
+        if len(weights) > 3:
+            z = np.polyfit(range(len(weights)), weights, 1)
+            p = np.poly1d(z)
+            ax.plot(dates, p(range(len(weights))), '--', linewidth=2,
+                    color=COLORS['trend'], label='Тренд')
 
-    # Заголовок с эмодзи (если шрифт доступен)
-    add_text_with_emoji(ax, 0.5, 1.05, '📈 Динамика веса', transform=ax.transAxes,
-                        fontsize=16, fontweight='bold', ha='center', va='bottom')
+        # Настройка оси X
+        ax.xaxis.set_major_formatter(mdates.DateFormatter('%d.%m'))
+        ax.xaxis.set_major_locator(mdates.DayLocator(interval=1))
+        plt.xticks(rotation=45, ha='right')
 
-    ax.set_xlabel('Дата', fontsize=12)
-    ax.set_ylabel('Вес (кг)', fontsize=12)
-    ax.grid(True, alpha=0.3, linestyle='--')
-    ax.legend(loc='best')
-    plt.tight_layout()
+        # Заголовок
+        add_text_with_emoji(ax, 0.5, 1.05, '📈 Динамика веса', transform=ax.transAxes,
+                            fontsize=16, fontweight='bold', ha='center', va='bottom')
 
-    buf = io.BytesIO()
-    plt.savefig(buf, format='png', bbox_inches='tight', dpi=120)
-    plt.close()
-    buf.seek(0)
-    return buf.read()
+        ax.set_xlabel('Дата', fontsize=12)
+        ax.set_ylabel('Вес (кг)', fontsize=12)
+        ax.grid(True, alpha=0.3, linestyle='--')
+        ax.legend(loc='best')
+        plt.tight_layout()
 
+        buf = io.BytesIO()
+        plt.savefig(buf, format='png', bbox_inches='tight', dpi=120)
+        plt.close()
+        buf.seek(0)
+        logger.info(f"✅ График веса успешно сгенерирован, размер {len(buf.getvalue())} байт")
+        return buf.read()
+
+    except Exception as e:
+        logger.error(f"❌ Ошибка при генерации графика веса: {e}", exc_info=True)
+        return None 
+        
 async def generate_water_plot(
     user_id: int,
     session: AsyncSession,

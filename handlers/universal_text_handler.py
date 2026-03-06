@@ -30,9 +30,13 @@ from keyboards.reply import get_main_keyboard
 logger = logging.getLogger(__name__)
 universal_router = Router()
 
-@universal_router.message(F.text, ~F.text.startswith("/"))
+@universal_router.message(
+    F.text, 
+    ~F.text.startswith("/"),
+    ~StateFilter(FoodStates)  # 🔥 Исключаем состояния FoodStates
+)
 async def universal_message_handler(message: Message, state: FSMContext):
-    """Точка входа для всех текстовых сообщений, не начинающихся с '/'."""
+    """Точка входа для всех текстовых сообщений."""
     await handle_universal_text(message, state)
 
 async def handle_universal_text(message: Message, state: FSMContext, text: str = None):

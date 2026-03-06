@@ -1,6 +1,7 @@
 """
 Обработчик дневника питания (ручной ввод)
 ✅ Поддержка составных блюд: разбивка на компоненты, пошаговый ввод
+✅ Проверка полноты профиля через is_profile_complete
 """
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery
@@ -16,9 +17,9 @@ from services.food_api import search_food
 from keyboards.inline import get_meal_type_keyboard, get_food_selection_keyboard, get_confirmation_keyboard
 from keyboards.reply import get_main_keyboard, get_cancel_keyboard
 from utils.states import FoodStates
+from handlers.profile import is_profile_complete  # импортируем функцию проверки
 
 router = Router()
-
 
 def split_food_text(text: str) -> List[str]:
     """
@@ -30,13 +31,10 @@ def split_food_text(text: str) -> List[str]:
     parts = [p.strip() for p in text.split(',') if p.strip()]
     return parts
 
-
 @router.message(Command("log_food"))
 @router.message(F.text == "🍽️ Дневник питания")
 async def cmd_log_food(message: Message, state: FSMContext, user_id: int = None):
     """Начало процесса записи приёма пищи."""
-    await state.clear()
-
     if user_id is None:
         user_id = message.from_user.id
 
@@ -45,13 +43,16 @@ async def cmd_log_food(message: Message, state: FSMContext, user_id: int = None)
             select(User).where(User.telegram_id == user_id)
         )
         user = result.scalar_one_or_none()
-        if not user or not user.weight:
+        # Проверяем наличие всех обязательных полей профиля
+        if not user or not await is_profile_complete(user):
             await message.answer(
-                "❌ Сначала настрой профиль через /set_profile",
+                "❌ Сначала полностью настройте профиль через /set_profile.\n"
+                "Необходимо заполнить: вес, рост, возраст, пол, уровень активности, цель и город.",
                 reply_markup=get_main_keyboard()
             )
             return
 
+    await state.clear()
     await state.set_state(FoodStates.choosing_meal_type)
     await message.answer(
         "🍽️ <b>Выбери тип приёма пищи:</b>\n\n"
@@ -59,9 +60,6 @@ async def cmd_log_food(message: Message, state: FSMContext, user_id: int = None)
         reply_markup=get_meal_type_keyboard(),
         parse_mode="HTML"
     )
-
-# ... остальные функции без изменений (они используют user_id из состояния или message)
-
 
 @router.callback_query(F.data.startswith("meal_"), FoodStates.choosing_meal_type)
 async def process_meal_type(callback: CallbackQuery, state: FSMContext):
@@ -72,7 +70,6 @@ async def process_meal_type(callback: CallbackQuery, state: FSMContext):
         "🔍 Введи название продукта или блюда (можно перечислить через запятую):"
     )
     await callback.answer()
-
 
 @router.message(FoodStates.searching_food, F.text)
 async def process_food_search(message: Message, state: FSMContext):
@@ -102,7 +99,6 @@ async def process_food_search(message: Message, state: FSMContext):
             reply_markup=get_food_selection_keyboard(foods[:5])
         )
 
-
 async def process_next_food(message: Message, state: FSMContext):
     """Обрабатывает следующий продукт из списка pending_items"""
     data = await state.get_data()
@@ -131,7 +127,6 @@ async def process_next_food(message: Message, state: FSMContext):
         f"Выберите подходящий вариант:",
         reply_markup=get_food_selection_keyboard(foods[:5])
     )
-
 
 @router.callback_query(F.data.startswith("food_"), FoodStates.selecting_food)
 async def process_food_selection(callback: CallbackQuery, state: FSMContext):
@@ -164,7 +159,6 @@ async def process_food_selection(callback: CallbackQuery, state: FSMContext):
         parse_mode="HTML"
     )
     await callback.answer()
-
 
 @router.message(FoodStates.manual_food_name, F.text)
 async def process_manual_food_name(message: Message, state: FSMContext):
@@ -200,7 +194,6 @@ async def process_manual_food_name(message: Message, state: FSMContext):
         f"Он будет сохранён с нулевой калорийностью.\n\n"
         f"⚖️ Введите вес в граммах:"
     )
-
 
 @router.message(FoodStates.entering_weight, F.text)
 async def process_weight(message: Message, state: FSMContext):
@@ -253,7 +246,6 @@ async def process_weight(message: Message, state: FSMContext):
         # одиночный продукт – сразу завершаем
         await state.update_data(selected_foods=selected_foods)
         await finish_meal(message, state)
-
 
 async def finish_meal(message: Message, state: FSMContext):
     """Завершение ввода, сохранение приёма пищи"""

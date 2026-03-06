@@ -18,6 +18,7 @@ from typing import Optional, Literal
 import logging
 import numpy as np
 import os
+import matplotlib.dates as mdates
 
 logger = logging.getLogger(__name__)
 
@@ -107,19 +108,24 @@ async def generate_weight_plot(user_id: int, session: AsyncSession) -> Optional[
         plt.plot(dates, p(range(len(weights))), '--', linewidth=2,
                  color=COLORS['trend'], label='Тренд')
 
-    # Заголовок с эмодзи (используем add_text_with_emoji для всего текста)
-    # Но проще установить title через plt.title, который не поддерживает эмодзи, 
-    # поэтому используем add_text_with_emoji для добавления заголовка вручную
+    # Настройка оси X
     ax = plt.gca()
-    ax.set_title("")  # очищаем стандартный заголовок
-    add_text_with_emoji(ax, 0.5, 1.02, "📈 Динамика веса", transform=ax.transAxes, 
-                        ha='center', fontsize=16, fontweight='bold')
-    
+    ax.xaxis.set_major_formatter(mdates.DateFormatter('%d.%m'))  # формат: день.месяц
+    # Устанавливаем локатор на каждый день, где есть данные
+    ax.xaxis.set_major_locator(mdates.DayLocator(interval=1))
+    plt.xticks(rotation=45, ha='right')
+
+    # Заголовок и подписи
+    title_font = get_emoji_font()
+    if title_font:
+        plt.title('📈 Динамика веса', fontsize=16, fontweight='bold', pad=20, fontproperties=title_font)
+    else:
+        plt.title('Динамика веса', fontsize=16, fontweight='bold', pad=20)
+
     plt.xlabel('Дата', fontsize=12)
     plt.ylabel('Вес (кг)', fontsize=12)
     plt.grid(True, alpha=0.3, linestyle='--')
     plt.legend(loc='best')
-    plt.xticks(rotation=45, ha='right')
     plt.tight_layout()
 
     buf = io.BytesIO()

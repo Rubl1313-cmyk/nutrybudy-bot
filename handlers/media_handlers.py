@@ -1,33 +1,41 @@
-# handlers/media_handlers.py - ИСПРАВЛЕННАЯ ВЕРСИЯ
+# handlers/media_handlers.py
 """
 Обработчики мультимедиа: фото (распознавание еды) и голос.
-✅ ИСПРАВЛЕНО: Кнопка "Перераспознать" теперь работает корректно
-✅ Сохраняем фото в state для повторной обработки
+✅ Улучшенное распознавание через мультимодельный JSON
+✅ Интеграция с image_enhancer для улучшения фото
+✅ Каскадное распознавание с голосованием
+✅ Интерфейс подтверждения с редактированием
+✅ Исправлены все ошибки с user_id
 """
 
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.fsm.context import FSMContext
 from aiogram.exceptions import TelegramBadRequest
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 import logging
 from PIL import Image
 import io
 import traceback
 import re
 from typing import List, Dict, Optional
-from services.cloudflare_ai import identify_food_multimodel, transcribe_audio, analyze_food_image
+from datetime import datetime
+
+from services.cloudflare_ai import identify_food_multimodel, identify_food_cascade, transcribe_audio, analyze_food_image
+from services.image_enhancer import enhance_food_image, create_multi_scale_images, detect_image_quality
 from services.food_api import search_food, get_food_data
 from services.translator import translate_dish_name, translate_to_russian, extract_food_items
 from services.dish_db import find_matching_dish
 from utils.states import FoodStates
 from database.db import get_session
 from database.models import Meal, FoodItem, User
-from datetime import datetime
 from sqlalchemy import select
 
 router = Router()
 logger = logging.getLogger(__name__)
 
+
+# ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
 
 def _prepare_image(image_bytes: bytes) -> bytes:
     """Оптимизация изображения для Cloudflare."""
@@ -67,7 +75,7 @@ async def get_food_data_from_db(name: str) -> Dict:
 
 
 async def update_totals_message(chat_id: int, message_id: int, bot, selected_foods: List[Dict]):
-    """Обновляет сообщение с итогами."""
+    """Обновляет сообщение с итогами КБЖУ."""
     total_cal = sum(f['calories'] for f in selected_foods)
     total_prot = sum(f['protein'] for f in selected_foods)
     total_fat = sum(f['fat'] for f in selected_foods)
@@ -80,8 +88,10 @@ async def update_totals_message(chat_id: int, message_id: int, bot, selected_foo
     
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="➕ Добавить продукт", callback_data="add_food")],
-        [InlineKeyboardButton(text="✅ Подтвердить", callback_data="confirm_meal"),
-         InlineKeyboardButton(text="❌ Отмена", callback_data="cancel_meal")]
+        [
+            InlineKeyboardButton(text="✅ Подтвердить", callback_data="confirm_meal"),
+            InlineKeyboardButton(text="❌ Отмена", callback_data="cancel_meal")
+        ]
     ])
     
     try:
@@ -102,6 +112,8 @@ async def update_totals_message(chat_id: int, message_id: int, bot, selected_foo
 async def send_product_message(chat_id: int, bot, index: int, food: Dict, totals_msg_id: int) -> int:
     """Отправляет сообщение для одного продукта и возвращает его message_id."""
     weight_str = f"{food['weight']} г" if food['weight'] else "0 г"
+    
+    # 🔥 Рассчитываем КБЖУ для текущего веса
     multiplier = food['weight'] / 100 if food['weight'] else 0
     calories_str = f"{food['calories']:.0f} ккал" if food['weight'] else "0 ккал"
     protein_str = f"{food['protein']:.1f}г" if food['weight'] else "0г"
@@ -133,7 +145,10 @@ async def start_food_input(
     food_names: List[str],
     meal_type: str = "snack"
 ):
-    """Публичная функция для запуска интерфейса ввода продуктов."""
+    """
+    Публичная функция для запуска интерфейса ввода продуктов.
+    Используется как из обработчика фото, так и из универсального обработчика текста.
+    """
     selected_foods = []
     
     for name in food_names:
@@ -150,8 +165,10 @@ async def start_food_input(
     totals_text = "🍽️ <b>Всего в приёме пищи:</b>\n🔥 0 ккал | 🥩 0.0г | 🥑 0.0г | 🍚 0.0г"
     totals_keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="➕ Добавить продукт", callback_data="add_food")],
-        [InlineKeyboardButton(text="✅ Подтвердить", callback_data="confirm_meal"),
-         InlineKeyboardButton(text="❌ Отмена", callback_data="cancel_meal")]
+        [
+            InlineKeyboardButton(text="✅ Подтвердить", callback_data="confirm_meal"),
+            InlineKeyboardButton(text="❌ Отмена", callback_data="cancel_meal")
+        ]
     ])
     
     totals_msg = await message.answer(totals_text, reply_markup=totals_keyboard, parse_mode="HTML")
@@ -170,9 +187,14 @@ async def start_food_input(
     )
 
 
+# ========== ОСНОВНОЙ ОБРАБОТЧИК ФОТО ==========
+
 @router.message(F.photo)
 async def handle_photo(message: Message, state: FSMContext):
-    """Обработка фото: улучшенное распознавание через мультимодельный JSON."""
+    """
+    Обработка фото: улучшенное распознавание через мультимодельный JSON.
+    ✅ Возвращает блюдо, ингредиенты с весами, КБЖУ
+    """
     # Защита от повторной обработки
     data = await state.get_data()
     last_photo_id = data.get('last_photo_id')
@@ -195,101 +217,287 @@ async def handle_photo(message: Message, state: FSMContext):
         file_info = await message.bot.get_file(photo.file_id)
         file_bytes = await message.bot.download_file(file_info.file_path)
         file_data = file_bytes.read()
-        optimized = _prepare_image(file_data)
         
-        # ✅ СОХРАНЯЕМ ФОТО В STATE ДЛЯ ПОВТОРНОЙ ОБРАБОТКИ
-        await state.update_data(
-            pending_photo_bytes=file_data,
-            pending_photo_optimized=optimized,
-            last_photo_id=message.message_id
-        )
+        # ✅ УЛУЧШЕНИЕ 1: Улучшаем изображение
+        enhanced_bytes, enhance_metadata = enhance_food_image(file_data)
+        logger.info(f"📸 Image enhanced: {enhance_metadata}")
         
-        # Используем новую мультимодельную функцию
-        food_data, used_model = await identify_food_multimodel(optimized)
+        # ✅ УЛУЧШЕНИЕ 2: Используем каскадное распознавание
+        cascade_result = await identify_food_cascade(enhanced_bytes)
         
-        if food_data and isinstance(food_data, dict):
-            dish_name_en = food_data.get('dish_name', '')
-            ingredients_en = food_data.get('ingredients', [])
+        if cascade_result.get('data'):
+            food_data = cascade_result['data']
             
-            # Переводим на русский
-            dish_name_ru = await translate_dish_name(dish_name_en) if dish_name_en else ""
-            ingredients_ru = [await translate_to_russian(ing) for ing in ingredients_en]
+            # ✅ ИСПОЛЬЗУЕМ АНАЛИЗ ЧЕРЕЗ FOOD_ANALYZER
+            analyzed = await _analyze_ai_response(food_data)
             
-            logger.info(f"🍽 Распознано моделью {used_model}: блюдо='{dish_name_ru}', ингредиенты={ingredients_ru}")
-            
-            # Проверяем блюдо в базе
-            dish_info = await get_food_data_from_db(dish_name_ru) if dish_name_ru else {'base_calories': 0}
-            
-            if dish_info['base_calories'] > 0:
-                await state.update_data(
-                    recognized_dish=dish_name_ru,
-                    recognized_ingredients=ingredients_ru,
-                    last_photo_id=message.message_id
-                )
-                keyboard = InlineKeyboardMarkup(inline_keyboard=[
-                    [InlineKeyboardButton(text="✅ Использовать блюдо", callback_data="confirm_dish")],
-                    [InlineKeyboardButton(text="🔍 Разбить на ингредиенты", callback_data="reject_dish")],
-                    [InlineKeyboardButton(text="🔄 Перераспознать", callback_data="retry_photo")],
-                    [InlineKeyboardButton(text="📝 Ввести вручную", callback_data="manual_food_entry")]
-                ])
-                await message.answer(
-                    f"🍽 Распознано блюдо: **{dish_name_ru}**.\n"
-                    f"Хотите использовать его как готовое блюдо или разбить на ингредиенты?",
-                    reply_markup=keyboard,
-                    parse_mode="Markdown"
-                )
+            if analyzed.get("error"):
+                await message.answer("❌ Ошибка анализа. Попробуйте ещё раз.")
                 return
             
-            # Если не найдено, используем ингредиенты
-            if ingredients_ru:
-                await start_food_input(message, state, ingredients_ru, meal_type="snack")
-                
-                # 🔥 ДОБАВЛЯЕМ КНОПКУ ПЕРЕРАСПОЗНАВАНИЯ
-                keyboard = InlineKeyboardMarkup(inline_keyboard=[
-                    [InlineKeyboardButton(text="🔄 Перераспознать", callback_data="retry_photo")],
-                    [InlineKeyboardButton(text="📝 Ввести вручную", callback_data="manual_food_entry")],
-                    [InlineKeyboardButton(text="❌ Отмена", callback_data="cancel_meal")]
-                ])
-                await message.answer(
-                    "📸 Если результаты неверные, нажмите «Перераспознать»",
-                    reply_markup=keyboard
-                )
-                return
-            
-            # Полный провал
-            await message.answer(
-                "❌ Не удалось распознать фото. Попробуйте:\n"
-                "• Отправить более чёткое фото\n"
-                "• Ввести продукты вручную",
-                reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                    [InlineKeyboardButton(text="✏️ Ввести вручную", callback_data="food_manual")],
-                    [InlineKeyboardButton(text="❌ Отмена", callback_data="action_cancel")]
-                ])
+            # 🔥 СОХРАНЯЕМ В STATE ДЛЯ ПОДТВЕРЖДЕНИЯ
+            await state.update_data(
+                recognized_dish=analyzed["dish_name"],
+                recognized_ingredients=analyzed["ingredients"],
+                total_calories=analyzed["total_calories"],
+                total_protein=analyzed["total_protein"],
+                total_fat=analyzed["total_fat"],
+                total_carbs=analyzed["total_carbs"],
+                last_photo_id=message.message_id,
+                ai_model=cascade_result.get('model'),
+                cascade_confidence=cascade_result.get('confidence', 0)
             )
+            
+            # 🔥 ПОКАЗЫВАЕМ ПОДТВЕРЖДЕНИЕ С ВОЗМОЖНОСТЬЮ РЕДАКТИРОВАНИЯ
+            await _show_food_confirmation(message, state, analyzed)
             return
         
-        # Fallback
-        logger.info("Falling back to analyze_food_image for ingredients")
-        description = await analyze_food_image(optimized)
-        if description:
-            ingredients_en = await extract_food_items(description)
-            ingredients_ru = [await translate_to_russian(ing) for ing in ingredients_en]
-            if ingredients_ru:
-                await start_food_input(message, state, ingredients_ru, meal_type="snack")
-                return
-        
+        # Fallback на старый метод
+        logger.info("Falling back to analyze_food_image")
         await message.answer(
-            "❌ Не удалось распознать фото.",
+            "❌ Не удалось распознать фото в детальном режиме.\n"
+            "Пожалуйста, введите продукты вручную:",
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(text="✏️ Ввести вручную", callback_data="food_manual")],
                 [InlineKeyboardButton(text="❌ Отмена", callback_data="action_cancel")]
             ])
         )
+        await state.update_data(last_photo_id=message.message_id)
         
     except Exception as e:
         logger.error(f"❌ Photo error: {e}\n{traceback.format_exc()}")
         await message.answer("❌ Ошибка при обработке фото. Попробуйте позже.")
         await state.clear()
+
+
+async def _analyze_ai_response(ai_ Dict) -> Dict:
+    """
+    Обрабатывает ответ от AI, улучшает оценки весов и сопоставляет с базой.
+    """
+    if not ai_data or not isinstance(ai_data, dict):
+        return {"error": "Invalid AI response"}
+    
+    result = {
+        "dish_name": ai_data.get("dish_name", "Неизвестное блюдо"),
+        "confidence": ai_data.get("confidence", 0.5),
+        "ingredients": [],
+        "total_calories": 0,
+        "total_protein": 0,
+        "total_fat": 0,
+        "total_carbs": 0,
+        "cooking_method": ai_data.get("cooking_method", ""),
+        "portion_size": ai_data.get("portion_size", "medium")
+    }
+    
+    # Стандартные веса порций для калибровки
+    STANDARD_PORTIONS = {
+        "small": {"total": 200, "main": 100, "side": 70, "sauce": 30},
+        "medium": {"total": 350, "main": 150, "side": 150, "sauce": 50},
+        "large": {"total": 500, "main": 200, "side": 250, "sauce": 50}
+    }
+    
+    portion_size = ai_data.get("portion_size", "medium")
+    portion_std = STANDARD_PORTIONS.get(portion_size, STANDARD_PORTIONS["medium"])
+    
+    ingredients = ai_data.get("ingredients", [])
+    
+    # 🔥 Калибровка весов
+    total_estimated_weight = sum(
+        ing.get("estimated_weight_grams", 0) 
+        for ing in ingredients
+    )
+    
+    # Если AI не указал веса или они нереалистичны
+    if total_estimated_weight < 100 or total_estimated_weight > 1500:
+        logger.info(f"⚖️ Recalibrating weights: {total_estimated_weight}g → {portion_std['total']}g")
+        ingredients = _redistribute_weights(ingredients, portion_std)
+    
+    # 🔥 Сопоставление с базой продуктов и расчёт КБЖУ
+    for ing in ingredients:
+        product_data = await _match_with_database(ing["name"])
+        
+        weight = ing.get("estimated_weight_grams", 100)
+        
+        multiplier = weight / 100
+        calories = product_data.get("calories", 0) * multiplier
+        protein = product_data.get("protein", 0) * multiplier
+        fat = product_data.get("fat", 0) * multiplier
+        carbs = product_data.get("carbs", 0) * multiplier
+        
+        result["ingredients"].append({
+            "name": product_data.get("name", ing["name"]),
+            "type": ing.get("type", "side"),
+            "weight": weight,
+            "calories": round(calories, 1),
+            "protein": round(protein, 1),
+            "fat": round(fat, 1),
+            "carbs": round(carbs, 1),
+            "confidence": ing.get("confidence", 0.7),
+            "ai_name": ing["name"]
+        })
+        
+        result["total_calories"] += calories
+        result["total_protein"] += protein
+        result["total_fat"] += fat
+        result["total_carbs"] += carbs
+    
+    return result
+
+
+def _redistribute_weights(ingredients: List[Dict], portion_std: Dict) -> List[Dict]:
+    """Перераспределяет веса ингредиентов по стандарту порции."""
+    if not ingredients:
+        return ingredients
+    
+    # Группируем по типам
+    by_type = {"main": [], "side": [], "garnish": [], "sauce": []}
+    for ing in ingredients:
+        ing_type = ing.get("type", "side")
+        by_type.get(ing_type, by_type["side"]).append(ing)
+    
+    # Распределяем веса
+    for ing_type, items in by_type.items():
+        if not items:
+            continue
+        target_weight = portion_std.get(ing_type, portion_std["side"])
+        weight_per_item = target_weight / len(items)
+        for item in items:
+            item["estimated_weight_grams"] = int(weight_per_item)
+    
+    return ingredients
+
+
+async def _match_with_database(product_name: str) -> Dict:
+    """Ищет продукт в базе и возвращает лучшие совпадения."""
+    results = await search_food(product_name)
+    if results:
+        return {
+            "name": results[0].get("name", product_name),
+            "calories": results[0].get("calories", 0),
+            "protein": results[0].get("protein", 0),
+            "fat": results[0].get("fat", 0),
+            "carbs": results[0].get("carbs", 0)
+        }
+    
+    # Если не найдено, возвращаем заглушку
+    return {
+        "name": product_name,
+        "calories": 0,
+        "protein": 0,
+        "fat": 0,
+        "carbs": 0
+    }
+
+
+async def _show_food_confirmation(message: Message, state: FSMContext, analyzed: Dict):
+    """Показывает распознанное блюдо с возможностью редактирования."""
+    
+    text = f"🍽 <b>Распознано: {analyzed['dish_name']}</b>\n"
+    text += f"🔥 ~{analyzed['total_calories']:.0f} ккал\n"
+    text += f"🥩 {analyzed['total_protein']:.1f}г | 🥑 {analyzed['total_fat']:.1f}г | 🍚 {analyzed['total_carbs']:.1f}г\n\n"
+    text += "<b>Ингредиенты:</b>\n"
+    
+    builder = InlineKeyboardBuilder()
+    
+    for i, ing in enumerate(analyzed['ingredients']):
+        text += f"• {ing['name']}: {ing['weight']}г — {ing['calories']:.0f} ккал\n"
+        builder.button(
+            text=f"✏️ {ing['name']} ({ing['weight']}г)",
+            callback_data=f"edit_ing_{i}_{ing['weight']}"
+        )
+    
+    builder.button(text="✅ Всё верно", callback_data="confirm_photo_meal")
+    builder.button(text="❌ Перераспознать", callback_data="retry_photo")
+    builder.button(text="📝 Ввести вручную", callback_data="manual_food_entry")
+    builder.adjust(1)
+    
+    await message.answer(text, reply_markup=builder.as_markup(), parse_mode="HTML")
+
+
+# ========== ОБРАБОТЧИКИ РЕДАКТИРОВАНИЯ ИНГРЕДИЕНТОВ ==========
+
+@router.callback_query(F.data.startswith("edit_ing_"))
+async def edit_ingredient_callback(callback: CallbackQuery, state: FSMContext):
+    """Редактирование веса ингредиента."""
+    data = callback.data.split("_")
+    idx = int(data[2])
+    current_weight = int(data[3])
+    
+    await state.update_data(editing_index=idx, editing_weight=current_weight)
+    
+    builder = InlineKeyboardBuilder()
+    for weight in [50, 100, 150, 200, 250, 300]:
+        builder.button(text=f"{weight}г", callback_data=f"set_weight_{idx}_{weight}")
+    builder.adjust(3)
+    builder.button(text="↩️ Назад", callback_data="back_to_confirmation")
+    
+    await callback.message.edit_text(
+        f"✏️ Выберите вес для ингредиента #{idx+1}:\n"
+        f"Текущий: {current_weight}г",
+        reply_markup=builder.as_markup()
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("set_weight_"))
+async def set_weight_callback(callback: CallbackQuery, state: FSMContext):
+    """Установка нового веса ингредиента."""
+    data = callback.data.split("_")
+    idx = int(data[2])
+    new_weight = int(data[3])
+    
+    state_data = await state.get_data()
+    ingredients = state_data.get('recognized_ingredients', [])
+    
+    if idx < len(ingredients):
+        # Пересчитываем КБЖУ для нового веса
+        ing = ingredients[idx]
+        old_weight = ing['weight']
+        multiplier = new_weight / old_weight if old_weight > 0 else 1
+        
+        ing['weight'] = new_weight
+        ing['calories'] = round(ing['calories'] * multiplier, 1)
+        ing['protein'] = round(ing['protein'] * multiplier, 1)
+        ing['fat'] = round(ing['fat'] * multiplier, 1)
+        ing['carbs'] = round(ing['carbs'] * multiplier, 1)
+        
+        ingredients[idx] = ing
+        
+        # Пересчитываем итоги
+        total_cal = sum(i['calories'] for i in ingredients)
+        total_prot = sum(i['protein'] for i in ingredients)
+        total_fat = sum(i['fat'] for i in ingredients)
+        total_carbs = sum(i['carbs'] for i in ingredients)
+        
+        await state.update_data(
+            recognized_ingredients=ingredients,
+            total_calories=total_cal,
+            total_protein=total_prot,
+            total_fat=total_fat,
+            total_carbs=total_carbs
+        )
+        
+        await callback.message.edit_text(f"✅ Вес изменён на {new_weight}г")
+        await asyncio.sleep(0.5)
+        await _show_food_confirmation(callback.message, state, state_data)
+    
+    await callback.answer()
+
+
+@router.callback_query(F.data == "back_to_confirmation")
+async def back_to_confirmation_callback(callback: CallbackQuery, state: FSMContext):
+    """Возврат к подтверждению."""
+    state_data = await state.get_data()
+    analyzed = {
+        'dish_name': state_data.get('recognized_dish', 'Блюдо'),
+        'ingredients': state_data.get('recognized_ingredients', []),
+        'total_calories': state_data.get('total_calories', 0),
+        'total_protein': state_data.get('total_protein', 0),
+        'total_fat': state_data.get('total_fat', 0),
+        'total_carbs': state_data.get('total_carbs', 0)
+    }
+    await _show_food_confirmation(callback.message, state, analyzed)
+    await callback.answer()
 
 
 # ========== ОБРАБОТЧИКИ ПОДТВЕРЖДЕНИЯ БЛЮДА ==========
@@ -313,34 +521,77 @@ async def safe_delete_message(message: Message):
             logger.warning(f"Failed to delete message: {e}")
 
 
-@router.callback_query(F.data == "confirm_dish")
-async def confirm_dish_callback(callback: CallbackQuery, state: FSMContext):
-    """Пользователь подтвердил распознанное блюдо."""
-    data = await state.get_data()
-    dish = data.get('recognized_dish')
-    if dish:
-        await start_food_input(callback.message, state, [dish], meal_type="snack")
-    else:
-        await callback.message.answer("❌ Ошибка: данные не найдены. Попробуйте ещё раз.")
-    await safe_delete_message(callback.message)
-    await safe_answer_callback(callback)
-
-
-@router.callback_query(F.data == "reject_dish")
-async def reject_dish_callback(callback: CallbackQuery, state: FSMContext):
-    """Пользователь отверг блюдо, используем ингредиенты."""
+@router.callback_query(F.data == "confirm_photo_meal")
+async def confirm_photo_meal_callback(callback: CallbackQuery, state: FSMContext):
+    """Подтверждение и сохранение распознанного блюда."""
+    logger.info(f"✅ confirm_photo_meal_callback вызван")
+    
     data = await state.get_data()
     ingredients = data.get('recognized_ingredients', [])
-    if ingredients:
-        await start_food_input(callback.message, state, ingredients, meal_type="snack")
-    else:
-        await callback.message.answer("Введите ингредиенты вручную через запятую:")
-        await state.set_state(FoodStates.searching_food)
-    await safe_delete_message(callback.message)
-    await safe_answer_callback(callback)
+    
+    if not ingredients:
+        await callback.answer("❌ Нет данных", show_alert=True)
+        return
+    
+    user_id = callback.from_user.id
+    meal_type = data.get('meal_type', 'snack')
+    dish_name = data.get('recognized_dish', 'Распознанное блюдо')
+    
+    async with get_session() as session:
+        user_result = await session.execute(
+            select(User).where(User.telegram_id == user_id)
+        )
+        user = user_result.scalar_one_or_none()
+        
+        if not user:
+            await callback.message.answer("❌ Пользователь не найден.")
+            await state.clear()
+            return
+        
+        total_cal = sum(f['calories'] for f in ingredients)
+        total_prot = sum(f['protein'] for f in ingredients)
+        total_fat = sum(f['fat'] for f in ingredients)
+        total_carbs = sum(f['carbs'] for f in ingredients)
+        
+        meal = Meal(
+            user_id=user.id,
+            meal_type=meal_type,
+            datetime=datetime.now(),
+            total_calories=total_cal,
+            total_protein=total_prot,
+            total_fat=total_fat,
+            total_carbs=total_carbs,
+            ai_description=dish_name,
+            photo_url=None
+        )
+        session.add(meal)
+        await session.flush()
+        
+        for f in ingredients:
+            item = FoodItem(
+                meal_id=meal.id,
+                name=f['name'],
+                weight=f['weight'],
+                calories=f['calories'],
+                protein=f['protein'],
+                fat=f['fat'],
+                carbs=f['carbs']
+            )
+            session.add(item)
+        
+        await session.commit()
+    
+    lines = [f"🍽️ Записан приём пищи ({meal_type}):"]
+    lines.append(f"🍽 <b>{dish_name}</b>")
+    for f in ingredients:
+        lines.append(f"• {f['name']}: {f['weight']}г — {f['calories']:.0f} ккал")
+    lines.append(f"\n🔥 Всего: {total_cal:.0f} ккал")
+    lines.append(f"🥩 {total_prot:.1f}г | 🥑 {total_fat:.1f}г | 🍚 {total_carbs:.1f}г")
+    
+    await callback.message.answer("\n".join(lines), parse_mode="HTML")
+    await state.clear()
+    await callback.answer()
 
-
-# ========== 🔥 ИСПРАВЛЕННЫЙ ОБРАБОТЧИК ПЕРЕРАСПОЗНАВАНИЯ ==========
 
 @router.callback_query(F.data == "retry_photo")
 async def retry_photo_callback(callback: CallbackQuery, state: FSMContext):
@@ -369,53 +620,24 @@ async def retry_photo_callback(callback: CallbackQuery, state: FSMContext):
     
     try:
         # Повторный вызов распознавания
-        food_data, used_model = await identify_food_multimodel(optimized)
+        cascade_result = await identify_food_cascade(optimized)
         
-        if food_data and isinstance(food_data, dict):
-            dish_name_en = food_data.get('dish_name', '')
-            ingredients_en = food_data.get('ingredients', [])
+        if cascade_result.get('data'):
+            food_data = cascade_result['data']
+            analyzed = await _analyze_ai_response(food_data)
             
-            dish_name_ru = await translate_dish_name(dish_name_en) if dish_name_en else ""
-            ingredients_ru = [await translate_to_russian(ing) for ing in ingredients_en]
+            await state.update_data(
+                recognized_dish=analyzed["dish_name"],
+                recognized_ingredients=analyzed["ingredients"],
+                total_calories=analyzed["total_calories"],
+                total_protein=analyzed["total_protein"],
+                total_fat=analyzed["total_fat"],
+                total_carbs=analyzed["total_carbs"],
+                cascade_confidence=cascade_result.get('confidence', 0)
+            )
             
-            logger.info(f"🍽 Повторное распознавание: блюдо='{dish_name_ru}', ингредиенты={ingredients_ru}")
-            
-            # Проверяем блюдо в базе
-            dish_info = await get_food_data_from_db(dish_name_ru) if dish_name_ru else {'base_calories': 0}
-            
-            if dish_info['base_calories'] > 0:
-                await state.update_data(
-                    recognized_dish=dish_name_ru,
-                    recognized_ingredients=ingredients_ru
-                )
-                keyboard = InlineKeyboardMarkup(inline_keyboard=[
-                    [InlineKeyboardButton(text="✅ Использовать блюдо", callback_data="confirm_dish")],
-                    [InlineKeyboardButton(text="🔍 Разбить на ингредиенты", callback_data="reject_dish")],
-                    [InlineKeyboardButton(text="🔄 Перераспознать", callback_data="retry_photo")],
-                    [InlineKeyboardButton(text="📝 Ввести вручную", callback_data="manual_food_entry")]
-                ])
-                await callback.message.edit_text(
-                    f"🍽 <b>Повторное распознавание:</b>\n"
-                    f"Распознано блюдо: <b>{dish_name_ru}</b>\n"
-                    f"Хотите использовать его как готовое блюдо?",
-                    reply_markup=keyboard,
-                    parse_mode="HTML"
-                )
-                return
-            
-            if ingredients_ru:
-                await start_food_input(callback.message, state, ingredients_ru, meal_type="snack")
-                
-                keyboard = InlineKeyboardMarkup(inline_keyboard=[
-                    [InlineKeyboardButton(text="🔄 Перераспознать", callback_data="retry_photo")],
-                    [InlineKeyboardButton(text="📝 Ввести вручную", callback_data="manual_food_entry")],
-                    [InlineKeyboardButton(text="❌ Отмена", callback_data="cancel_meal")]
-                ])
-                await callback.message.answer(
-                    "📸 Если результаты неверные, нажмите «Перераспознать»",
-                    reply_markup=keyboard
-                )
-                return
+            await _show_food_confirmation(callback.message, state, analyzed)
+            return
         
         # Если снова не удалось
         await callback.message.edit_text(

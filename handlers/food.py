@@ -136,7 +136,7 @@ async def process_food_selection(callback: CallbackQuery, state: FSMContext):
     
     # ✅ ПОЛУЧАЕМ foods ИЗ STATE
     data = await state.get_data()
-    foods = data.get('foods', [])  # ← ЭТА СТРОКА БЫЛА ПРОПУЩЕНА!
+    foods = data.get('foods', [])
     
     if index >= len(foods):
         await callback.answer("❌ Ошибка", show_alert=True)

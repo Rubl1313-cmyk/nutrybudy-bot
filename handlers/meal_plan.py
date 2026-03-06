@@ -16,6 +16,7 @@ from services.meal_planner import distribute_calories
 from services.deepseek_client import ask_worker_ai
 from keyboards.reply import get_main_keyboard
 from handlers.profile import is_profile_complete
+import re
 
 router = Router()
 logger = logging.getLogger(__name__)
@@ -29,9 +30,53 @@ MEAL_TYPES = [
     {"key": "snack", "name": "🍎 Перекус"}
 ]
 
+def postprocess_menu(menu_text: str) -> str:
+    """
+    Добавляет суммарную калорийность для каждого приёма пищи,
+    если она отсутствует.
+    """
+    lines = menu_text.split('\n')
+    new_lines = []
+    current_meal = None
+    meal_calories = 0
+    meal_lines = []
+
+    for line in lines:
+        # Определяем начало нового приёма пищи по эмодзи и ключевым словам
+        if re.match(r'^###?\s*(Завтрак|Обед|Ужин|Перекус)', line, re.IGNORECASE):
+            # Если предыдущий приём собран, добавляем итог
+            if current_meal and meal_lines:
+                if not any('Всего калорий' in l for l in meal_lines):
+                    meal_lines.append(f"   🔥 Всего: {meal_calories:.0f} ккал")
+                new_lines.extend(meal_lines)
+                new_lines.append('')
+            current_meal = line
+            meal_calories = 0
+            meal_lines = [line]
+        elif current_meal:
+            meal_lines.append(line)
+            # Ищем калории в строке (число перед "ккал")
+            match = re.search(r'(\d+(?:[.,]\d+)?)\s*ккал', line, re.IGNORECASE)
+            if match:
+                try:
+                    cal = float(match.group(1).replace(',', '.'))
+                    meal_calories += cal
+                except:
+                    pass
+        else:
+            new_lines.append(line)
+
+    # Добавляем итог для последнего приёма
+    if current_meal and meal_lines:
+        if not any('Всего калорий' in l for l in meal_lines):
+            meal_lines.append(f"   🔥 Всего: {meal_calories:.0f} ккал")
+        new_lines.extend(meal_lines)
+
+    return '\n'.join(new_lines)
+
 async def generate_full_meal_plan(user_data: Dict, distribution: Dict) -> str:
     """
-    Генерирует полное меню на день одним запросом к AI с учётом разнообразия.
+    Генерирует полное меню на день одним запросом к AI.
     """
     prompt = (
         f"Ты диетолог. Составь разнообразное меню на один день для человека со следующими параметрами:\n"
@@ -47,10 +92,12 @@ async def generate_full_meal_plan(user_data: Dict, distribution: Dict) -> str:
         f"ВАЖНО: Составь меню так, чтобы блюда были максимально разнообразными и не повторялись по типу в один день. "
         f"Например, если на обед суп, то на ужин должно быть второе блюдо (не суп). Если на обед салат, то на ужин горячее блюдо. "
         f"Избегай повторения одних и тех же ингредиентов в разных приёмах пищи.\n\n"
+        f"Обращайся к пользователю на «ты», не используй фразы «ваш клиент».\n\n"
         f"Для каждого приёма пищи укажи:\n"
         f"1. Название блюда\n"
-        f"2. Список ингредиентов с примерной калорийностью (на порцию)\n"
-        f"3. Краткое описание приготовления (опционально)\n\n"
+        f"2. Список ингредиентов с калорийностью каждого (на порцию)\n"
+        f"3. Краткое описание приготовления (опционально)\n"
+        f"4. В конце каждого приёма добавь строку с общей калорийностью, например: «🔥 Всего: 450 ккал».\n\n"
         f"Старайся, чтобы блюда были полезными, вкусными и соответствовали указанной калорийности. "
         f"Используй русский язык, обычный текст и эмодзи. Заверши ответ обязательно."
     )
@@ -66,10 +113,11 @@ async def generate_full_meal_plan(user_data: Dict, distribution: Dict) -> str:
 
     if response.get("choices"):
         content = response["choices"][0]["message"]["content"]
+        # Постобработка: добавляем суммарные калории, если их нет
+        content = postprocess_menu(content)
         return content
     else:
         return "❌ Не удалось сгенерировать меню."
-
 @router.message(Command("meal_plan"))
 @router.message(F.text == "🍽️ План питания")
 async def cmd_meal_plan(message: Message, state: FSMContext, user_id: int = None):

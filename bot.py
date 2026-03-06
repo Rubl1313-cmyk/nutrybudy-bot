@@ -21,6 +21,7 @@ from handlers.universal_text_handler import universal_router
 from handlers import meal_plan
 from sqlalchemy import text
 from aiogram.fsm.strategy import FSMStrategy
+from handlers import food_search
 
 load_dotenv()
 
@@ -208,6 +209,7 @@ async def main():
     dp.include_router(weight.router)     
     dp.include_router(media_handlers.router)
     dp.include_router(meal_plan.router)
+    dp.include_router(food_search.router)
     dp.include_router(ai_assistant.router)          # диалоговый AI
     dp.include_router(universal_text_handler.universal_router)  
     

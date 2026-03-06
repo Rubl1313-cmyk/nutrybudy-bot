@@ -1,17 +1,25 @@
 """
 services/food_api.py
 Поиск продуктов: локальная база → Open Food Facts API.
-✅ ИСПРАВЛЕНО: добавлены все необходимые импорты typing
-✅ УЛУЧШЕНО: кэширование, улучшенный поиск, fallback-механизмы
+✅ ИСПРАВЛЕНО: добавлены все необходимые импорты
+✅ ИСПРАВЛЕНО: используется time.time() вместо asyncio.get_event_loop().time()
 """
-# ========== 🔥 ВАЖНО: ИМПОРТЫ ТИПОВ ==========
-from typing import List, Dict, Optional, Tuple, Any
-# =============================================
+
+# ========== 🔥 ВАЖНО: ИМПОРТЫ ==========
+import aiohttp
+import logging
+import asyncio
+import time  # ← ДОБАВЛЕНО для кэширования
+from typing import List, Dict, Optional, Tuple, Any  # ← Все типы импортированы
+# =======================================
+
+logger = logging.getLogger(__name__)
 
 # ========== КЭШИРОВАНИЕ ==========
 _SEARCH_CACHE: Dict[str, Tuple[List[Dict], float]] = {}
 _CACHE_TTL = 300  # 5 минут
 _CACHE_LIMIT = 200
+
 
 # ========== ЛОКАЛЬНАЯ БАЗА ПРОДУКТОВ (более 1000 записей) ==========
 # Ключи — это слова, по которым бот будет искать (в нижнем регистре)
@@ -512,7 +520,8 @@ def _get_cached_search(query: str) -> Optional[List[Dict]]:
     query_lower = query.lower().strip()
     if query_lower in _SEARCH_CACHE:
         results, timestamp = _SEARCH_CACHE[query_lower]
-        if asyncio.get_event_loop().time() - timestamp < _CACHE_TTL:
+        # ✅ ИСПРАВЛЕНО: используем time.time() вместо asyncio.get_event_loop().time()
+        if time.time() - timestamp < _CACHE_TTL:
             logger.info(f"♻️ Cache hit for '{query_lower}'")
             return results
         else:
@@ -523,7 +532,8 @@ def _get_cached_search(query: str) -> Optional[List[Dict]]:
 def _cache_search(query: str, results: List[Dict]):
     """Сохраняет в кэш поиска."""
     query_lower = query.lower().strip()
-    _SEARCH_CACHE[query_lower] = (results, asyncio.get_event_loop().time())
+    # ✅ ИСПРАВЛЕНО: используем time.time() вместо asyncio.get_event_loop().time()
+    _SEARCH_CACHE[query_lower] = (results, time.time())
     
     if len(_SEARCH_CACHE) > _CACHE_LIMIT:
         oldest = sorted(_SEARCH_CACHE.items(), key=lambda x: x[1][1])[:50]

@@ -320,7 +320,7 @@ async def handle_photo(message: Message, state: FSMContext):
         await message.answer("❌ Ошибка при обработке фото. Попробуйте позже.")
         await state.clear()
 
-async def _analyze_ai_response(ai_ Dict) -> Dict:
+async def _analyze_ai_response(ai_data: Dict) -> Dict:
     """
     Обрабатывает ответ от AI, улучшает оценки весов и сопоставляет с базой.
     """

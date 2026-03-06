@@ -13,7 +13,8 @@ from aiohttp import web
 from database.db import init_db, close_db, engine
 from handlers import (
     common, profile, food, water, shopping,
-    reminders, activity, progress, media_handlers, ai_assistant, weight
+    reminders, activity, progress, media_handlers, ai_assistant,
+    universal_text_handler, meal_plan, weight  # universal_text_handler теперь импортируется
 )
 from scheduler.jobs import setup_scheduler
 from handlers.universal_text_handler import universal_router

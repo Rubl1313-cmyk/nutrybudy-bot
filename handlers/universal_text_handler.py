@@ -271,9 +271,17 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
 
     # ----- AI-ЗАПРОСЫ (ОДНОКРАТНЫЕ) -----
     if intent == "ai":
-        logger.info(f"🤖 Однократный AI запрос от {message.from_user.id}: {text}")
-        await process_single_ai_query(message, text)
-        return
+        # Проверяем, не является ли это коротким словом без вопроса
+        words = text.split()
+        question_words = ["что", "как", "почему", "зачем", "кто", "где", "когда", "сколько", "?"]
+        if len(words) <= 2 and not any(q in text_lower for q in question_words):
+            # Короткое слово без вопроса - считаем unknown и показываем меню
+            logger.info(f"Short text '{text}' classified as AI, but treating as unknown")
+            # Переходим к блоку unknown (не делаем return)
+        else:
+            logger.info(f"🤖 AI запрос вне режима от {message.from_user.id}: {text}")
+            await process_single_ai_query(message, text)
+            return
 
     # ----- НЕОПРЕДЕЛЁННОЕ -----
     await state.update_data(pending_text=text)

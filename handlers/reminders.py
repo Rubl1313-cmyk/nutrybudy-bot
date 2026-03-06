@@ -2,12 +2,14 @@
 Обработчик напоминаний.
 Исправлено: уникальные callback_data для подтверждения + добавлена quick_create_reminder.
 Добавлено: удаление напоминаний с подтверждением.
+Исправлена ошибка MissingGreenlet при доступе к reminder.user.
 """
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery, ReplyKeyboardMarkup, KeyboardButton
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 from datetime import datetime
 
 from database.db import get_session
@@ -16,7 +18,7 @@ from keyboards.inline import (
     get_reminder_type_keyboard,
     get_days_keyboard,
     get_confirmation_keyboard,
-    get_reminders_list_keyboard  # новая клавиатура
+    get_reminders_list_keyboard
 )
 from keyboards.reply import get_main_keyboard, get_cancel_keyboard
 from utils.states import ReminderStates
@@ -113,8 +115,16 @@ async def confirm_delete_reminder(callback: CallbackQuery, state: FSMContext):
         return
 
     async with get_session() as session:
-        reminder = await session.get(Reminder, reminder_id)
-        if reminder and reminder.user.telegram_id == callback.from_user.id:
+        # Загружаем напоминание вместе с пользователем, чтобы избежать lazy loading
+        result = await session.execute(
+            select(Reminder)
+            .options(selectinload(Reminder.user))
+            .where(Reminder.id == reminder_id)
+        )
+        reminder = result.scalar_one_or_none()
+        
+        # Альтернативно можно получить пользователя отдельно, но проще через options
+        if reminder and (await reminder.awaitable_attrs.user).telegram_id == callback.from_user.id:
             # Помечаем как неактивное (мягкое удаление)
             reminder.enabled = False
             await session.commit()
@@ -123,7 +133,6 @@ async def confirm_delete_reminder(callback: CallbackQuery, state: FSMContext):
             await callback.answer("❌ Напоминание не найдено или доступ запрещён", show_alert=True)
             return
 
-    # Обновляем список напоминаний
     await state.clear()
     # Перезапускаем показ напоминаний
     await cmd_reminders(callback.message, state, user_id=callback.from_user.id)
@@ -135,6 +144,7 @@ async def cancel_delete_reminder(callback: CallbackQuery, state: FSMContext):
     # Возвращаемся к списку
     await cmd_reminders(callback.message, state, user_id=callback.from_user.id)
 
+# ========== ОСТАЛЬНЫЕ ФУНКЦИИ (без изменений) ==========
 
 @router.callback_query(F.data.startswith("reminder_"), ReminderStates.choosing_type)
 async def process_reminder_type(callback: CallbackQuery, state: FSMContext):
@@ -161,7 +171,6 @@ async def process_reminder_type(callback: CallbackQuery, state: FSMContext):
         )
     await callback.answer()
 
-
 @router.message(ReminderStates.entering_title, F.text)
 async def process_title(message: Message, state: FSMContext):
     title = message.text.strip()
@@ -171,7 +180,6 @@ async def process_title(message: Message, state: FSMContext):
         f"✅ Текст: <b>{title}</b>\n\n"
         "⏰ Введите время в формате ЧЧ:ММ:"
     )
-
 
 @router.message(ReminderStates.entering_time, F.text)
 async def process_time(message: Message, state: FSMContext):
@@ -190,7 +198,6 @@ async def process_time(message: Message, state: FSMContext):
         "📅 Выберите дни:",
         reply_markup=get_days_keyboard()
     )
-
 
 @router.callback_query(F.data.startswith("day_"), ReminderStates.choosing_days)
 async def process_days(callback: CallbackQuery, state: FSMContext):
@@ -215,7 +222,6 @@ async def process_days(callback: CallbackQuery, state: FSMContext):
         reply_markup=get_confirmation_keyboard("reminder")
     )
     await callback.answer()
-
 
 @router.callback_query(F.data == "confirm_reminder", ReminderStates.confirming)
 async def confirm_reminder(callback: CallbackQuery, state: FSMContext):
@@ -251,7 +257,6 @@ async def confirm_reminder(callback: CallbackQuery, state: FSMContext):
     )
     await callback.answer()
 
-
 @router.callback_query(F.data == "cancel_reminder", ReminderStates.confirming)
 async def cancel_reminder(callback: CallbackQuery, state: FSMContext):
     """Отмена создания."""
@@ -259,11 +264,11 @@ async def cancel_reminder(callback: CallbackQuery, state: FSMContext):
     await callback.message.edit_text("❌ Создание отменено.")
     await callback.answer()
 
-
-# ========== ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ ДЛЯ БЫСТРОГО СОЗДАНИЯ ==========
-
 async def quick_create_reminder(telegram_id: int, title: str, time: str, days: str = "daily") -> bool:
-    """Быстрое создание напоминания без диалога."""
+    """
+    Быстрое создание напоминания без диалога.
+    Используется в универсальном обработчике для команд типа "напомни в 18:00 позвонить маме".
+    """
     async with get_session() as session:
         user_result = await session.execute(
             select(User).where(User.telegram_id == telegram_id)

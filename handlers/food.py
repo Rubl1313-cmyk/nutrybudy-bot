@@ -134,8 +134,32 @@ async def process_meal_type(callback: CallbackQuery, state: FSMContext):
 async def process_food_search(message: Message, state: FSMContext):
     """Поиск продуктов – поддерживает составные блюда"""
     text = message.text.strip()
-    logger.info(f"🔍 Поиск продуктов по тексту: '{text}'")
-    await handle_food_text(message, state, text)
+    components = split_food_text(text)
+    
+    if len(components) > 1:
+        # составное блюдо – инициализируем множественный ввод
+        await state.update_data(pending_items=components, current_index=0, selected_foods=[])
+        await process_next_food(message, state)
+    else:
+        # одиночный продукт
+        foods = await search_food(text)
+        if not foods:
+            await message.answer(
+                f"❌ Ничего не найдено.\n"
+                f"📝 Введите название вручную (будет сохранено с нулевой калорийностью):",
+                reply_markup=get_cancel_keyboard()
+            )
+            await state.set_state(FoodStates.manual_food_name)
+            return
+        
+        await state.update_data(foods=foods)
+        await state.set_state(FoodStates.selecting_food)
+        
+        # 🔥 ИСПРАВЛЕНО: убираем параметр show_skip (pending не определён здесь)
+        await message.answer(
+            "✅ Выберите продукт:",
+            reply_markup=get_food_selection_keyboard(foods[:5])  # ← Без show_skip!
+        )
 
 # В process_food_selection() добавить:
 

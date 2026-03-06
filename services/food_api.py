@@ -1,18 +1,15 @@
 """
 services/food_api.py
 Поиск продуктов: локальная база → Open Food Facts API.
-✅ УЛУЧШЕНО: Кэширование, улучшенный поиск, fallback-механизмы
+✅ ИСПРАВЛЕНО: добавлены все необходимые импорты typing
+✅ УЛУЧШЕНО: кэширование, улучшенный поиск, fallback-механизмы
 """
-import aiohttp
-import logging
-import asyncio
-from typing import List, Dict
-from functools import lru_cache
+# ========== 🔥 ВАЖНО: ИМПОРТЫ ТИПОВ ==========
+from typing import List, Dict, Optional, Tuple, Any
+# =============================================
 
-logger = logging.getLogger(__name__)
-
-# ========== КЭШИРОВАНИЕ ==========
-_SEARCH_CACHE: Dict[str, List[Dict]] = {}
+…# ========== КЭШИРОВАНИЕ ==========
+_SEARCH_CACHE: Dict[str, Tuple[List[Dict], float]] = {}
 _CACHE_TTL = 300  # 5 минут
 _CACHE_LIMIT = 200
 
@@ -509,6 +506,7 @@ LOCAL_FOOD_DB = {
     "павлова": {"name": "Павлова", "calories": 250, "protein": 3, "fat": 8, "carbs": 42},
 }
 
+# ========== КЭШИРОВАНИЕ ==========
 def _get_cached_search(query: str) -> Optional[List[Dict]]:
     """Проверяет кэш поиска."""
     query_lower = query.lower().strip()
@@ -541,6 +539,7 @@ def search_local_db(query: str) -> List[Dict]:
     results = []
     query_lower = query.lower().strip()
     
+    # Простая нормализация запроса (убираем окончания)
     normalized_query = query_lower
     for ending in ['а', 'ы', 'и', 'у', 'ом', 'е', 'ой', 'ей', 'ами', 'ах', 'ов', 'ев', 'ец', 'ца', 'цы']:
         if query_lower.endswith(ending) and len(query_lower) > 4:
@@ -548,6 +547,7 @@ def search_local_db(query: str) -> List[Dict]:
             break
     
     for key, item in LOCAL_FOOD_DB.items():
+        # Три уровня совпадения
         if query_lower in key:
             results.append({
                 'name': item['name'],
@@ -660,19 +660,23 @@ async def search_food(query: str) -> List[Dict]:
     if not query:
         return []
     
+    # Проверка кэша
     cached = _get_cached_search(query)
     if cached:
         return cached
     
     local_results = search_local_db(query)
     
+    # Если в локальной достаточно точных совпадений – возвращаем их
     exact_matches = [r for r in local_results if query in r['name'].lower()]
     if exact_matches:
         _cache_search(query, exact_matches[:10])
         return exact_matches[:10]
     
+    # Иначе пробуем OpenFoodFacts
     off_results = await search_openfoodfacts(query)
     
+    # Объединяем, убираем дубликаты по названию
     seen = set()
     combined = []
     for item in local_results + off_results:
@@ -681,6 +685,7 @@ async def search_food(query: str) -> List[Dict]:
             seen.add(name_lower)
             combined.append(item)
     
+    # Сортировка: локальные выше
     combined.sort(key=lambda x: 0 if x["source"] == "local" else 1)
     
     _cache_search(query, combined[:10])

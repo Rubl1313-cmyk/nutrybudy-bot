@@ -1,10 +1,6 @@
-
 """
 Универсальный обработчик текстовых сообщений.
 Если намерение не определено, показывает меню выбора.
-Исправлены все ошибки: шаги, дублирование, обработка исключений.
-После выбора типа приёма пищи автоматически подставляет ранее введённый текст.
-Добавлена защита от ошибочного вызова AI после выхода.
 """
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
@@ -28,7 +24,7 @@ from database.db import get_session
 from database.models import User, Activity
 from utils.ai_tools import get_weather
 from services.activity import CALORIES_PER_MINUTE
-from handlers.ai_assistant import process_ai_query
+from handlers.ai_assistant import process_single_ai_query  # для однократных ответов
 from keyboards.reply import get_main_keyboard
 
 logger = logging.getLogger(__name__)
@@ -45,28 +41,16 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
         text = message.text
     logger.info(f"📨 Получен текст: {text}")
 
-    # Получаем текущее состояние как строку
+    # Получаем текущее состояние
     current_state_str = await state.get_state()
 
-    # ========== ПРОВЕРКА НА ВЫХОД ИЗ РЕЖИМА AI ==========
-    if current_state_str == "AIAssistantStates:waiting_for_question":
-        normalized = normalize_exit_command(text)
-        if normalized in ['выход', 'выйти', 'выходи', 'завершить', 'закончить', 'стоп', 'хватит', '/cancel']:
-            await state.clear()
-            await message.answer(
-                "👋 Выход из режима AI-ассистента.\n"
-                "Используйте меню для навигации.",
-                reply_markup=get_main_keyboard()
-            )
-            return
-
-    # ========== ЕСЛИ МЫ В РЕЖИМЕ AI И НЕ ВЫШЛИ ==========
-    if current_state_str == "AIAssistantStates:waiting_for_question":
-        logger.info(f"Пользователь в режиме AI, отправляем запрос в AI: {text}")
-        await process_ai_query(message, state, text)
+    # ========== ЕСЛИ МЫ В ДИАЛОГОВОМ РЕЖИМЕ AI ==========
+    if current_state_str == AIAssistantStates.waiting_for_question:
+        # Всё, что в диалоговом режиме, обрабатывается ai_assistant, поэтому просто возвращаемся
+        # (этот случай не должен сюда попадать, т.к. роутер ai_assistant перехватывает раньше)
         return
 
-    # ========== ДАЛЕЕ ОБРАБОТКА ДРУГИХ НАМЕРЕНИЙ ==========
+    # ========== ОБРАБОТКА НАМЕРЕНИЙ ==========
     intent_data = classify(text)
     intent = intent_data.get("intent")
     text_lower = text.lower()
@@ -285,11 +269,10 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
         await message.answer(weather_info)
         return
 
-    # ----- AI-ЗАПРОСЫ (ТОЛЬКО ЕСЛИ НЕ В РЕЖИМЕ AI) -----
+    # ----- AI-ЗАПРОСЫ (ОДНОКРАТНЫЕ) -----
     if intent == "ai":
-        # Если мы здесь, значит мы не в режиме AI (проверка выше не сработала)
-        logger.info(f"🤖 AI запрос вне режима от {message.from_user.id}: {text}")
-        await process_ai_query(message, state, text)
+        logger.info(f"🤖 Однократный AI запрос от {message.from_user.id}: {text}")
+        await process_single_ai_query(message, text)
         return
 
     # ----- НЕОПРЕДЕЛЁННОЕ -----
@@ -306,10 +289,9 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
     )
     return
 
-# ========== ОБРАБОТЧИКИ КНОПОК ДЛЯ ВОДЫ ==========
+# ========== ОБРАБОТЧИКИ КНОПОК ==========
 @universal_router.callback_query(F.data == "water_drink")
 async def water_drink_callback(callback: CallbackQuery, state: FSMContext):
-    """✅ Исправлено: правильный порядок операций"""
     data = await state.get_data()
     amount = data.get('water_amount')
     user_id = callback.from_user.id
@@ -318,9 +300,7 @@ async def water_drink_callback(callback: CallbackQuery, state: FSMContext):
 
     try:
         if amount:
-            logger.info(f"🍷 water_drink_callback: вызываем add_water_quick с amount={amount}")
             success = await add_water_quick(user_id, amount)
-            logger.info(f"🍷 water_drink_callback: add_water_quick вернула {success}")
             if success:
                 await callback.message.answer(f"✅ Записано {amount} мл воды.")
             else:
@@ -329,11 +309,10 @@ async def water_drink_callback(callback: CallbackQuery, state: FSMContext):
                     reply_markup=get_main_keyboard()
                 )
         else:
-            logger.info("🍷 water_drink_callback: amount отсутствует, вызываем cmd_water")
             await cmd_water(callback.message, state)
     except Exception as e:
-        logger.error(f"🍷 water_drink_callback: исключение {e}", exc_info=True)
-        await callback.message.answer("❌ Произошла внутренняя ошибка. Попробуйте позже.")
+        logger.error(f"water_drink_callback: {e}", exc_info=True)
+        await callback.message.answer("❌ Произошла внутренняя ошибка.")
     finally:
         try:
             await callback.message.delete()
@@ -342,7 +321,6 @@ async def water_drink_callback(callback: CallbackQuery, state: FSMContext):
 
 @universal_router.callback_query(F.data == "water_buy")
 async def water_buy_callback(callback: CallbackQuery, state: FSMContext):
-    """✅ Исправлено: правильный порядок операций"""
     data = await state.get_data()
     amount = data.get('water_amount')
     item_text = f"вода {amount} мл" if amount else "вода"
@@ -353,8 +331,8 @@ async def water_buy_callback(callback: CallbackQuery, state: FSMContext):
         await add_to_shopping_list(callback, item_text)
         await callback.message.answer("✅ Добавлено в список покупок.")
     except Exception as e:
-        logger.error(f"🍷 water_buy_callback: исключение {e}", exc_info=True)
-        await callback.message.answer("❌ Произошла внутренняя ошибка. Попробуйте позже.")
+        logger.error(f"water_buy_callback: {e}", exc_info=True)
+        await callback.message.answer("❌ Произошла внутренняя ошибка.")
     finally:
         try:
             await callback.message.delete()
@@ -371,7 +349,6 @@ async def action_cancel_callback(callback: CallbackQuery, state: FSMContext):
         pass
     await callback.message.answer("❌ Действие отменено.")
 
-# ========== ОБРАБОТЧИКИ КНОПОК ДЛЯ НЕОПРЕДЕЛЁННЫХ ТЕКСТОВ ==========
 @universal_router.callback_query(F.data == "choose_shopping")
 async def choose_shopping_callback(callback: CallbackQuery, state: FSMContext):
     data = await state.get_data()
@@ -395,7 +372,7 @@ async def choose_food_callback(callback: CallbackQuery, state: FSMContext):
     text = data.get('pending_text', '')
     await state.update_data(pending_food_text=text)
     await callback.answer()
-    await cmd_log_food(callback.message, state)
+    await cmd_log_food(callback.message, state, user_id=callback.from_user.id)
     try:
         await callback.message.delete()
     except:
@@ -406,7 +383,7 @@ async def choose_ai_callback(callback: CallbackQuery, state: FSMContext):
     data = await state.get_data()
     text = data.get('pending_text', '')
     await callback.answer()
-    await process_ai_query(callback.message, state, text)
+    await process_single_ai_query(callback.message, text)
     try:
         await callback.message.delete()
     except:

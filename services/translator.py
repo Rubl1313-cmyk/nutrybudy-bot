@@ -718,17 +718,23 @@ COMMON_TRANSLATIONS = {
 async def translate_to_russian(text: str) -> str:
     """
     Переводит текст с английского на русский.
-    Сначала проверяет локальный словарь (COMMON_TRANSLATIONS),
-    затем вызывает Google Translate через deep-translator.
+    ✅ ИСПРАВЛЕНО: Добавлена проверка типа
     """
+    # ✅ ПРОВЕРКА ТИПА
+    if not isinstance(text, str):
+        logger.warning(f"⚠️ translate_to_russian received non-string: {type(text)} = {text}")
+        if isinstance(text, dict):
+            return text.get('name', str(text))
+        return str(text)
+    
     original = text.strip()
     text_lower = original.lower()
-
+    
     if text_lower in COMMON_TRANSLATIONS:
         translated = COMMON_TRANSLATIONS[text_lower]
         logger.info(f"🔄 Using cached translation: '{original}' → '{translated}'")
         return translated
-
+    
     try:
         translator = GoogleTranslator(source='en', target='ru')
         translated = translator.translate(original)
@@ -741,7 +747,7 @@ async def translate_to_russian(text: str) -> str:
     except Exception as e:
         logger.error(f"❌ Translation error: {e}")
         return original
-
+        
 async def translate_dish_name(english_name: str) -> str:
     """
     Переводит название блюда с английского на русский,

@@ -137,6 +137,8 @@ async def process_food_search(message: Message, state: FSMContext):
     logger.info(f"🔍 Поиск продуктов по тексту: '{text}'")
     await handle_food_text(message, state, text)
 
+# В process_food_selection() добавить:
+
 @router.callback_query(F.data.startswith("food_"), FoodStates.selecting_food)
 async def process_food_selection(callback: CallbackQuery, state: FSMContext):
     if callback.data == "food_manual":
@@ -144,16 +146,20 @@ async def process_food_selection(callback: CallbackQuery, state: FSMContext):
         await callback.message.edit_text("📝 Введите название продукта:")
         await callback.answer()
         return
+    
+    # 🔥 Новая обработка "Пропустить"
+    if callback.data == "food_skip":
+        await process_next_food(callback.message, state)
+        await callback.answer()
+        return
+    
     try:
         index = int(callback.data.split("_")[1])
     except (IndexError, ValueError):
         await callback.answer("❌ Ошибка", show_alert=True)
         return
-    data = await state.get_data()
-    foods = data.get('foods', [])
-    if index >= len(foods):
-        await callback.answer("❌ Ошибка", show_alert=True)
-        return
+    
+    # ... остальной код без изменений ...
     selected = foods[index]
     await state.update_data(selected_food=selected)
     await state.set_state(FoodStates.entering_weight)

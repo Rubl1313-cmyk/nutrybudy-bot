@@ -69,18 +69,18 @@ async def update_totals_message(chat_id: int, message_id: int, bot, selected_foo
     total_prot = sum(f['protein'] for f in selected_foods)
     total_fat = sum(f['fat'] for f in selected_foods)
     total_carbs = sum(f['carbs'] for f in selected_foods)
-
+    
     text = (
         f"🍽️ <b>Всего в приёме пищи:</b>\n"
         f"🔥 {total_cal:.0f} ккал | 🥩 {total_prot:.1f}г | 🥑 {total_fat:.1f}г | 🍚 {total_carbs:.1f}г"
     )
-
+    
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="➕ Добавить продукт", callback_data="add_food")],
         [InlineKeyboardButton(text="✅ Подтвердить", callback_data="confirm_meal"),
          InlineKeyboardButton(text="❌ Отмена", callback_data="cancel_meal")]
     ])
-
+    
     try:
         await bot.edit_message_text(
             text,
@@ -98,13 +98,20 @@ async def update_totals_message(chat_id: int, message_id: int, bot, selected_foo
 async def send_product_message(chat_id: int, bot, index: int, food: Dict, totals_msg_id: int) -> int:
     """Отправляет сообщение для одного продукта и возвращает его message_id."""
     weight_str = f"{food['weight']} г" if food['weight'] else "0 г"
+    
+    # 🔥 Рассчитываем КБЖУ для текущего веса
+    multiplier = food['weight'] / 100 if food['weight'] else 0
     calories_str = f"{food['calories']:.0f} ккал" if food['weight'] else "0 ккал"
-
+    protein_str = f"{food['protein']:.1f}г" if food['weight'] else "0г"
+    fat_str = f"{food['fat']:.1f}г" if food['weight'] else "0г"
+    carbs_str = f"{food['carbs']:.1f}г" if food['weight'] else "0г"
+    
     text = (
         f"<b>{index+1}. {food['name']}</b>\n"
-        f"Вес: {weight_str} — {calories_str}"
+        f"⚖️ Вес: {weight_str}\n"
+        f"🔥 {calories_str} | 🥩 {protein_str} | 🥑 {fat_str} | 🍚 {carbs_str}"
     )
-
+    
     keyboard = InlineKeyboardMarkup(inline_keyboard=[[
         InlineKeyboardButton(text="➖10", callback_data=f"weight_dec_{index}_10_{totals_msg_id}"),
         InlineKeyboardButton(text="➕10", callback_data=f"weight_inc_{index}_10_{totals_msg_id}"),
@@ -113,7 +120,7 @@ async def send_product_message(chat_id: int, bot, index: int, food: Dict, totals
         InlineKeyboardButton(text="200", callback_data=f"weight_set_{index}_200_{totals_msg_id}"),
         InlineKeyboardButton(text="❌", callback_data=f"weight_del_{index}_{totals_msg_id}")
     ]])
-
+    
     msg = await bot.send_message(chat_id, text, reply_markup=keyboard, parse_mode="HTML")
     return msg.message_id
 
@@ -360,38 +367,29 @@ async def reject_dish_callback(callback: CallbackQuery, state: FSMContext):
     await safe_answer_callback(callback)
 
 # ========== ОСТАЛЬНЫЕ ОБРАБОТЧИКИ (без изменений) ==========
-@router.callback_query(F.data == "food_manual")
-async def food_manual_callback(callback: CallbackQuery, state: FSMContext):
-    """Пользователь выбрал ручной ввод."""
-    await safe_answer_callback(callback)
-    await callback.message.answer("📝 Введите названия продуктов через запятую:")
-    await state.set_state(FoodStates.searching_food)
-    await safe_delete_message(callback.message)
-
 @router.callback_query(F.data.startswith("weight_"))
 async def weight_callback(callback: CallbackQuery, state: FSMContext):
     """Обработка изменения веса продукта."""
-    logger.info(f"⚖️ weight_callback: data={callback.data}")
     data = await state.get_data()
     selected_foods = data.get('selected_foods', [])
     totals_msg_id = data.get('totals_msg_id')
     product_msg_ids = data.get('product_msg_ids', [])
-
+    
     if not selected_foods:
-        await safe_answer_callback(callback)
+        await callback.answer("❌ Нет данных", show_alert=True)
         return
-
+    
     parts = callback.data.split('_')
     action = parts[1]  # inc, dec, set, del
     idx = int(parts[2])
     value = int(parts[3]) if len(parts) > 3 and parts[3].isdigit() else None
-
+    
     if idx >= len(selected_foods):
-        await safe_answer_callback(callback)
+        await callback.answer("❌ Ошибка индекса", show_alert=True)
         return
-
+    
     food = selected_foods[idx]
-
+    
     if action == "del":
         del selected_foods[idx]
         try:
@@ -401,15 +399,15 @@ async def weight_callback(callback: CallbackQuery, state: FSMContext):
         del product_msg_ids[idx]
         await state.update_data(selected_foods=selected_foods, product_msg_ids=product_msg_ids)
         await update_totals_message(callback.message.chat.id, totals_msg_id, callback.bot, selected_foods)
-        await safe_answer_callback(callback)
+        await callback.answer("✅ Продукт удалён")
         return
-
+    
     if value is None:
-        await safe_answer_callback(callback)
+        await callback.answer("❌ Нет значения", show_alert=True)
         return
-
+    
     current_weight = food.get('weight', 0) or 0
-
+    
     if action == "inc":
         new_weight = current_weight + value
     elif action == "dec":
@@ -417,14 +415,16 @@ async def weight_callback(callback: CallbackQuery, state: FSMContext):
     elif action == "set":
         new_weight = value
     else:
-        await safe_answer_callback(callback)
+        await callback.answer()
         return
-
+    
     if new_weight == current_weight:
-        await safe_answer_callback(callback)
+        await callback.answer()
         return
-
+    
     food['weight'] = new_weight
+    
+    # 🔥 Пересчитываем КБЖУ для нового веса
     if new_weight > 0:
         multiplier = new_weight / 100
         food['calories'] = food['base_calories'] * multiplier
@@ -436,17 +436,23 @@ async def weight_callback(callback: CallbackQuery, state: FSMContext):
         food['protein'] = 0
         food['fat'] = 0
         food['carbs'] = 0
-
+    
     selected_foods[idx] = food
     await state.update_data(selected_foods=selected_foods)
-
-    # Обновляем сообщение продукта
+    
+    # 🔥 Обновляем сообщение продукта с полным КБЖУ
     weight_str = f"{food['weight']} г" if food['weight'] else "0 г"
     calories_str = f"{food['calories']:.0f} ккал" if food['weight'] else "0 ккал"
+    protein_str = f"{food['protein']:.1f}г" if food['weight'] else "0г"
+    fat_str = f"{food['fat']:.1f}г" if food['weight'] else "0г"
+    carbs_str = f"{food['carbs']:.1f}г" if food['weight'] else "0г"
+    
     text = (
         f"<b>{idx+1}. {food['name']}</b>\n"
-        f"Вес: {weight_str} — {calories_str}"
+        f"⚖️ Вес: {weight_str}\n"
+        f"🔥 {calories_str} | 🥩 {protein_str} | 🥑 {fat_str} | 🍚 {carbs_str}"
     )
+    
     keyboard = InlineKeyboardMarkup(inline_keyboard=[[
         InlineKeyboardButton(text="➖10", callback_data=f"weight_dec_{idx}_10_{totals_msg_id}"),
         InlineKeyboardButton(text="➕10", callback_data=f"weight_inc_{idx}_10_{totals_msg_id}"),
@@ -455,14 +461,14 @@ async def weight_callback(callback: CallbackQuery, state: FSMContext):
         InlineKeyboardButton(text="200", callback_data=f"weight_set_{idx}_200_{totals_msg_id}"),
         InlineKeyboardButton(text="❌", callback_data=f"weight_del_{idx}_{totals_msg_id}")
     ]])
-
+    
     try:
         await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
     except Exception as e:
         logger.error(f"Edit error: {e}")
-
+    
     await update_totals_message(callback.message.chat.id, totals_msg_id, callback.bot, selected_foods)
-    await safe_answer_callback(callback)
+    await callback.answer()
 
 @router.callback_query(F.data == "add_food")
 async def add_food_callback(callback: CallbackQuery, state: FSMContext):

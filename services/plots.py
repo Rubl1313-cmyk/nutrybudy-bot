@@ -17,7 +17,7 @@ from sqlalchemy import select, func
 from typing import Optional, Literal
 import logging
 import numpy as np
-import sys
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -35,39 +35,45 @@ COLORS = {
 def get_emoji_font():
     """
     Возвращает шрифт с поддержкой эмодзи в зависимости от ОС.
-    Источник: https://github.com/matplotlib/matplotlib/issues/4492
     """
-    if sys.platform == 'win32':
-        # Windows: Segoe UI Emoji
-        font_path = 'C:/Windows/Fonts/seguiemj.ttf'
-    elif sys.platform == 'darwin':
-        # macOS: Apple Color Emoji
-        font_path = '/System/Library/Fonts/Apple Color Emoji.ttc'
-    else:
-        # Linux: Noto Color Emoji (нужно установить: apt install fonts-noto-color-emoji)
-        font_path = '/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf'
+    # Список возможных путей к шрифтам с эмодзи
+    font_paths = []
     
-    try:
-        # Проверяем существование файла
-        import os
+    if os.name == 'nt':  # Windows
+        font_paths = [
+            'C:/Windows/Fonts/seguiemj.ttf',
+            'C:/Windows/Fonts/SEGUIEMJ.TTF'
+        ]
+    elif os.name == 'posix':  # Linux/macOS
+        font_paths = [
+            '/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf',
+            '/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc',  # fallback
+            '/System/Library/Fonts/Apple Color Emoji.ttc',  # macOS
+        ]
+    
+    # Пробуем каждый путь
+    for font_path in font_paths:
         if os.path.exists(font_path):
-            return fm.FontProperties(fname=font_path)
-        else:
-            logger.warning(f"Шрифт с эмодзи не найден по пути: {font_path}")
-            return None
-    except Exception as e:
-        logger.warning(f"Ошибка загрузки шрифта с эмодзи: {e}")
-        return None
+            try:
+                return fm.FontProperties(fname=font_path)
+            except Exception as e:
+                logger.warning(f"Failed to load font {font_path}: {e}")
+                continue
+    
+    # Если ничего не нашли, используем шрифт по умолчанию (без эмодзи, но не будет ошибок)
+    logger.warning("No emoji font found, using default font")
+    return None
 
-# ========== ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ ДЛЯ ТЕКСТА ==========
+# Кешируем шрифт, чтобы не искать каждый раз
+_EMOJI_FONT = get_emoji_font()
+
 def add_text_with_emoji(ax, x, y, text, **kwargs):
     """
     Добавляет текст с поддержкой эмодзи.
     Если доступен шрифт с эмодзи, использует его, иначе обычный шрифт.
     """
-    emoji_font = get_emoji_font()
-    if emoji_font:
-        ax.text(x, y, text, fontproperties=emoji_font, **kwargs)
+    if _EMOJI_FONT:
+        ax.text(x, y, text, fontproperties=_EMOJI_FONT, **kwargs)
     else:
         ax.text(x, y, text, **kwargs)
 
@@ -101,12 +107,13 @@ async def generate_weight_plot(user_id: int, session: AsyncSession) -> Optional[
         plt.plot(dates, p(range(len(weights))), '--', linewidth=2,
                  color=COLORS['trend'], label='Тренд')
 
-    # Заголовок с эмодзи
-    title_font = get_emoji_font()
-    if title_font:
-        plt.title('📈 Динамика веса', fontsize=16, fontweight='bold', pad=20, fontproperties=title_font)
-    else:
-        plt.title('Динамика веса', fontsize=16, fontweight='bold', pad=20)
+    # Заголовок с эмодзи (используем add_text_with_emoji для всего текста)
+    # Но проще установить title через plt.title, который не поддерживает эмодзи, 
+    # поэтому используем add_text_with_emoji для добавления заголовка вручную
+    ax = plt.gca()
+    ax.set_title("")  # очищаем стандартный заголовок
+    add_text_with_emoji(ax, 0.5, 1.02, "📈 Динамика веса", transform=ax.transAxes, 
+                        ha='center', fontsize=16, fontweight='bold')
     
     plt.xlabel('Дата', fontsize=12)
     plt.ylabel('Вес (кг)', fontsize=12)
@@ -134,7 +141,7 @@ async def generate_water_plot(
         model=WaterEntry,
         amount_field='amount',
         ylabel='Вода (мл)',
-        title='💧 Потребление воды',
+        title="💧 Потребление воды",
         color=COLORS['water'],
         period=period,
         daily_goal=daily_goal
@@ -153,7 +160,7 @@ async def generate_calorie_plot(
         model=Meal,
         amount_field='total_calories',
         ylabel='Калории (ккал)',
-        title='🔥 Потребление калорий',
+        title="🔥 Потребление калорий",
         color=COLORS['calories'],
         period=period,
         daily_goal=daily_goal
@@ -172,7 +179,7 @@ async def generate_activity_plot(
         model=Activity,
         amount_field='calories_burned',
         ylabel='Сожжено (ккал)',
-        title='🏃 Активность (сожжённые калории)',
+        title="🏃 Активность (сожжённые калории)",
         color=COLORS['activity'],
         period=period,
         daily_goal=daily_goal
@@ -232,7 +239,7 @@ async def _generate_consumption_plot(
         bars = plt.bar(x, values, color=['#1f77b4']*len(hours) + ['#ff7f0e', '#2ca02c'],
                        alpha=0.8, edgecolor='white', linewidth=1)
 
-        # Подписи значений с поддержкой эмодзи
+        # Подписи значений
         for bar, val in zip(bars, values):
             if val > 0:
                 plt.text(bar.get_x() + bar.get_width()/2., bar.get_height(),
@@ -241,11 +248,10 @@ async def _generate_consumption_plot(
         plt.xticks(x, labels, rotation=45, ha='right')
         
         # Заголовок с эмодзи
-        title_font = get_emoji_font()
-        if title_font:
-            plt.title(f'{title} (последние 24 часа)', fontsize=16, fontweight='bold', pad=20, fontproperties=title_font)
-        else:
-            plt.title(f'{title} (последние 24 часа)', fontsize=16, fontweight='bold', pad=20)
+        ax = plt.gca()
+        ax.set_title("")
+        add_text_with_emoji(ax, 0.5, 1.02, f"{title} (последние 24 часа)", 
+                            transform=ax.transAxes, ha='center', fontsize=16, fontweight='bold')
         
         plt.xlabel('Время', fontsize=12)
         plt.ylabel(ylabel, fontsize=12)
@@ -307,11 +313,10 @@ async def _generate_consumption_plot(
         plt.xticks(range(len(labels)), labels, rotation=45, ha='right')
         
         # Заголовок с эмодзи
-        title_font = get_emoji_font()
-        if title_font:
-            plt.title(title + title_suffix, fontsize=16, fontweight='bold', pad=20, fontproperties=title_font)
-        else:
-            plt.title(title + title_suffix, fontsize=16, fontweight='bold', pad=20)
+        ax = plt.gca()
+        ax.set_title("")
+        add_text_with_emoji(ax, 0.5, 1.02, f"{title}{title_suffix}", 
+                            transform=ax.transAxes, ha='center', fontsize=16, fontweight='bold')
         
         plt.xlabel('Дата', fontsize=12)
         plt.ylabel(ylabel, fontsize=12)

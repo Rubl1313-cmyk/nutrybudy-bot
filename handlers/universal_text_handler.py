@@ -15,14 +15,14 @@ from datetime import datetime
 
 from services.intent_classifier import classify
 from utils.water_parser import parse_water_amount
-from utils.helpers import normalize_exit_command  # <-- добавлен импорт
+from utils.helpers import normalize_exit_command
 from handlers.food import cmd_log_food, process_next_food, process_food_search
 from handlers.water import cmd_water, add_water_quick
 from handlers.shopping import cmd_shopping, add_to_shopping_list, update_list_message, get_or_create_default_list
 from handlers.activity import cmd_fitness
 from handlers.reminders import cmd_reminders, quick_create_reminder
 from utils.parsers import parse_shopping_items
-from utils.states import ActivityStates, FoodStates
+from utils.states import ActivityStates, FoodStates, AIAssistantStates
 from database.db import get_session
 from database.models import User, Activity
 from utils.ai_tools import get_weather
@@ -44,8 +44,15 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
         text = message.text
     logger.info(f"📨 Получен текст: {text}")
 
-    # Проверка на выход из режима AI (на случай, если сообщение не попало в ai_assistant)
+    # ========== ПРОВЕРКА НА НАХОЖДЕНИЕ В РЕЖИМЕ AI ==========
     current_state = await state.get_state()
+    if current_state == AIAssistantStates.waiting_for_question:
+        # Если мы в режиме AI, все сообщения отправляем в AI
+        logger.info(f"Пользователь в режиме AI, отправляем запрос в AI: {text}")
+        await process_ai_query(message, state, text)
+        return
+
+    # Проверка на выход из режима AI (на случай, если сообщение не попало в ai_assistant)
     if current_state == "AIAssistantStates:waiting_for_question":
         normalized = normalize_exit_command(text)
         if normalized in ['выход', 'выйти', 'выходи', 'завершить', 'закончить', 'стоп', 'хватит', '/cancel']:
@@ -275,21 +282,12 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
         await message.answer(weather_info)
         return
 
-    # ----- AI-ЗАПРОСЫ -----
+    # ----- AI-ЗАПРОСЫ (ТОЛЬКО ЕСЛИ НЕ В РЕЖИМЕ AI) -----
     if intent == "ai":
-        # Проверяем, не короткое ли это слово после выхода
-        # (дополнительная защита, если по какой-то причине не сработала проверка выше)
-        words = text.split()
-        question_words = ["что", "как", "почему", "зачем", "кто", "где", "когда", "сколько", "?"]
-        if len(words) <= 3 and not any(q in text_lower for q in question_words):
-            # Короткое слово без вопроса - скорее всего, не AI запрос
-            logger.info(f"Short text '{text}' classified as AI, but treating as unknown")
-            # Переходим к блоку unknown
-            pass
-        else:
-            logger.info(f"🤖 AI запрос от {message.from_user.id}: {text}")
-            await process_ai_query(message, state, text)
-            return
+        # Если мы здесь, значит мы не в режиме AI (проверка выше не сработала)
+        logger.info(f"🤖 AI запрос вне режима от {message.from_user.id}: {text}")
+        await process_ai_query(message, state, text)
+        return
 
     # ----- НЕОПРЕДЕЛЁННОЕ -----
     await state.update_data(pending_text=text)
@@ -304,8 +302,6 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
         reply_markup=keyboard
     )
     return
-
-# ... остальные обработчики (water_drink, water_buy, choose_shopping и т.д.) без изменений
 
 # ========== ОБРАБОТЧИКИ КНОПОК ДЛЯ ВОДЫ ==========
 

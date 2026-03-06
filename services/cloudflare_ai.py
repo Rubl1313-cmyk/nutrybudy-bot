@@ -3,6 +3,7 @@
 Cloudflare Workers AI Integration for NutriBuddy
 ✅ Улучшенное распознавание еды с весами, ингредиентами и КБЖУ
 ✅ Мультимодельный режим с fallback
+✅ Каскадное распознавание с голосованием
 ✅ Валидация и постобработка результатов
 """
 
@@ -370,7 +371,6 @@ async def identify_food_cascade(image_bytes: bytes) -> Dict:
     result1, model1 = await identify_food_multimodel(
         image_bytes, 
         prompt=FOOD_RECOGNITION_PROMPT,
-        model="@cf/llava-hf/llava-1.5-7b-hf"
     )
     if result1:
         results.append(("llava", result1, 0.5))
@@ -379,7 +379,6 @@ async def identify_food_cascade(image_bytes: bytes) -> Dict:
     result2, model2 = await identify_food_multimodel(
         image_bytes,
         prompt=FOOD_RECOGNITION_PROMPT,
-        model="@cf/unum/uform-gen2-qwen-500m"
     )
     if result2:
         results.append(("uform", result2, 0.3))

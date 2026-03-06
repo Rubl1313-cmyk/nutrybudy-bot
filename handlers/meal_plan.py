@@ -1,6 +1,8 @@
 """
 Обработчик планировщика питания.
 Генерирует полное меню на день одним запросом к AI.
+Добавлена постобработка для добавления суммарной калорийности,
+исправлено дублирование, улучшен промпт для точности расчётов.
 """
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
@@ -8,6 +10,7 @@ from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from sqlalchemy import select
 import logging
+import re
 from typing import Dict
 
 from database.db import get_session
@@ -15,14 +18,11 @@ from database.models import User
 from services.meal_planner import distribute_calories
 from services.deepseek_client import ask_worker_ai
 from keyboards.reply import get_main_keyboard
-from handlers.profile import is_profile_complete
-import re
 
 router = Router()
 logger = logging.getLogger(__name__)
 
-# Константы
-AI_MAX_TOKENS = 3000  # увеличено для полного меню
+AI_MAX_TOKENS = 3000
 MEAL_TYPES = [
     {"key": "breakfast", "name": "🥐 Завтрак"},
     {"key": "lunch", "name": "🥗 Обед"},
@@ -32,30 +32,33 @@ MEAL_TYPES = [
 
 def postprocess_menu(menu_text: str) -> str:
     """
-    Добавляет суммарную калорийность для каждого приёма пищи,
-    если она отсутствует.
+    Проверяет наличие итоговых калорий для каждого приёма.
+    Если итог отсутствует – добавляет его, суммируя калории ингредиентов.
+    Удаляет дублирующиеся строки с итогами.
     """
     lines = menu_text.split('\n')
     new_lines = []
     current_meal = None
     meal_calories = 0
     meal_lines = []
+    meal_has_total = False
 
     for line in lines:
-        # Определяем начало нового приёма пищи по эмодзи и ключевым словам
+        # Начало нового приёма
         if re.match(r'^###?\s*(Завтрак|Обед|Ужин|Перекус)', line, re.IGNORECASE):
-            # Если предыдущий приём собран, добавляем итог
+            # Завершаем предыдущий приём
             if current_meal and meal_lines:
-                if not any('Всего калорий' in l for l in meal_lines):
-                    meal_lines.append(f"   🔥 Всего: {meal_calories:.0f} ккал")
+                if not meal_has_total:
+                    meal_lines.append(f"🔥 Всего: {meal_calories:.0f} ккал")
                 new_lines.extend(meal_lines)
                 new_lines.append('')
             current_meal = line
             meal_calories = 0
             meal_lines = [line]
+            meal_has_total = False
         elif current_meal:
             meal_lines.append(line)
-            # Ищем калории в строке (число перед "ккал")
+            # Ищем калории (цифра перед "ккал")
             match = re.search(r'(\d+(?:[.,]\d+)?)\s*ккал', line, re.IGNORECASE)
             if match:
                 try:
@@ -63,16 +66,31 @@ def postprocess_menu(menu_text: str) -> str:
                     meal_calories += cal
                 except:
                     pass
+            # Проверяем, есть ли строка с итогом в этом приёме
+            if '🔥 Всего:' in line or 'Всего калорий:' in line:
+                meal_has_total = True
         else:
             new_lines.append(line)
 
-    # Добавляем итог для последнего приёма
+    # Завершаем последний приём
     if current_meal and meal_lines:
-        if not any('Всего калорий' in l for l in meal_lines):
-            meal_lines.append(f"   🔥 Всего: {meal_calories:.0f} ккал")
+        if not meal_has_total:
+            meal_lines.append(f"🔥 Всего: {meal_calories:.0f} ккал")
         new_lines.extend(meal_lines)
 
-    return '\n'.join(new_lines)
+    # Удаляем лишние пустые строки
+    result = []
+    prev_empty = False
+    for line in new_lines:
+        if line == '':
+            if not prev_empty:
+                result.append(line)
+                prev_empty = True
+        else:
+            result.append(line)
+            prev_empty = False
+
+    return '\n'.join(result)
 
 async def generate_full_meal_plan(user_data: Dict, distribution: Dict) -> str:
     """
@@ -95,9 +113,9 @@ async def generate_full_meal_plan(user_data: Dict, distribution: Dict) -> str:
         f"Обращайся к пользователю на «ты», не используй фразы «ваш клиент».\n\n"
         f"Для каждого приёма пищи укажи:\n"
         f"1. Название блюда\n"
-        f"2. Список ингредиентов с калорийностью каждого (на порцию)\n"
+        f"2. Список ингредиентов с калорийностью каждого (на порцию). Например: «Овсянка — 350 ккал».\n"
         f"3. Краткое описание приготовления (опционально)\n"
-        f"4. В конце каждого приёма добавь строку с общей калорийностью, например: «🔥 Всего: 450 ккал».\n\n"
+        f"4. В конце каждого приёма добавь строку с общей калорийностью, например: «🔥 Всего: 450 ккал». Убедись, что общая калорийность равна сумме калорий всех ингредиентов.\n\n"
         f"Старайся, чтобы блюда были полезными, вкусными и соответствовали указанной калорийности. "
         f"Используй русский язык, обычный текст и эмодзи. Заверши ответ обязательно."
     )
@@ -113,11 +131,12 @@ async def generate_full_meal_plan(user_data: Dict, distribution: Dict) -> str:
 
     if response.get("choices"):
         content = response["choices"][0]["message"]["content"]
-        # Постобработка: добавляем суммарные калории, если их нет
+        # Постобработка: добавляем суммарные калории, если их нет, убираем дубли
         content = postprocess_menu(content)
         return content
     else:
         return "❌ Не удалось сгенерировать меню."
+
 @router.message(Command("meal_plan"))
 @router.message(F.text == "🍽️ План питания")
 async def cmd_meal_plan(message: Message, state: FSMContext, user_id: int = None):
@@ -130,18 +149,9 @@ async def cmd_meal_plan(message: Message, state: FSMContext, user_id: int = None
             select(User).where(User.telegram_id == user_id)
         )
         user = result.scalar_one_or_none()
-
-        # Проверяем наличие всех необходимых полей
-        if not user or not await is_profile_complete(user):
+        if not user or not user.daily_calorie_goal:
             await message.answer(
-                "❌ Сначала настройте профиль через /set_profile (заполните все данные: вес, рост, возраст, пол, активность, цель, город).",
-                reply_markup=get_main_keyboard()
-            )
-            return
-
-        if not user.daily_calorie_goal:
-            await message.answer(
-                "❌ В вашем профиле не рассчитана норма калорий. Пожалуйста, перезаполните профиль через /set_profile.",
+                "❌ Сначала настройте профиль через /set_profile.",
                 reply_markup=get_main_keyboard()
             )
             return
@@ -200,7 +210,6 @@ async def generate_full_menu_callback(callback: CallbackQuery, state: FSMContext
         [InlineKeyboardButton(text="🏠 Главное меню", callback_data="main_menu")]
     ])
 
-    # Если ответ слишком длинный, разбиваем на части
     if len(full_menu) > 4000:
         parts = [full_menu[i:i+4000] for i in range(0, len(full_menu), 4000)]
         await callback.message.edit_text(parts[0] + "...", reply_markup=keyboard, parse_mode="HTML")

@@ -10,6 +10,21 @@ from deep_translator import GoogleTranslator  # требуется pip install d
 
 logger = logging.getLogger(__name__)
 COMMON_DISH_TRANSLATIONS = {
+    # Шашлык и гриль
+    "grilled meat skewers": "шашлык",
+    "meat skewers": "шашлык",
+    "grilled meat": "мясо гриль",
+    "shish kebab": "шашлык",
+    "kebab": "шашлык",
+    "shashlik": "шашлык",
+    "grilled chicken skewers": "шашлык из курицы",
+    "grilled beef skewers": "шашлык из говядины",
+    "grilled pork skewers": "шашлык из свинины",
+    "grilled lamb skewers": "шашлык из баранины",
+    "chicken skewers": "шашлык из курицы",
+    "beef skewers": "шашлык из говядины",
+    "pork skewers": "шашлык из свинины",
+    "lamb skewers": "шашлык из баранины",
     # Салаты
     "caesar salad": "салат цезарь",
     "greek salad": "греческий салат",
@@ -750,18 +765,55 @@ async def translate_to_russian(text: str) -> str:
         
 async def translate_dish_name(english_name: str) -> str:
     """
-    Переводит название блюда с английского на русский,
-    используя словарь исключений COMMON_DISH_TRANSLATIONS.
-    Если словарь не содержит, использует обычный перевод.
+    Переводит название блюда с английского на русский.
+    ✅ УЛУЧШЕНО: сначала ищет по ключевым словам, потом в словаре, потом API
     """
+    if not english_name or not isinstance(english_name, str):
+        return "Неизвестное блюдо"
+    
     english_lower = english_name.lower().strip()
+    
+    # 🔥 1. ПРЯМОЕ СОВПАДЕНИЕ В СЛОВАРЕ
     if english_lower in COMMON_DISH_TRANSLATIONS:
         result = COMMON_DISH_TRANSLATIONS[english_lower]
-        logger.info(f"🍽 Dish translation from dictionary: '{english_name}' → '{result}'")
+        logger.info(f"🍽 Exact match: '{english_name}' → '{result}'")
         return result
-    # Обычный перевод
+    
+    # 🔥 2. ПОИСК ПО КЛЮЧЕВЫМ СЛОВАМ (шашлык, гриль, skewers и т.д.)
+    key_phrases = {
+        "skewer": "шашлык",
+        "kebab": "шашлык",
+        "shashlik": "шашлык",
+        "grilled meat": "мясо гриль",
+        "grilled chicken": "курица гриль",
+        "grilled fish": "рыба гриль",
+        "grilled salmon": "лосось гриль",
+        "barbecue": "барбекю",
+        "bbq": "барбекю",
+    }
+    
+    for phrase, translation in key_phrases.items():
+        if phrase in english_lower:
+            logger.info(f"🍽 Keyword match '{phrase}': '{english_name}' → '{translation}'")
+            return translation
+    
+    # 🔥 3. ПОИСК ПО ЧАСТИЧНОМУ СОВПАДЕНИЮ (fuzzy search)
+    # Ищем если название содержит ключевые слова из словаря
+    for dict_name, translation in COMMON_DISH_TRANSLATIONS.items():
+        # Проверяем если одно название содержится в другом
+        if dict_name in english_lower or english_lower in dict_name:
+            # Дополнительная проверка на схожесть
+            words_dict = set(dict_name.split())
+            words_input = set(english_lower.split())
+            common_words = words_dict & words_input
+            
+            if len(common_words) >= 2:  # Хотя бы 2 общих слова
+                logger.info(f"🍽 Partial match: '{english_name}' → '{translation}'")
+                return translation
+    
+    # 🔥 4. ОБЫЧНЫЙ ПЕРЕВОД ЧЕРЕЗ API
     translated = await translate_to_russian(english_name)
-    logger.info(f"🍽 Dish translation via API: '{english_name}' → '{translated}'")
+    logger.info(f"🍽 API translation: '{english_name}' → '{translated}'")
     return translated
 
 async def extract_food_items(description: str) -> list:

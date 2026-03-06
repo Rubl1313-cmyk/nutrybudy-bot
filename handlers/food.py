@@ -32,6 +32,34 @@ def split_food_text(text: str) -> List[str]:
     parts = [p.strip() for p in text.split(',') if p.strip()]
     return parts
 
+async def perform_food_search(text: str, message: Message, state: FSMContext):
+    """
+    Выполняет поиск продуктов по тексту и запускает соответствующий процесс.
+    """
+    components = split_food_text(text)
+
+    if len(components) > 1:
+        # составное блюдо – инициализируем множественный ввод
+        await state.update_data(pending_items=components, current_index=0, selected_foods=[])
+        await process_next_food(message, state)
+    else:
+        # одиночный продукт
+        foods = await search_food(text)
+        if not foods:
+            await message.answer(
+                f"❌ Ничего не найдено.\n\n"
+                f"📝 Введите название вручную (будет сохранено с нулевой калорийностью):",
+                reply_markup=get_cancel_keyboard()
+            )
+            await state.set_state(FoodStates.manual_food_name)
+            return
+        await state.update_data(foods=foods)
+        await state.set_state(FoodStates.selecting_food)
+        await message.answer(
+            "✅ Выберите продукт:",
+            reply_markup=get_food_selection_keyboard(foods[:5])
+        )
+
 @router.message(Command("log_food"))
 @router.message(F.text == "🍽️ Дневник питания")
 async def cmd_log_food(message: Message, state: FSMContext, user_id: int = None):
@@ -71,14 +99,11 @@ async def process_meal_type(callback: CallbackQuery, state: FSMContext):
     data = await state.get_data()
     pending_text = data.get('pending_food_text')
     if pending_text:
-        # Удаляем его, чтобы не использовать повторно
+        # Удаляем его из состояния, чтобы не использовать повторно
         await state.update_data(pending_food_text=None)
-        # Устанавливаем состояние поиска
+        # Переходим к поиску с этим текстом
         await state.set_state(FoodStates.searching_food)
-        # Создаём фиктивное сообщение для process_food_search
-        fake_message = callback.message
-        fake_message.text = pending_text
-        await process_food_search(fake_message, state)
+        await perform_food_search(pending_text, callback.message, state)
     else:
         await state.set_state(FoodStates.searching_food)
         await callback.message.edit_text(
@@ -90,29 +115,7 @@ async def process_meal_type(callback: CallbackQuery, state: FSMContext):
 async def process_food_search(message: Message, state: FSMContext):
     """Поиск продуктов – поддерживает составные блюда"""
     text = message.text.strip()
-    components = split_food_text(text)
-
-    if len(components) > 1:
-        # составное блюдо – инициализируем множественный ввод
-        await state.update_data(pending_items=components, current_index=0, selected_foods=[])
-        await process_next_food(message, state)
-    else:
-        # одиночный продукт
-        foods = await search_food(text)
-        if not foods:
-            await message.answer(
-                f"❌ Ничего не найдено.\n\n"
-                f"📝 Введите название вручную (будет сохранено с нулевой калорийностью):",
-                reply_markup=get_cancel_keyboard()
-            )
-            await state.set_state(FoodStates.manual_food_name)
-            return
-        await state.update_data(foods=foods)
-        await state.set_state(FoodStates.selecting_food)
-        await message.answer(
-            "✅ Выберите продукт:",
-            reply_markup=get_food_selection_keyboard(foods[:5])
-        )
+    await perform_food_search(text, message, state)
 
 async def process_next_food(message: Message, state: FSMContext):
     """Обрабатывает следующий продукт из списка pending_items"""

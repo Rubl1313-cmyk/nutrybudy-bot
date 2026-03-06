@@ -2,10 +2,10 @@
 Обработчик напоминаний.
 Исправлено: уникальные callback_data для подтверждения + добавлена quick_create_reminder.
 Добавлено: удаление напоминаний с подтверждением.
-Исправлена ошибка MissingGreenlet при доступе к reminder.user.
+Исправлена ошибка MissingGreenlet и AttributeError при доступе к reminder.user.
 """
 from aiogram import Router, F
-from aiogram.types import Message, CallbackQuery, ReplyKeyboardMarkup, KeyboardButton
+from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from sqlalchemy import select
@@ -123,9 +123,8 @@ async def confirm_delete_reminder(callback: CallbackQuery, state: FSMContext):
         )
         reminder = result.scalar_one_or_none()
         
-        # Альтернативно можно получить пользователя отдельно, но проще через options
-        if reminder and (await reminder.awaitable_attrs.user).telegram_id == callback.from_user.id:
-            # Помечаем как неактивное (мягкое удаление)
+        # Проверяем, что напоминание принадлежит этому пользователю
+        if reminder and reminder.user and reminder.user.telegram_id == callback.from_user.id:
             reminder.enabled = False
             await session.commit()
             await callback.answer("✅ Напоминание удалено", show_alert=False)

@@ -1,233 +1,178 @@
 """
-Обработчик AI-ассистента.
-Поддерживает два режима:
-- Однократные ответы (без истории, автоматический выход)
-- Диалоговый режим (с историей, выход по команде)
+Клиент для обращения к собственному Cloudflare Worker.
+Worker использует модель qwen2.5-coder-32b-instruct.
 """
-from aiogram import Router, F
-from aiogram.types import Message
-from aiogram.filters import Command
-from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import State, StatesGroup
+import aiohttp
+import os
 import logging
-import asyncio
+from typing import Optional, Dict, Any
 
-from services.deepseek_client import ask_worker_ai, DEFAULT_SYSTEM_PROMPT
-from keyboards.reply import get_main_keyboard
-from services.cloudflare_ai import transcribe_audio
-from services.intent_classifier import classify
-from utils.ai_tools import get_weather
-from utils.helpers import normalize_exit_command
-from database.db import get_session
-from database.models import User
-from sqlalchemy import select
-
-router = Router()
 logger = logging.getLogger(__name__)
 
-class AIAssistantStates(StatesGroup):
-    waiting_for_question = State()  # диалоговый режим
+WORKER_URL = os.getenv("WORKER_URL")
+WORKER_API_KEY = os.getenv("WORKER_API_KEY")
 
-MAX_HISTORY = 10
+DEFAULT_SYSTEM_PROMPT = (
+    "Ты — Джарвис, дружелюбный помощник по питанию и здоровому образу жизни, а также эксперт по боту NutriBuddy. "
+    "Твоя задача — отвечать на вопросы пользователя о питании, здоровье, тренировках, а также подробно объяснять, "
+    "как работает бот, откуда берутся цифры и как пользоваться всеми его функциями.\n\n"
 
-# ==================== ОДНОКРАТНЫЕ ОТВЕТЫ (ВНЕ ДИАЛОГА) ====================
-async def process_single_ai_query(message: Message, query: str):
-    """
-    Однократный запрос к AI без сохранения истории.
-    Используется для ответов на вопросы, заданные вне диалогового режима.
-    """
-    if not query or not query.strip():
-        await message.answer("❌ Пустой запрос. Пожалуйста, напишите что-нибудь.")
-        return
+    "ОСНОВНЫЕ ВОЗМОЖНОСТИ БОТА:\n"
+    "1. Профиль и нормы\n"
+    "2. Запись еды (фото, текст)\n"
+    "3. Запись воды\n"
+    "4. Запись активности (тренировки, шаги)\n"
+    "5. Прогресс и графики\n"
+    "6. Списки покупок\n"
+    "7. Напоминания\n"
+    "8. План питания (генерация меню)\n"
+    "9. AI-ассистент (диалоговый режим)\n"
+    "10. Погода\n\n"
 
-    await message.answer("⏳ Думаю...")
-    logger.info(f"🚀 Однократный запрос в AI от {message.from_user.id}: {query[:100]}...")
+    "ДЕТАЛЬНОЕ ОПИСАНИЕ КАЖДОЙ ФУНКЦИИ:\n\n"
+
+    "1. ПРОФИЛЬ И НОРМЫ:\n"
+    "   - Команда /set_profile или кнопка «👤 Профиль».\n"
+    "   - Пользователь вводит: вес (кг), рост (см), возраст (лет), пол (мужской/женский), уровень активности (сидячий, средний, высокий), цель (похудение, поддержание, набор массы), город.\n"
+    "   - На основе этих данных бот рассчитывает:\n"
+    "     • Базальный метаболизм (BMR) по формуле Mifflin-St Jeor:\n"
+    "         для мужчин: BMR = 10 * вес + 6.25 * рост – 5 * возраст + 5\n"
+    "         для женщин: BMR = 10 * вес + 6.25 * рост – 5 * возраст – 161\n"
+    "     • Общий расход энергии (TDEE) = BMR * коэффициент активности:\n"
+    "         низкая активность (сидячий образ жизни) × 1.2\n"
+    "         средняя активность (тренировки 3-5 раз в неделю) × 1.55\n"
+    "         высокая активность (физическая работа + тренировки) × 1.725\n"
+    "     • Дневная норма калорий = TDEE + коррекция под цель:\n"
+    "         похудение: –500 ккал (дефицит ~0.5 кг/неделю)\n"
+    "         поддержание: +0 ккал\n"
+    "         набор массы: +300 ккал (профицит для набора мышц)\n"
+    "     • Нормы БЖУ (проценты от калорий):\n"
+    "         для похудения: белки 30%, жиры 30%, углеводы 40%\n"
+    "         для поддержания: белки 20%, жиры 30%, углеводы 50%\n"
+    "         для набора: белки 25%, жиры 25%, углеводы 50%\n"
+    "       Затем проценты переводятся в граммы (1 г белка/углеводов = 4 ккал, 1 г жира = 9 ккал).\n"
+    "     • Норма воды = вес (кг) × 30 мл + надбавка за активность (low:0, medium:500, high:1000) + надбавка за температуру (если >20°C, +200 мл на каждые 10°C выше 20).\n"
+    "   - Все данные сохраняются в профиле и используются в других функциях.\n\n"
+
+    "2. ЗАПИСЬ ЕДЫ:\n"
+    "   - Команда /log_food или кнопка «🍽️ Питание» → «✏️ Ввести продукты вручную».\n"
+    "   - Можно отправить фото еды: бот использует Cloudflare AI (модели LLaVA и UForm) для распознавания блюда и ингредиентов. Результат переводится на русский, ищется в локальной базе продуктов, затем запускается интерфейс для указания веса.\n"
+    "   - При ручном вводе можно перечислить продукты через запятую (например, «гречка, куриная грудка, огурец»). Бот разобьёт их на компоненты и предложит выбрать каждый из списка (с калорийностью на 100 г). После выбора нужно ввести вес порции, и бот пересчитает калории и БЖУ.\n"
+    "   - Локальная база продуктов содержит более 1500 наименований с калорийностью и БЖУ на 100 г. Если продукт не найден, можно ввести название вручную (будет сохранён с нулевой калорийностью).\n"
+    "   - Поддерживается множественный ввод: после ввода нескольких продуктов через запятую бот по очереди предложит выбрать каждый.\n"
+    "   - Калории рассчитываются по формуле: (калорийность на 100 г) * (вес порции / 100).\n\n"
+
+    "3. ЗАПИСЬ ВОДЫ:\n"
+    "   - Команда /log_water или кнопка «💧 Вода».\n"
+    "   - Можно выбрать предустановленный объём (200, 300, 500, 1000 мл) или ввести вручную.\n"
+    "   - Бот также понимает естественный язык: «выпил 2 стакана воды», «попил 500 мл». Стакан считается за 250 мл.\n"
+    "   - Вода сохраняется с меткой времени, и за день суммируется.\n\n"
+
+    "4. ЗАПИСЬ АКТИВНОСТИ:\n"
+    "   - Команда /fitness или кнопка «🏃 Записать активность».\n"
+    "   - Доступные типы: бег, велосипед, тренажёрный зал, йога, плавание, другое. Для ходьбы есть отдельная кнопка «👟 Записать шаги».\n"
+    "   - Для тренировок нужно указать длительность в минутах. Бот рассчитывает сожжённые калории по формуле: MET × вес(кг) × время(мин) / 60. Значения MET (метаболический эквивалент) для разных активностей взяты из Compendium of Physical Activities.\n"
+    "   - Для шагов: количество шагов переводится в километры (шаг ≈ 0,00075 км) и калории (шаг ≈ 0,04 ккал).\n"
+    "   - Можно также вводить текст вроде «пробежал 5 км за 30 минут» – бот распознает расстояние и длительность.\n\n"
+
+    "5. ПРОГРЕСС И ГРАФИКИ:\n"
+    "   - Команда /progress или кнопка «📊 Прогресс».\n"
+    "   - Можно выбрать период: день, неделя, месяц.\n"
+    "   - Бот показывает текстовую статистику (потреблённые калории, сожжённые, баланс, воду) и генерирует графики:\n"
+    "     • Динамика веса (все записи, с линией тренда)\n"
+    "     • Потребление воды (столбцы за последние 24 часа или линейный график за неделю/месяц, с линией нормы)\n"
+    "     • Потребление калорий (аналогично воде)\n"
+    "     • Сожжённые калории (активность)\n"
+    "   - Графики строятся с помощью matplotlib, данные берутся из таблиц WeightEntry, WaterEntry, Meal, Activity.\n"
+    "   - Для веса график доступен, если есть хотя бы две записи.\n\n"
+
+    "6. СПИСКИ ПОКУПОК:\n"
+    "   - Команда /shopping или кнопка «📋 Списки покупок».\n"
+    "   - Можно добавлять товары текстом, например: «купить 2 яйца и молоко». Бот разберёт количество и единицы (шт, кг, л).\n"
+    "   - В списке можно увеличивать/уменьшать количество, отмечать купленное, удалять товары.\n"
+    "   - Поддерживается несколько списков (по умолчанию один).\n\n"
+
+    "7. НАПОМИНАНИЯ:\n"
+    "   - Команда /reminders или кнопка «🔔 Напоминания».\n"
+    "   - Можно создать напоминание о приёме пищи, воде, взвешивании или своё.\n"
+    "   - Указывается время (в формате ЧЧ:ММ) и дни (ежедневно или конкретные).\n"
+    "   - Бот проверяет напоминания каждую минуту (по московскому времени) и отправляет сообщение.\n"
+    "   - В списке напоминаний есть кнопка удаления.\n\n"
+
+    "8. ПЛАН ПИТАНИЯ:\n"
+    "   - Команда /meal_plan или кнопка «🍽️ План питания».\n"
+    "   - Бот показывает рекомендуемое распределение калорий по приёмам (завтрак 30%, обед 35%, ужин 25%, перекус 10%).\n"
+    "   - При нажатии «Сгенерировать меню» отправляется запрос к AI с параметрами пользователя (цель, пол, возраст, вес, рост, активность, дневная норма).\n"
+    "   - AI составляет меню на день с ингредиентами, калорийностью каждого ингредиента, описанием и итоговой калорийностью приёма.\n"
+    "   - После генерации бот проверяет, есть ли итоговые калории, и при необходимости суммирует их.\n\n"
+
+    "9. AI-АССИСТЕНТ (ДИАЛОГОВЫЙ РЕЖИМ):\n"
+    "   - Вход через меню «🤖 AI Помощник» или команду /ask.\n"
+    "   - В этом режиме бот помнит историю беседы (до 10 последних сообщений) и поддерживает контекст.\n"
+    "   - Выход из режима – по команде «выход», «выйти», «завершить» или /cancel.\n"
+    "   - Вне диалогового режима любые запросы, классифицированные как «ai», обрабатываются однократно (без истории).\n"
+    "   - Голосовые сообщения распознаются (только русский язык) через Cloudflare Whisper.\n\n"
+
+    "10. ПОГОДА:\n"
+    "    - Бот может сообщить погоду по запросу: «погода в Москве», «сколько градусов в Питере».\n"
+    "    - Используется WeatherAPI.com, данные кэшируются на день.\n"
+    "    - Если город не указан, берётся из профиля пользователя (или Москва по умолчанию).\n\n"
+
+    "ПРИМЕРЫ ИСПОЛЬЗОВАНИЯ:\n"
+    "- «Как записать еду?» → Объясни про /log_food и фото.\n"
+    "- «Почему мне показывают 2000 ккал в день?» → Объясни расчёт по формуле и цель.\n"
+    "- «Как посмотреть прогресс по весу?» → Расскажи про /progress и графики.\n"
+    "- «Добавь в список покупок 2 батона» → Объясни, что можно просто написать, бот поймёт.\n"
+    "- «Что такое MET?» → Объясни, что это метаболический эквивалент, коэффициент для расчёта калорий при активности.\n"
+    "- «Где берутся данные о калорийности продуктов?» → Расскажи про локальную базу и Open Food Facts.\n\n"
+
+    "ТВОЙ СТИЛЬ:\n"
+    "Будь дружелюбным, с лёгким юмором, но не переусердствуй. Всегда старайся дать полезный и точный ответ. "
+    "Если пользователь спрашивает о функции бота, объясни её просто и понятно, приведи пример. "
+    "Если вопрос не по теме (например, о жизни), можешь пошутить, но затем вернись к теме здоровья и питания. "
+    "Завершай ответ всегда."
+)
+
+async def ask_worker_ai(
+    prompt: str,
+    system_prompt: str = DEFAULT_SYSTEM_PROMPT,
+    model: str = "@cf/qwen/qwen2.5-coder-32b-instruct",
+    temperature: float = 0.7,
+    max_tokens: int = 3000   # увеличено до 3000 для рецептов
+) -> Optional[Dict[str, Any]]:
+    if not WORKER_URL or not WORKER_API_KEY:
+        logger.error("❌ WORKER_URL or WORKER_API_KEY not set")
+        return {"error": "Worker credentials not configured"}
+
+    headers = {
+        "Authorization": f"Bearer {WORKER_API_KEY}",
+        "Content-Type": "application/json"
+    }
+
+    payload = {
+        "prompt": prompt,
+        "systemPrompt": system_prompt,
+        "model": model,
+        "temperature": temperature,
+        "max_tokens": max_tokens
+    }
 
     try:
-        response = await ask_worker_ai(
-            prompt=query,
-            system_prompt=DEFAULT_SYSTEM_PROMPT,
-            model="@cf/qwen/qwen2.5-coder-32b-instruct",
-            max_tokens=3000
-        )
-
-        if "error" in response:
-            error_msg = response["error"]
-            logger.error(f"Ошибка AI: {error_msg}")
-            await message.answer(f"❌ Ошибка при обращении к AI: {error_msg}")
-        elif response.get("choices"):
-            content = response["choices"][0]["message"]["content"]
-            if len(content) > 4000:
-                parts = [content[i:i+4000] for i in range(0, len(content), 4000)]
-                for part in parts:
-                    await message.answer(part, parse_mode="HTML")
-            else:
-                await message.answer(content, parse_mode="HTML")
-            logger.info(f"✅ Однократный ответ AI получен, длина: {len(content)}")
-        else:
-            await message.answer("❌ Не удалось получить ответ от AI. Попробуйте позже.")
+        async with aiohttp.ClientSession() as session:
+            # Увеличиваем таймаут до 60 секунд
+            async with session.post(WORKER_URL, headers=headers, json=payload, timeout=60) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    if "usage" in data:
+                        logger.info(f"📊 Использовано токенов: {data['usage']}")
+                    return data
+                else:
+                    error_text = await resp.text()
+                    logger.error(f"Worker error {resp.status}: {error_text}")
+                    return {"error": f"Worker error: {resp.status}"}
+    except asyncio.TimeoutError:
+        logger.error("❌ Worker request timeout after 60 seconds")
+        return {"error": "Request timeout, please try again later"}
     except Exception as e:
-        logger.error(f"Исключение при запросе к AI: {e}", exc_info=True)
-        await message.answer("❌ Произошла внутренняя ошибка при обращении к AI.")
-
-# ==================== ДИАЛОГОВЫЙ РЕЖИМ ====================
-async def process_voice(message: Message, state: FSMContext, is_global: bool = False):
-    """Обработка голоса в диалоговом режиме."""
-    await message.answer("🎤 Распознаю речь...")
-    try:
-        voice = message.voice
-        if voice.duration > 120:
-            await message.answer("⏱️ Слишком длинное голосовое сообщение. Пожалуйста, запишите короче (до 2 минут).")
-            return
-
-        file_info = await message.bot.get_file(voice.file_id)
-        try:
-            file_bytes = await asyncio.wait_for(
-                message.bot.download_file(file_info.file_path),
-                timeout=30.0
-            )
-        except asyncio.TimeoutError:
-            await message.answer("❌ Таймаут при скачивании голосового сообщения. Попробуйте ещё раз.")
-            return
-
-        file_data = file_bytes.read()
-        text = await transcribe_audio(file_data, language="ru")
-
-        if not text:
-            await message.answer("❌ Не удалось распознать речь.")
-            return
-
-        await message.answer(f"📝 <b>Распознано:</b>\n{text}", parse_mode="HTML")
-
-        # Отправляем в диалоговый обработчик
-        await process_dialog_query(message, state, text)
-
-    except Exception as e:
-        logger.error(f"Ошибка обработки голоса: {e}", exc_info=True)
-        await message.answer("❌ Произошла внутренняя ошибка при обработке голоса.")
-
-async def process_dialog_query(message: Message, state: FSMContext, query: str):
-    """Обработка запроса в диалоговом режиме с сохранением истории."""
-    data = await state.get_data()
-    history = data.get('history', [])
-
-    system_prompt = DEFAULT_SYSTEM_PROMPT
-    if history:
-        history_text = "\n".join([
-            f"{msg['role']}: {msg['content']}" 
-            for msg in history[-MAX_HISTORY:]
-        ])
-        system_prompt += f"\n\nИстория диалога:\n{history_text}"
-
-    try:
-        response = await ask_worker_ai(
-            prompt=query,
-            system_prompt=system_prompt,
-            model="@cf/qwen/qwen2.5-coder-32b-instruct",
-            max_tokens=3000
-        )
-
-        if "error" in response:
-            error_msg = response["error"]
-            logger.error(f"Ошибка AI: {error_msg}")
-            await message.answer(f"❌ Ошибка при обращении к AI: {error_msg}")
-        elif response.get("choices"):
-            content = response["choices"][0]["message"]["content"]
-            
-            # Сохраняем историю
-            history.append({"role": "user", "content": query})
-            history.append({"role": "assistant", "content": content})
-            if len(history) > MAX_HISTORY * 2:
-                history = history[-MAX_HISTORY*2:]
-            await state.update_data(history=history)
-
-            if len(content) > 4000:
-                parts = [content[i:i+4000] for i in range(0, len(content), 4000)]
-                for part in parts:
-                    await message.answer(part, parse_mode="HTML")
-            else:
-                await message.answer(content, parse_mode="HTML")
-            logger.info(f"✅ Диалоговый ответ AI получен, длина: {len(content)}")
-        else:
-            await message.answer("❌ Не удалось получить ответ от AI. Попробуйте позже.")
-    except Exception as e:
-        logger.error(f"Исключение при запросе к AI: {e}", exc_info=True)
-        await message.answer("❌ Произошла внутренняя ошибка при обращении к AI.")
-
-# ==================== ВХОД В ДИАЛОГОВЫЙ РЕЖИМ ====================
-@router.message(Command("ask"))
-@router.message(F.text == "🤖 AI Помощник")
-async def cmd_ask(message: Message, state: FSMContext, user_id: int = None):
-    """Вход в режим диалога с AI-ассистентом."""
-    if user_id is None:
-        user_id = message.from_user.id
-
-    await state.set_state(AIAssistantStates.waiting_for_question)
-    await state.update_data(history=[])
-    await message.answer(
-        "🤖 <b>Режим AI-ассистента (диалог)</b>\n\n"
-        "Задавайте любые вопросы, я буду помнить контекст беседы.\n"
-        "Для выхода из режима напишите 'выход' или используйте /cancel.\n\n"
-        "Чем я могу помочь?",
-        parse_mode="HTML"
-    )
-    logger.info(f"Пользователь {user_id} вошёл в диалоговый режим AI")
-
-# ==================== ОБРАБОТКА В ДИАЛОГОВОМ РЕЖИМЕ ====================
-@router.message(AIAssistantStates.waiting_for_question, F.voice)
-async def handle_voice_dialog(message: Message, state: FSMContext):
-    """Голос в диалоговом режиме."""
-    await process_voice(message, state)
-
-@router.message(AIAssistantStates.waiting_for_question, F.text)
-async def handle_text_dialog(message: Message, state: FSMContext):
-    """Текст в диалоговом режиме."""
-    raw_text = message.text
-    text = raw_text.strip()
-    normalized = normalize_exit_command(text)
-
-    # Проверка выхода из диалога
-    if normalized in ['выход', 'выйти', 'выходи', 'завершить', 'закончить', 'стоп', 'хватит', '/cancel']:
-        await state.clear()
-        await message.answer(
-            "👋 Выход из режима диалога.\n"
-            "Используйте меню для навигации.",
-            reply_markup=get_main_keyboard()
-        )
-        return
-
-    await process_dialog_query(message, state, text)
-
-# ==================== ОБРАБОТКА ГОЛОСА ВНЕ ДИАЛОГА ====================
-@router.message(F.voice)
-async def handle_voice_global(message: Message, state: FSMContext):
-    """Голос вне диалога – распознаём и обрабатываем как текст."""
-    current_state = await state.get_state()
-    if current_state and any(x in current_state for x in ['Food', 'Water', 'Activity', 'Steps']):
-        return
-
-    await message.answer("🎤 Распознаю речь...")
-    try:
-        voice = message.voice
-        if voice.duration > 120:
-            await message.answer("⏱️ Слишком длинное голосовое сообщение. Пожалуйста, запишите короче (до 2 минут).")
-            return
-
-        file_info = await message.bot.get_file(voice.file_id)
-        file_bytes = await message.bot.download_file(file_info.file_path)
-        file_data = file_bytes.read()
-        text = await transcribe_audio(file_data, language="ru")
-
-        if not text:
-            await message.answer("❌ Не удалось распознать речь.")
-            return
-
-        await message.answer(f"📝 <b>Распознано:</b>\n{text}", parse_mode="HTML")
-
-        # Передаём в универсальный обработчик (там будет классификация)
-        from handlers.universal_text_handler import handle_universal_text
-        await handle_universal_text(message, state, text)
-
-    except Exception as e:
-        logger.error(f"Ошибка обработки голоса: {e}", exc_info=True)
-        await message.answer("❌ Произошла внутренняя ошибка при обработке голоса.")
+        logger.exception("Worker request exception")
+        return {"error": f"Exception: {str(e)}"}

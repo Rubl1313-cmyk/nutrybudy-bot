@@ -4,6 +4,7 @@
 ✅ Проверка полноты профиля через is_profile_complete
 ✅ Запоминание ранее введённого текста из universal_text_handler
 ✅ Возможность пропустить продукт при множественном вводе
+✅ Улучшенное логирование для отладки ввода веса
 """
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery
@@ -12,6 +13,8 @@ from aiogram.fsm.context import FSMContext
 from sqlalchemy import select
 from datetime import datetime
 from typing import List, Dict
+import logging
+import re
 
 from database.db import get_session
 from database.models import User, Meal, FoodItem
@@ -22,21 +25,23 @@ from utils.states import FoodStates
 from handlers.profile import is_profile_complete
 
 router = Router()
+logger = logging.getLogger(__name__)
 
 def split_food_text(text: str) -> List[str]:
     """
     Разбивает текст на отдельные компоненты (продукты).
     Разделители: запятая, "и", "с", "из", "со", "от", "на", "в".
     """
-    import re
     text = re.sub(r'\b(и|с|со|из|от|на|в)\b', ',', text.lower())
     parts = [p.strip() for p in text.split(',') if p.strip()]
     return parts
 
 async def perform_food_search(message: Message, state: FSMContext, search_text: str):
     """Выполняет поиск продуктов и переводит состояние в selecting_food."""
+    logger.info(f"🔍 Выполняем поиск для: '{search_text}'")
     foods = await search_food(search_text)
     if not foods:
+        logger.info(f"❌ Ничего не найдено для '{search_text}'")
         await message.answer(
             f"❌ Ничего не найдено по запросу «{search_text}».\n\n"
             f"📝 Введите название вручную (будет сохранено с нулевой калорийностью):",
@@ -46,9 +51,9 @@ async def perform_food_search(message: Message, state: FSMContext, search_text: 
         return
     await state.update_data(foods=foods)
     await state.set_state(FoodStates.selecting_food)
-    # Показываем кнопку пропуска, если есть pending_items (множественный ввод)
     data = await state.get_data()
     show_skip = 'pending_items' in data
+    logger.info(f"✅ Найдено {len(foods)} продуктов, показываем список (show_skip={show_skip})")
     await message.answer(
         "✅ Выберите продукт:",
         reply_markup=get_food_selection_keyboard(foods[:5], show_skip=show_skip)
@@ -57,8 +62,8 @@ async def perform_food_search(message: Message, state: FSMContext, search_text: 
 async def handle_food_text(message: Message, state: FSMContext, text: str):
     """Универсальная обработка текста с продуктами (один или несколько)."""
     components = split_food_text(text)
+    logger.info(f"📝 Разбито на компоненты: {components}")
     if len(components) > 1:
-        # составное блюдо – инициализируем множественный ввод
         await state.update_data(pending_items=components, current_index=0, selected_foods=[])
         await process_next_food(message, state)
     else:
@@ -69,13 +74,12 @@ async def process_next_food(message: Message, state: FSMContext):
     data = await state.get_data()
     pending = data.get('pending_items', [])
     idx = data.get('current_index', 0)
+    logger.info(f"⏩ Переход к продукту {idx+1}/{len(pending)}")
     if idx >= len(pending):
         await finish_meal(message, state)
         return
     current = pending[idx]
     await state.update_data(current_food_name=current)
-
-    # Выполняем поиск для текущего продукта, с возможностью пропуска
     await perform_food_search(message, state, current)
 
 @router.message(Command("log_food"))
@@ -98,7 +102,6 @@ async def cmd_log_food(message: Message, state: FSMContext, user_id: int = None)
             )
             return
 
-    # НЕ очищаем состояние, чтобы сохранить pending_food_text
     await state.set_state(FoodStates.choosing_meal_type)
     await message.answer(
         "🍽️ <b>Выбери тип приёма пищи:</b>\n\n"
@@ -110,19 +113,16 @@ async def cmd_log_food(message: Message, state: FSMContext, user_id: int = None)
 @router.callback_query(F.data.startswith("meal_"), FoodStates.choosing_meal_type)
 async def process_meal_type(callback: CallbackQuery, state: FSMContext):
     """Обработка выбора типа приёма пищи."""
-    # Сразу отвечаем на callback, чтобы избежать таймаута
     await callback.answer()
-    
     meal_type = callback.data.split("_")[1]
     await state.update_data(meal_type=meal_type)
-    
-    # Проверяем, есть ли сохранённый текст для поиска
+    logger.info(f"🍽️ Выбран тип: {meal_type}")
+
     data = await state.get_data()
     pending_text = data.get('pending_food_text')
     if pending_text:
-        # Удаляем его, чтобы не использовать повторно
         await state.update_data(pending_food_text=None)
-        # Обрабатываем текст (разбиваем на компоненты, если есть запятые)
+        logger.info(f"📝 Используем сохранённый текст: '{pending_text}'")
         await handle_food_text(callback.message, state, pending_text)
     else:
         await state.set_state(FoodStates.searching_food)
@@ -134,27 +134,27 @@ async def process_meal_type(callback: CallbackQuery, state: FSMContext):
 async def process_food_search(message: Message, state: FSMContext):
     """Поиск продуктов – поддерживает составные блюда"""
     text = message.text.strip()
+    logger.info(f"🔍 Поиск продуктов по тексту: '{text}'")
     await handle_food_text(message, state, text)
 
 @router.callback_query(F.data.startswith("food_"), FoodStates.selecting_food)
 async def process_food_selection(callback: CallbackQuery, state: FSMContext):
     if callback.data == "food_manual":
+        logger.info("✏️ Пользователь выбрал ручной ввод")
         await state.set_state(FoodStates.manual_food_name)
         await callback.message.edit_text("📝 Введите название продукта:")
         await callback.answer()
         return
 
     if callback.data == "food_skip":
-        # Пропускаем текущий продукт, переходим к следующему
+        logger.info("⏭️ Пользователь пропустил продукт")
         data = await state.get_data()
         idx = data.get('current_index', 0)
         pending = data.get('pending_items', [])
         if pending:
-            # Увеличиваем индекс и переходим к следующему
             await state.update_data(current_index=idx + 1)
             await process_next_food(callback.message, state)
         else:
-            # Если нет pending_items, просто возвращаемся к поиску
             await state.set_state(FoodStates.searching_food)
             await callback.message.edit_text("🔍 Введи название продукта или блюда:")
         await callback.answer()
@@ -175,6 +175,7 @@ async def process_food_selection(callback: CallbackQuery, state: FSMContext):
     selected = foods[index]
     await state.update_data(selected_food=selected)
     await state.set_state(FoodStates.entering_weight)
+    logger.info(f"✅ Выбран продукт: {selected['name']}, переход к вводу веса")
 
     await callback.message.edit_text(
         f"✅ {selected['name']}\n"
@@ -188,6 +189,7 @@ async def process_food_selection(callback: CallbackQuery, state: FSMContext):
 async def process_manual_food_name(message: Message, state: FSMContext):
     """Ручной ввод названия – сначала пробуем поиск"""
     query = message.text.strip()
+    logger.info(f"📝 Ручной ввод: '{query}'")
     if not query:
         await message.answer("❌ Введите название.")
         return
@@ -198,6 +200,7 @@ async def process_manual_food_name(message: Message, state: FSMContext):
         await state.set_state(FoodStates.selecting_food)
         data = await state.get_data()
         show_skip = 'pending_items' in data
+        logger.info(f"✅ Найдено {len(foods)} продуктов, показываем список")
         await message.answer(
             f"✅ Найдено по запросу «{query}»:\n"
             f"Выберите продукт:",
@@ -205,7 +208,6 @@ async def process_manual_food_name(message: Message, state: FSMContext):
         )
         return
 
-    # ничего не нашли – создаём пустой продукт
     selected = {
         'name': query,
         'calories': 0,
@@ -215,6 +217,7 @@ async def process_manual_food_name(message: Message, state: FSMContext):
     }
     await state.update_data(selected_food=selected)
     await state.set_state(FoodStates.entering_weight)
+    logger.info(f"⚠️ Продукт не найден, будет сохранён с нулевой калорийностью")
     await message.answer(
         f"⚠️ Продукт «{query}» не найден в базе.\n"
         f"Он будет сохранён с нулевой калорийностью.\n\n"
@@ -223,24 +226,30 @@ async def process_manual_food_name(message: Message, state: FSMContext):
 
 @router.message(FoodStates.entering_weight, F.text)
 async def process_weight(message: Message, state: FSMContext):
+    """Обработка введённого веса."""
     text = message.text.strip()
-    if not text:
-        await message.answer("❌ Введите число.")
-        return
+    logger.info(f"⚖️ Получен ввод веса: '{text}'")
 
     try:
-        import re
         match = re.search(r'\d+([.,]\d+)?', text)
-        weight = float(match.group(0).replace(',', '.')) if match else float(text.replace(',', '.'))
+        if match:
+            weight_str = match.group(0).replace(',', '.')
+            weight = float(weight_str)
+        else:
+            weight = float(text.replace(',', '.'))
         if weight <= 0 or weight > 10000:
-            raise ValueError
-    except (ValueError, AttributeError):
+            raise ValueError("Вес вне диапазона")
+    except (ValueError, AttributeError) as e:
+        logger.warning(f"❌ Ошибка парсинга веса: {e}")
         await message.answer("❌ Введите число от 1 до 10000 г")
         return
+
+    logger.info(f"✅ Распознан вес: {weight} г")
 
     data = await state.get_data()
     selected = data.get('selected_food')
     if not selected:
+        logger.error("❌ Ошибка: selected_food отсутствует в состоянии")
         await message.answer("❌ Ошибка. Начните заново.")
         await state.clear()
         return
@@ -251,7 +260,6 @@ async def process_weight(message: Message, state: FSMContext):
     fat = selected.get('fat', 0) * multiplier
     carbs = selected.get('carbs', 0) * multiplier
 
-    # Сохраняем выбранный продукт в список
     selected_foods = data.get('selected_foods', [])
     selected_foods.append({
         'name': selected['name'],
@@ -262,15 +270,15 @@ async def process_weight(message: Message, state: FSMContext):
         'carbs': carbs
     })
 
-    # Если есть pending_items (множественный ввод), увеличиваем индекс и переходим к следующему
     pending = data.get('pending_items')
     if pending:
         idx = data.get('current_index', 0) + 1
         await state.update_data(selected_foods=selected_foods, current_index=idx)
+        logger.info(f"➡️ Продукт добавлен. Переходим к следующему (индекс {idx})")
         await process_next_food(message, state)
     else:
-        # одиночный продукт – сразу завершаем
         await state.update_data(selected_foods=selected_foods)
+        logger.info("🏁 Все продукты обработаны, завершаем приём пищи")
         await finish_meal(message, state)
 
 async def finish_meal(message: Message, state: FSMContext):
@@ -278,6 +286,7 @@ async def finish_meal(message: Message, state: FSMContext):
     data = await state.get_data()
     selected_foods = data.get('selected_foods', [])
     if not selected_foods:
+        logger.warning("❌ Попытка завершить без продуктов")
         await message.answer("❌ Ни одного продукта не добавлено.")
         await state.clear()
         return
@@ -290,12 +299,15 @@ async def finish_meal(message: Message, state: FSMContext):
     user_telegram_id = message.from_user.id
     meal_type = data.get('meal_type', 'snack')
 
+    logger.info(f"💾 Сохраняем приём пищи для user {user_telegram_id}, всего {len(selected_foods)} продуктов, суммарно {total_cal:.0f} ккал")
+
     async with get_session() as session:
         user_result = await session.execute(
             select(User).where(User.telegram_id == user_telegram_id)
         )
         user = user_result.scalar_one_or_none()
         if not user:
+            logger.error(f"❌ Пользователь {user_telegram_id} не найден при сохранении")
             await message.answer("❌ Ошибка: пользователь не найден.")
             await state.clear()
             return
@@ -332,4 +344,5 @@ async def finish_meal(message: Message, state: FSMContext):
     lines.append(f"🥩 {total_prot:.1f}г | 🥑 {total_fat:.1f}г | 🍚 {total_carbs:.1f}г")
 
     await message.answer("\n".join(lines))
+    logger.info("✅ Приём пищи успешно сохранён")
     await state.clear()

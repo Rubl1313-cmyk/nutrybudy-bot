@@ -1,6 +1,8 @@
+python
 """
 Обработчик напоминаний.
 Исправлено: уникальные callback_data для подтверждения + добавлена quick_create_reminder.
+Добавлено: удаление напоминаний с подтверждением.
 """
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery, ReplyKeyboardMarkup, KeyboardButton
@@ -14,13 +16,13 @@ from database.models import User, Reminder
 from keyboards.inline import (
     get_reminder_type_keyboard,
     get_days_keyboard,
-    get_confirmation_keyboard
+    get_confirmation_keyboard,
+    get_reminders_list_keyboard  # новая клавиатура
 )
 from keyboards.reply import get_main_keyboard, get_cancel_keyboard
 from utils.states import ReminderStates
 
 router = Router()
-
 
 # ========== ОСНОВНЫЕ ОБРАБОТЧИКИ ==========
 
@@ -52,33 +54,18 @@ async def cmd_reminders(message: Message, state: FSMContext, user_id: int = None
         )
         reminders = result.scalars().all()
 
-        keyboard = ReplyKeyboardMarkup(
-            keyboard=[
-                [KeyboardButton(text="➕ Создать напоминание")],
-                [KeyboardButton(text="🏠 Главное меню")]
-            ],
-            resize_keyboard=True
-        )
-
         if not reminders:
-            await message.answer(
-                "🔔 <b>Напоминания</b>\n\n"
-                "У тебя пока нет активных напоминаний.\n\n"
-                "Нажми ➕ Создать напоминание",
-                reply_markup=keyboard,
-                parse_mode="HTML"
+            # Если нет напоминаний, показываем только кнопку создания
+            text = "🔔 <b>Напоминания</b>\n\nУ тебя пока нет активных напоминаний."
+            keyboard = InlineKeyboardMarkup(
+                inline_keyboard=[[InlineKeyboardButton(text="➕ Создать напоминание", callback_data="new_reminder")]]
             )
+            await message.answer(text, reply_markup=keyboard, parse_mode="HTML")
             return
 
-        text = "🔔 <b>Твои напоминания:</b>\n\n"
-        for rem in reminders:
-            text += f"• {rem.title} — {rem.time} ({rem.days})\n"
-        text += "\n<i>Нажми ➕ чтобы добавить ещё</i>"
-
+        text = "🔔 <b>Твои напоминания:</b>"
+        keyboard = get_reminders_list_keyboard(reminders)
         await message.answer(text, reply_markup=keyboard, parse_mode="HTML")
-
-# ... остальные функции без изменений
-
 
 @router.message(F.text == "➕ Создать напоминание")
 async def create_reminder_button(message: Message, state: FSMContext):
@@ -89,7 +76,6 @@ async def create_reminder_button(message: Message, state: FSMContext):
         reply_markup=get_reminder_type_keyboard()
     )
 
-
 @router.callback_query(F.data == "new_reminder")
 async def new_reminder_callback(callback: CallbackQuery, state: FSMContext):
     """Callback для создания нового напоминания."""
@@ -99,6 +85,56 @@ async def new_reminder_callback(callback: CallbackQuery, state: FSMContext):
         reply_markup=get_reminder_type_keyboard()
     )
     await callback.answer()
+
+@router.callback_query(F.data.startswith("reminder_info_"))
+async def reminder_info_callback(callback: CallbackQuery):
+    """Показывает информацию о напоминании (просто уведомление)."""
+    reminder_id = int(callback.data.split("_")[2])
+    await callback.answer(f"ℹ️ Напоминание ID {reminder_id}", show_alert=False)
+
+@router.callback_query(F.data.startswith("delete_reminder_"))
+async def delete_reminder_callback(callback: CallbackQuery, state: FSMContext):
+    """Запрашивает подтверждение удаления напоминания."""
+    reminder_id = int(callback.data.split("_")[2])
+    await state.update_data(reminder_to_delete=reminder_id)
+    # Запрашиваем подтверждение
+    await callback.message.edit_text(
+        "❓ Вы уверены, что хотите удалить это напоминание?",
+        reply_markup=get_confirmation_keyboard("reminder_delete")
+    )
+    await callback.answer()
+
+@router.callback_query(F.data == "confirm_reminder_delete")
+async def confirm_delete_reminder(callback: CallbackQuery, state: FSMContext):
+    """Подтверждение удаления."""
+    data = await state.get_data()
+    reminder_id = data.get('reminder_to_delete')
+    if not reminder_id:
+        await callback.answer("❌ Ошибка: напоминание не найдено", show_alert=True)
+        return
+
+    async with get_session() as session:
+        reminder = await session.get(Reminder, reminder_id)
+        if reminder and reminder.user.telegram_id == callback.from_user.id:
+            # Помечаем как неактивное (мягкое удаление)
+            reminder.enabled = False
+            await session.commit()
+            await callback.answer("✅ Напоминание удалено", show_alert=False)
+        else:
+            await callback.answer("❌ Напоминание не найдено или доступ запрещён", show_alert=True)
+            return
+
+    # Обновляем список напоминаний
+    await state.clear()
+    # Перезапускаем показ напоминаний
+    await cmd_reminders(callback.message, state, user_id=callback.from_user.id)
+
+@router.callback_query(F.data == "cancel_reminder_delete")
+async def cancel_delete_reminder(callback: CallbackQuery, state: FSMContext):
+    """Отмена удаления."""
+    await state.clear()
+    # Возвращаемся к списку
+    await cmd_reminders(callback.message, state, user_id=callback.from_user.id)
 
 
 @router.callback_query(F.data.startswith("reminder_"), ReminderStates.choosing_type)
@@ -228,19 +264,7 @@ async def cancel_reminder(callback: CallbackQuery, state: FSMContext):
 # ========== ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ ДЛЯ БЫСТРОГО СОЗДАНИЯ ==========
 
 async def quick_create_reminder(telegram_id: int, title: str, time: str, days: str = "daily") -> bool:
-    """
-    Быстрое создание напоминания без диалога.
-    Используется в универсальном обработчике для команд типа "напомни в 18:00 позвонить маме".
-
-    Args:
-        telegram_id: ID пользователя в Telegram
-        title: Текст напоминания
-        time: Время в формате ЧЧ:ММ
-        days: Дни недели (daily или строка дней)
-
-    Returns:
-        bool: True если успешно, False если пользователь не найден
-    """
+    """Быстрое создание напоминания без диалога."""
     async with get_session() as session:
         user_result = await session.execute(
             select(User).where(User.telegram_id == telegram_id)

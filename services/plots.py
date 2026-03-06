@@ -3,24 +3,21 @@
 ✅ Линейные графики с заливкой области
 ✅ Горизонтальная линия нормы (где применимо)
 ✅ Поддержка периода: день (почасово + итоги), неделя/месяц (подневно)
-✅ Безопасная обработка шрифтов: если эмодзи недоступны, используем обычный текст
 ✅ Корректное форматирование оси X (даты)
+✅ Без эмодзи (для стабильности)
 """
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
-import matplotlib.font_manager as fm
 import io
 from datetime import datetime, timedelta
 from database.models import WeightEntry, WaterEntry, Meal, Activity
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select
 from typing import Optional, Literal
 import logging
 import numpy as np
-import sys
-import os
 
 logger = logging.getLogger(__name__)
 
@@ -34,74 +31,12 @@ COLORS = {
     'goal': '#E15554'          # красный для линии нормы
 }
 
-# ========== БЕЗОПАСНАЯ РАБОТА СО ШРИФТАМИ ==========
-_EMOJI_FONT = None
-_EMOJI_FONT_WORKS = None
-
-def get_emoji_font():
-    """
-    Возвращает рабочий шрифт с поддержкой эмодзи или None.
-    Кэширует результат.
-    """
-    global _EMOJI_FONT, _EMOJI_FONT_WORKS
-    if _EMOJI_FONT_WORKS is False:
-        return None
-    if _EMOJI_FONT is not None:
-        return _EMOJI_FONT
-
-    # Список возможных путей к шрифтам с эмодзи
-    font_paths = []
-    if sys.platform == 'win32':
-        font_paths = ['C:/Windows/Fonts/seguiemj.ttf']
-    elif sys.platform == 'darwin':
-        font_paths = ['/System/Library/Fonts/Apple Color Emoji.ttc']
-    else:
-        # Linux: обычно Noto Color Emoji
-        font_paths = [
-            '/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf',
-            '/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc',  # fallback
-        ]
-
-    for path in font_paths:
-        if os.path.exists(path):
-            try:
-                font = fm.FontProperties(fname=path)
-                # Проверяем, что шрифт можно использовать
-                plt.figure()
-                plt.text(0.5, 0.5, "test", fontproperties=font)
-                plt.close()
-                _EMOJI_FONT = font
-                _EMOJI_FONT_WORKS = True
-                logger.info(f"✅ Emoji font loaded and verified from {path}")
-                return _EMOJI_FONT
-            except Exception as e:
-                logger.warning(f"Emoji font {path} failed verification: {e}")
-                # Продолжаем поиск
-    logger.warning("No working emoji font found, using default font")
-    _EMOJI_FONT_WORKS = False
-    return None
-
 def clean_title(text: str) -> str:
     """Удаляет эмодзи из заголовка (первые символы, если это эмодзи)."""
     if text and len(text) > 2 and (text[0] not in 'abcdefghijklmnopqrstuvwxyzАБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ'):
         # Предполагаем, что первые два символа — эмодзи и пробел
         return text[2:].strip()
     return text
-
-def set_title_safe(ax, title: str, **kwargs):
-    """
-    Устанавливает заголовок, используя шрифт с эмодзи, если он работает.
-    Иначе удаляет эмодзи и использует стандартный шрифт.
-    """
-    emoji_font = get_emoji_font()
-    if emoji_font:
-        try:
-            ax.set_title(title, fontproperties=emoji_font, **kwargs)
-            return
-        except Exception as e:
-            logger.warning(f"Failed to set title with emoji font: {e}, falling back to default")
-    # Fallback
-    ax.set_title(clean_title(title), **kwargs)
 
 # ========== ОСНОВНЫЕ ФУНКЦИИ ГРАФИКОВ ==========
 
@@ -111,7 +46,6 @@ async def generate_weight_plot(user_id: int, session: AsyncSession) -> Optional[
     Линейный график + линия тренда.
     """
     try:
-        from database.models import WeightEntry
         result = await session.execute(
             select(WeightEntry).where(WeightEntry.user_id == user_id).order_by(WeightEntry.datetime)
         )
@@ -146,8 +80,8 @@ async def generate_weight_plot(user_id: int, session: AsyncSession) -> Optional[
         ax.xaxis.set_major_locator(mdates.DayLocator(interval=1))
         plt.xticks(rotation=45, ha='right')
 
-        # Заголовок
-        set_title_safe(ax, '📈 Динамика веса', fontsize=16, fontweight='bold', pad=20)
+        # Заголовок (без эмодзи)
+        ax.set_title(clean_title('📈 Динамика веса'), fontsize=16, fontweight='bold', pad=20)
 
         ax.set_xlabel('Дата', fontsize=12)
         ax.set_ylabel('Вес (кг)', fontsize=12)
@@ -252,7 +186,7 @@ async def _generate_consumption_plot(
             )
             entries = result.scalars().all()
             if not entries:
-                logger.warning(f"Нет записей для графика {title} за день")
+                logger.warning(f"Нет записей для графика {clean_title(title)} за день")
                 return None
 
             # Почасовая группировка
@@ -289,8 +223,8 @@ async def _generate_consumption_plot(
             ax.set_xticks(x)
             ax.set_xticklabels(labels, rotation=45, ha='right')
 
-            # Заголовок
-            set_title_safe(ax, f'{title} (последние 24 часа)', fontsize=16, fontweight='bold', pad=20)
+            # Заголовок (без эмодзи)
+            ax.set_title(clean_title(f'{title} (последние 24 часа)'), fontsize=16, fontweight='bold', pad=20)
 
             ax.set_xlabel('Время', fontsize=12)
             ax.set_ylabel(ylabel, fontsize=12)
@@ -319,7 +253,7 @@ async def _generate_consumption_plot(
             )
             entries = result.scalars().all()
             if not entries:
-                logger.warning(f"Нет записей для графика {title} за {period}")
+                logger.warning(f"Нет записей для графика {clean_title(title)} за {period}")
                 return None
 
             # Группировка по дням
@@ -362,8 +296,8 @@ async def _generate_consumption_plot(
                 ax.xaxis.set_major_locator(mdates.DayLocator(interval=1))
             plt.xticks(rotation=45, ha='right')
 
-            # Заголовок
-            set_title_safe(ax, title + title_suffix, fontsize=16, fontweight='bold', pad=20)
+            # Заголовок (без эмодзи)
+            ax.set_title(clean_title(title + title_suffix), fontsize=16, fontweight='bold', pad=20)
 
             ax.set_xlabel('Дата', fontsize=12)
             ax.set_ylabel(ylabel, fontsize=12)
@@ -378,5 +312,5 @@ async def _generate_consumption_plot(
             return buf.read()
 
     except Exception as e:
-        logger.error(f"❌ Ошибка при генерации графика {title}: {e}", exc_info=True)
+        logger.error(f"❌ Ошибка при генерации графика {clean_title(title)}: {e}", exc_info=True)
         return None

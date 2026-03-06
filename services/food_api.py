@@ -8,7 +8,7 @@ services/food_api.py
 from typing import List, Dict, Optional, Tuple, Any
 # =============================================
 
-…# ========== КЭШИРОВАНИЕ ==========
+# ========== КЭШИРОВАНИЕ ==========
 _SEARCH_CACHE: Dict[str, Tuple[List[Dict], float]] = {}
 _CACHE_TTL = 300  # 5 минут
 _CACHE_LIMIT = 200

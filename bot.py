@@ -207,8 +207,8 @@ async def main():
     dp.include_router(weight.router)     
     dp.include_router(media_handlers.router)
     dp.include_router(meal_plan.router)
-    dp.include_router(universal_router)
-    dp.include_router(ai_assistant.router)
+    dp.include_router(ai_assistant.router)          # диалоговый AI
+    dp.include_router(universal_text_handler.universal_router)  
     
     logging.info("✅ All routers included")
     

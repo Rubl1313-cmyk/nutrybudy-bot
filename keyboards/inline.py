@@ -44,7 +44,11 @@ def get_food_edit_keyboard() -> InlineKeyboardMarkup:
         [InlineKeyboardButton(text="↩️ Назад", callback_data="back_to_overview")]
     ])
 
-def get_food_selection_keyboard(foods: List[dict]):
+def get_food_selection_keyboard(foods: List[dict], show_skip: bool = False):
+    """
+    Клавиатура для выбора продукта из списка.
+    Если show_skip=True, добавляется кнопка пропуска.
+    """
     builder = InlineKeyboardBuilder()
     for i, food in enumerate(foods[:5]):
         builder.button(
@@ -52,6 +56,8 @@ def get_food_selection_keyboard(foods: List[dict]):
             callback_data=f"food_{i}"
         )
     builder.button(text="🔄 Ввести вручную", callback_data="food_manual")
+    if show_skip:
+        builder.button(text="⏭️ Пропустить", callback_data="food_skip")
     builder.adjust(1)
     return builder.as_markup()
 

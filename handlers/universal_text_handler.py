@@ -378,8 +378,10 @@ async def choose_shopping_callback(callback: CallbackQuery, state: FSMContext):
 async def choose_food_callback(callback: CallbackQuery, state: FSMContext):
     data = await state.get_data()
     text = data.get('pending_text', '')
+    # Сохраняем текст для использования в food.py
     await state.update_data(pending_food_text=text)
     await callback.answer()
+    # Вызываем команду записи еды, передавая user_id
     await cmd_log_food(callback.message, state, user_id=callback.from_user.id)
     try:
         await callback.message.delete()

@@ -37,19 +37,15 @@ _RECOGNITION_CACHE: Dict[str, Tuple[Dict, datetime]] = {}
 _CACHE_TTL = 3600  # 1 час
 
 # ========== УЛУЧШЕННЫЕ ПРОМПТЫ ==========
-FOOD_RECOGNITION_PROMPT = """You are an expert food nutritionist and computer vision specialist. 
-Analyze this food image and return ONLY valid JSON (no markdown, no explanations).
+FOOD_RECOGNITION_PROMPT = """You are an expert food nutritionist. Analyze this food image and return ONLY valid JSON.
 
-REQUIRED JSON SCHEMA:
+CRITICAL: Return pure JSON without markdown, without backslashes before underscores, without any formatting.
+
+REQUIRED JSON:
 {
   "dish_name": "Specific dish name in English",
   "ingredients": [
-    {
-      "name": "ingredient name",
-      "type": "protein|vegetable|carb|fat|sauce|other",
-      "estimated_weight_grams": 100,
-      "confidence": 0.9
-    }
+    {"name": "ingredient", "type": "protein|vegetable|carb|fat|other", "estimated_weight_grams": 100, "confidence": 0.9}
   ],
   "confidence": 0.85,
   "meal_type": "breakfast|lunch|dinner|snack",
@@ -57,23 +53,18 @@ REQUIRED JSON SCHEMA:
   "portion_size": "small|medium|large"
 }
 
-CRITICAL RULES:
-1. Return ONLY JSON - no markdown code blocks, no text before/after
-2. All string values must use double quotes "not single quotes"
-3. No trailing commas in arrays or objects
-4. All numbers must be unquoted
-5. Minimum 2 ingredients, maximum 10
-6. Weight estimates: small=150-250g, medium=300-450g, large=500-700g total
+RULES:
+1. Use ONLY double quotes "not single quotes"
+2. NO backslashes before underscores (use "dish_name" NOT "dish\_name")
+3. NO markdown code blocks
+4. NO trailing commas
+5. All numbers unquoted
+6. Be specific: "grilled chicken skewers" NOT just "meat"
 
-EXAMPLE (VALID JSON):
-{"dish_name":"Grilled chicken with rice","ingredients":[{"name":"chicken breast","type":"protein","estimated_weight_grams":150,"confidence":0.95},{"name":"white rice","type":"carb","estimated_weight_grams":200,"confidence":0.90}],"confidence":0.88,"meal_type":"lunch","cooking_method":"grilled","portion_size":"medium"}
+EXAMPLE:
+{"dish_name":"Grilled chicken skewers","ingredients":[{"name":"chicken breast","type":"protein","estimated_weight_grams":200,"confidence":0.95}],"confidence":0.9,"meal_type":"lunch","cooking_method":"grilled","portion_size":"medium"}
 
-Now analyze the image and return JSON:"""
-
-SIMPLE_INGREDIENTS_PROMPT = """List visible food ingredients as comma-separated text only. 
-Example: chicken breast, rice, broccoli, olive oil
-No JSON, no numbers, just ingredient names separated by commas:"""
-
+Now analyze and return JSON:"""
 
 # ========== КЭШИРОВАНИЕ ==========
 def _get_image_hash(image_bytes: bytes) -> str:
@@ -106,14 +97,12 @@ def _cache_result(image_hash: str, result: Dict):
 # ========== УЛУЧШЕННОЕ ИЗВЛЕЧЕНИЕ JSON ==========
 def _extract_json_from_text(text: str) -> Optional[Dict]:
     """
-    Улучшенное извлечение JSON с поддержкой различных форматов.
-    ✅ Исправлено: обработка экранирований, markdown, вложенных структур
+    Извлекает JSON из текста с улучшенной обработкой экранирований.
     """
     if not text or not isinstance(text, str):
         return None
     
     original_text = text.strip()
-    logger.debug(f"📝 Extracting JSON from: {original_text[:200]}...")
     
     # 1. Убираем markdown блоки кода
     for marker in ['```json', '```JSON', '```']:
@@ -122,55 +111,48 @@ def _extract_json_from_text(text: str) -> Optional[Dict]:
             if len(parts) > 1:
                 text = parts[1].split('```', 1)[0].strip()
     
-    # 2. Находим границы JSON объекта
+    # 2. Находим границы JSON
     start = text.find('{')
     end = text.rfind('}')
     
-    if start == -1 or end == -1 or end <= start:
-        # Пробуем найти массив
-        start_arr = text.find('[')
-        end_arr = text.rfind(']')
-        if start_arr != -1 and end_arr != -1 and end_arr > start_arr:
-            start, end = start_arr, end_arr
-        else:
-            logger.warning(f"❌ No JSON structure found")
-            return None
+    if start == -1 or end == -1:
+        return None
     
     json_str = text[start:end+1]
     
-    # 3. Очистка экранирований (улучшенная)
-    json_str = re.sub(r'\\\\(["\\])', r'\\\1', json_str)
-    json_str = re.sub(r'\\(["\\])', r'\1', json_str)
+    # 3. 🔥 ИСПРАВЛЕНИЕ: Убираем неправильные экранирования
+    # Заменяем \_ на _ (проблема с underscore)
+    json_str = json_str.replace('\\_', '_')
+    # Заменяем \" на " (если двойное экранирование)
+    json_str = json_str.replace('\\"', '"')
+    # Убираем другие лишние экранирования
+    json_str = re.sub(r'\\([\\"])?', r'\1', json_str)
+    
+    # 4. Очищаем control characters
     json_str = json_str.replace('\n', ' ').replace('\r', ' ').replace('\t', ' ')
     
-    # 4. Исправляем одинарные кавычки → двойные
-    if "'dish_name'" in json_str or "'ingredients'" in json_str:
-        json_str = re.sub(r"'([^']*)'(\s*:)", r'"\1"\2', json_str)
-        json_str = re.sub(r":\s*'([^']*)'", r': "\1"', json_str)
+    # 5. Исправляем одинарные кавычки → двойные
+    json_str = re.sub(r"'([^']*)':", r'"\1":', json_str)
+    json_str = re.sub(r":\s*'([^']*)'", r': "\1"', json_str)
     
-    # 5. Убираем trailing commas
+    # 6. Убираем trailing commas
     json_str = re.sub(r',\s*([}\]])', r'\1', json_str)
-    
-    # 6. Исправляем missing commas between key-value pairs
-    json_str = re.sub(r'"\s+"', '", "', json_str)
     
     # 7. Попытка парсинга
     try:
         data = json.loads(json_str)
         if isinstance(data, dict):
-            logger.info(f"✅ JSON extracted successfully")
             return data
         elif isinstance(data, list) and len(data) > 0:
             return {"ingredients": data, "dish_name": "Mixed dish", "confidence": 0.7}
         return None
     except json.JSONDecodeError as e:
-        logger.warning(f"⚠️ JSON decode failed: {e}. Snippet: {json_str[:300]}...")
+        logger.warning(f"⚠️ JSON decode failed: {e}")
         
-        # 8. Последняя попытка: ручное исправление частых ошибок
+        # 8. Последняя попытка: ручное исправление
         try:
             json_str = re.sub(r'([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)(\s*:)', r'\1"\2"\3', json_str)
             data = json.loads(json_str)
-            logger.info(f"✅ JSON recovered after manual fix")
             return data if isinstance(data, dict) else None
         except:
             return None

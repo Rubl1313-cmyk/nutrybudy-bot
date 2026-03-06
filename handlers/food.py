@@ -27,12 +27,17 @@ def split_food_text(text: str) -> List[str]:
 
 @router.message(Command("log_food"))
 @router.message(F.text == "🍽️ Дневник питания")
-async def cmd_log_food(message: Message, state: FSMContext):
+async def cmd_log_food(message: Message, state: FSMContext, user_id: int = None):
     """Начало процесса записи приёма пищи."""
     await state.clear()
+    
+    # ✅ Исправлено: используем user_id из параметра или из сообщения
+    if user_id is None:
+        user_id = message.from_user.id
+    
     async with get_session() as session:
         result = await session.execute(
-            select(User).where(User.telegram_id == message.from_user.id)
+            select(User).where(User.telegram_id == user_id)
         )
         user = result.scalar_one_or_none()
         if not user or not user.weight:
@@ -41,6 +46,7 @@ async def cmd_log_food(message: Message, state: FSMContext):
                 reply_markup=get_main_keyboard()
             )
             return
+    
     await state.set_state(FoodStates.choosing_meal_type)
     await message.answer(
         "🍽️ <b>Выбери тип приёма пищи:</b>\n"

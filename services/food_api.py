@@ -1,13 +1,20 @@
 """
 services/food_api.py
 Поиск продуктов: локальная база → Open Food Facts API.
+✅ УЛУЧШЕНО: Кэширование, улучшенный поиск, fallback-механизмы
 """
 import aiohttp
 import logging
 import asyncio
 from typing import List, Dict
+from functools import lru_cache
 
 logger = logging.getLogger(__name__)
+
+# ========== КЭШИРОВАНИЕ ==========
+_SEARCH_CACHE: Dict[str, List[Dict]] = {}
+_CACHE_TTL = 300  # 5 минут
+_CACHE_LIMIT = 200
 
 # ========== ЛОКАЛЬНАЯ БАЗА ПРОДУКТОВ (более 1000 записей) ==========
 # Ключи — это слова, по которым бот будет искать (в нижнем регистре)
@@ -502,7 +509,29 @@ LOCAL_FOOD_DB = {
     "павлова": {"name": "Павлова", "calories": 250, "protein": 3, "fat": 8, "carbs": 42},
 }
 
-# В функции search_local_db() добавить:
+def _get_cached_search(query: str) -> Optional[List[Dict]]:
+    """Проверяет кэш поиска."""
+    query_lower = query.lower().strip()
+    if query_lower in _SEARCH_CACHE:
+        results, timestamp = _SEARCH_CACHE[query_lower]
+        if asyncio.get_event_loop().time() - timestamp < _CACHE_TTL:
+            logger.info(f"♻️ Cache hit for '{query_lower}'")
+            return results
+        else:
+            del _SEARCH_CACHE[query_lower]
+    return None
+
+
+def _cache_search(query: str, results: List[Dict]):
+    """Сохраняет в кэш поиска."""
+    query_lower = query.lower().strip()
+    _SEARCH_CACHE[query_lower] = (results, asyncio.get_event_loop().time())
+    
+    if len(_SEARCH_CACHE) > _CACHE_LIMIT:
+        oldest = sorted(_SEARCH_CACHE.items(), key=lambda x: x[1][1])[:50]
+        for key, _ in oldest:
+            del _SEARCH_CACHE[key]
+
 
 def search_local_db(query: str) -> List[Dict]:
     """
@@ -512,7 +541,6 @@ def search_local_db(query: str) -> List[Dict]:
     results = []
     query_lower = query.lower().strip()
     
-    # 🔥 Простая нормализация запроса (убираем окончания)
     normalized_query = query_lower
     for ending in ['а', 'ы', 'и', 'у', 'ом', 'е', 'ой', 'ей', 'ами', 'ах', 'ов', 'ев', 'ец', 'ца', 'цы']:
         if query_lower.endswith(ending) and len(query_lower) > 4:
@@ -520,8 +548,6 @@ def search_local_db(query: str) -> List[Dict]:
             break
     
     for key, item in LOCAL_FOOD_DB.items():
-        # 🔥 Три уровня совпадения:
-        # 1. Точное вхождение запроса в ключ
         if query_lower in key:
             results.append({
                 'name': item['name'],
@@ -532,7 +558,6 @@ def search_local_db(query: str) -> List[Dict]:
                 'source': 'local',
                 'score': 1.0
             })
-        # 2. Вхождение нормализованного запроса в ключ
         elif normalized_query in key and len(normalized_query) >= 3:
             results.append({
                 'name': item['name'],
@@ -543,7 +568,6 @@ def search_local_db(query: str) -> List[Dict]:
                 'source': 'local',
                 'score': 0.8
             })
-        # 3. Вхождение запроса в название продукта
         elif query_lower in item['name'].lower():
             results.append({
                 'name': item['name'],
@@ -555,17 +579,12 @@ def search_local_db(query: str) -> List[Dict]:
                 'score': 0.9
             })
     
-    # 🔥 Сортировка по score (лучшие совпадения первыми)
     results.sort(key=lambda x: x['score'], reverse=True)
-    
-    return results[:10]  # Возвращаем топ-10
+    return results[:10]
 
-# ========== OPEN FOOD FACTS ==========
+
 async def search_openfoodfacts(query: str, max_results: int = 5) -> List[Dict]:
-    """
-    Поиск продуктов по названию через Open Food Facts.
-    Требуется User-Agent, иначе возвращает ошибку 403/429.
-    """
+    """Поиск продуктов по названию через Open Food Facts."""
     url = "https://world.openfoodfacts.org/cgi/search.pl"
     params = {
         "search_terms": query,
@@ -574,42 +593,45 @@ async def search_openfoodfacts(query: str, max_results: int = 5) -> List[Dict]:
         "json": 1,
         "page_size": max_results * 2,
         "lang": "ru",
-        "countries": "russia",  # Фильтр по стране
+        "countries": "russia",
         "countries_tags": "en:russia",
     }
     headers = {
         "User-Agent": "NutriBuddyBot/1.0 (https://t.me/nutri_buddy_aibot)"
     }
+    
     try:
         async with aiohttp.ClientSession() as session:
             async with session.get(url, params=params, headers=headers, timeout=30) as resp:
                 if resp.status != 200:
                     logger.warning(f"OpenFoodFacts error {resp.status}")
                     return []
+                
                 data = await resp.json()
                 products = data.get("products", [])
+                
                 if not products:
                     return []
-
+                
                 results = []
                 seen_names = set()
+                
                 for p in products:
-                    # название (русское или английское)
                     name = p.get("product_name_ru") or p.get("product_name") or p.get("product_name_en")
                     if not name or len(name) < 3:
                         continue
+                    
                     name_lower = name.lower()
                     if name_lower in seen_names:
                         continue
                     seen_names.add(name_lower)
-
-                    # нутрименты (на 100г)
+                    
                     nutriments = p.get("nutriments", {})
                     calories = nutriments.get("energy-kcal_100g") or 0
-                    # пропускаем продукты с нулевой калорийностью (вода, соль...)
+                    
                     if calories == 0:
                         continue
-
+                    
                     results.append({
                         "name": name,
                         "calories": float(calories),
@@ -618,8 +640,10 @@ async def search_openfoodfacts(query: str, max_results: int = 5) -> List[Dict]:
                         "carbs": float(nutriments.get("carbohydrates_100g", 0) or 0),
                         "source": "openfoodfacts"
                     })
+                    
                     if len(results) >= max_results:
                         break
+                
                 return results
     except asyncio.TimeoutError:
         logger.warning("OpenFoodFacts timeout")
@@ -628,21 +652,27 @@ async def search_openfoodfacts(query: str, max_results: int = 5) -> List[Dict]:
         logger.warning(f"OpenFoodFacts exception: {e}")
         return []
 
-# ========== ОСНОВНАЯ ФУНКЦИЯ ПОИСКА ==========
+
 async def search_food(query: str) -> List[Dict]:
     """Сначала локальная база, если мало результатов – OpenFoodFacts."""
     query = query.lower().strip()
+    
+    if not query:
+        return []
+    
+    cached = _get_cached_search(query)
+    if cached:
+        return cached
+    
     local_results = search_local_db(query)
-
-    # Если в локальной достаточно точных совпадений – возвращаем их
+    
     exact_matches = [r for r in local_results if query in r['name'].lower()]
     if exact_matches:
+        _cache_search(query, exact_matches[:10])
         return exact_matches[:10]
-
-    # Иначе пробуем OpenFoodFacts
+    
     off_results = await search_openfoodfacts(query)
-
-    # Объединяем, убираем дубликаты по названию
+    
     seen = set()
     combined = []
     for item in local_results + off_results:
@@ -650,15 +680,16 @@ async def search_food(query: str) -> List[Dict]:
         if name_lower not in seen:
             seen.add(name_lower)
             combined.append(item)
-
-    # Сортировка: локальные выше
+    
     combined.sort(key=lambda x: 0 if x["source"] == "local" else 1)
+    
+    _cache_search(query, combined[:10])
     return combined[:10]
 
-# Новая функция для быстрого получения данных по точному названию (используется в media_handlers)
+
 async def get_food_data(name: str) -> Dict:
     """Возвращает базовые данные продукта по названию."""
-    results = await search_food(name)  # search_food уже использует search_local_db
+    results = await search_food(name)
     if results:
         best = results[0]
         return {

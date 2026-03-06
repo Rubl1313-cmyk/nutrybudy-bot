@@ -1,3 +1,4 @@
+
 """
 Универсальный обработчик текстовых сообщений.
 Если намерение не определено, показывает меню выбора.
@@ -44,16 +45,11 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
         text = message.text
     logger.info(f"📨 Получен текст: {text}")
 
-    # ========== ПРОВЕРКА НА НАХОЖДЕНИЕ В РЕЖИМЕ AI ==========
-    current_state = await state.get_state()
-    if current_state == AIAssistantStates.waiting_for_question:
-        # Если мы в режиме AI, все сообщения отправляем в AI
-        logger.info(f"Пользователь в режиме AI, отправляем запрос в AI: {text}")
-        await process_ai_query(message, state, text)
-        return
+    # Получаем текущее состояние как строку
+    current_state_str = await state.get_state()
 
-    # Проверка на выход из режима AI (на случай, если сообщение не попало в ai_assistant)
-    if current_state == "AIAssistantStates:waiting_for_question":
+    # ========== ПРОВЕРКА НА ВЫХОД ИЗ РЕЖИМА AI ==========
+    if current_state_str == "AIAssistantStates:waiting_for_question":
         normalized = normalize_exit_command(text)
         if normalized in ['выход', 'выйти', 'выходи', 'завершить', 'закончить', 'стоп', 'хватит', '/cancel']:
             await state.clear()
@@ -64,6 +60,13 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
             )
             return
 
+    # ========== ЕСЛИ МЫ В РЕЖИМЕ AI И НЕ ВЫШЛИ ==========
+    if current_state_str == "AIAssistantStates:waiting_for_question":
+        logger.info(f"Пользователь в режиме AI, отправляем запрос в AI: {text}")
+        await process_ai_query(message, state, text)
+        return
+
+    # ========== ДАЛЕЕ ОБРАБОТКА ДРУГИХ НАМЕРЕНИЙ ==========
     intent_data = classify(text)
     intent = intent_data.get("intent")
     text_lower = text.lower()
@@ -304,7 +307,6 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
     return
 
 # ========== ОБРАБОТЧИКИ КНОПОК ДЛЯ ВОДЫ ==========
-
 @universal_router.callback_query(F.data == "water_drink")
 async def water_drink_callback(callback: CallbackQuery, state: FSMContext):
     """✅ Исправлено: правильный порядок операций"""
@@ -312,7 +314,6 @@ async def water_drink_callback(callback: CallbackQuery, state: FSMContext):
     amount = data.get('water_amount')
     user_id = callback.from_user.id
 
-    # Сначала отвечаем на callback, чтобы убрать "часики"
     await callback.answer()
 
     try:
@@ -334,7 +335,6 @@ async def water_drink_callback(callback: CallbackQuery, state: FSMContext):
         logger.error(f"🍷 water_drink_callback: исключение {e}", exc_info=True)
         await callback.message.answer("❌ Произошла внутренняя ошибка. Попробуйте позже.")
     finally:
-        # Удаляем исходное сообщение с кнопками
         try:
             await callback.message.delete()
         except:
@@ -350,7 +350,6 @@ async def water_buy_callback(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
 
     try:
-        # Передаём callback, а не callback.message, чтобы user_id был правильным
         await add_to_shopping_list(callback, item_text)
         await callback.message.answer("✅ Добавлено в список покупок.")
     except Exception as e:
@@ -372,9 +371,7 @@ async def action_cancel_callback(callback: CallbackQuery, state: FSMContext):
         pass
     await callback.message.answer("❌ Действие отменено.")
 
-
 # ========== ОБРАБОТЧИКИ КНОПОК ДЛЯ НЕОПРЕДЕЛЁННЫХ ТЕКСТОВ ==========
-
 @universal_router.callback_query(F.data == "choose_shopping")
 async def choose_shopping_callback(callback: CallbackQuery, state: FSMContext):
     data = await state.get_data()
@@ -396,10 +393,8 @@ async def choose_shopping_callback(callback: CallbackQuery, state: FSMContext):
 async def choose_food_callback(callback: CallbackQuery, state: FSMContext):
     data = await state.get_data()
     text = data.get('pending_text', '')
-    # Сохраняем текст для последующего использования
     await state.update_data(pending_food_text=text)
     await callback.answer()
-    # Запускаем выбор типа приёма пищи
     await cmd_log_food(callback.message, state)
     try:
         await callback.message.delete()
@@ -417,9 +412,7 @@ async def choose_ai_callback(callback: CallbackQuery, state: FSMContext):
     except:
         pass
 
-
 # ========== ОБРАБОТЧИКИ ДЛЯ ПОДТВЕРЖДЕНИЯ АКТИВНОСТИ ==========
-
 @universal_router.callback_query(F.data == "confirm_activity")
 async def confirm_activity_callback(callback: CallbackQuery, state: FSMContext):
     data = await state.get_data()
@@ -473,7 +466,6 @@ async def cancel_activity_callback(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
     await state.clear()
     await safe_edit(callback, "❌ Запись активности отменена.")
-
 
 async def safe_edit(callback: CallbackQuery, text: str, reply_markup=None):
     """Безопасное редактирование сообщения с обработкой ошибки 'message not modified'."""

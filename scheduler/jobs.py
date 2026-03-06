@@ -1,14 +1,15 @@
 """
 Планировщик задач для NutriBuddy
 ✅ Исправлено: используется get_session() вместо async_session
+✅ Поддержка московского времени (UTC+3)
 """
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from aiogram import Bot
-from database.db import get_session  # изменён импорт
+from database.db import get_session
 from sqlalchemy import text
 from sqlalchemy.exc import ProgrammingError
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging
 
 logger = logging.getLogger(__name__)
@@ -26,11 +27,15 @@ def setup_scheduler(bot: Bot):
     
     @scheduler.scheduled_job(CronTrigger(second=0))
     async def check_reminders():
-        """Проверка напоминаний каждую минуту"""
+        """Проверка напоминаний каждую минуту по московскому времени"""
         try:
-            async with get_session() as session:  # исправлено
-                now = datetime.now().strftime("%H:%M")
-                day = datetime.now().strftime("%a").lower()[:3]  # mon, tue, wed...
+            async with get_session() as session:
+                # Получаем текущее московское время (UTC+3)
+                now_utc = datetime.utcnow()
+                now_msk = now_utc + timedelta(hours=3)
+                current_time = now_msk.strftime("%H:%M")
+                # День недели на московское время (сокращённо: mon, tue, wed...)
+                day_msk = now_msk.strftime("%a").lower()[:3]
                 
                 result = await session.execute(
                     text("""
@@ -44,7 +49,8 @@ def setup_scheduler(bot: Bot):
                 
                 for row in rows:
                     telegram_id, title, rem_time, rem_days = row
-                    if rem_time == now and (rem_days == 'daily' or day in rem_days):
+                    # Проверяем по московскому времени
+                    if rem_time == current_time and (rem_days == 'daily' or day_msk in rem_days):
                         await send_reminder(bot, telegram_id, title)
                         
         except ProgrammingError as e:

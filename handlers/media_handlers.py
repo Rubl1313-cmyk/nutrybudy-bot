@@ -191,10 +191,7 @@ async def start_food_input(
 
 @router.message(F.photo)
 async def handle_photo(message: Message, state: FSMContext):
-    """
-    Обработка фото: улучшенное распознавание через мультимодельный JSON.
-    ✅ Возвращает блюдо, ингредиенты с весами, КБЖУ
-    """
+    """Обработка фото: улучшенное распознавание через мультимодельный JSON."""
     # Защита от повторной обработки
     data = await state.get_data()
     last_photo_id = data.get('last_photo_id')
@@ -217,46 +214,100 @@ async def handle_photo(message: Message, state: FSMContext):
         file_info = await message.bot.get_file(photo.file_id)
         file_bytes = await message.bot.download_file(file_info.file_path)
         file_data = file_bytes.read()
+        optimized = _prepare_image(file_data)
         
-        # ✅ УЛУЧШЕНИЕ 1: Улучшаем изображение
-        enhanced_bytes, enhance_metadata = enhance_food_image(file_data)
-        logger.info(f"📸 Image enhanced: {enhance_metadata}")
+        # ✅ СОХРАНЯЕМ ФОТО В STATE ДЛЯ ПОВТОРНОЙ ОБРАБОТКИ
+        await state.update_data(
+            pending_photo_bytes=file_data,
+            pending_photo_optimized=optimized,
+            last_photo_id=message.message_id
+        )
         
-        # ✅ УЛУЧШЕНИЕ 2: Используем каскадное распознавание
-        cascade_result = await identify_food_cascade(enhanced_bytes)
+        # Используем новую мультимодельную функцию
+        food_data, used_model = await identify_food_multimodel(optimized)
         
-        if cascade_result.get('data'):
-            food_data = cascade_result['data']
+        if food_data and isinstance(food_data, dict):
+            # ✅ ИСПРАВЛЕНО: Правильная обработка нового формата ингредиентов
+            dish_name_en = food_data.get('dish_name', '')
+            ingredients_en = food_data.get('ingredients', [])
             
-            # ✅ ИСПОЛЬЗУЕМ АНАЛИЗ ЧЕРЕЗ FOOD_ANALYZER
-            analyzed = await _analyze_ai_response(food_data)
+            logger.info(f"🍽 Распознано моделью {used_model}: блюдо='{dish_name_en}', ингредиенты={ingredients_en}")
             
-            if analyzed.get("error"):
-                await message.answer("❌ Ошибка анализа. Попробуйте ещё раз.")
+            # ✅ ИСПРАВЛЕНО: Перевод названия блюда
+            dish_name_ru = await translate_dish_name(dish_name_en) if dish_name_en else ""
+            
+            # ✅ ИСПРАВЛЕНО: Извлекаем names из словарей ингредиентов перед переводом
+            ingredients_ru = []
+            for ing in ingredients_en:
+                if isinstance(ing, dict):
+                    # Новый формат: {"name": "...", "type": "...", "estimated_weight_grams": ...}
+                    ing_name = ing.get('name', '')
+                    if ing_name:
+                        translated = await translate_to_russian(ing_name)
+                        ingredients_ru.append(translated)
+                elif isinstance(ing, str):
+                    # Старый формат: просто строка
+                    translated = await translate_to_russian(ing)
+                    ingredients_ru.append(translated)
+            
+            logger.info(f"🍽 Переведённые ингредиенты: {ingredients_ru}")
+            
+            # Сначала проверяем, есть ли блюдо в продуктовой базе по названию
+            dish_info = await get_food_data(dish_name_ru) if dish_name_ru else {'base_calories': 0}
+            
+            if dish_info['base_calories'] > 0:
+                # Блюдо найдено в продуктовой базе - предлагаем выбор
+                await state.update_data(
+                    recognized_dish=dish_name_ru,
+                    recognized_ingredients=ingredients_ru,
+                    last_photo_id=message.message_id
+                )
+                keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text="✅ Использовать блюдо", callback_data="confirm_dish")],
+                    [InlineKeyboardButton(text="🔍 Разбить на ингредиенты", callback_data="reject_dish")]
+                ])
+                await message.answer(
+                    f"🍽 Распознано блюдо: **{dish_name_ru}**.\n"
+                    f"Хотите использовать его как готовое блюдо или разбить на ингредиенты?",
+                    reply_markup=keyboard,
+                    parse_mode="Markdown"
+                )
                 return
             
-            # 🔥 СОХРАНЯЕМ В STATE ДЛЯ ПОДТВЕРЖДЕНИЯ
-            await state.update_data(
-                recognized_dish=analyzed["dish_name"],
-                recognized_ingredients=analyzed["ingredients"],
-                total_calories=analyzed["total_calories"],
-                total_protein=analyzed["total_protein"],
-                total_fat=analyzed["total_fat"],
-                total_carbs=analyzed["total_carbs"],
-                last_photo_id=message.message_id,
-                ai_model=cascade_result.get('model'),
-                cascade_confidence=cascade_result.get('confidence', 0)
-            )
-            
-            # 🔥 ПОКАЗЫВАЕМ ПОДТВЕРЖДЕНИЕ С ВОЗМОЖНОСТЬЮ РЕДАКТИРОВАНИЯ
-            await _show_food_confirmation(message, state, analyzed)
-            return
+            # Если не найдено, используем ингредиенты
+            if ingredients_ru:
+                await start_food_input(message, state, ingredients_ru, meal_type="snack")
+                await state.update_data(last_photo_id=message.message_id)
+                return
+            else:
+                # Нет ни названия, ни ингредиентов - предлагаем ручной ввод
+                await message.answer(
+                    "❌ Не удалось распознать состав блюда.\n"
+                    "Пожалуйста, введите продукты вручную:",
+                    reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                        [InlineKeyboardButton(text="✏️ Ввести вручную", callback_data="food_manual")],
+                        [InlineKeyboardButton(text="❌ Отмена", callback_data="action_cancel")]
+                    ])
+                )
+                await state.update_data(last_photo_id=message.message_id)
+                return
         
-        # Fallback на старый метод
-        logger.info("Falling back to analyze_food_image")
+        # Если JSON не получен, пробуем fallback на analyze_food_image
+        logger.info("Falling back to analyze_food_image for ingredients")
+        description = await analyze_food_image(optimized)
+        if description:
+            ingredients_en = await extract_food_items(description)
+            ingredients_ru = [await translate_to_russian(ing) for ing in ingredients_en]
+            if ingredients_ru:
+                await start_food_input(message, state, ingredients_ru, meal_type="snack")
+                await state.update_data(last_photo_id=message.message_id)
+                return
+        
+        # Полный провал
         await message.answer(
-            "❌ Не удалось распознать фото в детальном режиме.\n"
-            "Пожалуйста, введите продукты вручную:",
+            "❌ Не удалось распознать фото. Попробуйте:\n"
+            "• Отправить более чёткое фото\n"
+            "• Ввести продукты вручную",
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(text="✏️ Ввести вручную", callback_data="food_manual")],
                 [InlineKeyboardButton(text="❌ Отмена", callback_data="action_cancel")]
@@ -268,7 +319,6 @@ async def handle_photo(message: Message, state: FSMContext):
         logger.error(f"❌ Photo error: {e}\n{traceback.format_exc()}")
         await message.answer("❌ Ошибка при обработке фото. Попробуйте позже.")
         await state.clear()
-
 
 async def _analyze_ai_response(ai_ Dict) -> Dict:
     """

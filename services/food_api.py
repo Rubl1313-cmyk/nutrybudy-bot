@@ -502,30 +502,26 @@ LOCAL_FOOD_DB = {
     "павлова": {"name": "Павлова", "calories": 250, "protein": 3, "fat": 8, "carbs": 42},
 }
 
+# В функции search_local_db() добавить:
+
 def search_local_db(query: str) -> List[Dict]:
     """
-    Поиск в локальной базе с приоритетом точных совпадений.
+    Поиск в локальной базе по частичному совпадению.
+    ✅ Улучшено: поиск по лемме и частичным совпадениям
     """
-    query_lower = query.lower().strip()
     results = []
+    query_lower = query.lower().strip()
     
-    # Сначала ищем точное совпадение ключа
-    if query_lower in LOCAL_FOOD_DB:
-        item = LOCAL_FOOD_DB[query_lower]
-        results.append({
-            'name': item['name'],
-            'calories': item['calories'],
-            'protein': item['protein'],
-            'fat': item['fat'],
-            'carbs': item['carbs'],
-            'source': 'local',
-            'match_type': 'exact'
-        })
+    # 🔥 Простая нормализация запроса (убираем окончания)
+    normalized_query = query_lower
+    for ending in ['а', 'ы', 'и', 'у', 'ом', 'е', 'ой', 'ей', 'ами', 'ах', 'ов', 'ев', 'ец', 'ца', 'цы']:
+        if query_lower.endswith(ending) and len(query_lower) > 4:
+            normalized_query = query_lower[:-len(ending)]
+            break
     
-    # Затем ищем частичные совпадения, исключая точные дубли
     for key, item in LOCAL_FOOD_DB.items():
-        if key == query_lower:
-            continue  # уже добавили
+        # 🔥 Три уровня совпадения:
+        # 1. Точное вхождение запроса в ключ
         if query_lower in key:
             results.append({
                 'name': item['name'],
@@ -534,12 +530,35 @@ def search_local_db(query: str) -> List[Dict]:
                 'fat': item['fat'],
                 'carbs': item['carbs'],
                 'source': 'local',
-                'match_type': 'partial'
+                'score': 1.0
+            })
+        # 2. Вхождение нормализованного запроса в ключ
+        elif normalized_query in key and len(normalized_query) >= 3:
+            results.append({
+                'name': item['name'],
+                'calories': item['calories'],
+                'protein': item['protein'],
+                'fat': item['fat'],
+                'carbs': item['carbs'],
+                'source': 'local',
+                'score': 0.8
+            })
+        # 3. Вхождение запроса в название продукта
+        elif query_lower in item['name'].lower():
+            results.append({
+                'name': item['name'],
+                'calories': item['calories'],
+                'protein': item['protein'],
+                'fat': item['fat'],
+                'carbs': item['carbs'],
+                'source': 'local',
+                'score': 0.9
             })
     
-    # Сортируем: точные выше, потом по длине ключа (чем короче, тем выше приоритет)
-    results.sort(key=lambda x: (0 if x['match_type'] == 'exact' else 1, len(x['name'])))
-    return results
+    # 🔥 Сортировка по score (лучшие совпадения первыми)
+    results.sort(key=lambda x: x['score'], reverse=True)
+    
+    return results[:10]  # Возвращаем топ-10
 
 # ========== OPEN FOOD FACTS ==========
 async def search_openfoodfacts(query: str, max_results: int = 5) -> List[Dict]:

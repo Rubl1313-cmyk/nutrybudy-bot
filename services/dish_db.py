@@ -1,10 +1,8 @@
 """
-База данных готовых блюд с ПОЛНЫМ списком ингредиентов.
-Используется для разбивки блюд на компоненты при распознавании.
-Объединяет данные из dish_db.py и food_api.py (LOCAL_FOOD_DB).
+База данных готовых блюд с разбивкой на ингредиенты (в процентах).
+Каждый ингредиент должен присутствовать в LOCAL_FOOD_DB.
 """
-from typing import Dict, List, Tuple, Optional
-from utils.normalizer import normalize_product_name
+from typing import Dict, List, Optional
 
 # 🔥 БАЗА ГОТОВЫХ БЛЮД С ПОЛНЫМИ ИНГРЕДИЕНТАМИ
 COMPOSITE_DISHES = {
@@ -1510,144 +1508,56 @@ KEY_INGREDIENTS = {
 }
 
 
-# ========== В КОНЕЦ ФАЙЛА ДОБАВИТЬ ==========
-
-def get_dish_ingredients(dish_name: str, total_weight: int = 300) -> list:
-    """
-    ✅ Возвращает список ингредиентов для блюда с рассчитанными весами
-    """
+def get_dish_ingredients(dish_name: str, total_weight: int = 300) -> List[Dict]:
+    """Возвращает список ингредиентов с весами, масштабированными под указанную массу блюда."""
     dish_name_lower = dish_name.lower().strip()
-    
-    # Ищем блюдо в базе
-    dish_data = COMPOSITE_DISHES.get(dish_name_lower)
-    
-    if not dish_data:
-        # Пробуем найти по частичному совпадению
+    dish = COMPOSITE_DISHES.get(dish_name_lower)
+    if not dish:
+        # поиск по частичному совпадению
         for key, value in COMPOSITE_DISHES.items():
-            if key in dish_name_lower or dish_name_lower in key:
-                dish_data = value
+            if dish_name_lower in key or key in dish_name_lower:
+                dish = value
                 break
-    
-    if not dish_data:
+    if not dish:
         return []
-    
-    ingredients = dish_data.get('ingredients', [])
-    if not ingredients:
-        return []
-    
-    # 🔥 Рассчитываем веса на основе процентов
+    ingredients = dish.get('ingredients', [])
     result = []
     for ing in ingredients:
-        name = ing.get('name', '')
-        percent = ing.get('percent', 0)
+        name = ing['name']
+        percent = ing['percent']
         weight = int(total_weight * percent / 100)
-        
-        if weight > 0 and name:
+        if weight > 0:
             result.append({
                 'name': name,
                 'estimated_weight_grams': weight,
                 'type': ing.get('type', 'other'),
-                'confidence': 0.8,
                 'percent': percent
             })
-    
     return result
 
-def find_matching_dish(ingredients: list, threshold: float = 0.3) -> tuple:
-    """
-    Ищет блюдо, чей набор ингредиентов наиболее похож на предоставленный.
-    """
-    if not ingredients:
-        return None, 0.0
-    
-    input_names = set(ing.get('name', '').lower() for ing in ingredients if ing.get('name'))
-    
-    best_match = None
-    best_score = 0.0
-    
-    for dish_name, dish_data in COMPOSITE_DISHES.items():
-        dish_ingredients = dish_data.get('ingredients', [])
-        dish_names = set(ing.get('name', '').lower() for ing in dish_ingredients)
-        
-        if not dish_names:
-            continue
-        
-        intersection = len(input_names & dish_names)
-        union = len(input_names | dish_names)
-        score = intersection / union if union > 0 else 0.0
-        
-        # Штрафуем если ключевой ингредиент отсутствует
-        key = KEY_INGREDIENTS.get(dish_name)
-        if key and key.lower() not in input_names:
-            score *= 0.5
-        
-        if score > best_score:
-            best_score = score
-            best_match = dish_name
-    
-    if best_score >= threshold:
-        return best_match, best_score
-    
-    return None, best_score
-
-# ========== В КОНЕЦ ФАЙЛА (функция calculate_dish_nutrition) ==========
 def calculate_dish_nutrition(dish_name: str, total_weight: int = 300) -> Dict:
-    """
-    🔥 Исправлено: теперь Dict импортирован
-    Рассчитывает КБЖУ для готового блюда
-    """
-    dish_name_lower = dish_name.lower().strip()
-    dish_data = COMPOSITE_DISHES.get(dish_name_lower)
-    
-    if not dish_data:
-        # Пробуем найти по частичному совпадению
-        for key, value in COMPOSITE_DISHES.items():
-            if key in dish_name_lower or dish_name_lower in key:
-                dish_data = value
-                break
-    
-    if not dish_data:
-        return {
-            'name': dish_name,
-            'calories': 0,
-            'protein': 0,
-            'fat': 0,
-            'carbs': 0
-        }
-    
-    ingredients = dish_data.get('ingredients', [])
-    
-    # 🔥 Суммируем КБЖУ всех ингредиентов
-    total_calories = 0
-    total_protein = 0
-    total_fat = 0
-    total_carbs = 0
-    
+    """Рассчитывает суммарное КБЖУ блюда на основе ингредиентов."""
+    from services.food_api import LOCAL_FOOD_DB
+    ingredients = get_dish_ingredients(dish_name, total_weight)
+    total_cal = 0.0
+    total_prot = 0.0
+    total_fat = 0.0
+    total_carbs = 0.0
     for ing in ingredients:
-        ing_name = ing.get('name', '')
-        percent = ing.get('percent', 0)
-        ing_weight = int(total_weight * percent / 100)
-        
-        # 🔥 Получаем КБЖУ ингредиента из базы
-        from services.food_api import LOCAL_FOOD_DB
-        food_data = None
-        for key, value in LOCAL_FOOD_DB.items():
-            if ing_name.lower() in key or key in ing_name.lower():
-                food_data = value
+        name = ing['name']
+        weight = ing['estimated_weight_grams']
+        # ищем в LOCAL_FOOD_DB
+        for key, data in LOCAL_FOOD_DB.items():
+            if name.lower() == key or name.lower() == data['name'].lower():
+                multiplier = weight / 100
+                total_cal += data['calories'] * multiplier
+                total_prot += data['protein'] * multiplier
+                total_fat += data['fat'] * multiplier
+                total_carbs += data['carbs'] * multiplier
                 break
-        
-        if food_data:
-            multiplier = ing_weight / 100
-            total_calories += food_data.get('calories', 0) * multiplier
-            total_protein += food_data.get('protein', 0) * multiplier
-            total_fat += food_data.get('fat', 0) * multiplier
-            total_carbs += food_data.get('carbs', 0) * multiplier
-    
     return {
-        'name': dish_data.get('name', dish_name),
-        'calories': round(total_calories, 1),
-        'protein': round(total_protein, 1),
+        'calories': round(total_cal, 1),
+        'protein': round(total_prot, 1),
         'fat': round(total_fat, 1),
-        'carbs': round(total_carbs, 1),
-        'ingredients_count': len(ingredients)
+        'carbs': round(total_carbs, 1)
     }

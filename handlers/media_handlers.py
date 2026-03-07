@@ -626,42 +626,46 @@ async def confirm_dish_from_db_callback(callback: CallbackQuery, state: FSMConte
     await callback.answer()
 
 
+# ========== ОБРАБОТЧИКИ ПОДТВЕРЖДЕНИЯ БЛЮДА ==========
+
 @router.callback_query(F.data == "use_ingredients_instead")
 async def use_ingredients_callback(callback: CallbackQuery, state: FSMContext):
-    """Использование ингредиентов вместо готового блюда."""
+    """
+    ✅ ИСПРАВЛЕНО: Использует ингредиенты из AI-распознавания,
+    а не из базы COMPOSITE_DISHES
+    """
     data = await state.get_data()
     dish_data = data.get('recognized_dish', {})
-    dish_name = dish_data.get('dish_name', '').lower().strip()
     
-    # 🔥 ИСПРАВЛЕНО: используем COMPOSITE_DISHES вместо DISH_DB
-    dish_info_db = COMPOSITE_DISHES.get(dish_name)
+    # 🔥 БЕРЁМ ИНГРЕДИЕНТЫ ИЗ AI-РАСПОЗНАВАНИЯ
+    ai_ingredients = dish_data.get('ingredients', [])
     
-    if dish_info_db and dish_info_db.get('ingredients'):
-        ai_total_weight = sum(ing.get('estimated_weight_grams', 0) for ing in dish_data.get('ingredients', []))
-        total_weight = ai_total_weight if ai_total_weight > 0 else 300
-        ingredients_with_weights = get_dish_ingredients(dish_name, total_weight)
-    else:
-        ingredients_with_weights = dish_data.get('ingredients', [])
+    if not ai_ingredients:
+        await callback.answer("❌ Нет ингредиентов от AI", show_alert=True)
+        return
     
-    if not ingredients_with_weights:
-        await callback.answer("❌ Нет ингредиентов", show_alert=True)
+    # 🔥 ПРЕОБРАЗУЕМ AI-ингредиенты в формат для ввода
+    food_items = []
+    for ing in ai_ingredients:
+        if isinstance(ing, dict):
+            name = ing.get('name', '')
+            # Берём вес из AI или устанавливаем дефолтный
+            weight = ing.get('estimated_weight_grams', 0) or ing.get('weight', 100)
+            if name:
+                food_items.append({
+                    'name': name,
+                    'weight': weight,
+                    'ai_confidence': ing.get('confidence', 0.7)
+                })
+    
+    if not food_items:
+        await callback.answer("❌ Нет валидных ингредиентов", show_alert=True)
         return
     
     await callback.answer()
-    await callback.message.edit_text("⏳ Загружаю ингредиенты...")
+    await callback.message.edit_text("⏳ Загружаю данные продуктов...")
     
-    food_items = []
-    for ing in ingredients_with_weights:
-        if isinstance(ing, dict):
-            name = ing.get('name', '')
-            weight = ing.get('estimated_weight_grams', 0) or ing.get('weight', 0)
-            if name:
-                food_items.append({'name': name, 'weight': weight})
-    
-    if not food_items:
-        await callback.answer("❌ Нет ингредиентов", show_alert=True)
-        return
-    
+    # 🔥 ЗАПУСКАЕМ ВВОД С AI-ИНГРЕДИЕНТАМИ (не из базы!)
     await _start_food_input_with_weights(
         callback.message,
         state,
@@ -672,7 +676,77 @@ async def use_ingredients_callback(callback: CallbackQuery, state: FSMContext):
     await state.update_data(
         ai_description=dish_data.get('dish_name', ''),
         cooking_method=dish_data.get('cooking_method', ''),
-        mode="photo_to_manual"
+        mode="photo_ai_ingredients"  # 🔥 Новая метка режима
+    )
+
+
+async def _start_food_input_with_weights(
+    message: Message,
+    state: FSMContext,
+    food_items: List[Dict],
+    meal_type: str = "snack"
+):
+    """
+    ✅ Запускает интерфейс ввода продуктов с предустановленными весами от AI
+    """
+    selected_foods = []
+    
+    for item in food_items:
+        # 🔥 Получаем данные из базы продуктов по названию
+        food_data = await _get_food_data_cached(item['name'])
+        
+        # 🔥 Рассчитываем КБЖУ для веса от AI
+        weight = item.get('weight', 100)
+        nutrients = _calculate_nutrients(food_data, weight)
+        
+        selected_foods.append({
+            'name': food_data['name'],
+            'base_calories': food_data['base_calories'],
+            'base_protein': food_data['base_protein'],
+            'base_fat': food_data['base_fat'],
+            'base_carbs': food_data['base_carbs'],
+            'weight': weight,
+            'calories': nutrients['calories'],
+            'protein': nutrients['protein'],
+            'fat': nutrients['fat'],
+            'carbs': nutrients['carbs'],
+            'source': food_data.get('source', 'ai_recognition'),
+            'ai_confidence': item.get('ai_confidence', 0.7)
+        })
+    
+    # 🔥 Сразу показываем сводку с рассчитанными КБЖУ
+    total_cal = sum(f['calories'] for f in selected_foods)
+    total_prot = sum(f['protein'] for f in selected_foods)
+    total_fat = sum(f['fat'] for f in selected_foods)
+    total_carbs = sum(f['carbs'] for f in selected_foods)
+    
+    totals_text = (
+        f"🍽️ <b>Приём пищи ({meal_type}):</b>\n"
+        f"🔥 {total_cal:.0f} ккал | 🥩 {total_prot:.1f}г | 🥑 {total_fat:.1f}г | 🍚 {total_carbs:.1f}г"
+    )
+    
+    totals_keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="➕ Добавить продукт", callback_data="add_food")],
+        [
+            InlineKeyboardButton(text="✅ Подтвердить", callback_data="confirm_meal"),
+            InlineKeyboardButton(text="❌ Отмена", callback_data="cancel_meal")
+        ]
+    ])
+    
+    totals_msg = await message.answer(totals_text, reply_markup=totals_keyboard, parse_mode="HTML")
+    
+    # 🔥 Отправляем карточки продуктов для редактирования
+    product_msg_ids = []
+    for i, food in enumerate(selected_foods):
+        msg_id = await _send_product_card(message.chat.id, message.bot, i, food, totals_msg.message_id)
+        product_msg_ids.append(msg_id)
+    
+    await state.update_data(
+        selected_foods=selected_foods,
+        totals_msg_id=totals_msg.message_id,
+        product_msg_ids=product_msg_ids,
+        meal_type=meal_type,
+        mode="photo_ai_ingredients"
     )
 
 @router.callback_query(F.data == "retry_photo")

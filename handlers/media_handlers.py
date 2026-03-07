@@ -680,6 +680,8 @@ async def use_ingredients_callback(callback: CallbackQuery, state: FSMContext):
     )
 
 
+# ========== ДОБАВИТЬ НОВУЮ ФУНКЦИЮ ПОСЛЕ _start_food_input ==========
+
 async def _start_food_input_with_weights(
     message: Message,
     state: FSMContext,

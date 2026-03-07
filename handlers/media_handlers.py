@@ -551,7 +551,7 @@ async def confirm_dish_callback(callback: CallbackQuery, state: FSMContext):
     data = await state.get_data()
     dish_data = data.get('recognized_dish', {})
     
-    if not dish_
+    if not dish_data:
         await callback.answer("❌ Данные не найдены", show_alert=True)
         return
     

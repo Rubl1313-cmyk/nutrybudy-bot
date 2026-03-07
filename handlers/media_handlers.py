@@ -27,7 +27,7 @@ from services.cloudflare_ai import (
     identify_food_cascade,
     transcribe_audio,
 )
-from services.food_api import search_food, get_food_data, LOCAL_FOOD_DB
+from services.food_api import LOCAL_FOOD_DB  # только ингредиенты
 from services.translator import translate_dish_name, translate_to_russian
 from services.dish_db import find_matching_dish, COMPOSITE_DISHES, get_dish_ingredients
 from utils.states import FoodStates
@@ -57,49 +57,33 @@ def _prepare_image(image_bytes: bytes) -> bytes:
 
 async def _get_food_data_cached(name: str) -> Dict:
     """
-    Получает данные продукта из локальной базы, избегая готовых блюд.
+    Получает данные продукта из локальной базы ингредиентов (LOCAL_FOOD_DB).
+    Больше не проверяет COMPOSITE_DISHES.
     """
     name_lower = name.lower().strip()
     
-    # Прямой поиск в базе простых продуктов
+    # Прямой поиск в базе ингредиентов
     for key, product_item in LOCAL_FOOD_DB.items():
         if name_lower == key or name_lower == product_item["name"].lower():
-            # Проверяем, что это не готовое блюдо
-            if key not in COMPOSITE_DISHES:
-                return {
-                    'name': product_item['name'],
-                    'base_calories': product_item.get('calories', 0),
-                    'base_protein': product_item.get('protein', 0),
-                    'base_fat': product_item.get('fat', 0),
-                    'base_carbs': product_item.get('carbs', 0),
-                    'source': 'local'
-                }
-    
-    # Поиск по частичному совпадению
-    for key, product_item in LOCAL_FOOD_DB.items():
-        if name_lower in key or key in name_lower:
-            if key not in COMPOSITE_DISHES:
-                return {
-                    'name': product_item['name'],
-                    'base_calories': product_item.get('calories', 0),
-                    'base_protein': product_item.get('protein', 0),
-                    'base_fat': product_item.get('fat', 0),
-                    'base_carbs': product_item.get('carbs', 0),
-                    'source': 'local'
-                }
-    
-    # Если не нашли - используем search_food
-    search_results = await search_food(name)
-    if search_results:
-        best = search_results[0]
-        if best['name'].lower() not in COMPOSITE_DISHES:
             return {
-                'name': best['name'],
-                'base_calories': best.get('calories', 0),
-                'base_protein': best.get('protein', 0),
-                'base_fat': best.get('fat', 0),
-                'base_carbs': best.get('carbs', 0),
-                'source': best.get('source', 'local')
+                'name': product_item['name'],
+                'base_calories': product_item.get('calories', 0),
+                'base_protein': product_item.get('protein', 0),
+                'base_fat': product_item.get('fat', 0),
+                'base_carbs': product_item.get('carbs', 0),
+                'source': 'local'
+            }
+    
+    # Поиск по частичному совпадению (запрос входит в ключ)
+    for key, product_item in LOCAL_FOOD_DB.items():
+        if name_lower in key:
+            return {
+                'name': product_item['name'],
+                'base_calories': product_item.get('calories', 0),
+                'base_protein': product_item.get('protein', 0),
+                'base_fat': product_item.get('fat', 0),
+                'base_carbs': product_item.get('carbs', 0),
+                'source': 'local'
             }
     
     # fallback
@@ -669,33 +653,26 @@ async def confirm_dish_from_db_callback(callback: CallbackQuery, state: FSMConte
     dish_data = data.get('recognized_dish', {})
     dish_name = dish_data.get('dish_name', 'Блюдо')
     
-    dish_name_lower = dish_name.lower().strip()
-    dish_info_db = COMPOSITE_DISHES.get(dish_name_lower)
-    
-    if dish_info_db and dish_info_db.get('ingredients'):
-        total_weight = 300
-        ingredients_with_weights = get_dish_ingredients(dish_name_lower, total_weight)
+    # Получаем ингредиенты из базы, используя вес по умолчанию (можно спросить у пользователя)
+    from services.dish_db import get_dish_ingredients, COMPOSITE_DISHES
+    dish_key = dish_name.lower().strip()
+    # Проверим, есть ли в базе
+    if dish_key in COMPOSITE_DISHES:
+        default_weight = COMPOSITE_DISHES[dish_key].get('default_weight', 300)
     else:
-        ingredients_with_weights = dish_data.get('ingredients', [])
+        default_weight = 300
+    
+    ingredients_with_weights = get_dish_ingredients(dish_key, total_weight=default_weight)
     
     if not ingredients_with_weights:
-        await callback.answer("❌ Нет ингредиентов", show_alert=True)
+        await callback.answer("❌ Блюдо не найдено в базе", show_alert=True)
         return
     
     await callback.answer()
     await callback.message.edit_text("⏳ Загружаю ингредиенты...")
     
-    food_items = []
-    for ing in ingredients_with_weights:
-        if isinstance(ing, dict):
-            name = ing.get('name', '')
-            weight = ing.get('estimated_weight_grams', 0) or ing.get('weight', 100)
-            if name:
-                food_items.append({'name': name, 'weight': weight})
-    
-    if not food_items:
-        await callback.answer("❌ Нет ингредиентов", show_alert=True)
-        return
+    # Преобразуем в формат для _start_food_input_with_weights
+    food_items = [{'name': ing['name'], 'weight': ing['estimated_weight_grams']} for ing in ingredients_with_weights]
     
     await _start_food_input_with_weights(
         callback.message,
@@ -712,10 +689,9 @@ async def confirm_dish_from_db_callback(callback: CallbackQuery, state: FSMConte
 
 @router.callback_query(F.data == "use_ingredients_instead")
 async def use_ingredients_callback(callback: CallbackQuery, state: FSMContext):
-    """Использует ингредиенты, полученные от AI, с возможным разворачиванием составных блюд."""
+    """Использует ингредиенты, полученные от AI, без разворачивания составных блюд."""
     data = await state.get_data()
     dish_data = data.get('recognized_dish', {})
-    
     ai_ingredients = dish_data.get('ingredients', [])
     
     if not ai_ingredients:
@@ -728,24 +704,18 @@ async def use_ingredients_callback(callback: CallbackQuery, state: FSMContext):
             name = ing.get('name', '')
             if not name:
                 continue
-            name_lower = name.lower()
-            # Если ингредиент сам является готовым блюдом, разворачиваем его
-            if name_lower in COMPOSITE_DISHES:
-                dish_ings = get_dish_ingredients(name_lower, total_weight=300)
-                for d_ing in dish_ings:
-                    food_items.append({
-                        'name': d_ing['name'],
-                        'weight': d_ing['estimated_weight_grams'],
-                        'ai_confidence': ing.get('confidence', 0.7)
-                    })
-            else:
-                # Обычный ингредиент
-                weight = ing.get('estimated_weight_grams', 0) or ing.get('weight', 100)
-                food_items.append({
-                    'name': name,
-                    'weight': weight,
-                    'ai_confidence': ing.get('confidence', 0.7)
-                })
+            weight = ing.get('estimated_weight_grams', 0) or ing.get('weight', 100)
+            food_items.append({
+                'name': name,
+                'weight': weight,
+                'ai_confidence': ing.get('confidence', 0.7)
+            })
+        elif isinstance(ing, str):
+            food_items.append({
+                'name': ing,
+                'weight': 100,
+                'ai_confidence': 0.5
+            })
     
     if not food_items:
         await callback.answer("❌ Нет валидных ингредиентов", show_alert=True)

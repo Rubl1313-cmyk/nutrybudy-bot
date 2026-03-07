@@ -1,11 +1,11 @@
-# handlers/media_handlers.py
 """
 Обработчики мультимедиа: фото (распознавание еды) и голос.
 ✅ Улучшенное распознавание через мультимодельный JSON
 ✅ Интеграция с image_enhancer для улучшения фото
 ✅ Каскадное распознавание с голосованием
 ✅ Интерфейс подтверждения с редактированием
-✅ Исправлены все ошибки с user_id
+✅ Прогресс-бар теперь доходит до 100% и удаляется
+✅ Составные блюда разворачиваются в ингредиенты при выборе
 """
 
 from aiogram import Router, F
@@ -21,12 +21,13 @@ import re
 import asyncio
 from typing import List, Dict, Optional, Tuple
 from datetime import datetime
+
 from services.cloudflare_ai import (
     identify_food_multimodel,
     identify_food_cascade,
     transcribe_audio,
 )
-from services.food_api import search_food, get_food_data
+from services.food_api import search_food, get_food_data, LOCAL_FOOD_DB
 from services.translator import translate_dish_name, translate_to_russian
 from services.dish_db import find_matching_dish, COMPOSITE_DISHES, get_dish_ingredients
 from utils.states import FoodStates
@@ -56,28 +57,14 @@ def _prepare_image(image_bytes: bytes) -> bytes:
 
 async def _get_food_data_cached(name: str) -> Dict:
     """
-    ✅ ИСПРАВЛЕНО: Получает данные продукта, избегая готовых блюд
+    Получает данные продукта из локальной базы, избегая готовых блюд.
     """
-    from services.food_api import LOCAL_FOOD_DB, search_food
-    
     name_lower = name.lower().strip()
     
-    # 🔥 1. Прямой поиск в базе простых продуктов
+    # Прямой поиск в базе простых продуктов
     for key, product_item in LOCAL_FOOD_DB.items():
         if name_lower == key or name_lower == product_item["name"].lower():
-            return {
-                'name': product_item['name'],
-                'base_calories': product_item.get('calories', 0),
-                'base_protein': product_item.get('protein', 0),
-                'base_fat': product_item.get('fat', 0),
-                'base_carbs': product_item.get('carbs', 0),
-                'source': 'local'
-            }
-    
-    # 🔥 2. Поиск по частичному совпадению (но НЕ готовые блюда!)
-    for key, product_item in LOCAL_FOOD_DB.items():
-        if name_lower in key or key in name_lower:
-            # 🔥 ПРОВЕРКА: это не готовое блюдо?
+            # Проверяем, что это не готовое блюдо
             if key not in COMPOSITE_DISHES:
                 return {
                     'name': product_item['name'],
@@ -88,11 +75,23 @@ async def _get_food_data_cached(name: str) -> Dict:
                     'source': 'local'
                 }
     
-    # 🔥 3. Если не нашли - используем search_food (но с фильтром)
+    # Поиск по частичному совпадению
+    for key, product_item in LOCAL_FOOD_DB.items():
+        if name_lower in key or key in name_lower:
+            if key not in COMPOSITE_DISHES:
+                return {
+                    'name': product_item['name'],
+                    'base_calories': product_item.get('calories', 0),
+                    'base_protein': product_item.get('protein', 0),
+                    'base_fat': product_item.get('fat', 0),
+                    'base_carbs': product_item.get('carbs', 0),
+                    'source': 'local'
+                }
+    
+    # Если не нашли - используем search_food
     search_results = await search_food(name)
     if search_results:
         best = search_results[0]
-        # 🔥 ПРОВЕРКА: это не готовое блюдо из COMPOSITE_DISHES?
         if best['name'].lower() not in COMPOSITE_DISHES:
             return {
                 'name': best['name'],
@@ -103,7 +102,7 @@ async def _get_food_data_cached(name: str) -> Dict:
                 'source': best.get('source', 'local')
             }
     
-    # 🔥 4. fallback - возвращаем заглушку
+    # fallback
     return {
         'name': name,
         'base_calories': 0,
@@ -281,16 +280,11 @@ async def _start_food_input_with_weights(
     food_items: List[Dict],
     meal_type: str = "snack"
 ):
-    """
-    ✅ Запускает интерфейс ввода продуктов с предустановленными весами
-    """
+    """Запускает интерфейс ввода продуктов с предустановленными весами."""
     selected_foods = []
     
     for item in food_items:
-        # 🔥 Получаем данные из базы продуктов по названию
         food_data = await _get_food_data_cached(item['name'])
-        
-        # 🔥 Рассчитываем КБЖУ для веса от AI
         weight = item.get('weight', 100)
         nutrients = _calculate_nutrients(food_data, weight)
         
@@ -309,7 +303,6 @@ async def _start_food_input_with_weights(
             'ai_confidence': item.get('ai_confidence', 0.7)
         })
     
-    # 🔥 Сразу показываем сводку с рассчитанными КБЖУ
     total_cal = sum(f['calories'] for f in selected_foods)
     total_prot = sum(f['protein'] for f in selected_foods)
     total_fat = sum(f['fat'] for f in selected_foods)
@@ -330,7 +323,6 @@ async def _start_food_input_with_weights(
     
     totals_msg = await message.answer(totals_text, reply_markup=totals_keyboard, parse_mode="HTML")
     
-    # 🔥 Отправляем карточки продуктов для редактирования
     product_msg_ids = []
     for i, food in enumerate(selected_foods):
         msg_id = await _send_product_card(message.chat.id, message.bot, i, food, totals_msg.message_id)
@@ -397,13 +389,9 @@ async def _handle_recognition_failure(message: Message, state: FSMContext):
     await state.update_data(last_photo_id=message.message_id)
 
 def _calculate_nutrients(base: Dict, weight: float) -> Dict:
-    """
-    ✅ Рассчитывает КБЖУ для заданного веса
-    """
+    """Рассчитывает КБЖУ для заданного веса."""
     if weight <= 0:
-        return {
-            'calories': 0, 'protein': 0, 'fat': 0, 'carbs': 0
-        }
+        return {'calories': 0, 'protein': 0, 'fat': 0, 'carbs': 0}
     multiplier = weight / 100.0
     base_calories = float(base.get('base_calories', 0) or 0)
     base_protein = float(base.get('base_protein', 0) or 0)
@@ -429,7 +417,7 @@ async def handle_photo(message: Message, state: FSMContext):
     
     logger.info(f"📸 Photo received, message_id={message.message_id}")
     
-    # Внешний try для обработки всех исключений
+    progress_msg = None
     try:
         current_state = await state.get_state()
         if current_state and not current_state.startswith("FoodStates"):
@@ -509,9 +497,12 @@ async def handle_photo(message: Message, state: FSMContext):
                 progress_msg.message_id,
                 "⏱️ Превышено время анализа. Попробуйте другое фото."
             )
+            if progress_msg:
+                await progress_msg.delete()
             await state.clear()
             return
         
+        # Обновляем прогресс до 70%
         await _send_progress_update(
             message.bot,
             message.chat.id,
@@ -555,11 +546,35 @@ async def handle_photo(message: Message, state: FSMContext):
             dish_data['dish_name'] = dish_name_ru
             dish_data['ingredients'] = ingredients_ru
             
+            # Обновляем прогресс до 85%
+            await _send_progress_update(
+                message.bot,
+                message.chat.id,
+                progress_msg.message_id,
+                stage=3,
+                progress=85,
+                total_stages=5
+            )
+            
             # Проверка наличия весов от AI
             has_weights = any(
                 ing.get('estimated_weight_grams', 0) > 0 
                 for ing in ingredients_ru
             )
+            
+            # Завершаем прогресс (100%) перед показом подтверждения
+            await _send_progress_update(
+                message.bot,
+                message.chat.id,
+                progress_msg.message_id,
+                stage=4,
+                progress=100,
+                total_stages=5
+            )
+            await asyncio.sleep(0.3)
+            if progress_msg:
+                await progress_msg.delete()
+                progress_msg = None
             
             if has_weights:
                 await state.update_data(
@@ -568,7 +583,6 @@ async def handle_photo(message: Message, state: FSMContext):
                 )
                 await _show_dish_confirmation(message, state, dish_data, model_used)
             else:
-                # Поиск в базе готовых блюд
                 dish_name_lower = dish_name_ru.lower().strip()
                 if dish_name_lower in COMPOSITE_DISHES:
                     await state.update_data(
@@ -593,14 +607,19 @@ async def handle_photo(message: Message, state: FSMContext):
                     )
                     await _show_dish_confirmation(message, state, dish_data, model_used)
         else:
+            # Ошибка распознавания
+            if progress_msg:
+                await progress_msg.delete()
+                progress_msg = None
             await _handle_recognition_failure(message, state)
     
     except Exception as e:
         logger.error(f"❌ Photo handler error: {e}\n{traceback.format_exc()}")
-        try:
-            await progress_msg.delete()
-        except:
-            pass
+        if progress_msg:
+            try:
+                await progress_msg.delete()
+            except:
+                pass
         await message.answer("❌ Ошибка при анализе фото. Попробуйте позже.")
         await state.clear()
 
@@ -608,8 +627,7 @@ async def handle_photo(message: Message, state: FSMContext):
 
 @router.callback_query(F.data == "confirm_dish_as_is")
 async def confirm_dish_callback(callback: CallbackQuery, state: FSMContext):
-    """✅ ИСПРАВЛЕНО: Быстрый ответ на callback"""
-    
+    """Использует ингредиенты, распознанные AI, без изменений."""
     await callback.answer("⏳ Загружаю данные...")
     
     data = await state.get_data()
@@ -626,23 +644,30 @@ async def confirm_dish_callback(callback: CallbackQuery, state: FSMContext):
         await callback.message.edit_text("❌ Нет ингредиентов")
         return
     
-    await callback.message.edit_text(f"⏳ Загружаю {len(food_names)} продуктов...")
+    # Разворачиваем составные блюда (если AI ошибочно определил ингредиент как готовое блюдо)
+    expanded_names = []
+    for name in food_names:
+        name_lower = name.lower()
+        if name_lower in COMPOSITE_DISHES:
+            dish_ings = get_dish_ingredients(name_lower, total_weight=300)
+            expanded_names.extend([ing['name'] for ing in dish_ings])
+        else:
+            expanded_names.append(name)
     
+    await callback.message.edit_text(f"⏳ Загружаю {len(expanded_names)} продуктов...")
     await _start_food_input(
         callback.message,
         state,
-        food_names,
+        expanded_names,
         meal_type=dish_data.get('meal_type', 'snack')
     )
 
 @router.callback_query(F.data == "confirm_dish_db")
 async def confirm_dish_from_db_callback(callback: CallbackQuery, state: FSMContext):
-    """✅ ИСПРАВЛЕНО: Использует ингредиенты из COMPOSITE_DISHES с весами"""
+    """Использует ингредиенты из базы готовых блюд с весами."""
     data = await state.get_data()
     dish_data = data.get('recognized_dish', {})
     dish_name = dish_data.get('dish_name', 'Блюдо')
-    
-    from services.dish_db import get_dish_ingredients, COMPOSITE_DISHES
     
     dish_name_lower = dish_name.lower().strip()
     dish_info_db = COMPOSITE_DISHES.get(dish_name_lower)
@@ -687,7 +712,7 @@ async def confirm_dish_from_db_callback(callback: CallbackQuery, state: FSMConte
 
 @router.callback_query(F.data == "use_ingredients_instead")
 async def use_ingredients_callback(callback: CallbackQuery, state: FSMContext):
-    """✅ ИСПРАВЛЕНО: Использует ингредиенты из AI-распознавания"""
+    """Использует ингредиенты, полученные от AI, с возможным разворачиванием составных блюд."""
     data = await state.get_data()
     dish_data = data.get('recognized_dish', {})
     
@@ -701,8 +726,21 @@ async def use_ingredients_callback(callback: CallbackQuery, state: FSMContext):
     for ing in ai_ingredients:
         if isinstance(ing, dict):
             name = ing.get('name', '')
-            weight = ing.get('estimated_weight_grams', 0) or ing.get('weight', 100)
-            if name:
+            if not name:
+                continue
+            name_lower = name.lower()
+            # Если ингредиент сам является готовым блюдом, разворачиваем его
+            if name_lower in COMPOSITE_DISHES:
+                dish_ings = get_dish_ingredients(name_lower, total_weight=300)
+                for d_ing in dish_ings:
+                    food_items.append({
+                        'name': d_ing['name'],
+                        'weight': d_ing['estimated_weight_grams'],
+                        'ai_confidence': ing.get('confidence', 0.7)
+                    })
+            else:
+                # Обычный ингредиент
+                weight = ing.get('estimated_weight_grams', 0) or ing.get('weight', 100)
                 food_items.append({
                     'name': name,
                     'weight': weight,

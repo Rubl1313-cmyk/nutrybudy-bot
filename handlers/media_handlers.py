@@ -57,29 +57,65 @@ def _prepare_image(image_bytes: bytes) -> bytes:
         return image_bytes
 
 
+# ========== ИСПРАВЛЕННАЯ ФУНКЦИЯ ==========
 async def _get_food_data_cached(name: str) -> Dict:
-    """С кэшированием для ускорения"""
-    # 🔥 ПРОВЕРКА КЭША
-    if name in _SEARCH_CACHE:
-        return _SEARCH_CACHE[name]
+    """
+    ✅ ИСПРАВЛЕНО: Получает данные продукта, избегая готовых блюд
+    """
+    from services.food_api import LOCAL_FOOD_DB, search_food
     
-    # ... остальной код функции выше ...
+    name_lower = name.lower().strip()
     
-    # 🔥 СОХРАНЕНИЕ В КЭШ
-    result = {
-        'name': item['name'],
-        'base_calories': item.get('calories', 0),
-        # ... и т.д.
+    # 🔥 1. Прямой поиск в базе простых продуктов
+    for key, product_item in LOCAL_FOOD_DB.items():
+        if name_lower == key or name_lower == product_item["name"].lower():
+            return {
+                'name': product_item['name'],
+                'base_calories': product_item.get('calories', 0),
+                'base_protein': product_item.get('protein', 0),
+                'base_fat': product_item.get('fat', 0),
+                'base_carbs': product_item.get('carbs', 0),
+                'source': 'local'
+            }
+    
+    # 🔥 2. Поиск по частичному совпадению (но НЕ готовые блюда!)
+    for key, product_item in LOCAL_FOOD_DB.items():
+        if name_lower in key or key in name_lower:
+            # 🔥 ПРОВЕРКА: это не готовое блюдо?
+            if key not in COMPOSITE_DISHES:
+                return {
+                    'name': product_item['name'],
+                    'base_calories': product_item.get('calories', 0),
+                    'base_protein': product_item.get('protein', 0),
+                    'base_fat': product_item.get('fat', 0),
+                    'base_carbs': product_item.get('carbs', 0),
+                    'source': 'local'
+                }
+    
+    # 🔥 3. Если не нашли - используем search_food (но с фильтром)
+    search_results = await search_food(name)
+    if search_results:
+        best = search_results[0]
+        # 🔥 ПРОВЕРКА: это не готовое блюдо из COMPOSITE_DISHES?
+        if best['name'].lower() not in COMPOSITE_DISHES:
+            return {
+                'name': best['name'],
+                'base_calories': best.get('calories', 0),
+                'base_protein': best.get('protein', 0),
+                'base_fat': best.get('fat', 0),
+                'base_carbs': best.get('carbs', 0),
+                'source': best.get('source', 'local')
+            }
+    
+    # 🔥 4. fallback - возвращаем заглушку
+    return {
+        'name': name,
+        'base_calories': 0,
+        'base_protein': 0,
+        'base_fat': 0,
+        'base_carbs': 0,
+        'source': 'unknown'
     }
-    _SEARCH_CACHE[name] = result
-    
-    # 🔥 ОЧИСТКА СТАРОГО КЭША (если больше 100 записей)
-    if len(_SEARCH_CACHE) > 100:
-        keys = list(_SEARCH_CACHE.keys())[:50]
-        for key in keys:
-            del _SEARCH_CACHE[key]
-    
-    return result
 async def _safe_edit_message(bot, chat_id: int, message_id: int, text: str, reply_markup=None, parse_mode="HTML"):
     """Безопасное редактирование сообщения с обработкой ошибок."""
     try:

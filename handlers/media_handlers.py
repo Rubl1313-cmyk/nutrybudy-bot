@@ -30,7 +30,7 @@ from services.cloudflare_ai import (
 )
 from services.food_api import search_food, get_food_data
 from services.translator import translate_dish_name, translate_to_russian
-from services.dish_db import find_matching_dish, DISH_DB
+from services.dish_db import find_matching_dish, COMPOSITE_DISHES, get_dish_ingredients
 from utils.states import FoodStates
 from database.db import get_session
 from database.models import Meal, FoodItem, User
@@ -444,6 +444,8 @@ async def handle_photo(message: Message, state: FSMContext):
         )
         dish_name_en = dish_data.get('dish_name', '')
         dish_name_ru = await translate_dish_name(dish_name_en) if dish_name_en else "Неизвестное блюдо"
+        dish_name_lower = dish_name_ru.lower().strip()
+        dish_in_dish_db = dish_name_lower in COMPOSITE_DISHES  # 🔥 ИСПРАВЛЕНО
         
         await _send_progress_update(
             message.bot,
@@ -629,25 +631,49 @@ async def use_ingredients_callback(callback: CallbackQuery, state: FSMContext):
     """Использование ингредиентов вместо готового блюда."""
     data = await state.get_data()
     dish_data = data.get('recognized_dish', {})
-    ingredients = dish_data.get('ingredients', [])
+    dish_name = dish_data.get('dish_name', '').lower().strip()
     
-    food_names = [ing.get('name', '') for ing in ingredients if ing.get('name')]
+    # 🔥 ИСПРАВЛЕНО: используем COMPOSITE_DISHES вместо DISH_DB
+    dish_info_db = COMPOSITE_DISHES.get(dish_name)
     
-    if not food_names:
+    if dish_info_db and dish_info_db.get('ingredients'):
+        ai_total_weight = sum(ing.get('estimated_weight_grams', 0) for ing in dish_data.get('ingredients', []))
+        total_weight = ai_total_weight if ai_total_weight > 0 else 300
+        ingredients_with_weights = get_dish_ingredients(dish_name, total_weight)
+    else:
+        ingredients_with_weights = dish_data.get('ingredients', [])
+    
+    if not ingredients_with_weights:
         await callback.answer("❌ Нет ингредиентов", show_alert=True)
         return
     
     await callback.answer()
     await callback.message.edit_text("⏳ Загружаю ингредиенты...")
     
-    # 🔥 ИСПРАВЛЕНИЕ: убран лишний отступ перед await message.answer
-    await _start_food_input(
+    food_items = []
+    for ing in ingredients_with_weights:
+        if isinstance(ing, dict):
+            name = ing.get('name', '')
+            weight = ing.get('estimated_weight_grams', 0) or ing.get('weight', 0)
+            if name:
+                food_items.append({'name': name, 'weight': weight})
+    
+    if not food_items:
+        await callback.answer("❌ Нет ингредиентов", show_alert=True)
+        return
+    
+    await _start_food_input_with_weights(
         callback.message,
         state,
-        food_names,
+        food_items,
         meal_type=dish_data.get('meal_type', 'snack')
     )
-
+    
+    await state.update_data(
+        ai_description=dish_data.get('dish_name', ''),
+        cooking_method=dish_data.get('cooking_method', ''),
+        mode="photo_to_manual"
+    )
 
 @router.callback_query(F.data == "retry_photo")
 async def retry_photo_callback(callback: CallbackQuery, state: FSMContext):

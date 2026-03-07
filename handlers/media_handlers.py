@@ -266,7 +266,7 @@ async def _start_food_input(
 async def _show_dish_confirmation(
     message: Message,
     state: FSMContext,
-    dish_ Dict,
+    dish_data: Dict,
     model_used: str
 ):
     """Показывает распознанное блюдо с возможностью редактирования."""

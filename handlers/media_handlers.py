@@ -30,7 +30,7 @@ from utils.states import FoodStates
 from database.db import get_session
 from database.models import Meal, FoodItem, User
 from sqlalchemy import select
-from services.dish_db import COMPOSITE_DISHES, get_dish_ingredients
+from services.dish_db import COMPOSITE_DISHES, get_dish_ingredients, find_matching_dish
 
 router = Router()
 logger = logging.getLogger(__name__)

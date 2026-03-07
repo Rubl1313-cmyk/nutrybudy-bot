@@ -723,19 +723,58 @@ async def confirm_dish_from_db_callback(callback: CallbackQuery, state: FSMConte
     dish_data = data.get('recognized_dish', {})
     dish_name = dish_data.get('dish_name', 'Блюдо')
     
-    dish_info = await _get_food_data_cached(dish_name)
-    if dish_info['base_calories'] == 0:
-        await callback.answer("❌ Блюдо не найдено в базе", show_alert=True)
-        return
+    # 🔥 1. Сначала ищем в dish_db.py (готовые блюда с ингредиентами)
+    dish_info_db = COMPOSITE_DISHES.get(dish_name.lower().strip())
     
-    selected_foods = [{
-        **dish_info,
-        'weight': 200,
-        **_calculate_nutrients(dish_info, 200)
-    }]
+    if dish_info_db:
+        # Нашли в dish_db — берём как готовое блюдо из food_api.py
+        food_data = await _get_food_data_cached(dish_name)
+        
+        # Используем вес из AI или дефолтный 250г
+        ai_weight = sum(ing.get('estimated_weight_grams', 0) for ing in dish_data.get('ingredients', []))
+        weight = ai_weight if ai_weight > 0 else 250
+        
+        nutrients = _calculate_nutrients(food_data, weight)
+        
+        selected_foods = [{
+            'name': food_data['name'],
+            'base_calories': food_data['base_calories'],
+            'base_protein': food_data['base_protein'],
+            'base_fat': food_data['base_fat'],
+            'base_carbs': food_data['base_carbs'],
+            'weight': weight,
+            'calories': nutrients['calories'],
+            'protein': nutrients['protein'],
+            'fat': nutrients['fat'],
+            'carbs': nutrients['carbs'],
+            'source': 'dish_db'
+        }]
+    else:
+        # 🔥 2. Если нет в dish_db — ищем в food_api.py
+        food_data = await _get_food_data_cached(dish_name)
+        
+        if food_data['base_calories'] == 0:
+            await callback.answer("❌ Блюдо не найдено в базе", show_alert=True)
+            return
+        
+        weight = 250
+        nutrients = _calculate_nutrients(food_data, weight)
+        
+        selected_foods = [{
+            'name': food_data['name'],
+            'base_calories': food_data['base_calories'],
+            'base_protein': food_data['base_protein'],
+            'base_fat': food_data['base_fat'],
+            'base_carbs': food_data['base_carbs'],
+            'weight': weight,
+            'calories': nutrients['calories'],
+            'protein': nutrients['protein'],
+            'fat': nutrients['fat'],
+            'carbs': nutrients['carbs'],
+            'source': 'food_api'
+        }]
     
     totals_text = f"🍽️ <b>{dish_name}:</b>\n🔥 {selected_foods[0]['calories']:.0f} ккал | 🥩 {selected_foods[0]['protein']:.1f}г | 🥑 {selected_foods[0]['fat']:.1f}г | 🍚 {selected_foods[0]['carbs']:.1f}г"
-    
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="⚖️ Изменить вес", callback_data="adjust_dish_weight")],
         [
@@ -743,7 +782,6 @@ async def confirm_dish_from_db_callback(callback: CallbackQuery, state: FSMConte
             InlineKeyboardButton(text="❌ Отмена", callback_data="cancel_meal")
         ]
     ])
-    
     totals_msg = await callback.message.answer(totals_text, reply_markup=keyboard, parse_mode="HTML")
     
     await state.update_data(
@@ -755,7 +793,6 @@ async def confirm_dish_from_db_callback(callback: CallbackQuery, state: FSMConte
     )
     
     await callback.answer()
-
 
 @router.callback_query(F.data == "use_ingredients_instead")
 async def use_ingredients_callback(callback: CallbackQuery, state: FSMContext):

@@ -1,7 +1,7 @@
 """
 handlers/media_handlers.py
 Обработчики мультимедиа: фото (распознавание еды) и голос.
-✅ ИСПРАВЛЕНО: все вспомогательные функции объявлены ДО основных хендлеров
+✅ ВЕРСИЯ: Прогресс-бар + все исправления + обработка ошибок
 """
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
@@ -34,7 +34,7 @@ from sqlalchemy import select
 router = Router()
 logger = logging.getLogger(__name__)
 
-# ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ (ОБЪЯВЛЕНЫ ПЕРЕД ХЕНДЛЕРАМИ!) ==========
+# ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
 
 def _prepare_image(image_bytes: bytes) -> bytes:
     """Оптимизация изображения для Cloudflare AI."""
@@ -87,6 +87,75 @@ def _calculate_nutrients(base: Dict, weight: float) -> Dict:
     }
 
 
+async def _safe_edit_message(bot, chat_id: int, message_id: int, text: str, reply_markup=None, parse_mode="HTML"):
+    """Безопасное редактирование сообщения с обработкой ошибок."""
+    try:
+        await bot.edit_message_text(
+            text,
+            chat_id=chat_id,
+            message_id=message_id,
+            reply_markup=reply_markup,
+            parse_mode=parse_mode
+        )
+        return True
+    except TelegramBadRequest as e:
+        if "message is not modified" in str(e).lower():
+            logger.debug(f"⚠️ Message not modified: {message_id}")
+            return False
+        elif "query is too old" in str(e).lower():
+            logger.warning(f"⏱️ Query too old for message {message_id}")
+            return False
+        else:
+            logger.error(f"❌ Edit error: {e}")
+            return False
+    except Exception as e:
+        logger.error(f"❌ Unexpected edit error: {e}")
+        return False
+
+
+async def _send_progress_update(
+    bot,
+    chat_id: int,
+    progress_msg_id: int,
+    stage: int,
+    progress: int,
+    total_stages: int = 5
+):
+    """
+    Отправляет обновление прогресса пользователю.
+    ✅ ЗЕЛЁНЫЕ КВАДРАТИКИ
+    """
+    try:
+        stages = [
+            "📸 Загрузка изображения...",
+            "🔍 Анализ изображения (AI)...",
+            "🧠 Обработка результатов...",
+            "📊 Поиск в базе продуктов...",
+            "✅ Готово!"
+        ]
+        
+        current_stage = min(stage, len(stages) - 1)
+        
+        # ✅ ЗЕЛЁНЫЕ КВАДРАТИКИ
+        filled = int(progress // 10)
+        green_squares = "🟩" * filled
+        empty_squares = "⬜" * (10 - filled)
+        progress_bar = green_squares + empty_squares
+        
+        text = (
+            f"🔄 <b>Анализ изображения</b>\n\n"
+            f"{progress_bar}\n"
+            f"<b>{progress}%</b>\n\n"
+            f"<i>{stages[current_stage]}</i>\n"
+            f"Шаг {current_stage + 1} из {total_stages}\n\n"
+            f"<i>⏱️ Это займёт около 15-20 секунд</i>"
+        )
+        
+        await _safe_edit_message(bot, chat_id, progress_msg_id, text)
+    except Exception as e:
+        logger.warning(f"⚠️ Progress update failed: {e}")
+
+
 async def _update_totals_message(
     chat_id: int,
     message_id: int,
@@ -113,17 +182,7 @@ async def _update_totals_message(
         ]
     ])
     
-    try:
-        await bot.edit_message_text(
-            text,
-            chat_id=chat_id,
-            message_id=message_id,
-            reply_markup=keyboard,
-            parse_mode="HTML"
-        )
-    except TelegramBadRequest as e:
-        if "message is not modified" not in str(e):
-            raise
+    await _safe_edit_message(bot, chat_id, message_id, text, keyboard)
 
 
 async def _send_product_card(
@@ -163,7 +222,7 @@ async def _start_food_input(
     food_names: List[str],
     meal_type: str = "snack"
 ):
-    """✅ ЗАПУСКАЕТ интерфейс ввода продуктов из списка названий."""
+    """Запускает интерфейс ввода продуктов из списка названий."""
     selected_foods = []
     for name in food_names:
         data = await _get_food_data_cached(name)
@@ -207,7 +266,7 @@ async def _show_dish_confirmation(
     dish_data: Dict,
     model_used: str
 ):
-    """✅ ПОКАЗЫВАЕТ распознанное блюдо с возможностью редактирования."""
+    """Показывает распознанное блюдо с возможностью редактирования."""
     dish_name = dish_data.get('dish_name', 'Блюдо')
     confidence = dish_data.get('confidence', 0.5)
     ingredients = dish_data.get('ingredients', [])
@@ -262,7 +321,7 @@ async def _handle_recognition_failure(message: Message, state: FSMContext):
 
 @router.message(F.photo)
 async def handle_photo(message: Message, state: FSMContext):
-    """Обработка фото: каскадное распознавание с пост-обработкой."""
+    """Обработка фото: каскадное распознавание с ПРОГРЕСС-БАРОМ."""
     data = await state.get_data()
     if data.get('last_photo_id') == message.message_id:
         logger.info(f"📸 Duplicate photo ignored: {message.message_id}")
@@ -276,33 +335,129 @@ async def handle_photo(message: Message, state: FSMContext):
             logger.info(f"⚠️ User in state {current_state}, ignoring photo")
             return
         
-        await message.answer("🔍 Анализирую изображение...")
+        # ✅ ОТПРАВЛЯЕМ ПРОГРЕСС-СООБЩЕНИЕ
+        progress_msg = await message.answer(
+            "🔄 <b>Анализ изображения</b>\n\n"
+            "🟩⬜⬜⬜⬜⬜⬜⬜⬜⬜\n"
+            "<b>0%</b>\n\n"
+            "<i>📸 Загрузка изображения...</i>\n"
+            "Шаг 1 из 5\n\n"
+            "<i>⏱️ Это займёт около 15-20 секунд</i>",
+            parse_mode="HTML"
+        )
+        
+        # Скачивание и подготовка фото (10%)
+        await _send_progress_update(
+            message.bot,
+            message.chat.id,
+            progress_msg.message_id,
+            stage=0,
+            progress=10,
+            total_stages=5
+        )
         
         photo = message.photo[-1]
         file_info = await message.bot.get_file(photo.file_id)
         file_bytes = await message.bot.download_file(file_info.file_path)
         file_data = file_bytes.read()
         
+        # Оптимизация (20%)
+        await _send_progress_update(
+            message.bot,
+            message.chat.id,
+            progress_msg.message_id,
+            stage=0,
+            progress=20,
+            total_stages=5
+        )
+        
         optimized = _prepare_image(file_data)
         
+        # Сохраняем для возможного повторного анализа
         await state.update_data(
             pending_photo_bytes=file_data,
             pending_photo_optimized=optimized,
-            last_photo_id=message.message_id
+            last_photo_id=message.message_id,
+            progress_msg_id=progress_msg.message_id
         )
         
-        result = await identify_food_cascade(optimized)
+        # Начало анализа AI (30%)
+        await _send_progress_update(
+            message.bot,
+            message.chat.id,
+            progress_msg.message_id,
+            stage=1,
+            progress=30,
+            total_stages=5
+        )
+        
+        # ✅ Каскадное распознавание с таймаутом
+        async def progress_callback(stage: int, progress: int):
+            mapped_progress = 30 + (progress // 2)
+            await _send_progress_update(
+                message.bot,
+                message.chat.id,
+                progress_msg.message_id,
+                stage=1,
+                progress=mapped_progress,
+                total_stages=5
+            )
+        
+        try:
+            result = await asyncio.wait_for(
+                identify_food_cascade(optimized, progress_callback=progress_callback),
+                timeout=120
+            )
+        except asyncio.TimeoutError:
+            await _safe_edit_message(
+                message.bot,
+                message.chat.id,
+                progress_msg.message_id,
+                "⏱️ Превышено время анализа. Попробуйте другое фото."
+            )
+            await state.clear()
+            return
+        
+        # AI завершён (70%)
+        await _send_progress_update(
+            message.bot,
+            message.chat.id,
+            progress_msg.message_id,
+            stage=2,
+            progress=70,
+            total_stages=5
+        )
         
         if not result.get('success') or not result.get('data'):
+            await progress_msg.delete()
             await _handle_recognition_failure(message, state)
             return
         
         dish_data = result['data']
         model_used = result.get('model', 'unknown')
         
-        # ПОСТ-ОБРАБОТКА: перевод на русский
+        # ✅ ПОСТ-ОБРАБОТКА: перевод на русский (75%)
+        await _send_progress_update(
+            message.bot,
+            message.chat.id,
+            progress_msg.message_id,
+            stage=2,
+            progress=75,
+            total_stages=5
+        )
+        
         dish_name_en = dish_data.get('dish_name', '')
         dish_name_ru = await translate_dish_name(dish_name_en) if dish_name_en else "Неизвестное блюдо"
+        
+        # Перевод ингредиентов (80%)
+        await _send_progress_update(
+            message.bot,
+            message.chat.id,
+            progress_msg.message_id,
+            stage=2,
+            progress=80,
+            total_stages=5
+        )
         
         ingredients_ru = []
         for ing in dish_data.get('ingredients', []):
@@ -328,14 +483,47 @@ async def handle_photo(message: Message, state: FSMContext):
         dish_data['dish_name'] = dish_name_ru
         dish_data['ingredients'] = ingredients_ru
         
-        # Проверка: есть ли блюдо в локальной базе
+        # ✅ ПОИСК В БАЗЕ ПРОДУКТОВ (85-95%)
+        await _send_progress_update(
+            message.bot,
+            message.chat.id,
+            progress_msg.message_id,
+            stage=3,
+            progress=85,
+            total_stages=5
+        )
+        
         dish_info = await _get_food_data_cached(dish_name_ru)
+        
+        await _send_progress_update(
+            message.bot,
+            message.chat.id,
+            progress_msg.message_id,
+            stage=3,
+            progress=90,
+            total_stages=5
+        )
+        
         if dish_info['base_calories'] > 50:
             await state.update_data(
                 recognized_dish=dish_data,
                 dish_found_in_db=True,
                 mode="photo_recognition"
             )
+            
+            # ✅ ПРОГРЕСС ЗАВЕРШЁН (100%)
+            await _send_progress_update(
+                message.bot,
+                message.chat.id,
+                progress_msg.message_id,
+                stage=4,
+                progress=100,
+                total_stages=5
+            )
+            
+            await asyncio.sleep(0.5)
+            await progress_msg.delete()
+            
             keyboard = InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(text="✅ Использовать как готовое блюдо", callback_data="confirm_dish_db")],
                 [InlineKeyboardButton(text="🔍 Разбить на ингредиенты", callback_data="use_ingredients_instead")]
@@ -348,11 +536,27 @@ async def handle_photo(message: Message, state: FSMContext):
             )
             return
         
-        # Показываем интерфейс подтверждения
+        # ✅ ПРОГРЕСС ЗАВЕРШЁН (100%)
+        await _send_progress_update(
+            message.bot,
+            message.chat.id,
+            progress_msg.message_id,
+            stage=4,
+            progress=100,
+            total_stages=5
+        )
+        
+        await asyncio.sleep(0.5)
+        await progress_msg.delete()
+        
         await _show_dish_confirmation(message, state, dish_data, model_used)
         
     except Exception as e:
         logger.error(f"❌ Photo handler error: {e}\n{traceback.format_exc()}")
+        try:
+            await progress_msg.delete()
+        except:
+            pass
         await message.answer("❌ Ошибка при анализе фото. Попробуйте позже.")
         await state.clear()
 
@@ -515,6 +719,8 @@ async def manual_food_callback(callback: CallbackQuery, state: FSMContext):
 @router.callback_query(F.data.startswith("weight_"))
 async def weight_callback(callback: CallbackQuery, state: FSMContext):
     """Обработка изменения веса продукта."""
+    logger.info(f"🔘 Weight callback: {callback.data}")
+    
     data = await state.get_data()
     selected_foods = data.get('selected_foods', [])
     totals_msg_id = data.get('totals_msg_id')
@@ -607,10 +813,13 @@ async def weight_callback(callback: CallbackQuery, state: FSMContext):
         InlineKeyboardButton(text="❌", callback_data=f"weight_del_{idx}_{totals_msg_id_from_callback}")
     ]])
     
-    try:
-        await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
-    except TelegramBadRequest:
-        pass
+    await _safe_edit_message(
+        callback.bot,
+        callback.message.chat.id,
+        callback.message.message_id,
+        text,
+        keyboard
+    )
     
     await _update_totals_message(
         callback.message.chat.id,

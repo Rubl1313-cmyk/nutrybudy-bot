@@ -587,14 +587,24 @@ async def handle_photo(message: Message, state: FSMContext):
                 progress_msg = None
             
             if has_weights:
-                    await state.update_data(recognized_dish=dish_data, mode="photo_ai_ingredients")
-                    await _show_dish_confirmation(message, state, dish_data, model_used)
+                # Если AI дал веса, показываем подтверждение ингредиентов
+                await state.update_data(
+                    recognized_dish=dish_data,
+                    mode="photo_ai_ingredients"
+                )
+                await _show_dish_confirmation(message, state, dish_data, model_used)
             else:
-                    matches = find_matching_dishes(dish_name_ru, dish_data.get('ingredients', []))
+                # Ищем похожие готовые блюда
+                matches = find_matching_dishes(dish_name_ru, dish_data.get('ingredients', []))
                 if matches:
+                    # Показываем список вариантов
                     await _show_dish_selection(message, state, matches, dish_data, model_used)
                 else:
-                    await state.update_data(recognized_dish=dish_data, mode="photo_recognition")
+                    # Если нет совпадений, просто показываем ингредиенты (без кнопки готового блюда)
+                    await state.update_data(
+                        recognized_dish=dish_data,
+                        mode="photo_recognition"
+                    )
                     await _show_dish_confirmation(message, state, dish_data, model_used)
         else:
             # Ошибка распознавания

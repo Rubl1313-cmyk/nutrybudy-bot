@@ -145,8 +145,8 @@ async def food_select_callback(callback: CallbackQuery, state: FSMContext):
         await callback.answer("❌ Ошибка", show_alert=True)
 
 
-@router.message(FoodStates.entering_dish_weight, F.text)
-async def process_dish_weight(message: Message, state: FSMContext):
+@router.message(FoodStates.entering_weight, F.text)
+async def process_weight(message: Message, state: FSMContext):
     """
     🔥 Обработка веса для готового блюда
     """

@@ -655,62 +655,19 @@ async def confirm_dish_callback(callback: CallbackQuery, state: FSMContext):
         return
     
     ingredients = dish_data.get('ingredients', [])
-    dish_name = dish_data.get('dish_name', '')
+    food_names = [ing.get('name', '') for ing in ingredients if ing.get('name')]
     
-    # 🔥 ФИЛЬТРУЕМ составные блюда
-    filtered_ingredients = []
-    for ing in ingredients:
-        if isinstance(ing, dict):
-            name = ing.get('name', '').lower().strip()
-            # Проверяем, не является ли это готовым блюдом
-            is_composite = any(
-                composite_name in name or name in composite_name
-                for composite_name in COMPOSITE_DISHES.keys()
-            )
-            if not is_composite:
-                filtered_ingredients.append(ing)
-        elif isinstance(ing, str):
-            is_composite = any(
-                composite_name in ing.lower() or ing.lower() in composite_name
-                for composite_name in COMPOSITE_DISHES.keys()
-            )
-            if not is_composite:
-                filtered_ingredients.append({'name': ing, 'estimated_weight_grams': 100})
-    
-    # 🔥 ЕСЛИ НЕТ ИНГРЕДИЕНТОВ - БЕРЁМ ИЗ БАЗЫ БЛЮД
-    if not filtered_ingredients and dish_name:
-        # Получаем ингредиенты из базы готовых блюд
-        total_weight = sum(ing.get('estimated_weight_grams', 100) for ing in ingredients) or 300
-        filtered_ingredients = get_dish_ingredients(dish_name, total_weight)
-    
-    if not filtered_ingredients:
+    if not food_names:
         await callback.answer("❌ Нет ингредиентов", show_alert=True)
         return
     
     await callback.answer()
     await callback.message.edit_text("⏳ Загружаю данные продуктов...")
     
-    # 🔥 Создаём список с названиями И весами
-    food_items = []
-    for ing in filtered_ingredients:
-        if isinstance(ing, dict):
-            name = ing.get('name', '')
-            weight = ing.get('estimated_weight_grams', 0)
-            if name:
-                food_items.append({
-                    'name': name,
-                    'weight': weight
-                })
-    
-    if not food_items:
-        await callback.answer("❌ Нет ингредиентов", show_alert=True)
-        return
-    
-    # 🔥 Запускаем ввод с правильными данными
-    await _start_food_input_with_weights(
+    await _start_food_input(
         callback.message,
         state,
-        food_items,
+        food_names,
         meal_type=dish_data.get('meal_type', 'snack')
     )
     
@@ -719,6 +676,8 @@ async def confirm_dish_callback(callback: CallbackQuery, state: FSMContext):
         cooking_method=dish_data.get('cooking_method', ''),
         mode="photo_to_manual"
     )
+
+
 @router.callback_query(F.data == "confirm_dish_db")
 async def confirm_dish_from_db_callback(callback: CallbackQuery, state: FSMContext):
     """Использование блюда из базы как готового продукта."""
@@ -726,14 +685,13 @@ async def confirm_dish_from_db_callback(callback: CallbackQuery, state: FSMConte
     dish_data = data.get('recognized_dish', {})
     dish_name = dish_data.get('dish_name', 'Блюдо')
     
-    # 🔥 1. Берём КБЖУ из food_api.py
     dish_info = await _get_food_data_cached(dish_name)
     
     if dish_info['base_calories'] == 0:
         await callback.answer("❌ Блюдо не найдено в базе", show_alert=True)
         return
     
-    # 🔥 2. Вес берём из AI-распознавания или дефолтный
+    # 🔥 Берём вес из AI-распознавания
     ai_weight = sum(
         ing.get('estimated_weight_grams', 0) 
         for ing in dish_data.get('ingredients', [])
@@ -755,32 +713,15 @@ async def confirm_dish_from_db_callback(callback: CallbackQuery, state: FSMConte
         'carbs': nutrients['carbs'],
         'source': 'food_api'
     }]
-    else:
-        # 🔥 2. Если нет в dish_db — ищем в food_api.py
-        food_data = await _get_food_data_cached(dish_name)
-        
-        if food_data['base_calories'] == 0:
-            await callback.answer("❌ Блюдо не найдено в базе", show_alert=True)
-            return
-        
-        weight = 250
-        nutrients = _calculate_nutrients(food_data, weight)
-        
-        selected_foods = [{
-            'name': food_data['name'],
-            'base_calories': food_data['base_calories'],
-            'base_protein': food_data['base_protein'],
-            'base_fat': food_data['base_fat'],
-            'base_carbs': food_data['base_carbs'],
-            'weight': weight,
-            'calories': nutrients['calories'],
-            'protein': nutrients['protein'],
-            'fat': nutrients['fat'],
-            'carbs': nutrients['carbs'],
-            'source': 'food_api'
-        }]
     
-    totals_text = f"🍽️ <b>{dish_name}:</b>\n🔥 {selected_foods[0]['calories']:.0f} ккал | 🥩 {selected_foods[0]['protein']:.1f}г | 🥑 {selected_foods[0]['fat']:.1f}г | 🍚 {selected_foods[0]['carbs']:.1f}г"
+    totals_text = (
+        f"🍽️ <b>{dish_name}:</b>\n"
+        f"🔥 {selected_foods[0]['calories']:.0f} ккал | "
+        f"🥩 {selected_foods[0]['protein']:.1f}г | "
+        f"🥑 {selected_foods[0]['fat']:.1f}г | "
+        f"🍚 {selected_foods[0]['carbs']:.1f}г"
+    )
+    
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="⚖️ Изменить вес", callback_data="adjust_dish_weight")],
         [
@@ -788,7 +729,12 @@ async def confirm_dish_from_db_callback(callback: CallbackQuery, state: FSMConte
             InlineKeyboardButton(text="❌ Отмена", callback_data="cancel_meal")
         ]
     ])
-    totals_msg = await callback.message.answer(totals_text, reply_markup=keyboard, parse_mode="HTML")
+    
+    totals_msg = await callback.message.answer(
+        totals_text, 
+        reply_markup=keyboard, 
+        parse_mode="HTML"
+    )
     
     await state.update_data(
         selected_foods=selected_foods,
@@ -800,6 +746,29 @@ async def confirm_dish_from_db_callback(callback: CallbackQuery, state: FSMConte
     
     await callback.answer()
 
+
+@router.callback_query(F.data == "use_ingredients_instead")
+async def use_ingredients_callback(callback: CallbackQuery, state: FSMContext):
+    """Использование ингредиентов вместо готового блюда."""
+    data = await state.get_data()
+    dish_data = data.get('recognized_dish', {})
+    ingredients = dish_data.get('ingredients', [])
+    
+    food_names = [ing.get('name', '') for ing in ingredients if ing.get('name')]
+    
+    if not food_names:
+        await callback.answer("❌ Нет ингредиентов", show_alert=True)
+        return
+    
+    await callback.answer()
+    await callback.message.edit_text("⏳ Загружаю ингредиенты...")
+    
+    await _start_food_input(
+        callback.message,
+        state,
+        food_names,
+        meal_type=dish_data.get('meal_type', 'snack')
+    )
 @router.callback_query(F.data == "use_ingredients_instead")
 async def use_ingredients_callback(callback: CallbackQuery, state: FSMContext):
     """Разбивка блюда на ингредиенты."""

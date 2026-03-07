@@ -98,6 +98,7 @@ def _cache_result(image_hash: str, result: Dict):
 def _extract_json_from_text(text: str) -> Optional[Dict]:
     """
     Извлекает JSON из текста с улучшенной обработкой экранирований.
+    ✅ ИСПРАВЛЕНО: обработка \_ → _, \" → "
     """
     if not text or not isinstance(text, str):
         return None
@@ -111,34 +112,36 @@ def _extract_json_from_text(text: str) -> Optional[Dict]:
             if len(parts) > 1:
                 text = parts[1].split('```', 1)[0].strip()
     
-    # 2. Находим границы JSON
+    # 2. Находим границы JSON объекта
     start = text.find('{')
     end = text.rfind('}')
     
-    if start == -1 or end == -1:
-        return None
+    if start == -1 or end == -1 or end <= start:
+        start_arr = text.find('[')
+        end_arr = text.rfind(']')
+        if start_arr != -1 and end_arr != -1 and end_arr > start_arr:
+            start, end = start_arr, end_arr
+        else:
+            logger.warning(f"❌ No JSON structure found")
+            return None
     
     json_str = text[start:end+1]
     
     # 3. 🔥 ИСПРАВЛЕНИЕ: Убираем неправильные экранирования
-    # Заменяем \_ на _ (проблема с underscore)
-    json_str = json_str.replace('\\_', '_')
-    # Заменяем \" на " (если двойное экранирование)
-    json_str = json_str.replace('\\"', '"')
-    # Убираем другие лишние экранирования
-    json_str = re.sub(r'\\([\\"])?', r'\1', json_str)
-    
-    # 4. Очищаем control characters
+    json_str = json_str.replace('\\_', '_')  # \_ → _
+    json_str = json_str.replace('\\"', '"')  # \" → "
+    json_str = re.sub(r'\\(["\\])', r'\1', json_str)
     json_str = json_str.replace('\n', ' ').replace('\r', ' ').replace('\t', ' ')
     
-    # 5. Исправляем одинарные кавычки → двойные
-    json_str = re.sub(r"'([^']*)':", r'"\1":', json_str)
-    json_str = re.sub(r":\s*'([^']*)'", r': "\1"', json_str)
+    # 4. Исправляем одинарные кавычки → двойные
+    if "'dish_name'" in json_str or "'ingredients'" in json_str:
+        json_str = re.sub(r"'([^']*)':", r'"\1":', json_str)
+        json_str = re.sub(r":\s*'([^']*)'", r': "\1"', json_str)
     
-    # 6. Убираем trailing commas
+    # 5. Убираем trailing commas
     json_str = re.sub(r',\s*([}\]])', r'\1', json_str)
     
-    # 7. Попытка парсинга
+    # 6. Попытка парсинга
     try:
         data = json.loads(json_str)
         if isinstance(data, dict):
@@ -149,14 +152,13 @@ def _extract_json_from_text(text: str) -> Optional[Dict]:
     except json.JSONDecodeError as e:
         logger.warning(f"⚠️ JSON decode failed: {e}")
         
-        # 8. Последняя попытка: ручное исправление
+        # 7. Последняя попытка: ручное исправление
         try:
             json_str = re.sub(r'([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)(\s*:)', r'\1"\2"\3', json_str)
             data = json.loads(json_str)
             return data if isinstance(data, dict) else None
         except:
             return None
-
 
 # ========== ВАЛИДАЦИЯ ДАННЫХ ==========
 def _validate_ingredient(ing: Any) -> bool:

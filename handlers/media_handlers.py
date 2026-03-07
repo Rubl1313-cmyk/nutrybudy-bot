@@ -51,7 +51,6 @@ def _prepare_image(image_bytes: bytes) -> bytes:
         logger.warning(f"⚠️ Image prep error: {e}")
         return image_bytes
 
-
 async def _get_food_data_cached(name: str) -> Dict:
     """Получает данные продукта с кэшированием."""
     search_results = await search_food(name)
@@ -74,22 +73,21 @@ async def _get_food_data_cached(name: str) -> Dict:
         'source': 'unknown'
     }
 
-
 def _calculate_nutrients(base: Dict, weight: float) -> Dict:
     """Рассчитывает КБЖУ для заданного веса."""
     if weight <= 0:
         return {
             'calories': 0, 'protein': 0, 'fat': 0, 'carbs': 0
         }
-    
+
     multiplier = weight / 100.0
-    
+
     # Получаем базовые значения с дефолтами
     base_calories = float(base.get('base_calories', 0) or 0)
     base_protein = float(base.get('base_protein', 0) or 0)
     base_fat = float(base.get('base_fat', 0) or 0)
     base_carbs = float(base.get('base_carbs', 0) or 0)
-    
+
     return {
         'calories': round(base_calories * multiplier, 1),
         'protein': round(base_protein * multiplier, 1),
@@ -122,7 +120,6 @@ async def _safe_edit_message(bot, chat_id: int, message_id: int, text: str, repl
         logger.error(f"❌ Unexpected edit error: {e}")
         return False
 
-
 async def _send_progress_update(
     bot,
     chat_id: int,
@@ -143,15 +140,15 @@ async def _send_progress_update(
             "📊 Поиск в базе продуктов...",
             "✅ Готово!"
         ]
-        
+
         current_stage = min(stage, len(stages) - 1)
-        
+
         # ✅ ЗЕЛЁНЫЕ КВАДРАТИКИ
         filled = int(progress // 10)
         green_squares = "🟩" * filled
         empty_squares = "⬜" * (10 - filled)
         progress_bar = green_squares + empty_squares
-        
+
         text = (
             f"🔄 <b>Анализ изображения</b>\n\n"
             f"{progress_bar}\n"
@@ -160,11 +157,10 @@ async def _send_progress_update(
             f"Шаг {current_stage + 1} из {total_stages}\n\n"
             f"<i>⏱️ Это займёт около 15-20 секунд</i>"
         )
-        
+
         await _safe_edit_message(bot, chat_id, progress_msg_id, text)
     except Exception as e:
         logger.warning(f"⚠️ Progress update failed: {e}")
-
 
 async def _update_totals_message(
     chat_id: int,
@@ -178,12 +174,12 @@ async def _update_totals_message(
     total_prot = sum(f.get('protein', 0) for f in selected_foods)
     total_fat = sum(f.get('fat', 0) for f in selected_foods)
     total_carbs = sum(f.get('carbs', 0) for f in selected_foods)
-    
+
     text = (
         f"🍽️ <b>Приём пищи ({meal_type}):</b>\n"
         f"🔥 {total_cal:.0f} ккал | 🥩 {total_prot:.1f}г | 🥑 {total_fat:.1f}г | 🍚 {total_carbs:.1f}г"
     )
-    
+
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="➕ Добавить продукт", callback_data="add_food")],
         [
@@ -191,9 +187,8 @@ async def _update_totals_message(
             InlineKeyboardButton(text="❌ Отмена", callback_data="cancel_meal")
         ]
     ])
-    
-    await _safe_edit_message(bot, chat_id, message_id, text, keyboard)
 
+    await _safe_edit_message(bot, chat_id, message_id, text, keyboard)
 
 async def _send_product_card(
     chat_id: int,
@@ -206,13 +201,13 @@ async def _send_product_card(
     weight = food.get('weight', 0) or 0
     weight_str = f"{weight} г" if weight else "0 г"
     nutrients = _calculate_nutrients(food, weight)
-    
+
     text = (
         f"<b>{index+1}. {food['name']}</b>\n"
         f"⚖️ Вес: {weight_str}\n"
         f"🔥 {nutrients['calories']:.0f} ккал | 🥩 {nutrients['protein']:.1f}г | 🥑 {nutrients['fat']:.1f}г | 🍚 {nutrients['carbs']:.1f}г"
     )
-    
+
     keyboard = InlineKeyboardMarkup(inline_keyboard=[[
         InlineKeyboardButton(text="➖10", callback_data=f"weight_dec_{index}_10_{totals_msg_id}"),
         InlineKeyboardButton(text="➕10", callback_data=f"weight_inc_{index}_10_{totals_msg_id}"),
@@ -221,10 +216,9 @@ async def _send_product_card(
         InlineKeyboardButton(text="200", callback_data=f"weight_set_{index}_200_{totals_msg_id}"),
         InlineKeyboardButton(text="❌", callback_data=f"weight_del_{index}_{totals_msg_id}")
     ]])
-    
+
     msg = await bot.send_message(chat_id, text, reply_markup=keyboard, parse_mode="HTML")
     return msg.message_id
-
 
 async def _start_food_input(
     message: Message,
@@ -234,11 +228,11 @@ async def _start_food_input(
 ):
     """Запускает интерфейс ввода продуктов из списка названий."""
     selected_foods = []
-    
+
     for name in food_names:
         # Получаем данные продукта из базы
         data = await _get_food_data_cached(name)
-        
+
         # 🔥 ВАЖНО: Сохраняем базовые значения отдельно
         selected_foods.append({
             'name': data['name'],
@@ -253,7 +247,7 @@ async def _start_food_input(
             'carbs': 0,
             'source': data.get('source', 'unknown')
         })
-    
+
     totals_text = "🍽️ <b>Приём пищи:</b>\n🔥 0 ккал | 🥩 0.0г | 🥑 0.0г | 🍚 0.0г"
     totals_keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="➕ Добавить продукт", callback_data="add_food")],
@@ -262,14 +256,14 @@ async def _start_food_input(
             InlineKeyboardButton(text="❌ Отмена", callback_data="cancel_meal")
         ]
     ])
-    
+
     totals_msg = await message.answer(totals_text, reply_markup=totals_keyboard, parse_mode="HTML")
-    
+
     product_msg_ids = []
     for i, food in enumerate(selected_foods):
         msg_id = await _send_product_card(message.chat.id, message.bot, i, food, totals_msg.message_id)
         product_msg_ids.append(msg_id)
-    
+
     await state.update_data(
         selected_foods=selected_foods,
         totals_msg_id=totals_msg.message_id,
@@ -286,17 +280,17 @@ async def _start_food_input_with_weights(
 ):
     """Запускает интерфейс ввода продуктов с уже указанными весами."""
     selected_foods = []
-    
+
     for item in food_items:
         name = item['name']
         recognized_weight = item.get('weight', 0)
-        
+
         # Получаем данные продукта из базы
         data = await _get_food_data_cached(name)
-        
+
         # 🔥 Рассчитываем КБЖУ с распознанным весом
         nutrients = _calculate_nutrients(data, recognized_weight)
-        
+
         selected_foods.append({
             'name': data['name'],
             'base_calories': data['base_calories'],
@@ -310,7 +304,7 @@ async def _start_food_input_with_weights(
             'carbs': nutrients['carbs'],
             'source': data.get('source', 'unknown')
         })
-    
+
     # Обновляем сообщение с итогами
     totals_text = "🍽️ <b>Приём пищи:</b>\n🔥 0 ккал | 🥩 0.0г | 🥑 0.0г | 🍚 0.0г"
     totals_keyboard = InlineKeyboardMarkup(inline_keyboard=[
@@ -321,12 +315,12 @@ async def _start_food_input_with_weights(
         ]
     ])
     totals_msg = await message.answer(totals_text, reply_markup=totals_keyboard, parse_mode="HTML")
-    
+
     product_msg_ids = []
     for i, food in enumerate(selected_foods):
         msg_id = await _send_product_card(message.chat.id, message.bot, i, food, totals_msg.message_id)
         product_msg_ids.append(msg_id)
-    
+
     await state.update_data(
         selected_foods=selected_foods,
         totals_msg_id=totals_msg.message_id,
@@ -345,946 +339,923 @@ async def _show_dish_confirmation(
     dish_name = dish_data.get('dish_name', 'Блюдо')
     confidence = dish_data.get('confidence', 0.5)
     ingredients = dish_data.get('ingredients', [])
-    
+
     # Формируем текст ТОЛЬКО с тем, что распознал AI
     text = f"🍽 <b>Распознано ({model_used}): {dish_name}</b>\n"
     text += f"🎯 Уверенность: {confidence:.0%}\n"
-    
+
+    # ИСПРАВЛЕНИЕ: Убираем лишний отступ перед следующими строками
     if ingredients:
-        text += "<b>Ингредиенты:</b>\n"
-        for i, ing in enumerate(ingredients):
-            name = ing.get('name', 'Неизвестно')
-            weight = ing.get('estimated_weight_grams', 100)
-            text += f"• {i+1}. {name}: ~{weight}г\n"
-    
-    # Кнопки - УБРАТЬ "Использовать как готовое блюдо" если это не найдено в базе
-    builder = InlineKeyboardBuilder()
-    builder.button(text="✅ Использовать ингредиенты", callback_data="confirm_dish_as_is")
-    builder.button(text="✏️ Редактировать ингредиенты", callback_data="edit_dish_ingredients")
-    builder.button(text="🔄 Перераспознать", callback_data="retry_photo")
-    builder.button(text="📝 Ввести вручную", callback_data="manual_food_entry")
-    builder.adjust(1)
-    
-    await message.answer(text, reply_markup=builder.as_markup(), parse_mode="HTML")
-    
-    # Сохраняем в state для последующей обработки
-    await state.update_data(
-        recognized_dish=dish_data,
-        mode="photo_recognition"
-    )
+        text += f"📋 Состав: {', '.join(ingredients)}\n"
 
-
-async def _handle_recognition_failure(message: Message, state: FSMContext):
-    """Обработка случая, когда распознавание не удалось."""
+    # Создаем клавиатуру
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="✏️ Ввести продукты вручную", callback_data="food_manual")],
-        [InlineKeyboardButton(text="🔄 Попробовать ещё раз", callback_data="retry_photo")],
-        [InlineKeyboardButton(text="❌ Отмена", callback_data="action_cancel")]
+        [InlineKeyboardButton(text="✅ Всё верно", callback_data="confirm_dish")],
+        [InlineKeyboardButton(text="✏️ Выбрать из списка", callback_data="select_from_list")],
+        [InlineKeyboardButton(text="❌ Отмена", callback_data="cancel_recognition")]
     ])
-    
-    await message.answer(
-        "❌ Не удалось распознать блюдо.\n"
-        "Возможные причины:\n"
-        "• Фото слишком тёмное/размытое\n"
-        "• Блюдо нестандартное или сложное\n"
-        "• На фото несколько блюд одновременно\n"
-        "Что делать:",
-        reply_markup=keyboard
-    )
-    
-    await state.update_data(last_photo_id=message.message_id)
 
+    # Отправляем сообщение
+    await message.answer(text, reply_markup=keyboard, parse_mode="HTML")
 
-# ========== ОСНОВНОЙ ОБРАБОТЧИК ФОТО ==========
+# ========== ОСНОВНЫЕ ОБРАБОТЧИКИ ==========
 
 @router.message(F.photo)
 async def handle_photo(message: Message, state: FSMContext):
-    """Обработка фото: каскадное распознавание с ПРОГРЕСС-БАРОМ."""
-    data = await state.get_data()
-    if data.get('last_photo_id') == message.message_id:
-        logger.info(f"📸 Duplicate photo ignored: {message.message_id}")
-        return
-    
-    logger.info(f"📸 Photo received, message_id={message.message_id}")
-    
+    """Обрабатывает фото еды."""
+    progress_msg = None
     try:
+        # Получаем текущее состояние пользователя
         current_state = await state.get_state()
-        if current_state and not current_state.startswith("FoodStates"):
-            logger.info(f"⚠️ User in state {current_state}, ignoring photo")
+        logger.info(f"📸 handle_photo вызван. Состояние: {current_state}")
+
+        # Проверяем, не находится ли пользователь в процессе ввода веса
+        if current_state == FoodStates.waiting_for_weight.state:
+            await message.answer("⏳ Пожалуйста, сначала завершите ввод веса для предыдущего продукта.")
             return
-        
-        # ✅ ОТПРАВЛЯЕМ ПРОГРЕСС-СООБЩЕНИЕ
+
+        # Проверяем, не начат ли уже приём пищи
+        data = await state.get_data()
+        if data.get('selected_foods'):
+            # Если уже есть продукты, предлагаем добавить фото как отдельный продукт
+            keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="➕ Добавить как отдельный продукт", callback_data="add_photo_as_food")],
+                [InlineKeyboardButton(text="❌ Отмена", callback_data="cancel_photo")]
+            ])
+            await message.answer(
+                "📸 Вы уже добавляете продукты. Хотите добавить это фото как отдельный приём пищи?",
+                reply_markup=keyboard
+            )
+            await state.set_state(FoodStates.waiting_for_photo_decision)
+            return
+
+        # Отправляем сообщение о начале обработки
         progress_msg = await message.answer(
             "🔄 <b>Анализ изображения</b>\n\n"
-            "🟩⬜⬜⬜⬜⬜⬜⬜⬜⬜\n"
-            "<b>0%</b>\n\n"
+            "🟩🟩🟩🟩🟩⬜⬜⬜⬜⬜\n"
+            "<b>50%</b>\n\n"
             "<i>📸 Загрузка изображения...</i>\n"
             "Шаг 1 из 5\n\n"
             "<i>⏱️ Это займёт около 15-20 секунд</i>",
             parse_mode="HTML"
         )
-        
-        # Скачивание и подготовка фото (10%)
-        await _send_progress_update(
-            message.bot,
-            message.chat.id,
-            progress_msg.message_id,
-            stage=0,
-            progress=10,
-            total_stages=5
-        )
-        
+
+        # Получаем файл фото
         photo = message.photo[-1]
-        file_info = await message.bot.get_file(photo.file_id)
-        file_bytes = await message.bot.download_file(file_info.file_path)
-        file_data = file_bytes.read()
-        
-        # Оптимизация (20%)
-        await _send_progress_update(
-            message.bot,
-            message.chat.id,
-            progress_msg.message_id,
-            stage=0,
-            progress=20,
-            total_stages=5
-        )
-        
-        optimized = _prepare_image(file_data)
-        
-        # Сохраняем для возможного повторного анализа
-        await state.update_data(
-            pending_photo_bytes=file_data,
-            pending_photo_optimized=optimized,
-            last_photo_id=message.message_id,
-            progress_msg_id=progress_msg.message_id
-        )
-        
-        # Начало анализа AI (30%)
-        await _send_progress_update(
-            message.bot,
-            message.chat.id,
-            progress_msg.message_id,
-            stage=1,
-            progress=30,
-            total_stages=5
-        )
-        
-        # ✅ Каскадное распознавание с таймаутом
-        async def progress_callback(stage: int, progress: int):
-            mapped_progress = 30 + (progress // 2)
-            await _send_progress_update(
-                message.bot,
-                message.chat.id,
-                progress_msg.message_id,
-                stage=1,
-                progress=mapped_progress,
-                total_stages=5
-            )
-        
-        try:
-            result = await asyncio.wait_for(
-                identify_food_cascade(optimized, progress_callback=progress_callback),
-                timeout=120
-            )
-        except asyncio.TimeoutError:
-            await _safe_edit_message(
-                message.bot,
-                message.chat.id,
-                progress_msg.message_id,
-                "⏱️ Превышено время анализа. Попробуйте другое фото."
-            )
-            await state.clear()
+        file = await message.bot.get_file(photo.file_id)
+        image_bytes = await message.bot.download_file(file.file_path)
+        image_bytes = image_bytes.read()
+
+        # Оптимизируем изображение
+        image_bytes = _prepare_image(image_bytes)
+
+        # Обновляем прогресс
+        await _send_progress_update(message.bot, message.chat.id, progress_msg.message_id, stage=1, progress=20)
+
+        # Запускаем распознавание
+        result = await identify_food_cascade(image_bytes)
+
+        if not result or 'error' in result:
+            # Пробуем мультимодельный метод
+            await _send_progress_update(message.bot, message.chat.id, progress_msg.message_id, stage=2, progress=40)
+            result = await identify_food_multimodel(image_bytes)
+
+        if not result or 'error' in result:
+            await message.answer("❌ Не удалось распознать еду на фото. Попробуйте другое фото или введите название вручную.")
+            if progress_msg:
+                await progress_msg.delete()
             return
-        
-        # AI завершён (70%)
-        await _send_progress_update(
-            message.bot,
-            message.chat.id,
-            progress_msg.message_id,
-            stage=2,
-            progress=70,
-            total_stages=5
-        )
-        
-        if not result.get('success') or not result.get('data'):
-            await progress_msg.delete()
-            await _handle_recognition_failure(message, state)
-            return
-        
-        dish_data = result['data']
-        model_used = result.get('model', 'unknown')
-        
-        # ✅ ПОСТ-ОБРАБОТКА: перевод на русский (75%)
-        await _send_progress_update(
-            message.bot,
-            message.chat.id,
-            progress_msg.message_id,
-            stage=2,
-            progress=75,
-            total_stages=5
-        )
-        
-        dish_name_en = dish_data.get('dish_name', '')
-        dish_name_ru = await translate_dish_name(dish_name_en) if dish_name_en else "Неизвестное блюдо"
-        
-        # Перевод ингредиентов (80%)
-        await _send_progress_update(
-            message.bot,
-            message.chat.id,
-            progress_msg.message_id,
-            stage=2,
-            progress=80,
-            total_stages=5
-        )
-        
-        ingredients_ru = []
-        for ing in dish_data.get('ingredients', []):
-            if isinstance(ing, dict):
-                ing_name = ing.get('name', '')
-                if ing_name:
-                    translated = await translate_to_russian(ing_name)
-                    ingredients_ru.append({
-                        **ing,
-                        'name': translated,
-                        'original_name': ing_name
-                    })
-            elif isinstance(ing, str):
-                translated = await translate_to_russian(ing)
-                ingredients_ru.append({
-                    'name': translated,
-                    'original_name': ing,
-                    'type': 'other',
-                    'estimated_weight_grams': 100,
-                    'confidence': 0.7
-                })
-        
-        dish_data['dish_name'] = dish_name_ru
-        dish_data['ingredients'] = ingredients_ru
-        
-        # ✅ ПОИСК В БАЗЕ ПРОДУКТОВ (85-95%)
-        await _send_progress_update(
-            message.bot,
-            message.chat.id,
-            progress_msg.message_id,
-            stage=3,
-            progress=85,
-            total_stages=5
-        )
 
-        # 🔥 ПРОВЕРЯЕМ: есть ли блюдо в dish_db.py (с ингредиентами)
-        dish_name_lower = dish_name_ru.lower().strip()
-        dish_in_dish_db = dish_name_lower in COMPOSITE_DISHES
+        # Обновляем прогресс
+        await _send_progress_update(message.bot, message.chat.id, progress_msg.message_id, stage=3, progress=60)
 
-        dish_info = await _get_food_data_cached(dish_name_ru)
+        # Проверяем, есть ли в результате блюдо или ингредиенты
+        if 'dish_name' in result and result['dish_name']:
+            # Это блюдо
+            await _show_dish_confirmation(message, state, result, "AI")
 
-        await _send_progress_update(
-            message.bot,
-            message.chat.id,
-            progress_msg.message_id,
-            stage=3,
-            progress=90,
-            total_stages=5
-        )
-
-        # ✅ ПРОГРЕСС ЗАВЕРШЁН (100%)
-        await _send_progress_update(
-            message.bot,
-            message.chat.id,
-            progress_msg.message_id,
-            stage=4,
-            progress=100,
-            total_stages=5
-        )
-        await asyncio.sleep(0.5)
-        await progress_msg.delete()
-
-        # 🔥 РАЗНАЯ ЛОГИКА для dish_db vs food_api
-        if dish_in_dish_db:
-            # Есть в dish_db — показываем ОБЕ кнопки
-            keyboard = InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="✅ Использовать как готовое блюдо", callback_data="confirm_dish_db")],
-                [InlineKeyboardButton(text="🔍 Разбить на ингредиенты", callback_data="use_ingredients_instead")]
-        ])
-             await message.answer(
-                 f"🍽 Найдено в базе: **{dish_name_ru}**\n"
-                 f"Использовать как готовое блюдо или разбить на ингредиенты?",
-                 reply_markup=keyboard,
-                 parse_mode="Markdown"
-             )
-             elif dish_info['base_calories'] > 50:
-                 # Есть только в food_api — только "как готовое"
-                 keyboard = InlineKeyboardMarkup(inline_keyboard=[
-                      [InlineKeyboardButton(text="✅ Использовать как готовое блюдо", callback_data="confirm_dish_db")],
-                      [InlineKeyboardButton(text="🔍 Разбить на ингредиенты", callback_data="use_ingredients_instead")]
-             ])
-             await message.answer(
-                 f"🍽 Найдено в базе: **{dish_name_ru}**\n"
-                 f"Использовать как готовое блюдо или разбить на ингредиенты?",
-                 reply_markup=keyboard,
-                 parse_mode="Markdown"
-             )
-        else:
-        # Нет в базе — показываем ингредиенты от AI
+            # Сохраняем данные в состояние
             await state.update_data(
-            recognized_dish=dish_data,
-            dish_found_in_db=False,
-            mode="photo_recognition"
+                recognition_result=result,
+                mode="dish_recognition"
+            )
+
+        elif 'items' in result and result['items']:
+            # Это список продуктов
+            await _send_progress_update(message.bot, message.chat.id, progress_msg.message_id, stage=4, progress=80)
+
+            food_items = result['items']
+            # Запускаем интерфейс ввода с весами
+            await _start_food_input_with_weights(message, state, food_items)
+
+        else:
+            await message.answer("❌ Не удалось распознать состав блюда. Попробуйте другое фото или введите вручную.")
+            if progress_msg:
+                await progress_msg.delete()
+            return
+
+        # Финальное обновление прогресса
+        await _send_progress_update(message.bot, message.chat.id, progress_msg.message_id, stage=5, progress=100)
+
+        # Удаляем сообщение с прогрессом через 2 секунды
+        await asyncio.sleep(2)
+        if progress_msg:
+            await progress_msg.delete()
+
+    except Exception as e:
+        logger.error(f"❌ Ошибка в handle_photo: {e}\n{traceback.format_exc()}")
+        await message.answer("❌ Произошла ошибка при обработке фото. Попробуйте ещё раз.")
+        if progress_msg:
+            await progress_msg.delete()
+
+@router.message(F.voice)
+async def handle_voice(message: Message, state: FSMContext):
+    """Обрабатывает голосовые сообщения."""
+    try:
+        # Получаем файл голоса
+        voice = message.voice
+        file = await message.bot.get_file(voice.file_id)
+        voice_bytes = await message.bot.download_file(file.file_path)
+        voice_bytes = voice_bytes.read()
+
+        # Отправляем сообщение о начале обработки
+        processing_msg = await message.answer("🔄 <b>Распознаю голос...</b>", parse_mode="HTML")
+
+        # Транскрибируем аудио
+        text = await transcribe_audio(voice_bytes)
+
+        if not text:
+            await processing_msg.edit_text("❌ Не удалось распознать речь. Попробуйте ещё раз.")
+            return
+
+        # Удаляем сообщение о обработке
+        await processing_msg.delete()
+
+        # Отправляем распознанный текст
+        await message.answer(f"📝 <b>Распознано:</b>\n{text}", parse_mode="HTML")
+
+        # Анализируем текст на наличие продуктов
+        # Простой парсинг: ищем слова, которые могут быть продуктами
+        # В реальном проекте здесь может быть более сложная логика
+        words = text.lower().split()
+        potential_foods = []
+
+        # Заглушка: в реальном проекте здесь должен быть вызов NLP сервиса
+        # Пока просто показываем пользователю текст и предлагаем ввести продукты вручную
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="➕ Добавить продукты вручную", callback_data="manual_food_input")],
+            [InlineKeyboardButton(text="❌ Отмена", callback_data="cancel")]
+        ])
+
+        await message.answer(
+            "🍽 <b>Что вы хотите сделать с распознанным текстом?</b>\n"
+            "Вы можете добавить продукты вручную или попробовать распознать фото.",
+            reply_markup=keyboard,
+            parse_mode="HTML"
         )
-            await _show_dish_confirmation(message, state, dish_data, model_used)
-        
-            except Exception as e:
-                logger.error(f"❌ Photo handler error: {e}\n{traceback.format_exc()}")
-                try:
-                    await progress_msg.delete()
-                except:
-                    pass
-                await message.answer("❌ Ошибка при анализе фото. Попробуйте позже.")
-        await state.clear()
 
+    except Exception as e:
+        logger.error(f"❌ Ошибка в handle_voice: {e}\n{traceback.format_exc()}")
+        await message.answer("❌ Произошла ошибка при обработке голоса. Попробуйте ещё раз.")
 
-# ========== ОБРАБОТЧИКИ ПОДТВЕРЖДЕНИЯ БЛЮДА ==========
+# ========== ОБРАБОТЧИКИ КОЛБЭКОВ ==========
 
-@router.callback_query(F.data == "confirm_dish_as_is")
-async def confirm_dish_callback(callback: CallbackQuery, state: FSMContext):
-    """Подтверждение блюда и переход к вводу весов."""
-    data = await state.get_data()
-    dish_data = data.get('recognized_dish', {})
-    
-    if not dish_data:
-        await callback.answer("❌ Данные не найдены", show_alert=True)
-        return
-    
-    ingredients = dish_data.get('ingredients', [])
-    food_names = [ing.get('name', '') for ing in ingredients if ing.get('name')]
-    
-    if not food_names:
-        await callback.answer("❌ Нет ингредиентов", show_alert=True)
-        return
-    
-    await callback.answer()
-    await callback.message.edit_text("⏳ Загружаю данные продуктов...")
-    
-    await _start_food_input(
-        callback.message,
-        state,
-        food_names,
-        meal_type=dish_data.get('meal_type', 'snack')
-    )
-    
-    await state.update_data(
-        ai_description=dish_data.get('dish_name', ''),
-        cooking_method=dish_data.get('cooking_method', ''),
-        mode="photo_to_manual"
-    )
+@router.callback_query(F.data == "confirm_dish")
+async def confirm_dish(callback: CallbackQuery, state: FSMContext):
+    """Подтверждает распознанное блюдо."""
+    try:
+        data = await state.get_data()
+        dish_data = data.get('recognition_result', {})
+        dish_name = dish_data.get('dish_name', '')
 
+        if not dish_name:
+            await callback.answer("❌ Данные о блюде не найдены")
+            return
 
-@router.callback_query(F.data == "confirm_dish_db")
-async def confirm_dish_from_db_callback(callback: CallbackQuery, state: FSMContext):
-    """Использование блюда из базы как готового продукта."""
-    data = await state.get_data()
-    dish_data = data.get('recognized_dish', {})
-    dish_name = dish_data.get('dish_name', 'Блюдо')
-    
-    dish_info = await _get_food_data_cached(dish_name)
-    
-    if dish_info['base_calories'] == 0:
-        await callback.answer("❌ Блюдо не найдено в базе", show_alert=True)
-        return
-    
-    # 🔥 Берём вес из AI-распознавания
-    ai_weight = sum(
-        ing.get('estimated_weight_grams', 0) 
-        for ing in dish_data.get('ingredients', [])
-    )
-    weight = ai_weight if ai_weight > 0 else 250
-    
-    nutrients = _calculate_nutrients(dish_info, weight)
-    
-    selected_foods = [{
-        'name': dish_info['name'],
-        'base_calories': dish_info['base_calories'],
-        'base_protein': dish_info['base_protein'],
-        'base_fat': dish_info['base_fat'],
-        'base_carbs': dish_info['base_carbs'],
-        'weight': weight,
-        'calories': nutrients['calories'],
-        'protein': nutrients['protein'],
-        'fat': nutrients['fat'],
-        'carbs': nutrients['carbs'],
-        'source': 'food_api'
-    }]
-    
-    totals_text = (
-        f"🍽️ <b>{dish_name}:</b>\n"
-        f"🔥 {selected_foods[0]['calories']:.0f} ккал | "
-        f"🥩 {selected_foods[0]['protein']:.1f}г | "
-        f"🥑 {selected_foods[0]['fat']:.1f}г | "
-        f"🍚 {selected_foods[0]['carbs']:.1f}г"
-    )
-    
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="⚖️ Изменить вес", callback_data="adjust_dish_weight")],
-        [
-            InlineKeyboardButton(text="✅ Подтвердить", callback_data="confirm_meal"),
-            InlineKeyboardButton(text="❌ Отмена", callback_data="cancel_meal")
-        ]
-    ])
-    
-    totals_msg = await callback.message.answer(
-        totals_text, 
-        reply_markup=keyboard, 
-        parse_mode="HTML"
-    )
-    
-    await state.update_data(
-        selected_foods=selected_foods,
-        totals_msg_id=totals_msg.message_id,
-        product_msg_ids=[],
-        meal_type=dish_data.get('meal_type', 'snack'),
-        mode="photo_db_dish"
-    )
-    
-    await callback.answer()
+        # Ищем блюдо в базе
+        dish_info = find_matching_dish(dish_name)
 
-
-@router.callback_query(F.data == "use_ingredients_instead")
-async def use_ingredients_callback(callback: CallbackQuery, state: FSMContext):
-    """Использование ингредиентов вместо готового блюда."""
-    data = await state.get_data()
-    dish_data = data.get('recognized_dish', {})
-    ingredients = dish_data.get('ingredients', [])
-    
-    food_names = [ing.get('name', '') for ing in ingredients if ing.get('name')]
-    
-    if not food_names:
-        await callback.answer("❌ Нет ингредиентов", show_alert=True)
-        return
-    
-    await callback.answer()
-    await callback.message.edit_text("⏳ Загружаю ингредиенты...")
-    
-    await _start_food_input(
-        callback.message,
-        state,
-        food_names,
-        meal_type=dish_data.get('meal_type', 'snack')
-    )
-@router.callback_query(F.data == "use_ingredients_instead")
-async def use_ingredients_callback(callback: CallbackQuery, state: FSMContext):
-    """Разбивка блюда на ингредиенты."""
-    data = await state.get_data()
-    dish_data = data.get('recognized_dish', {})
-    dish_name = dish_data.get('dish_name', '').lower().strip()
-    
-    # 🔥 1. Сначала ищем в dish_db.py (с процентами)
-    from services.dish_db import COMPOSITE_DISHES, get_dish_ingredients
-    
-    dish_info_db = COMPOSITE_DISHES.get(dish_name)
-    
-    if dish_info_db and dish_info_db.get('ingredients'):
-        # Нашли в dish_db — используем проценты для расчёта весов
-        ai_total_weight = sum(
-            ing.get('estimated_weight_grams', 0) 
-            for ing in dish_data.get('ingredients', [])
-        )
-        total_weight = ai_total_weight if ai_total_weight > 0 else 300
-        
-        # Получаем ингредиенты с весами из dish_db
-        ingredients_with_weights = get_dish_ingredients(dish_name, total_weight)
-    else:
-        # 🔥 2. Если нет в dish_db — используем AI-ингредиенты
-        ingredients_with_weights = dish_data.get('ingredients', [])
-    
-    if not ingredients_with_weights:
-        await callback.answer("❌ Нет ингредиентов", show_alert=True)
-        return
-    
-    await callback.answer()
-    await callback.message.edit_text("⏳ Загружаю данные продуктов...")
-    
-    # 🔥 Создаём карточки для каждого ингредиента
-    food_items = []
-    for ing in ingredients_with_weights:
-        if isinstance(ing, dict):
-            name = ing.get('name', '')
-            weight = ing.get('estimated_weight_grams', 0) or ing.get('weight', 0)
-            if name:
-                food_items.append({'name': name, 'weight': weight})
-    
-    if not food_items:
-        await callback.answer("❌ Нет ингредиентов", show_alert=True)
-        return
-    
-    # 🔥 Запускаем ввод с весами
-    await _start_food_input_with_weights(
-        callback.message,
-        state,
-        food_items,
-        meal_type=dish_data.get('meal_type', 'snack')
-    )
-    
-    await state.update_data(
-        ai_description=dish_data.get('dish_name', ''),
-        cooking_method=dish_data.get('cooking_method', ''),
-        mode="photo_to_manual"
-    )
-
-@router.callback_query(F.data == "retry_photo")
-async def retry_photo_callback(callback: CallbackQuery, state: FSMContext):
-    """Повторное распознавание фото."""
-    data = await state.get_data()
-    photo_optimized = data.get('pending_photo_optimized')
-    
-    if not photo_optimized:
-        await callback.answer("❌ Фото не найдено", show_alert=True)
-        return
-    
-    await callback.answer("🔄 Перераспознаю...")
-    await callback.message.edit_text("🔄 Повторный анализ...")
-    
-    result = await identify_food_cascade(photo_optimized)
-    
-    if result.get('success') and result.get('data'):
-        dish_data = result['data']
-        dish_name_ru = await translate_dish_name(dish_data.get('dish_name', ''))
-        ingredients_ru = []
-        
-        for ing in dish_data.get('ingredients', []):
-            if isinstance(ing, dict) and ing.get('name'):
-                ingredients_ru.append({
-                    **ing,
-                    'name': await translate_to_russian(ing['name']),
-                    'original_name': ing['name']
+        if dish_info and dish_info.get('ingredients'):
+            # Создаем список продуктов из ингредиентов блюда
+            food_items = []
+            for ing in dish_info['ingredients']:
+                food_items.append({
+                    'name': ing['name'],
+                    'weight': ing.get('default_weight', 100)  # Используем вес по умолчанию
                 })
-        
-        dish_data['dish_name'] = dish_name_ru
-        dish_data['ingredients'] = ingredients_ru
-        
-        await state.update_data(recognized_dish=dish_data)
-        await _show_dish_confirmation(
-            callback.message,
-            state,
-            dish_data,
-            result.get('model', 'unknown')
+
+            # Запускаем интерфейс ввода
+            await _start_food_input_with_weights(callback.message, state, food_items, meal_type="snack")
+        else:
+            # Если блюдо не найдено в базе, используем только название
+            await _start_food_input(callback.message, state, [dish_name])
+
+        await callback.answer("✅ Блюдо подтверждено")
+        await callback.message.delete()
+
+    except Exception as e:
+        logger.error(f"❌ Ошибка в confirm_dish: {e}\n{traceback.format_exc()}")
+        await callback.answer("❌ Произошла ошибка")
+
+@router.callback_query(F.data == "select_from_list")
+async def select_from_list(callback: CallbackQuery, state: FSMContext):
+    """Показывает список похожих блюд для выбора."""
+    try:
+        data = await state.get_data()
+        dish_data = data.get('recognition_result', {})
+        dish_name = dish_data.get('dish_name', '')
+
+        # Ищем похожие блюда в базе
+        similar_dishes = []
+        for dish_key, dish_info in COMPOSITE_DISHES.items():
+            if dish_name.lower() in dish_key.lower() or dish_key.lower() in dish_name.lower():
+                similar_dishes.append((dish_key, dish_info))
+
+        if not similar_dishes:
+            # Если нет похожих, предлагаем ввести вручную
+            keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="✏️ Ввести вручную", callback_data="manual_food_input")],
+                [InlineKeyboardButton(text="❌ Отмена", callback_data="cancel_recognition")]
+            ])
+            await callback.message.edit_text(
+                "❌ Похожих блюд не найдено. Хотите ввести название вручную?",
+                reply_markup=keyboard
+            )
+            await callback.answer()
+            return
+
+        # Создаем клавиатуру со списком блюд
+        builder = InlineKeyboardBuilder()
+        for dish_key, _ in similar_dishes[:10]:  # Ограничиваем 10 вариантами
+            builder.button(text=dish_key, callback_data=f"select_dish_{dish_key}")
+        builder.button(text="❌ Отмена", callback_data="cancel_recognition")
+        builder.adjust(1)
+
+        await callback.message.edit_text(
+            "🍽 <b>Выберите блюдо из списка:</b>",
+            reply_markup=builder.as_markup(),
+            parse_mode="HTML"
         )
-    else:
-        await _handle_recognition_failure(callback.message, state)
-    
-    await callback.answer()
+        await callback.answer()
 
+    except Exception as e:
+        logger.error(f"❌ Ошибка в select_from_list: {e}\n{traceback.format_exc()}")
+        await callback.answer("❌ Произошла ошибка")
 
-@router.callback_query(F.data == "manual_food_entry")
-async def manual_food_callback(callback: CallbackQuery, state: FSMContext):
-    """Переход к ручному вводу."""
+@router.callback_query(F.data.startswith("select_dish_"))
+async def select_dish(callback: CallbackQuery, state: FSMContext):
+    """Обрабатывает выбор блюда из списка."""
+    try:
+        dish_key = callback.data.replace("select_dish_", "")
+        dish_info = COMPOSITE_DISHES.get(dish_key)
+
+        if not dish_info:
+            await callback.answer("❌ Блюдо не найдено")
+            return
+
+        # Создаем список продуктов из ингредиентов
+        food_items = []
+        for ing in dish_info['ingredients']:
+            food_items.append({
+                'name': ing['name'],
+                'weight': ing.get('default_weight', 100)
+            })
+
+        # Запускаем интерфейс ввода
+        await _start_food_input_with_weights(callback.message, state, food_items, meal_type="snack")
+        await callback.answer("✅ Блюдо выбрано")
+        await callback.message.delete()
+
+    except Exception as e:
+        logger.error(f"❌ Ошибка в select_dish: {e}\n{traceback.format_exc()}")
+        await callback.answer("❌ Произошла ошибка")
+
+@router.callback_query(F.data == "cancel_recognition")
+async def cancel_recognition(callback: CallbackQuery, state: FSMContext):
+    """Отменяет распознавание."""
     await state.clear()
-    from handlers.food import cmd_log_food
-    await cmd_log_food(callback.message, state, user_id=callback.from_user.id)
+    await callback.message.edit_text("❌ Распознавание отменено.")
     await callback.answer()
 
+@router.callback_query(F.data == "add_food")
+async def add_food(callback: CallbackQuery, state: FSMContext):
+    """Добавляет новый продукт в текущий приём пищи."""
+    try:
+        await callback.message.edit_text("✏️ <b>Введите название продукта:</b>", parse_mode="HTML")
+        await state.set_state(FoodStates.waiting_for_food_name)
+        await callback.answer()
 
-# ========== ОБРАБОТЧИКИ УПРАВЛЕНИЯ ВЕСОМ ==========
+    except Exception as e:
+        logger.error(f"❌ Ошибка в add_food: {e}\n{traceback.format_exc()}")
+        await callback.answer("❌ Произошла ошибка")
 
-@router.callback_query(F.data.startswith("weight_"))
-async def weight_callback(callback: CallbackQuery, state: FSMContext):
-    """Обработка изменения веса продукта."""
-    data = await state.get_data()
-    selected_foods = data.get('selected_foods', [])
-    totals_msg_id = data.get('totals_msg_id')
-    product_msg_ids = data.get('product_msg_ids', [])
-    
-    if not selected_foods:
-        await callback.answer("❌ Нет данных", show_alert=True)
-        return
-    
-    parts = callback.data.split('_')
-    if len(parts) < 4:
-        await callback.answer("❌ Ошибка формата", show_alert=True)
-        return
-    
-    action = parts[1]
-    idx = int(parts[2])
-    value = int(parts[3]) if parts[3].isdigit() else None
-    totals_msg_id_from_callback = int(parts[4]) if len(parts) > 4 and parts[4].isdigit() else totals_msg_id
-    
-    if idx >= len(selected_foods):
-        await callback.answer("❌ Ошибка индекса", show_alert=True)
-        return
-    
-    food = selected_foods[idx]
-    
-    # Удаление продукта
-    if action == "del":
-        del selected_foods[idx]
-        if idx < len(product_msg_ids):
-            try:
-                await callback.bot.delete_message(callback.message.chat.id, product_msg_ids[idx])
-            except:
-                pass
-        del product_msg_ids[idx]
-        
+@router.message(FoodStates.waiting_for_food_name)
+async def process_food_name(message: Message, state: FSMContext):
+    """Обрабатывает ввод названия продукта."""
+    try:
+        food_name = message.text.strip()
+
+        if not food_name:
+            await message.answer("❌ Название не может быть пустым. Попробуйте ещё раз:")
+            return
+
+        # Получаем текущие данные
+        data = await state.get_data()
+        selected_foods = data.get('selected_foods', [])
+
+        # Получаем данные о продукте
+        food_data = await _get_food_data_cached(food_name)
+
+        # Добавляем новый продукт
+        new_food = {
+            'name': food_data['name'],
+            'base_calories': food_data['base_calories'],
+            'base_protein': food_data['base_protein'],
+            'base_fat': food_data['base_fat'],
+            'base_carbs': food_data['base_carbs'],
+            'weight': 0,
+            'calories': 0,
+            'protein': 0,
+            'fat': 0,
+            'carbs': 0,
+            'source': food_data.get('source', 'unknown')
+        }
+
+        selected_foods.append(new_food)
+        index = len(selected_foods) - 1
+
+        # Отправляем карточку продукта
+        totals_msg_id = data.get('totals_msg_id')
+        product_msg_id = await _send_product_card(
+            message.chat.id,
+            message.bot,
+            index,
+            new_food,
+            totals_msg_id
+        )
+
+        # Обновляем список ID сообщений
+        product_msg_ids = data.get('product_msg_ids', [])
+        product_msg_ids.append(product_msg_id)
+
+        # Обновляем данные в состоянии
         await state.update_data(
             selected_foods=selected_foods,
             product_msg_ids=product_msg_ids
         )
-        
+
+        # Обновляем сообщение с итогами
         await _update_totals_message(
-            callback.message.chat.id,
-            totals_msg_id_from_callback,
-            callback.bot,
+            message.chat.id,
+            totals_msg_id,
+            message.bot,
             selected_foods,
             data.get('meal_type', 'snack')
         )
-        
-        await callback.answer("✅ Продукт удалён")
-        return
-    
-    if value is None:
-        await callback.answer("❌ Нет значения", show_alert=True)
-        return
-    
-    # Изменение веса
-    current_weight = float(food.get('weight', 0) or 0)
-    
-    if action == "inc":
-        new_weight = current_weight + value
-    elif action == "dec":
-        new_weight = max(0, current_weight - value)
-    elif action == "set":
-        new_weight = float(value)
-    else:
-        await callback.answer()
-        return
-    
-    if new_weight == current_weight:
-        await callback.answer()
-        return
-    
-    # 🔥 ВАЖНО: Пересчитываем КБЖУ с правильными базовыми значениями
-    food['weight'] = new_weight
-    
-    # Получаем базовые значения из food (они должны быть сохранены)
-    base_data = {
-        'base_calories': food.get('base_calories', food.get('calories', 0)),
-        'base_protein': food.get('base_protein', food.get('protein', 0)),
-        'base_fat': food.get('base_fat', food.get('fat', 0)),
-        'base_carbs': food.get('base_carbs', food.get('carbs', 0))
-    }
-    
-    # Если базовые значения не сохранены, вычисляем их из текущего веса
-    if current_weight > 0 and base_data['base_calories'] == 0:
-        multiplier = 100.0 / current_weight
-        base_data['base_calories'] = food.get('calories', 0) * multiplier
-        base_data['base_protein'] = food.get('protein', 0) * multiplier
-        base_data['base_fat'] = food.get('fat', 0) * multiplier
-        base_data['base_carbs'] = food.get('carbs', 0) * multiplier
-    
-    nutrients = _calculate_nutrients(base_data, new_weight)
-    
-    # Обновляем продукт с новыми значениями
-    food.update({
-        'weight': new_weight,
-        'calories': nutrients['calories'],
-        'protein': nutrients['protein'],
-        'fat': nutrients['fat'],
-        'carbs': nutrients['carbs'],
-        'base_calories': base_data['base_calories'],
-        'base_protein': base_data['base_protein'],
-        'base_fat': base_data['base_fat'],
-        'base_carbs': base_data['base_carbs']
-    })
-    
-    selected_foods[idx] = food
-    await state.update_data(selected_foods=selected_foods)
-    
-    # Обновляем карточку продукта
-    weight_str = f"{new_weight} г" if new_weight else "0 г"
-    text = (
-        f"<b>{idx+1}. {food['name']}</b>\n"
-        f"⚖️ Вес: {weight_str}\n"
-        f"🔥 {nutrients['calories']:.0f} ккал | 🥩 {nutrients['protein']:.1f}г | 🥑 {nutrients['fat']:.1f}г | 🍚 {nutrients['carbs']:.1f}г"
-    )
-    
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[[
-        InlineKeyboardButton(text="➖10", callback_data=f"weight_dec_{idx}_10_{totals_msg_id_from_callback}"),
-        InlineKeyboardButton(text="➕10", callback_data=f"weight_inc_{idx}_10_{totals_msg_id_from_callback}"),
-        InlineKeyboardButton(text="50", callback_data=f"weight_set_{idx}_50_{totals_msg_id_from_callback}"),
-        InlineKeyboardButton(text="100", callback_data=f"weight_set_{idx}_100_{totals_msg_id_from_callback}"),
-        InlineKeyboardButton(text="200", callback_data=f"weight_set_{idx}_200_{totals_msg_id_from_callback}"),
-        InlineKeyboardButton(text="❌", callback_data=f"weight_del_{idx}_{totals_msg_id_from_callback}")
-    ]])
-    
+
+        # Подтверждаем добавление
+        await message.answer(f"✅ Продукт <b>{food_data['name']}</b> добавлен. Вы можете изменить вес с помощью кнопок.",
+                           parse_mode="HTML")
+
+        # Возвращаемся в состояние редактирования
+        await state.set_state(FoodStates.editing)
+
+    except Exception as e:
+        logger.error(f"❌ Ошибка в process_food_name: {e}\n{traceback.format_exc()}")
+        await message.answer("❌ Произошла ошибка при добавлении продукта. Попробуйте ещё раз.")
+
+@router.callback_query(F.data.startswith(("weight_inc_", "weight_dec_", "weight_set_", "weight_del_")))
+async def handle_weight_change(callback: CallbackQuery, state: FSMContext):
+    """Обрабатывает изменение веса продукта."""
     try:
-        await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
-    except TelegramBadRequest:
-        pass  # Сообщение уже удалено или не изменилось
-    
-    # Обновляем итоги
-    await _update_totals_message(
-        callback.message.chat.id,
-        totals_msg_id_from_callback,
-        callback.bot,
-        selected_foods,
-        data.get('meal_type', 'snack')
-    )
-    
-    await callback.answer()
+        # Парсим callback_data
+        parts = callback.data.split('_')
+        action = parts[0]  # weight
+        operation = parts[1]  # inc, dec, set, del
+        index = int(parts[2])
+        value = int(parts[3]) if operation in ['inc', 'dec', 'set'] else None
+        totals_msg_id = int(parts[4]) if operation in ['inc', 'dec', 'set'] else int(parts[3])
 
+        # Получаем текущие данные
+        data = await state.get_data()
+        selected_foods = data.get('selected_foods', [])
 
-# ========== ДОБАВЛЕНИЕ НОВОГО ПРОДУКТА ==========
-
-@router.callback_query(F.data == "add_food")
-async def add_food_callback(callback: CallbackQuery, state: FSMContext):
-    """Начало добавления нового продукта."""
-    await callback.answer()
-    await callback.message.edit_text(
-        "➕ <b>Добавление продукта</b>\nВведите название:",
-        parse_mode="HTML"
-    )
-    await state.set_state(FoodStates.adding_name)
-
-
-@router.message(FoodStates.adding_name, F.text)
-async def process_add_name(message: Message, state: FSMContext):
-    """Обработка названия нового продукта."""
-    name = message.text.strip()
-    if not name:
-        await message.answer("❌ Название не может быть пустым.")
-        return
-    
-    await state.update_data(new_food_name=name)
-    await message.answer(
-        f"➕ <b>{name}</b>\nВведите вес в граммах (или /skip):",
-        parse_mode="HTML"
-    )
-    await state.set_state(FoodStates.adding_weight)
-
-
-@router.message(FoodStates.adding_weight, F.text)
-async def process_add_weight(message: Message, state: FSMContext):
-    """Обработка веса нового продукта."""
-    data = await state.get_data()
-    name = data.get('new_food_name')
-    text = message.text.strip().lower()
-    
-    if text == "/skip":
-        weight = 0
-    else:
-        try:
-            match = re.search(r'\d+([.,]\d+)?', message.text)
-            weight = float(match.group(0).replace(',', '.')) if match else float(message.text.replace(',', '.'))
-            if not (0 < weight <= 10000):
-                raise ValueError
-        except (ValueError, AttributeError):
-            await message.answer("❌ Введите число от 1 до 10000")
+        if index >= len(selected_foods):
+            await callback.answer("❌ Продукт не найден")
             return
-    
-    food_data = await _get_food_data_cached(name)
-    nutrients = _calculate_nutrients(food_data, weight)
-    
-    new_food = {
-        **food_data,
-        'weight': weight,
-        **nutrients
-    }
-    
-    selected_foods = data.get('selected_foods', [])
-    product_msg_ids = data.get('product_msg_ids', [])
-    totals_msg_id = data.get('totals_msg_id')
-    
-    idx = len(selected_foods)
-    selected_foods.append(new_food)
-    
-    new_msg_id = await _send_product_card(
-        message.chat.id,
-        message.bot,
-        idx,
-        new_food,
-        totals_msg_id
-    )
-    product_msg_ids.append(new_msg_id)
-    
-    await state.update_data(
-        selected_foods=selected_foods,
-        product_msg_ids=product_msg_ids
-    )
-    
-    await _update_totals_message(
-        message.chat.id,
-        totals_msg_id,
-        message.bot,
-        selected_foods,
-        data.get('meal_type', 'snack')
-    )
-    
-    await message.delete()
-    await message.answer("✅ Продукт добавлен.")
 
+        food = selected_foods[index]
 
-# ========== ПОДТВЕРЖДЕНИЕ И СОХРАНЕНИЕ ==========
+        # Обновляем вес в зависимости от операции
+        if operation == 'inc':
+            food['weight'] = food.get('weight', 0) + value
+        elif operation == 'dec':
+            new_weight = food.get('weight', 0) - value
+            food['weight'] = max(0, new_weight)
+        elif operation == 'set':
+            food['weight'] = value
+        elif operation == 'del':
+            # Удаляем продукт
+            selected_foods.pop(index)
 
-async def _safe_answer(callback: CallbackQuery):
-    """Безопасный ответ на callback."""
-    try:
-        await callback.answer()
-    except TelegramBadRequest:
-        pass
+            # Удаляем сообщение с карточкой продукта
+            try:
+                await callback.message.delete()
+            except:
+                pass
 
+            # Обновляем индексы в оставшихся сообщениях
+            product_msg_ids = data.get('product_msg_ids', [])
+            if index < len(product_msg_ids):
+                product_msg_ids.pop(index)
+
+            # Обновляем данные в состоянии
+            await state.update_data(
+                selected_foods=selected_foods,
+                product_msg_ids=product_msg_ids
+            )
+
+            # Обновляем сообщение с итогами
+            await _update_totals_message(
+                callback.message.chat.id,
+                totals_msg_id,
+                callback.message.bot,
+                selected_foods,
+                data.get('meal_type', 'snack')
+            )
+
+            await callback.answer("✅ Продукт удалён")
+            return
+
+        # Пересчитываем КБЖУ для продукта
+        nutrients = _calculate_nutrients(food, food['weight'])
+        food['calories'] = nutrients['calories']
+        food['protein'] = nutrients['protein']
+        food['fat'] = nutrients['fat']
+        food['carbs'] = nutrients['carbs']
+
+        # Обновляем данные в состоянии
+        selected_foods[index] = food
+        await state.update_data(selected_foods=selected_foods)
+
+        # Обновляем сообщение с карточкой продукта
+        weight_str = f"{food['weight']} г" if food['weight'] else "0 г"
+        text = (
+            f"<b>{index+1}. {food['name']}</b>\n"
+            f"⚖️ Вес: {weight_str}\n"
+            f"🔥 {nutrients['calories']:.0f} ккал | 🥩 {nutrients['protein']:.1f}г | 🥑 {nutrients['fat']:.1f}г | 🍚 {nutrients['carbs']:.1f}г"
+        )
+
+        # Обновляем клавиатуру (она остаётся той же)
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[[
+            InlineKeyboardButton(text="➖10", callback_data=f"weight_dec_{index}_10_{totals_msg_id}"),
+            InlineKeyboardButton(text="➕10", callback_data=f"weight_inc_{index}_10_{totals_msg_id}"),
+            InlineKeyboardButton(text="50", callback_data=f"weight_set_{index}_50_{totals_msg_id}"),
+            InlineKeyboardButton(text="100", callback_data=f"weight_set_{index}_100_{totals_msg_id}"),
+            InlineKeyboardButton(text="200", callback_data=f"weight_set_{index}_200_{totals_msg_id}"),
+            InlineKeyboardButton(text="❌", callback_data=f"weight_del_{index}_{totals_msg_id}")
+        ]])
+
+        await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
+
+        # Обновляем сообщение с итогами
+        await _update_totals_message(
+            callback.message.chat.id,
+            totals_msg_id,
+            callback.message.bot,
+            selected_foods,
+            data.get('meal_type', 'snack')
+        )
+
+        await callback.answer(f"✅ Вес изменён: {food['weight']} г")
+
+    except Exception as e:
+        logger.error(f"❌ Ошибка в handle_weight_change: {e}\n{traceback.format_exc()}")
+        await callback.answer("❌ Произошла ошибка")
 
 @router.callback_query(F.data == "confirm_meal")
-async def confirm_meal_callback(callback: CallbackQuery, state: FSMContext):
-    """Подтверждение и сохранение приёма пищи."""
-    logger.info(f"✅ confirm_meal_callback: user={callback.from_user.id}")
-    
-    data = await state.get_data()
-    selected_foods = data.get('selected_foods', [])
-    
-    if not selected_foods or not any(f.get('weight', 0) for f in selected_foods):
-        await callback.answer("❌ Укажите вес хотя бы одного продукта", show_alert=True)
-        return
-    
-    user_id = callback.from_user.id
-    meal_type = data.get('meal_type', 'snack')
-    
-    async with get_session() as session:
-        user_result = await session.execute(
-            select(User).where(User.telegram_id == user_id)
-        )
-        user = user_result.scalar_one_or_none()
-        
-        if not user:
-            await callback.message.answer("❌ Сначала настройте профиль (/set_profile)")
-            await state.clear()
+async def confirm_meal(callback: CallbackQuery, state: FSMContext):
+    """Подтверждает приём пищи и сохраняет в БД."""
+    try:
+        data = await state.get_data()
+        selected_foods = data.get('selected_foods', [])
+        meal_type = data.get('meal_type', 'snack')
+
+        if not selected_foods:
+            await callback.answer("❌ Нет продуктов для сохранения")
             return
-        
+
+        # Получаем ID пользователя
+        user_id = callback.from_user.id
+
+        # Сохраняем в БД
+        async with get_session() as session:
+            # Получаем пользователя из БД
+            result = await session.execute(
+                select(User).where(User.telegram_id == str(user_id))
+            )
+            user = result.scalar_one_or_none()
+
+            if not user:
+                # Создаём пользователя, если его нет
+                user = User(
+                    telegram_id=str(user_id),
+                    username=callback.from_user.username,
+                    first_name=callback.from_user.first_name,
+                    last_name=callback.from_user.last_name
+                )
+                session.add(user)
+                await session.flush()
+
+            # Создаём запись о приёме пищи
+            meal = Meal(
+                user_id=user.id,
+                meal_type=meal_type,
+                timestamp=datetime.utcnow()
+            )
+            session.add(meal)
+            await session.flush()
+
+            # Добавляем продукты
+            for food in selected_foods:
+                food_item = FoodItem(
+                    meal_id=meal.id,
+                    name=food['name'],
+                    weight=food.get('weight', 0),
+                    calories=food.get('calories', 0),
+                    protein=food.get('protein', 0),
+                    fat=food.get('fat', 0),
+                    carbs=food.get('carbs', 0),
+                    source=food.get('source', 'manual')
+                )
+                session.add(food_item)
+
+            await session.commit()
+
+        # Подводим итоги
         total_cal = sum(f.get('calories', 0) for f in selected_foods)
         total_prot = sum(f.get('protein', 0) for f in selected_foods)
         total_fat = sum(f.get('fat', 0) for f in selected_foods)
         total_carbs = sum(f.get('carbs', 0) for f in selected_foods)
-        
-        meal = Meal(
-            user_id=user.id,
-            meal_type=meal_type,
-            datetime=datetime.now(),
-            total_calories=total_cal,
-            total_protein=total_prot,
-            total_fat=total_fat,
-            total_carbs=total_carbs,
-            ai_description=data.get('ai_description', '')
+
+        summary = (
+            f"✅ <b>Приём пищи сохранён!</b>\n\n"
+            f"🍽 Тип: {meal_type}\n"
+            f"🔥 Всего: {total_cal:.0f} ккал\n"
+            f"🥩 Белки: {total_prot:.1f}г\n"
+            f"🥑 Жиры: {total_fat:.1f}г\n"
+            f"🍚 Углеводы: {total_carbs:.1f}г\n\n"
+            f"📝 Детали:\n"
         )
-        session.add(meal)
-        await session.flush()
-        
-        for f in selected_foods:
-            if f.get('weight', 0) > 0:
-                item = FoodItem(
-                    meal_id=meal.id,
-                    name=f['name'],
-                    weight=f['weight'],
-                    calories=f.get('calories', 0),
-                    protein=f.get('protein', 0),
-                    fat=f.get('fat', 0),
-                    carbs=f.get('carbs', 0)
-                )
-                session.add(item)
-        
-        await session.commit()
-        
-        chat_id = callback.message.chat.id
-        for msg_id in data.get('product_msg_ids', []):
+
+        for i, food in enumerate(selected_foods):
+            summary += f"{i+1}. {food['name']} — {food.get('weight', 0)}г\n"
+
+        await callback.message.edit_text(summary, parse_mode="HTML")
+
+        # Очищаем состояние
+        await state.clear()
+
+        # Удаляем карточки продуктов
+        product_msg_ids = data.get('product_msg_ids', [])
+        for msg_id in product_msg_ids:
             try:
-                await callback.bot.delete_message(chat_id, msg_id)
+                await callback.message.bot.delete_message(callback.message.chat.id, msg_id)
             except:
                 pass
-        
-        try:
-            await callback.bot.delete_message(chat_id, data.get('totals_msg_id'))
-        except:
-            pass
-        
-        lines = [f"🍽️ <b>Записан приём пищи ({meal_type}):</b>"]
-        for f in selected_foods:
-            if f.get('weight', 0) > 0:
-                lines.append(f"• {f['name']}: {f['weight']}г — {f.get('calories', 0):.0f} ккал")
-        
-        lines.append(f"\n🔥 Всего: {total_cal:.0f} ккал")
-        lines.append(f"🥩 {total_prot:.1f}г | 🥑 {total_fat:.1f}г | 🍚 {total_carbs:.1f}г")
-        
-        await callback.message.answer("\n".join(lines), parse_mode="HTML")
-        await state.clear()
-        await _safe_answer(callback)
 
+    except Exception as e:
+        logger.error(f"❌ Ошибка в confirm_meal: {e}\n{traceback.format_exc()}")
+        await callback.answer("❌ Произошла ошибка при сохранении")
 
 @router.callback_query(F.data == "cancel_meal")
-async def cancel_meal_callback(callback: CallbackQuery, state: FSMContext):
-    """Отмена ввода."""
-    logger.info(f"❌ cancel_meal_callback: user={callback.from_user.id}")
-    
-    data = await state.get_data()
-    chat_id = callback.message.chat.id
-    
-    for msg_id in data.get('product_msg_ids', []):
-        try:
-            await callback.bot.delete_message(chat_id, msg_id)
-        except:
-            pass
-    
+async def cancel_meal(callback: CallbackQuery, state: FSMContext):
+    """Отменяет создание приёма пищи."""
     try:
-        await callback.bot.delete_message(chat_id, data.get('totals_msg_id'))
-    except:
-        pass
-    
-    await state.update_data(last_photo_id=None)
-    await callback.message.answer("❌ Ввод отменён.")
-    await state.clear()
-    await _safe_answer(callback)
+        data = await state.get_data()
 
+        # Удаляем карточки продуктов
+        product_msg_ids = data.get('product_msg_ids', [])
+        for msg_id in product_msg_ids:
+            try:
+                await callback.message.bot.delete_message(callback.message.chat.id, msg_id)
+            except:
+                pass
 
-@router.callback_query(F.data == "action_cancel")
-async def action_cancel_callback(callback: CallbackQuery, state: FSMContext):
-    """Отмена действия."""
-    await state.clear()
-    try:
+        # Удаляем сообщение с итогами
         await callback.message.delete()
-    except:
-        pass
-    await callback.message.answer("❌ Отменено.")
-    await _safe_answer(callback)
 
+        # Очищаем состояние
+        await state.clear()
 
-@router.callback_query(F.data == "food_manual")
-async def food_manual_callback(callback: CallbackQuery, state: FSMContext):
-    """Переход к ручному вводу."""
-    await state.clear()
-    from handlers.food import cmd_log_food
-    await cmd_log_food(callback.message, state, user_id=callback.from_user.id)
-    await _safe_answer(callback)
+        await callback.message.answer("❌ Приём пищи отменён.")
+        await callback.answer()
 
-
-# ========== ОБРАБОТЧИК ГОЛОСОВЫХ СООБЩЕНИЙ ==========
-
-@router.message(F.voice)
-async def handle_voice(message: Message, state: FSMContext):
-    """Обработка голосовых сообщений."""
-    logger.info(f"🎤 Voice received from user {message.from_user.id}")
-    
-    try:
-        await message.answer("🎧 Распознаю голос...")
-        
-        file_info = await message.bot.get_file(message.voice.file_id)
-        audio_bytes = await message.bot.download_file(file_info.file_path)
-        audio_data = audio_bytes.read()
-        
-        text = await transcribe_audio(audio_data, language="ru")
-        
-        if not text:
-            await message.answer("❌ Не удалось распознать речь. Попробуйте говорить чётче или введите текст.")
-            return
-        
-        logger.info(f"🎤 Transcribed: {text}")
-        
-        from handlers.universal_text_handler import process_natural_language
-        await process_natural_language(message, state, text)
-        
     except Exception as e:
-        logger.error(f"❌ Voice handler error: {e}\n{traceback.format_exc()}")
-        await message.answer("❌ Ошибка при обработке голоса.")
+        logger.error(f"❌ Ошибка в cancel_meal: {e}\n{traceback.format_exc()}")
+        await callback.answer("❌ Произошла ошибка")
+
+@router.message(FoodStates.waiting_for_photo_decision)
+async def process_photo_decision(message: Message, state: FSMContext):
+    """Обрабатывает решение пользователя о добавлении фото в текущий приём пищи."""
+    # Этот обработчик нужен для текстовых ответов после вопроса о фото
+    # Пока просто игнорируем и напоминаем о кнопках
+    await message.answer("Пожалуйста, используйте кнопки для выбора действия.")
+
+@router.callback_query(F.data == "add_photo_as_food")
+async def add_photo_as_food(callback: CallbackQuery, state: FSMContext):
+    """Добавляет фото как отдельный продукт в текущий приём пищи."""
+    try:
+        await callback.message.edit_text("📸 Отправьте фото продукта, который хотите добавить.")
+        await state.set_state(FoodStates.waiting_for_photo)
+        await callback.answer()
+
+    except Exception as e:
+        logger.error(f"❌ Ошибка в add_photo_as_food: {e}\n{traceback.format_exc()}")
+        await callback.answer("❌ Произошла ошибка")
+
+@router.callback_query(F.data == "cancel_photo")
+async def cancel_photo(callback: CallbackQuery, state: FSMContext):
+    """Отменяет добавление фото."""
+    try:
+        await callback.message.edit_text("❌ Добавление фото отменено.")
+        await state.set_state(FoodStates.editing)
+        await callback.answer()
+
+    except Exception as e:
+        logger.error(f"❌ Ошибка в cancel_photo: {e}\n{traceback.format_exc()}")
+        await callback.answer("❌ Произошла ошибка")
+
+@router.message(FoodStates.waiting_for_photo)
+async def process_additional_photo(message: Message, state: FSMContext):
+    """Обрабатывает дополнительное фото для добавления в текущий приём пищи."""
+    if not message.photo:
+        await message.answer("❌ Пожалуйста, отправьте фото.")
+        return
+
+    progress_msg = None
+    try:
+        # Отправляем сообщение о начале обработки
+        progress_msg = await message.answer("🔄 <b>Анализирую фото...</b>", parse_mode="HTML")
+
+        # Получаем файл фото
+        photo = message.photo[-1]
+        file = await message.bot.get_file(photo.file_id)
+        image_bytes = await message.bot.download_file(file.file_path)
+        image_bytes = image_bytes.read()
+
+        # Оптимизируем изображение
+        image_bytes = _prepare_image(image_bytes)
+
+        # Распознаём
+        result = await identify_food_cascade(image_bytes)
+
+        if not result or 'error' in result:
+            result = await identify_food_multimodel(image_bytes)
+
+        if not result or 'error' in result:
+            await progress_msg.edit_text("❌ Не удалось распознать еду на фото. Попробуйте другое фото.")
+            return
+
+        # Получаем текущие данные
+        data = await state.get_data()
+        selected_foods = data.get('selected_foods', [])
+        totals_msg_id = data.get('totals_msg_id')
+
+        # Обрабатываем результат
+        if 'dish_name' in result and result['dish_name']:
+            # Это блюдо - используем название как продукт
+            food_name = result['dish_name']
+            weight = result.get('ingredients', [{}])[0].get('weight', 100) if result.get('ingredients') else 100
+
+            food_data = await _get_food_data_cached(food_name)
+
+            new_food = {
+                'name': food_data['name'],
+                'base_calories': food_data['base_calories'],
+                'base_protein': food_data['base_protein'],
+                'base_fat': food_data['base_fat'],
+                'base_carbs': food_data['base_carbs'],
+                'weight': weight,
+                'calories': 0,
+                'protein': 0,
+                'fat': 0,
+                'carbs': 0,
+                'source': food_data.get('source', 'unknown')
+            }
+
+            # Пересчитываем КБЖУ
+            nutrients = _calculate_nutrients(new_food, weight)
+            new_food['calories'] = nutrients['calories']
+            new_food['protein'] = nutrients['protein']
+            new_food['fat'] = nutrients['fat']
+            new_food['carbs'] = nutrients['carbs']
+
+        elif 'items' in result and result['items']:
+            # Это список продуктов - берём первый
+            item = result['items'][0]
+            food_name = item['name']
+            weight = item.get('weight', 100)
+
+            food_data = await _get_food_data_cached(food_name)
+
+            new_food = {
+                'name': food_data['name'],
+                'base_calories': food_data['base_calories'],
+                'base_protein': food_data['base_protein'],
+                'base_fat': food_data['base_fat'],
+                'base_carbs': food_data['base_carbs'],
+                'weight': weight,
+                'calories': 0,
+                'protein': 0,
+                'fat': 0,
+                'carbs': 0,
+                'source': food_data.get('source', 'unknown')
+            }
+
+            # Пересчитываем КБЖУ
+            nutrients = _calculate_nutrients(new_food, weight)
+            new_food['calories'] = nutrients['calories']
+            new_food['protein'] = nutrients['protein']
+            new_food['fat'] = nutrients['fat']
+            new_food['carbs'] = nutrients['carbs']
+        else:
+            await progress_msg.edit_text("❌ Не удалось распознать состав. Попробуйте другое фото.")
+            return
+
+        # Добавляем продукт
+        selected_foods.append(new_food)
+        index = len(selected_foods) - 1
+
+        # Отправляем карточку продукта
+        product_msg_id = await _send_product_card(
+            message.chat.id,
+            message.bot,
+            index,
+            new_food,
+            totals_msg_id
+        )
+
+        # Обновляем список ID сообщений
+        product_msg_ids = data.get('product_msg_ids', [])
+        product_msg_ids.append(product_msg_id)
+
+        # Обновляем данные в состоянии
+        await state.update_data(
+            selected_foods=selected_foods,
+            product_msg_ids=product_msg_ids
+        )
+
+        # Обновляем сообщение с итогами
+        await _update_totals_message(
+            message.chat.id,
+            totals_msg_id,
+            message.bot,
+            selected_foods,
+            data.get('meal_type', 'snack')
+        )
+
+        # Удаляем сообщение о прогрессе
+        await progress_msg.delete()
+
+        # Подтверждаем добавление
+        await message.answer(f"✅ Продукт <b>{new_food['name']}</b> добавлен с весом {weight} г. Вы можете изменить вес с помощью кнопок.",
+                           parse_mode="HTML")
+
+        # Возвращаемся в состояние редактирования
+        await state.set_state(FoodStates.editing)
+
+    except Exception as e:
+        logger.error(f"❌ Ошибка в process_additional_photo: {e}\n{traceback.format_exc()}")
+        if progress_msg:
+            await progress_msg.edit_text("❌ Произошла ошибка при обработке фото.")
+        else:
+            await message.answer("❌ Произошла ошибка при обработке фото.")
+
+@router.callback_query(F.data == "manual_food_input")
+async def manual_food_input(callback: CallbackQuery, state: FSMContext):
+    """Запускает ручной ввод продуктов."""
+    try:
+        await callback.message.edit_text(
+            "✏️ <b>Введите названия продуктов через запятую</b>\n\n"
+            "Например: <i>гречка, куриная грудка, огурец</i>",
+            parse_mode="HTML"
+        )
+        await state.set_state(FoodStates.waiting_for_food_list)
+        await callback.answer()
+
+    except Exception as e:
+        logger.error(f"❌ Ошибка в manual_food_input: {e}\n{traceback.format_exc()}")
+        await callback.answer("❌ Произошла ошибка")
+
+@router.message(FoodStates.waiting_for_food_list)
+async def process_food_list(message: Message, state: FSMContext):
+    """Обрабатывает список продуктов, введённый вручную."""
+    try:
+        text = message.text.strip()
+        # Разделяем по запятой и очищаем
+        food_names = [name.strip() for name in text.split(',') if name.strip()]
+
+        if not food_names:
+            await message.answer("❌ Список продуктов пуст. Попробуйте ещё раз:")
+            return
+
+        await _start_food_input(message, state, food_names)
+        await message.answer(f"✅ Добавлено {len(food_names)} продуктов. Вы можете изменить вес с помощью кнопок.")
+
+    except Exception as e:
+        logger.error(f"❌ Ошибка в process_food_list: {e}\n{traceback.format_exc()}")
+        await message.answer("❌ Произошла ошибка при обработке списка. Попробуйте ещё раз.")
+
+@router.message(FoodStates.waiting_for_weight)
+async def process_weight_input(message: Message, state: FSMContext):
+    """Обрабатывает ввод веса продукта вручную."""
+    try:
+        # Пытаемся распарсить вес
+        text = message.text.strip().replace(',', '.')
+        # Ищем число в тексте
+        match = re.search(r'(\d+(?:\.\d+)?)', text)
+        if not match:
+            await message.answer("❌ Пожалуйста, введите число (вес в граммах).")
+            return
+
+        weight = float(match.group(1))
+        if weight <= 0:
+            await message.answer("❌ Вес должен быть положительным числом.")
+            return
+
+        # Получаем данные из состояния
+        data = await state.get_data()
+        selected_foods = data.get('selected_foods', [])
+        current_index = data.get('current_food_index', 0)
+
+        if current_index >= len(selected_foods):
+            await state.set_state(FoodStates.editing)
+            await message.answer("❌ Ошибка: продукт не найден.")
+            return
+
+        # Обновляем вес
+        food = selected_foods[current_index]
+        food['weight'] = weight
+
+        # Пересчитываем КБЖУ
+        nutrients = _calculate_nutrients(food, weight)
+        food['calories'] = nutrients['calories']
+        food['protein'] = nutrients['protein']
+        food['fat'] = nutrients['fat']
+        food['carbs'] = nutrients['carbs']
+
+        selected_foods[current_index] = food
+        await state.update_data(selected_foods=selected_foods)
+
+        # Обновляем карточку продукта
+        totals_msg_id = data.get('totals_msg_id')
+        product_msg_ids = data.get('product_msg_ids', [])
+
+        if current_index < len(product_msg_ids):
+            try:
+                await message.bot.delete_message(message.chat.id, product_msg_ids[current_index])
+            except:
+                pass
+
+            # Отправляем новую карточку
+            new_msg_id = await _send_product_card(
+                message.chat.id,
+                message.bot,
+                current_index,
+                food,
+                totals_msg_id
+            )
+            product_msg_ids[current_index] = new_msg_id
+            await state.update_data(product_msg_ids=product_msg_ids)
+
+        # Обновляем итоги
+        await _update_totals_message(
+            message.chat.id,
+            totals_msg_id,
+            message.bot,
+            selected_foods,
+            data.get('meal_type', 'snack')
+        )
+
+        # Переходим к следующему продукту или завершаем
+        if current_index + 1 < len(selected_foods):
+            # Запрашиваем вес для следующего продукта
+            next_food = selected_foods[current_index + 1]
+            await state.update_data(current_food_index=current_index + 1)
+            await message.answer(f"✏️ Введите вес для <b>{next_food['name']}</b> (в граммах):", parse_mode="HTML")
+        else:
+            # Все веса введены
+            await state.set_state(FoodStates.editing)
+            await message.answer("✅ Вес всех продуктов введён. Вы можете изменить его с помощью кнопок.")
+
+    except Exception as e:
+        logger.error(f"❌ Ошибка в process_weight_input: {e}\n{traceback.format_exc()}")
+        await message.answer("❌ Произошла ошибка. Попробуйте ещё раз.")
+
+@router.callback_query(F.data == "cancel")
+async def cancel_handler(callback: CallbackQuery, state: FSMContext):
+    """Универсальный обработчик отмены."""
+    await state.clear()
+    await callback.message.edit_text("❌ Действие отменено.")
+    await callback.answer()

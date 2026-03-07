@@ -739,7 +739,7 @@ async def get_food_data(name: str) -> Dict:
 
 def find_dishes_by_ingredients(ingredient_names: List[str], threshold: float = 0.3) -> List[Dict]:
     """
-    🔥 НОВая функция: Ищет готовые блюда по списку ингредиентов
+    🔥 НОВАЯ функция: Ищет готовые блюда по списку ингредиентов
     Возвращает блюда с процентом совпадения
     """
     from services.dish_db import COMPOSITE_DISHES

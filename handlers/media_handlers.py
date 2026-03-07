@@ -18,14 +18,19 @@ from PIL import Image
 import io
 import traceback
 import re
-from typing import List, Dict, Optional
+import asyncio  # ← 🔥 ДОБАВИТЬ ЭТУ СТРОКУ
+from typing import List, Dict, Optional, Tuple
 from datetime import datetime
-
-from services.cloudflare_ai import identify_food_multimodel, identify_food_cascade, transcribe_audio, analyze_food_image
-from services.image_enhancer import enhance_food_image, create_multi_scale_images, detect_image_quality
+from services.cloudflare_ai import (
+    identify_food_multimodel,
+    identify_food_cascade,
+    transcribe_audio,
+    _validate_food_data,
+    _calibrate_weights
+)
 from services.food_api import search_food, get_food_data
-from services.translator import translate_dish_name, translate_to_russian, extract_food_items
-from services.dish_db import find_matching_dish
+from services.translator import translate_dish_name, translate_to_russian
+from services.dish_db import find_matching_dish, DISH_DB
 from utils.states import FoodStates
 from database.db import get_session
 from database.models import Meal, FoodItem, User

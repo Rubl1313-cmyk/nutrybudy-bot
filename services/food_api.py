@@ -520,7 +520,6 @@ def _get_cached_search(query: str) -> Optional[List[Dict]]:
     query_lower = query.lower().strip()
     if query_lower in _SEARCH_CACHE:
         results, timestamp = _SEARCH_CACHE[query_lower]
-        # ✅ ИСПРАВЛЕНО: используем time.time() вместо asyncio.get_event_loop().time()
         if time.time() - timestamp < _CACHE_TTL:
             logger.info(f"♻️ Cache hit for '{query_lower}'")
             return results
@@ -532,7 +531,6 @@ def _get_cached_search(query: str) -> Optional[List[Dict]]:
 def _cache_search(query: str, results: List[Dict]):
     """Сохраняет в кэш поиска."""
     query_lower = query.lower().strip()
-    # ✅ ИСПРАВЛЕНО: используем time.time() вместо asyncio.get_event_loop().time()
     _SEARCH_CACHE[query_lower] = (results, time.time())
     
     if len(_SEARCH_CACHE) > _CACHE_LIMIT:
@@ -542,14 +540,10 @@ def _cache_search(query: str, results: List[Dict]):
 
 
 def search_local_db(query: str) -> List[Dict]:
-    """
-    Поиск в локальной базе по частичному совпадению.
-    ✅ Улучшено: поиск по лемме и частичным совпадениям
-    """
+    """Поиск в локальной базе по частичному совпадению."""
     results = []
     query_lower = query.lower().strip()
     
-    # Простая нормализация запроса (убираем окончания)
     normalized_query = query_lower
     for ending in ['а', 'ы', 'и', 'у', 'ом', 'е', 'ой', 'ей', 'ами', 'ах', 'ов', 'ев', 'ец', 'ца', 'цы']:
         if query_lower.endswith(ending) and len(query_lower) > 4:
@@ -557,7 +551,6 @@ def search_local_db(query: str) -> List[Dict]:
             break
     
     for key, item in LOCAL_FOOD_DB.items():
-        # Три уровня совпадения
         if query_lower in key:
             results.append({
                 'name': item['name'],
@@ -670,23 +663,19 @@ async def search_food(query: str) -> List[Dict]:
     if not query:
         return []
     
-    # Проверка кэша
     cached = _get_cached_search(query)
     if cached:
         return cached
     
     local_results = search_local_db(query)
     
-    # Если в локальной достаточно точных совпадений – возвращаем их
     exact_matches = [r for r in local_results if query in r['name'].lower()]
     if exact_matches:
         _cache_search(query, exact_matches[:10])
         return exact_matches[:10]
     
-    # Иначе пробуем OpenFoodFacts
     off_results = await search_openfoodfacts(query)
     
-    # Объединяем, убираем дубликаты по названию
     seen = set()
     combined = []
     for item in local_results + off_results:
@@ -695,7 +684,6 @@ async def search_food(query: str) -> List[Dict]:
             seen.add(name_lower)
             combined.append(item)
     
-    # Сортировка: локальные выше
     combined.sort(key=lambda x: 0 if x["source"] == "local" else 1)
     
     _cache_search(query, combined[:10])

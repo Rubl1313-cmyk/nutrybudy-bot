@@ -25,7 +25,6 @@ from services.cloudflare_ai import (
 )
 from services.food_api import search_food, get_food_data
 from services.translator import translate_dish_name, translate_to_russian
-from services.dish_db import find_matching_dish, DISH_DB
 from utils.states import FoodStates
 from database.db import get_session
 from database.models import Meal, FoodItem, User

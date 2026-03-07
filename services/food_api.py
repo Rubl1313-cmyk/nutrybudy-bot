@@ -734,3 +734,143 @@ async def get_food_data(name: str) -> Dict:
             'base_fat': 0,
             'base_carbs': 0
         }
+
+# ========== ДОБАВИТЬ В КОНЕЦ ФАЙЛА ==========
+
+def find_dishes_by_ingredients(ingredient_names: List[str], threshold: float = 0.3) -> List[Dict]:
+    """
+    🔥 НОВая функция: Ищет готовые блюда по списку ингредиентов
+    Возвращает блюда с процентом совпадения
+    """
+    from services.dish_db import COMPOSITE_DISHES
+    
+    if not ingredient_names:
+        return []
+    
+    input_ingredients = set(ing.lower().strip() for ing in ingredient_names)
+    matches = []
+    
+    for dish_name, dish_data in COMPOSITE_DISHES.items():
+        dish_ingredients = dish_data.get('ingredients', [])
+        dish_ing_names = set(ing.get('name', '').lower() for ing in dish_ingredients)
+        
+        if not dish_ing_names:
+            continue
+        
+        # 🔥 Рассчитываем процент совпадения
+        intersection = len(input_ingredients & dish_ing_names)
+        union = len(input_ingredients | dish_ing_names)
+        
+        if union == 0:
+            continue
+        
+        # Jaccard similarity
+        similarity = intersection / union
+        
+        # 🔥 Также учитываем покрытие ингредиентов блюда
+        coverage = intersection / len(dish_ing_names) if dish_ing_names else 0
+        
+        # Комбинированный скор
+        score = (similarity * 0.6) + (coverage * 0.4)
+        
+        if score >= threshold:
+            # 🔥 Рассчитываем КБЖУ блюда
+            total_calories = sum(ing.get('calories', 0) for ing in dish_ingredients)
+            total_protein = sum(ing.get('protein', 0) for ing in dish_ingredients)
+            total_fat = sum(ing.get('fat', 0) for ing in dish_ingredients)
+            total_carbs = sum(ing.get('carbs', 0) for ing in dish_ingredients)
+            
+            matches.append({
+                'name': dish_data.get('name', dish_name),
+                'calories': total_calories,
+                'protein': total_protein,
+                'fat': total_fat,
+                'carbs': total_carbs,
+                'score': round(score, 2),
+                'matched_ingredients': list(input_ingredients & dish_ing_names),
+                'source': 'composite_dish',
+                'ingredients_count': len(dish_ingredients)
+            })
+    
+    # 🔥 Сортируем по skorу совпадения
+    matches.sort(key=lambda x: x['score'], reverse=True)
+    return matches[:5]  # Возвращаем топ-5
+
+
+async def search_food(query: str) -> List[Dict]:
+    """
+    ✅ УЛУЧШЕНО: Сначала локальная база, потом композитные блюда, потом OpenFoodFacts
+    """
+    query = query.lower().strip()
+    if not query:
+        return []
+    
+    cached = _get_cached_search(query)
+    if cached:
+        return cached
+    
+    # 🔥 1. Поиск в локальной базе ингредиентов
+    local_results = search_local_db(query)
+    
+    # 🔥 2. Поиск в базе готовых блюд
+    from services.dish_db import COMPOSITE_DISHES
+    dish_results = []
+    for dish_name, dish_data in COMPOSITE_DISHES.items():
+        if query in dish_name or query in dish_data.get('name', '').lower():
+            dish_results.append({
+                'name': dish_data.get('name', dish_name),
+                'calories': 0,  # Будет рассчитано при выборе
+                'protein': 0,
+                'fat': 0,
+                'carbs': 0,
+                'source': 'composite_dish',
+                'score': 1.0,
+                'dish_key': dish_name
+            })
+    
+    # 🔥 3. Если запрос содержит запятые - это список ингредиентов
+    if ',' in query:
+        ingredient_names = [ing.strip() for ing in query.split(',')]
+        dish_matches = find_dishes_by_ingredients(ingredient_names)
+        dish_results.extend(dish_matches)
+    
+    # 🔥 4. Объединяем результаты (приоритет: точные совпадения > локальные > блюда > API)
+    seen = set()
+    combined = []
+    
+    # Сначала точные совпадения
+    for item in local_results:
+        if item['score'] == 1.0:
+            name_lower = item["name"].lower()
+            if name_lower not in seen:
+                seen.add(name_lower)
+                combined.append(item)
+    
+    # Потом готовые блюда
+    for item in dish_results:
+        name_lower = item["name"].lower()
+        if name_lower not in seen:
+            seen.add(name_lower)
+            combined.append(item)
+    
+    # Потом остальные локальные
+    for item in local_results:
+        name_lower = item["name"].lower()
+        if name_lower not in seen:
+            seen.add(name_lower)
+            combined.append(item)
+    
+    # 🔥 5. Если мало результатов - запрашиваем OpenFoodFacts
+    if len(combined) < 5:
+        off_results = await search_openfoodfacts(query)
+        for item in off_results:
+            name_lower = item["name"].lower()
+            if name_lower not in seen:
+                seen.add(name_lower)
+                combined.append(item)
+    
+    # 🔥 6. Сортировка: локальные > блюда > API
+    combined.sort(key=lambda x: 0 if x["source"] == "local" else (1 if x["source"] == "composite_dish" else 2))
+    
+    _cache_search(query, combined[:10])
+    return combined[:10]

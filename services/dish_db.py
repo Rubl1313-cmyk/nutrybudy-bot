@@ -2039,3 +2039,69 @@ def calculate_dish_nutrition(dish_name: str, total_weight: int = 300) -> Dict:
         'carbs': round(total_carbs, 1),
         'ingredients_count': len(ingredients)
     }
+def find_matching_dishes(dish_name: str, ai_ingredients: list = None, threshold: float = 0.2) -> list:
+    """
+    Ищет похожие готовые блюда в COMPOSITE_DISHES.
+    Возвращает список словарей с ключами: name, score, dish_key, ingredients.
+    """
+    if not dish_name and not ai_ingredients:
+        return []
+    
+    dish_name_lower = dish_name.lower().strip() if dish_name else ""
+    # Множество имён ингредиентов от AI (если есть)
+    ai_ingredient_names = set()
+    if ai_ingredients:
+        for ing in ai_ingredients:
+            if isinstance(ing, dict):
+                name = ing.get('name', '').lower()
+                if name:
+                    ai_ingredient_names.add(name)
+            elif isinstance(ing, str):
+                ai_ingredient_names.add(ing.lower())
+    
+    matches = []
+    for key, dish_data in COMPOSITE_DISHES.items():
+        dish_display_name = dish_data.get('name', key)
+        # Ингредиенты блюда
+        dish_ingredients = dish_data.get('ingredients', [])
+        dish_ingredient_names = set(ing.get('name', '').lower() for ing in dish_ingredients if ing.get('name'))
+        
+        # Score по названию
+        name_score = 0.0
+        if dish_name_lower:
+            if dish_name_lower == key or dish_name_lower == dish_display_name.lower():
+                name_score = 1.0
+            elif (dish_name_lower in key or key in dish_name_lower or 
+                  dish_name_lower in dish_display_name.lower() or dish_display_name.lower() in dish_name_lower):
+                name_score = 0.6  # частичное совпадение
+        
+        # Score по ингредиентам
+        ingredient_score = 0.0
+        if ai_ingredient_names and dish_ingredient_names:
+            intersection = len(ai_ingredient_names & dish_ingredient_names)
+            union = len(ai_ingredient_names | dish_ingredient_names)
+            if union > 0:
+                jaccard = intersection / union
+                coverage = intersection / len(dish_ingredient_names) if dish_ingredient_names else 0
+                ingredient_score = (jaccard * 0.7 + coverage * 0.3)
+        
+        # Комбинируем
+        if dish_name_lower and ai_ingredient_names:
+            combined = name_score * 0.5 + ingredient_score * 0.5
+        elif dish_name_lower:
+            combined = name_score
+        elif ai_ingredient_names:
+            combined = ingredient_score
+        else:
+            combined = 0.0
+        
+        if combined >= threshold:
+            matches.append({
+                'name': dish_display_name,
+                'score': round(combined, 2),
+                'dish_key': key,
+                'ingredients': list(dish_ingredient_names)
+            })
+    
+    matches.sort(key=lambda x: x['score'], reverse=True)
+    return matches[:5]

@@ -308,7 +308,7 @@ async def confirm_dish_from_db_callback(callback: CallbackQuery, state: FSMConte
     
     totals_text = f"🍽️ <b>{dish_name}:</b>\n🔥 {selected_foods[0]['calories']:.0f} ккал | 🥩 {selected_foods[0]['protein']:.1f}г | 🥑 {selected_foods[0]['fat']:.1f}г | 🍚 {selected_foods[0]['carbs']:.1f}г"
     
-    # ✅ ВАЖНО: Кнопки с подтверждением и отменой
+    # ✅ Кнопки с подтверждением и отменой
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="⚖️ Изменить вес", callback_data="adjust_dish_weight")],
         [
@@ -344,7 +344,7 @@ async def adjust_dish_weight_callback(callback: CallbackQuery, state: FSMContext
     food = selected_foods[0]
     current_weight = food.get('weight', 200)
     
-    # ✅ МЕНЮ ИЗМЕНЕНИЯ ВЕСА С КНОПКОЙ "НАЗАД"
+    # ✅ МЕНЮ ИЗМЕНЕНИЯ ВЕСА
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [
             InlineKeyboardButton(text="100г", callback_data=f"set_dish_weight_100_{totals_msg_id}"),
@@ -361,7 +361,7 @@ async def adjust_dish_weight_callback(callback: CallbackQuery, state: FSMContext
             InlineKeyboardButton(text="➕10", callback_data=f"inc_dish_weight_10_{totals_msg_id}")
         ],
         [
-            InlineKeyboardButton(text="🔙 Назад к подтверждению", callback_data="back_to_dish_confirm")
+            InlineKeyboardButton(text="🔙 Готово", callback_data="back_to_dish_confirm")
         ]
     ])
     
@@ -425,6 +425,123 @@ async def set_dish_weight_callback(callback: CallbackQuery, state: FSMContext):
     await callback.message.edit_text(
         f"🍽️ <b>{food['name']}:</b>\n"
         f"⚖️ Вес: {new_weight}г\n"
+        f"🔥 {nutrients['calories']:.0f} ккал | 🥩 {nutrients['protein']:.1f}г | 🥑 {nutrients['fat']:.1f}г | 🍚 {nutrients['carbs']:.1f}г",
+        reply_markup=keyboard,
+        parse_mode="HTML"
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("inc_dish_weight_") | F.data.startswith("dec_dish_weight_"))
+async def adjust_dish_weight_increment_callback(callback: CallbackQuery, state: FSMContext):
+    """
+    Изменение веса готового блюда на +/- 10г.
+    ✅ ИСПРАВЛЕНО: после изменения остаётся меню изменения веса (можно нажать несколько раз)
+    """
+    logger.info(f"🔘 Dish weight increment callback: {callback.data}")
+    
+    data = await state.get_data()
+    selected_foods = data.get('selected_foods', [])
+    totals_msg_id = data.get('totals_msg_id')
+    
+    if not selected_foods:
+        await callback.answer("❌ Нет данных", show_alert=True)
+        return
+    
+    parts = callback.data.split('_')
+    try:
+        action = parts[0]  # inc или dec
+        increment = int(parts[3])  # ✅ ЗНАЧЕНИЕ 10
+    except (IndexError, ValueError) as e:
+        logger.error(f"❌ Parse error: {e}, parts={parts}")
+        await callback.answer("❌ Ошибка", show_alert=True)
+        return
+    
+    food = selected_foods[0]
+    current_weight = food.get('weight', 200)
+    
+    if action == "inc":
+        new_weight = current_weight + increment
+    else:  # dec
+        new_weight = max(50, current_weight - increment)
+    
+    logger.info(f"📊 Weight change: {current_weight}g → {new_weight}g ({action}{increment})")
+    
+    # Обновляем вес
+    food['weight'] = new_weight
+    nutrients = _calculate_nutrients(food, new_weight)
+    food.update(nutrients)
+    selected_foods[0] = food
+    
+    await state.update_data(selected_foods=selected_foods)
+    
+    # ✅ ОБНОВЛЯЕМ ИТОГИ
+    await _update_totals_message(
+        callback.message.chat.id,
+        totals_msg_id,
+        callback.bot,
+        selected_foods,
+        data.get('meal_type', 'snack')
+    )
+    
+    # ✅ ОСТАЁМСЯ В МЕНЮ ИЗМЕНЕНИЯ ВЕСА (можно нажать ещё раз)
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="100г", callback_data=f"set_dish_weight_100_{totals_msg_id}"),
+            InlineKeyboardButton(text="150г", callback_data=f"set_dish_weight_150_{totals_msg_id}"),
+            InlineKeyboardButton(text="200г", callback_data=f"set_dish_weight_200_{totals_msg_id}")
+        ],
+        [
+            InlineKeyboardButton(text="250г", callback_data=f"set_dish_weight_250_{totals_msg_id}"),
+            InlineKeyboardButton(text="300г", callback_data=f"set_dish_weight_300_{totals_msg_id}"),
+            InlineKeyboardButton(text="400г", callback_data=f"set_dish_weight_400_{totals_msg_id}")
+        ],
+        [
+            InlineKeyboardButton(text="➖10", callback_data=f"dec_dish_weight_10_{totals_msg_id}"),
+            InlineKeyboardButton(text="➕10", callback_data=f"inc_dish_weight_10_{totals_msg_id}")
+        ],
+        [
+            InlineKeyboardButton(text="🔙 Готово", callback_data="back_to_dish_confirm")
+        ]
+    ])
+    
+    await callback.message.edit_text(
+        f"⚖️ <b>{food['name']}</b>\n"
+        f"Текущий вес: {new_weight}г\n"
+        f"🔥 {nutrients['calories']:.0f} ккал | 🥩 {nutrients['protein']:.1f}г | 🥑 {nutrients['fat']:.1f}г | 🍚 {nutrients['carbs']:.1f}г\n\n"
+        f"Выберите вес:",
+        reply_markup=keyboard,
+        parse_mode="HTML"
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data == "back_to_dish_confirm")
+async def back_to_dish_confirm_callback(callback: CallbackQuery, state: FSMContext):
+    """Возврат к подтверждению блюда."""
+    data = await state.get_data()
+    selected_foods = data.get('selected_foods', [])
+    totals_msg_id = data.get('totals_msg_id')
+    
+    if not selected_foods:
+        await callback.answer("❌ Нет данных", show_alert=True)
+        return
+    
+    food = selected_foods[0]
+    nutrients = _calculate_nutrients(food, food.get('weight', 200))
+    
+    # ✅ МЕНЮ ПОДТВЕРЖДЕНИЯ С КНОПКАМИ
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="⚖️ Изменить вес", callback_data="adjust_dish_weight")],
+        [
+            InlineKeyboardButton(text="✅ Подтвердить", callback_data="confirm_meal"),
+            InlineKeyboardButton(text="❌ Отмена", callback_data="cancel_meal")
+        ]
+    ])
+    
+    await callback.message.edit_text(
+        f"🍽️ <b>{food['name']}:</b>\n"
+        f"⚖️ Вес: {food.get('weight', 200)}г\n"
         f"🔥 {nutrients['calories']:.0f} ккал | 🥩 {nutrients['protein']:.1f}г | 🥑 {nutrients['fat']:.1f}г | 🍚 {nutrients['carbs']:.1f}г",
         reply_markup=keyboard,
         parse_mode="HTML"

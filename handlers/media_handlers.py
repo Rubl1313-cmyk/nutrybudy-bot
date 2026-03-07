@@ -77,15 +77,24 @@ async def _get_food_data_cached(name: str) -> Dict:
 def _calculate_nutrients(base: Dict, weight: float) -> Dict:
     """Рассчитывает КБЖУ для заданного веса."""
     if weight <= 0:
-        return {'calories': 0, 'protein': 0, 'fat': 0, 'carbs': 0}
-    multiplier = weight / 100
+        return {
+            'calories': 0, 'protein': 0, 'fat': 0, 'carbs': 0
+        }
+    
+    multiplier = weight / 100.0
+    
+    # Получаем базовые значения с дефолтами
+    base_calories = float(base.get('base_calories', 0) or 0)
+    base_protein = float(base.get('base_protein', 0) or 0)
+    base_fat = float(base.get('base_fat', 0) or 0)
+    base_carbs = float(base.get('base_carbs', 0) or 0)
+    
     return {
-        'calories': base['base_calories'] * multiplier,
-        'protein': base['base_protein'] * multiplier,
-        'fat': base['base_fat'] * multiplier,
-        'carbs': base['base_carbs'] * multiplier
+        'calories': round(base_calories * multiplier, 1),
+        'protein': round(base_protein * multiplier, 1),
+        'fat': round(base_fat * multiplier, 1),
+        'carbs': round(base_carbs * multiplier, 1)
     }
-
 
 async def _safe_edit_message(bot, chat_id: int, message_id: int, text: str, reply_markup=None, parse_mode="HTML"):
     """Безопасное редактирование сообщения с обработкой ошибок."""
@@ -224,15 +233,24 @@ async def _start_food_input(
 ):
     """Запускает интерфейс ввода продуктов из списка названий."""
     selected_foods = []
+    
     for name in food_names:
+        # Получаем данные продукта из базы
         data = await _get_food_data_cached(name)
+        
+        # 🔥 ВАЖНО: Сохраняем базовые значения отдельно
         selected_foods.append({
-            **data,
+            'name': data['name'],
+            'base_calories': data['base_calories'],
+            'base_protein': data['base_protein'],
+            'base_fat': data['base_fat'],
+            'base_carbs': data['base_carbs'],
             'weight': 0,
             'calories': 0,
             'protein': 0,
             'fat': 0,
-            'carbs': 0
+            'carbs': 0,
+            'source': data.get('source', 'unknown')
         })
     
     totals_text = "🍽️ <b>Приём пищи:</b>\n🔥 0 ккал | 🥩 0.0г | 🥑 0.0г | 🍚 0.0г"
@@ -245,8 +263,8 @@ async def _start_food_input(
     ])
     
     totals_msg = await message.answer(totals_text, reply_markup=totals_keyboard, parse_mode="HTML")
-    product_msg_ids = []
     
+    product_msg_ids = []
     for i, food in enumerate(selected_foods):
         msg_id = await _send_product_card(message.chat.id, message.bot, i, food, totals_msg.message_id)
         product_msg_ids.append(msg_id)
@@ -256,9 +274,8 @@ async def _start_food_input(
         totals_msg_id=totals_msg.message_id,
         product_msg_ids=product_msg_ids,
         meal_type=meal_type,
-        mode="manual"
+        mode="manual"  # Ручной ввод, не фото
     )
-
 
 async def _show_dish_confirmation(
     message: Message,
@@ -271,6 +288,7 @@ async def _show_dish_confirmation(
     confidence = dish_data.get('confidence', 0.5)
     ingredients = dish_data.get('ingredients', [])
     
+    # Формируем текст ТОЛЬКО с тем, что распознал AI
     text = f"🍽 <b>Распознано ({model_used}): {dish_name}</b>\n"
     text += f"🎯 Уверенность: {confidence:.0%}\n"
     
@@ -281,15 +299,17 @@ async def _show_dish_confirmation(
             weight = ing.get('estimated_weight_grams', 100)
             text += f"• {i+1}. {name}: ~{weight}г\n"
     
+    # Кнопки - УБРАТЬ "Использовать как готовое блюдо" если это не найдено в базе
     builder = InlineKeyboardBuilder()
-    builder.button(text="✅ Использовать как есть", callback_data="confirm_dish_as_is")
-    builder.button(text="🔍 Разбить на ингредиенты", callback_data="use_ingredients_instead")
+    builder.button(text="✅ Использовать ингредиенты", callback_data="confirm_dish_as_is")
+    builder.button(text="✏️ Редактировать ингредиенты", callback_data="edit_dish_ingredients")
     builder.button(text="🔄 Перераспознать", callback_data="retry_photo")
     builder.button(text="📝 Ввести вручную", callback_data="manual_food_entry")
     builder.adjust(1)
     
     await message.answer(text, reply_markup=builder.as_markup(), parse_mode="HTML")
     
+    # Сохраняем в state для последующей обработки
     await state.update_data(
         recognized_dish=dish_data,
         mode="photo_recognition"
@@ -719,8 +739,6 @@ async def manual_food_callback(callback: CallbackQuery, state: FSMContext):
 @router.callback_query(F.data.startswith("weight_"))
 async def weight_callback(callback: CallbackQuery, state: FSMContext):
     """Обработка изменения веса продукта."""
-    logger.info(f"🔘 Weight callback: {callback.data}")
-    
     data = await state.get_data()
     selected_foods = data.get('selected_foods', [])
     totals_msg_id = data.get('totals_msg_id')
@@ -746,6 +764,7 @@ async def weight_callback(callback: CallbackQuery, state: FSMContext):
     
     food = selected_foods[idx]
     
+    # Удаление продукта
     if action == "del":
         del selected_foods[idx]
         if idx < len(product_msg_ids):
@@ -775,13 +794,15 @@ async def weight_callback(callback: CallbackQuery, state: FSMContext):
         await callback.answer("❌ Нет значения", show_alert=True)
         return
     
-    current_weight = food.get('weight', 0) or 0
+    # Изменение веса
+    current_weight = float(food.get('weight', 0) or 0)
+    
     if action == "inc":
         new_weight = current_weight + value
     elif action == "dec":
         new_weight = max(0, current_weight - value)
     elif action == "set":
-        new_weight = value
+        new_weight = float(value)
     else:
         await callback.answer()
         return
@@ -790,13 +811,44 @@ async def weight_callback(callback: CallbackQuery, state: FSMContext):
         await callback.answer()
         return
     
+    # 🔥 ВАЖНО: Пересчитываем КБЖУ с правильными базовыми значениями
     food['weight'] = new_weight
-    nutrients = _calculate_nutrients(food, new_weight)
-    food.update(nutrients)
-    selected_foods[idx] = food
     
+    # Получаем базовые значения из food (они должны быть сохранены)
+    base_data = {
+        'base_calories': food.get('base_calories', food.get('calories', 0)),
+        'base_protein': food.get('base_protein', food.get('protein', 0)),
+        'base_fat': food.get('base_fat', food.get('fat', 0)),
+        'base_carbs': food.get('base_carbs', food.get('carbs', 0))
+    }
+    
+    # Если базовые значения не сохранены, вычисляем их из текущего веса
+    if current_weight > 0 and base_data['base_calories'] == 0:
+        multiplier = 100.0 / current_weight
+        base_data['base_calories'] = food.get('calories', 0) * multiplier
+        base_data['base_protein'] = food.get('protein', 0) * multiplier
+        base_data['base_fat'] = food.get('fat', 0) * multiplier
+        base_data['base_carbs'] = food.get('carbs', 0) * multiplier
+    
+    nutrients = _calculate_nutrients(base_data, new_weight)
+    
+    # Обновляем продукт с новыми значениями
+    food.update({
+        'weight': new_weight,
+        'calories': nutrients['calories'],
+        'protein': nutrients['protein'],
+        'fat': nutrients['fat'],
+        'carbs': nutrients['carbs'],
+        'base_calories': base_data['base_calories'],
+        'base_protein': base_data['base_protein'],
+        'base_fat': base_data['base_fat'],
+        'base_carbs': base_data['base_carbs']
+    })
+    
+    selected_foods[idx] = food
     await state.update_data(selected_foods=selected_foods)
     
+    # Обновляем карточку продукта
     weight_str = f"{new_weight} г" if new_weight else "0 г"
     text = (
         f"<b>{idx+1}. {food['name']}</b>\n"
@@ -813,14 +865,12 @@ async def weight_callback(callback: CallbackQuery, state: FSMContext):
         InlineKeyboardButton(text="❌", callback_data=f"weight_del_{idx}_{totals_msg_id_from_callback}")
     ]])
     
-    await _safe_edit_message(
-        callback.bot,
-        callback.message.chat.id,
-        callback.message.message_id,
-        text,
-        keyboard
-    )
+    try:
+        await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
+    except TelegramBadRequest:
+        pass  # Сообщение уже удалено или не изменилось
     
+    # Обновляем итоги
     await _update_totals_message(
         callback.message.chat.id,
         totals_msg_id_from_callback,

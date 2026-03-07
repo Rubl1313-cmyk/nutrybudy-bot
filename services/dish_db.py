@@ -1510,21 +1510,17 @@ KEY_INGREDIENTS = {
 }
 
 
+# ========== В КОНЕЦ ФАЙЛА ДОБАВИТЬ ==========
+
 def get_dish_ingredients(dish_name: str, total_weight: int = 300) -> list:
     """
-    Возвращает список ингредиентов для блюда с рассчитанными весами.
-    
-    Args:
-        dish_name: Название блюда
-        total_weight: Общий вес порции (граммы)
-    
-    Returns:
-        Список ингредиентов с весами
+    ✅ Возвращает список ингредиентов для блюда с рассчитанными весами
     """
     dish_name_lower = dish_name.lower().strip()
     
     # Ищем блюдо в базе
     dish_data = COMPOSITE_DISHES.get(dish_name_lower)
+    
     if not dish_data:
         # Пробуем найти по частичному совпадению
         for key, value in COMPOSITE_DISHES.items():
@@ -1539,7 +1535,7 @@ def get_dish_ingredients(dish_name: str, total_weight: int = 300) -> list:
     if not ingredients:
         return []
     
-    # Рассчитываем веса на основе процентов
+    # 🔥 Рассчитываем веса на основе процентов
     result = []
     for ing in ingredients:
         name = ing.get('name', '')
@@ -1551,11 +1547,11 @@ def get_dish_ingredients(dish_name: str, total_weight: int = 300) -> list:
                 'name': name,
                 'estimated_weight_grams': weight,
                 'type': ing.get('type', 'other'),
-                'confidence': 0.8
+                'confidence': 0.8,
+                'percent': percent
             })
     
     return result
-
 
 def find_matching_dish(ingredients: list, threshold: float = 0.3) -> tuple:
     """

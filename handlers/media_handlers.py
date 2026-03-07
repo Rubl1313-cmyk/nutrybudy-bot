@@ -570,9 +570,13 @@ async def handle_photo(message: Message, state: FSMContext):
             progress=85,
             total_stages=5
         )
-        
+
+        # 🔥 ПРОВЕРЯЕМ: есть ли блюдо в dish_db.py (с ингредиентами)
+        dish_name_lower = dish_name_ru.lower().strip()
+        dish_in_dish_db = dish_name_lower in COMPOSITE_DISHES
+
         dish_info = await _get_food_data_cached(dish_name_ru)
-        
+
         await _send_progress_update(
             message.bot,
             message.chat.id,
@@ -581,39 +585,7 @@ async def handle_photo(message: Message, state: FSMContext):
             progress=90,
             total_stages=5
         )
-        
-        if dish_info['base_calories'] > 50:
-            await state.update_data(
-                recognized_dish=dish_data,
-                dish_found_in_db=True,
-                mode="photo_recognition"
-            )
-            
-            # ✅ ПРОГРЕСС ЗАВЕРШЁН (100%)
-            await _send_progress_update(
-                message.bot,
-                message.chat.id,
-                progress_msg.message_id,
-                stage=4,
-                progress=100,
-                total_stages=5
-            )
-            
-            await asyncio.sleep(0.5)
-            await progress_msg.delete()
-            
-            keyboard = InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="✅ Использовать как готовое блюдо", callback_data="confirm_dish_db")],
-                [InlineKeyboardButton(text="🔍 Разбить на ингредиенты", callback_data="use_ingredients_instead")]
-            ])
-            await message.answer(
-                f"🍽 Найдено в базе: **{dish_name_ru}**\n"
-                f"Использовать как готовое блюдо или разбить на ингредиенты?",
-                reply_markup=keyboard,
-                parse_mode="Markdown"
-            )
-            return
-        
+
         # ✅ ПРОГРЕСС ЗАВЕРШЁН (100%)
         await _send_progress_update(
             message.bot,
@@ -623,19 +595,50 @@ async def handle_photo(message: Message, state: FSMContext):
             progress=100,
             total_stages=5
         )
-        
         await asyncio.sleep(0.5)
         await progress_msg.delete()
+
+        # 🔥 РАЗНАЯ ЛОГИКА для dish_db vs food_api
+        if dish_in_dish_db:
+            # Есть в dish_db — показываем ОБЕ кнопки
+            keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="✅ Использовать как готовое блюдо", callback_data="confirm_dish_db")],
+                [InlineKeyboardButton(text="🔍 Разбить на ингредиенты", callback_data="use_ingredients_instead")]
+        ])
+             await message.answer(
+                 f"🍽 Найдено в базе: **{dish_name_ru}**\n"
+                 f"Использовать как готовое блюдо или разбить на ингредиенты?",
+                 reply_markup=keyboard,
+                 parse_mode="Markdown"
+             )
+             elif dish_info['base_calories'] > 50:
+                 # Есть только в food_api — только "как готовое"
+                 keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                      [InlineKeyboardButton(text="✅ Использовать как готовое блюдо", callback_data="confirm_dish_db")],
+                      [InlineKeyboardButton(text="🔍 Разбить на ингредиенты", callback_data="use_ingredients_instead")]
+             ])
+             await message.answer(
+                 f"🍽 Найдено в базе: **{dish_name_ru}**\n"
+                 f"Использовать как готовое блюдо или разбить на ингредиенты?",
+                 reply_markup=keyboard,
+                 parse_mode="Markdown"
+             )
+        else:
+        # Нет в базе — показываем ингредиенты от AI
+            await state.update_data(
+            recognized_dish=dish_data,
+            dish_found_in_db=False,
+            mode="photo_recognition"
+        )
+            await _show_dish_confirmation(message, state, dish_data, model_used)
         
-        await _show_dish_confirmation(message, state, dish_data, model_used)
-        
-    except Exception as e:
-        logger.error(f"❌ Photo handler error: {e}\n{traceback.format_exc()}")
-        try:
-            await progress_msg.delete()
-        except:
-            pass
-        await message.answer("❌ Ошибка при анализе фото. Попробуйте позже.")
+            except Exception as e:
+                logger.error(f"❌ Photo handler error: {e}\n{traceback.format_exc()}")
+                try:
+                    await progress_msg.delete()
+                except:
+                    pass
+                await message.answer("❌ Ошибка при анализе фото. Попробуйте позже.")
         await state.clear()
 
 

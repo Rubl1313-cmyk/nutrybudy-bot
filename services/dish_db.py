@@ -3,6 +3,7 @@
 Используется для разбивки блюд на компоненты при распознавании.
 Объединяет данные из dish_db.py и food_api.py (LOCAL_FOOD_DB).
 """
+from typing import Dict, List, Tuple, Optional
 from utils.normalizer import normalize_product_name
 
 # 🔥 БАЗА ГОТОВЫХ БЛЮД С ПОЛНЫМИ ИНГРЕДИЕНТАМИ
@@ -1593,11 +1594,11 @@ def find_matching_dish(ingredients: list, threshold: float = 0.3) -> tuple:
     
     return None, best_score
 
-# ========== ДОБАВИТЬ В КОНЕЦ ФАЙЛА ==========
-
+# ========== В КОНЕЦ ФАЙЛА (функция calculate_dish_nutrition) ==========
 def calculate_dish_nutrition(dish_name: str, total_weight: int = 300) -> Dict:
     """
-    🔥 Рассчитывает КБЖУ для готового блюда
+    🔥 Исправлено: теперь Dict импортирован
+    Рассчитывает КБЖУ для готового блюда
     """
     dish_name_lower = dish_name.lower().strip()
     dish_data = COMPOSITE_DISHES.get(dish_name_lower)

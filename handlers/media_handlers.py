@@ -147,6 +147,11 @@ async def _send_product_card(
         f"🔥 {nutrients['calories']:.0f} ккал | 🥩 {nutrients['protein']:.1f}г | 🥑 {nutrients['fat']:.1f}г | 🍚 {nutrients['carbs']:.1f}г"
     )
     
+    # ✅ ВАЖНО: Проверяем, что totals_msg_id не None
+    if totals_msg_id is None:
+        logger.error(f"⚠️ totals_msg_id is None for product {index}!")
+        totals_msg_id = 0
+    
     keyboard = InlineKeyboardMarkup(inline_keyboard=[[
         InlineKeyboardButton(text="➖10", callback_data=f"weight_dec_{index}_10_{totals_msg_id}"),
         InlineKeyboardButton(text="➕10", callback_data=f"weight_inc_{index}_10_{totals_msg_id}"),
@@ -160,49 +165,125 @@ async def _send_product_card(
     return msg.message_id
 
 
-async def _start_food_input(
-    message: Message,
-    state: FSMContext,
-    food_names: List[str],
-    meal_type: str = "snack"
-):
-    """Запускает интерфейс ввода продуктов из списка названий."""
-    selected_foods = []
-    for name in food_names:
-        data = await _get_food_data_cached(name)
-        selected_foods.append({
-            **data,
-            'weight': 0,
-            'calories': 0,
-            'protein': 0,
-            'fat': 0,
-            'carbs': 0
-        })
+@router.callback_query(F.data.startswith("weight_"))
+async def weight_callback(callback: CallbackQuery, state: FSMContext):
+    """Обработка изменения веса продукта."""
+    logger.info(f"🔘 Weight callback received: {callback.data}")  # ✅ ЛОГИРОВАНИЕ
     
-    totals_text = "🍽️ <b>Приём пищи:</b>\n🔥 0 ккал | 🥩 0.0г | 🥑 0.0г | 🍚 0.0г"
-    totals_keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="➕ Добавить продукт", callback_data="add_food")],
-        [
-            InlineKeyboardButton(text="✅ Подтвердить", callback_data="confirm_meal"),
-            InlineKeyboardButton(text="❌ Отмена", callback_data="cancel_meal")
-        ]
-    ])
+    data = await state.get_data()
+    selected_foods = data.get('selected_foods', [])
+    totals_msg_id = data.get('totals_msg_id')
+    product_msg_ids = data.get('product_msg_ids', [])
     
-    totals_msg = await message.answer(totals_text, reply_markup=totals_keyboard, parse_mode="HTML")
-    product_msg_ids = []
+    logger.info(f"📊 State data: totals_msg_id={totals_msg_id}, products={len(selected_foods)}")
     
-    for i, food in enumerate(selected_foods):
-        msg_id = await _send_product_card(message.chat.id, message.bot, i, food, totals_msg.message_id)
-        product_msg_ids.append(msg_id)
+    if not selected_foods:
+        logger.error("❌ No selected foods in state!")
+        await callback.answer("❌ Нет данных", show_alert=True)
+        return
     
-    await state.update_data(
-        selected_foods=selected_foods,
-        totals_msg_id=totals_msg.message_id,
-        product_msg_ids=product_msg_ids,
-        meal_type=meal_type,
-        mode="manual"
+    parts = callback.data.split('_')
+    if len(parts) < 4:
+        await callback.answer("❌ Ошибка формата", show_alert=True)
+        return
+    
+    action = parts[1]
+    idx = int(parts[2])
+    value = int(parts[3]) if parts[3].isdigit() else None
+    totals_msg_id_from_callback = int(parts[4]) if len(parts) > 4 and parts[4].isdigit() else totals_msg_id
+    
+    if idx >= len(selected_foods):
+        await callback.answer("❌ Ошибка индекса", show_alert=True)
+        return
+    
+    food = selected_foods[idx]
+    
+    # Удаление продукта
+    if action == "del":
+        del selected_foods[idx]
+        if idx < len(product_msg_ids):
+            try:
+                await callback.bot.delete_message(callback.message.chat.id, product_msg_ids[idx])
+            except:
+                pass
+        del product_msg_ids[idx]
+        
+        await state.update_data(
+            selected_foods=selected_foods,
+            product_msg_ids=product_msg_ids
+        )
+        
+        await _update_totals_message(
+            callback.message.chat.id,
+            totals_msg_id_from_callback,
+            callback.bot,
+            selected_foods,
+            data.get('meal_type', 'snack')
+        )
+        
+        await callback.answer("✅ Продукт удалён")
+        return
+    
+    if value is None:
+        await callback.answer("❌ Нет значения", show_alert=True)
+        return
+    
+    # Изменение веса
+    current_weight = food.get('weight', 0) or 0
+    if action == "inc":
+        new_weight = current_weight + value
+    elif action == "dec":
+        new_weight = max(0, current_weight - value)
+    elif action == "set":
+        new_weight = value
+    else:
+        await callback.answer()
+        return
+    
+    if new_weight == current_weight:
+        await callback.answer()
+        return
+    
+    # Обновляем продукт
+    food['weight'] = new_weight
+    nutrients = _calculate_nutrients(food, new_weight)
+    food.update(nutrients)
+    selected_foods[idx] = food
+    
+    await state.update_data(selected_foods=selected_foods)
+    
+    # Обновляем карточку продукта
+    weight_str = f"{new_weight} г" if new_weight else "0 г"
+    text = (
+        f"<b>{idx+1}. {food['name']}</b>\n"
+        f"⚖️ Вес: {weight_str}\n"
+        f"🔥 {nutrients['calories']:.0f} ккал | 🥩 {nutrients['protein']:.1f}г | 🥑 {nutrients['fat']:.1f}г | 🍚 {nutrients['carbs']:.1f}г"
     )
-
+    
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text="➖10", callback_data=f"weight_dec_{idx}_10_{totals_msg_id_from_callback}"),
+        InlineKeyboardButton(text="➕10", callback_data=f"weight_inc_{idx}_10_{totals_msg_id_from_callback}"),
+        InlineKeyboardButton(text="50", callback_data=f"weight_set_{idx}_50_{totals_msg_id_from_callback}"),
+        InlineKeyboardButton(text="100", callback_data=f"weight_set_{idx}_100_{totals_msg_id_from_callback}"),
+        InlineKeyboardButton(text="200", callback_data=f"weight_set_{idx}_200_{totals_msg_id_from_callback}"),
+        InlineKeyboardButton(text="❌", callback_data=f"weight_del_{idx}_{totals_msg_id_from_callback}")
+    ]])
+    
+    try:
+        await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
+    except TelegramBadRequest:
+        pass
+    
+    # Обновляем итоги
+    await _update_totals_message(
+        callback.message.chat.id,
+        totals_msg_id_from_callback,
+        callback.bot,
+        selected_foods,
+        data.get('meal_type', 'snack')
+    )
+    
+    await callback.answer()
 
 async def _show_dish_confirmation(
     message: Message,

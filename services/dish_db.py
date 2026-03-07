@@ -1592,3 +1592,65 @@ def find_matching_dish(ingredients: list, threshold: float = 0.3) -> tuple:
         return best_match, best_score
     
     return None, best_score
+
+# ========== ДОБАВИТЬ В КОНЕЦ ФАЙЛА ==========
+
+def calculate_dish_nutrition(dish_name: str, total_weight: int = 300) -> Dict:
+    """
+    🔥 Рассчитывает КБЖУ для готового блюда
+    """
+    dish_name_lower = dish_name.lower().strip()
+    dish_data = COMPOSITE_DISHES.get(dish_name_lower)
+    
+    if not dish_data:
+        # Пробуем найти по частичному совпадению
+        for key, value in COMPOSITE_DISHES.items():
+            if key in dish_name_lower or dish_name_lower in key:
+                dish_data = value
+                break
+    
+    if not dish_data:
+        return {
+            'name': dish_name,
+            'calories': 0,
+            'protein': 0,
+            'fat': 0,
+            'carbs': 0
+        }
+    
+    ingredients = dish_data.get('ingredients', [])
+    
+    # 🔥 Суммируем КБЖУ всех ингредиентов
+    total_calories = 0
+    total_protein = 0
+    total_fat = 0
+    total_carbs = 0
+    
+    for ing in ingredients:
+        ing_name = ing.get('name', '')
+        percent = ing.get('percent', 0)
+        ing_weight = int(total_weight * percent / 100)
+        
+        # 🔥 Получаем КБЖУ ингредиента из базы
+        from services.food_api import LOCAL_FOOD_DB
+        food_data = None
+        for key, value in LOCAL_FOOD_DB.items():
+            if ing_name.lower() in key or key in ing_name.lower():
+                food_data = value
+                break
+        
+        if food_data:
+            multiplier = ing_weight / 100
+            total_calories += food_data.get('calories', 0) * multiplier
+            total_protein += food_data.get('protein', 0) * multiplier
+            total_fat += food_data.get('fat', 0) * multiplier
+            total_carbs += food_data.get('carbs', 0) * multiplier
+    
+    return {
+        'name': dish_data.get('name', dish_name),
+        'calories': round(total_calories, 1),
+        'protein': round(total_protein, 1),
+        'fat': round(total_fat, 1),
+        'carbs': round(total_carbs, 1),
+        'ingredients_count': len(ingredients)
+    }

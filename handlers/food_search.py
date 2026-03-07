@@ -86,7 +86,9 @@ async def perform_search(message: Message, state: FSMContext, query: str):
 
 @router.callback_query(F.data.startswith("food_select_"))
 async def food_select_callback(callback: CallbackQuery, state: FSMContext):
-    """Выбор продукта из результатов поиска."""
+    """
+    ✅ УЛУЧШЕНО: Поддержка выбора готовых блюд с ингредиентами
+    """
     data = await state.get_data()
     results = data.get("search_results", [])
     
@@ -100,26 +102,95 @@ async def food_select_callback(callback: CallbackQuery, state: FSMContext):
         
         selected = results[index]
         
-        # 🔥 Передаём в существующую логику ввода веса
-        await state.update_data(
-            selected_food=selected,
-            meal_type=data.get("meal_type", "snack")
-        )
-        await state.set_state(FoodStates.entering_weight)
+        # 🔥 ПРОВЕРКА: Это готовое блюдо или ингредиент?
+        if selected.get('source') == 'composite_dish':
+            # 🔥 Для готовых блюд - загружаем ингредиенты из базы
+            from services.dish_db import get_dish_ingredients
+            dish_key = selected.get('dish_key', selected['name'].lower())
+            ingredients = get_dish_ingredients(dish_key, total_weight=300)
+            
+            await state.update_data(
+                selected_dish=selected,
+                dish_ingredients=ingredients,
+                meal_type=data.get("meal_type", "snack")
+            )
+            
+            # 🔥 Показываем блюдо с ингредиентами
+            kbzu_str = format_kbzu(selected)
+            await callback.message.edit_text(
+                f"✅ <b>{selected['name']}</b>\n"
+                f"📊 {kbzu_str} (на порцию)\n"
+                f"🥘 Ингредиенты: {len(ingredients)} шт\n"
+                f"⚖️ Введите общий вес порции (или используйте рекомендуемый):",
+                parse_mode="HTML"
+            )
+            await state.set_state(FoodStates.entering_dish_weight)
+        else:
+            # 🔥 Обычный ингредиент
+            await state.update_data(
+                selected_food=selected,
+                meal_type=data.get("meal_type", "snack")
+            )
+            await state.set_state(FoodStates.entering_weight)
+            kbzu_str = format_kbzu(selected)
+            await callback.message.edit_text(
+                f"✅ <b>{selected['name']}</b>\n"
+                f"📊 {kbzu_str} (на 100г)\n"
+                f"⚖️ Введите вес в граммах:",
+                parse_mode="HTML"
+            )
         
-        kbzu_str = format_kbzu(selected)
-        await callback.message.edit_text(
-            f"✅ <b>{selected['name']}</b>\n"
-            f"📊 {kbzu_str} (на 100г)\n"
-            f"⚖️ Введите вес в граммах:",
-            parse_mode="HTML"
-        )
         await callback.answer()
-        
     except (IndexError, ValueError):
         await callback.answer("❌ Ошибка", show_alert=True)
 
 
+@router.message(FoodStates.entering_dish_weight, F.text)
+async def process_dish_weight(message: Message, state: FSMContext):
+    """
+    🔥 Обработка веса для готового блюда
+    """
+    text = message.text.strip()
+    try:
+        import re
+        match = re.search(r'\d+([.,]\d+)?', text)
+        weight = float(match.group(0).replace(',', '.')) if match else float(text.replace(',', '.'))
+        if weight <= 0 or weight > 5000:
+            raise ValueError
+    except (ValueError, AttributeError):
+        await message.answer("❌ Введите число от 1 до 5000 г")
+        return
+    
+    data = await state.get_data()
+    selected_dish = data.get('selected_dish')
+    ingredients = data.get('dish_ingredients', [])
+    
+    if not selected_dish:
+        await message.answer("❌ Ошибка. Начните заново.")
+        await state.clear()
+        return
+    
+    # 🔥 Масштабируем ингредиенты пропорционально весу
+    base_weight = 300  # Базовый вес порции
+    multiplier = weight / base_weight
+    
+    selected_foods = []
+    for ing in ingredients:
+        ing_weight = ing.get('estimated_weight_grams', 100) * multiplier
+        food_data = await _get_food_data_cached(ing['name'])
+        nutrients = _calculate_nutrients(food_data, ing_weight)
+        
+        selected_foods.append({
+            'name': ing['name'],
+            'weight': ing_weight,
+            'calories': nutrients['calories'],
+            'protein': nutrients['protein'],
+            'fat': nutrients['fat'],
+            'carbs': nutrients['carbs']
+        })
+    
+    await state.update_data(selected_foods=selected_foods)
+    await finish_meal(message, state)
 @router.callback_query(F.data == "food_manual_entry")
 async def food_manual_callback(callback: CallbackQuery, state: FSMContext):
     """Ручной ввод продукта."""

@@ -277,6 +277,63 @@ async def _start_food_input(
         mode="manual"  # Ручной ввод, не фото
     )
 
+async def _start_food_input_with_weights(
+    message: Message,
+    state: FSMContext,
+    food_items: List[Dict],  # Список словарей {'name': str, 'weight': int}
+    meal_type: str = "snack"
+):
+    """Запускает интерфейс ввода продуктов с уже указанными весами."""
+    selected_foods = []
+    
+    for item in food_items:
+        name = item['name']
+        recognized_weight = item.get('weight', 0)
+        
+        # Получаем данные продукта из базы
+        data = await _get_food_data_cached(name)
+        
+        # 🔥 Рассчитываем КБЖУ с распознанным весом
+        nutrients = _calculate_nutrients(data, recognized_weight)
+        
+        selected_foods.append({
+            'name': data['name'],
+            'base_calories': data['base_calories'],
+            'base_protein': data['base_protein'],
+            'base_fat': data['base_fat'],
+            'base_carbs': data['base_carbs'],
+            'weight': recognized_weight,  # 🔥 Используем распознанный вес!
+            'calories': nutrients['calories'],
+            'protein': nutrients['protein'],
+            'fat': nutrients['fat'],
+            'carbs': nutrients['carbs'],
+            'source': data.get('source', 'unknown')
+        })
+    
+    # Обновляем сообщение с итогами
+    totals_text = "🍽️ <b>Приём пищи:</b>\n🔥 0 ккал | 🥩 0.0г | 🥑 0.0г | 🍚 0.0г"
+    totals_keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="➕ Добавить продукт", callback_data="add_food")],
+        [
+            InlineKeyboardButton(text="✅ Подтвердить", callback_data="confirm_meal"),
+            InlineKeyboardButton(text="❌ Отмена", callback_data="cancel_meal")
+        ]
+    ])
+    totals_msg = await message.answer(totals_text, reply_markup=totals_keyboard, parse_mode="HTML")
+    
+    product_msg_ids = []
+    for i, food in enumerate(selected_foods):
+        msg_id = await _send_product_card(message.chat.id, message.bot, i, food, totals_msg.message_id)
+        product_msg_ids.append(msg_id)
+    
+    await state.update_data(
+        selected_foods=selected_foods,
+        totals_msg_id=totals_msg.message_id,
+        product_msg_ids=product_msg_ids,
+        meal_type=meal_type,
+        mode="photo_recognition"
+    )
+
 async def _show_dish_confirmation(
     message: Message,
     state: FSMContext,
@@ -594,19 +651,35 @@ async def confirm_dish_callback(callback: CallbackQuery, state: FSMContext):
         return
     
     ingredients = dish_data.get('ingredients', [])
-    food_names = [ing.get('name', '') for ing in ingredients if ing.get('name')]
     
-    if not food_names:
+    if not ingredients:
         await callback.answer("❌ Нет ингредиентов", show_alert=True)
         return
     
     await callback.answer()
     await callback.message.edit_text("⏳ Загружаю данные продуктов...")
     
-    await _start_food_input(
+    # 🔥 Создаём список с названиями И весами
+    food_items = []
+    for ing in ingredients:
+        if isinstance(ing, dict):
+            name = ing.get('name', '')
+            weight = ing.get('estimated_weight_grams', 0)
+            if name:
+                food_items.append({
+                    'name': name,
+                    'weight': weight
+                })
+    
+    if not food_items:
+        await callback.answer("❌ Нет ингредиентов", show_alert=True)
+        return
+    
+    # 🔥 Запускаем ввод с правильными данными
+    await _start_food_input_with_weights(
         callback.message,
         state,
-        food_names,
+        food_items,
         meal_type=dish_data.get('meal_type', 'snack')
     )
     
@@ -615,8 +688,6 @@ async def confirm_dish_callback(callback: CallbackQuery, state: FSMContext):
         cooking_method=dish_data.get('cooking_method', ''),
         mode="photo_to_manual"
     )
-
-
 @router.callback_query(F.data == "confirm_dish_db")
 async def confirm_dish_from_db_callback(callback: CallbackQuery, state: FSMContext):
     """Использование блюда из базы как готового продукта."""

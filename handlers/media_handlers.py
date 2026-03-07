@@ -531,40 +531,38 @@ async def handle_photo(message: Message, state: FSMContext):
 
 # ========== ОБРАБОТЧИКИ ПОДТВЕРЖДЕНИЯ БЛЮДА ==========
 
+# ========== В ФУНКЦИИ confirm_dish_callback ==========
 @router.callback_query(F.data == "confirm_dish_as_is")
 async def confirm_dish_callback(callback: CallbackQuery, state: FSMContext):
-    """Подтверждение блюда и переход к вводу весов."""
+    """✅ ИСПРАВЛЕНО: Быстрый ответ на callback"""
+    
+    # 🔥 СРАЗУ ОТВЕЧАЕМ на callback (в течение 1-2 секунд)
+    await callback.answer("⏳ Загружаю данные...")
+    
     data = await state.get_data()
     dish_data = data.get('recognized_dish', {})
     
     if not dish_data:
-        await callback.answer("❌ Данные не найдены", show_alert=True)
+        await callback.message.edit_text("❌ Данные не найдены")
         return
     
     ingredients = dish_data.get('ingredients', [])
     food_names = [ing.get('name', '') for ing in ingredients if ing.get('name')]
     
     if not food_names:
-        await callback.answer("❌ Нет ингредиентов", show_alert=True)
+        await callback.message.edit_text("❌ Нет ингредиентов")
         return
     
-    await callback.answer()
-    await callback.message.edit_text("⏳ Загружаю данные продуктов...")
+    # 🔥 Показываем промежуточное сообщение
+    await callback.message.edit_text(f"⏳ Загружаю {len(food_names)} продуктов...")
     
+    # 🔥 Запускаем ввод с кэшированием
     await _start_food_input(
         callback.message,
         state,
         food_names,
         meal_type=dish_data.get('meal_type', 'snack')
     )
-    
-    await state.update_data(
-        ai_description=dish_data.get('dish_name', ''),
-        cooking_method=dish_data.get('cooking_method', ''),
-        mode="photo_to_manual"
-    )
-
-
 @router.callback_query(F.data == "confirm_dish_db")
 async def confirm_dish_from_db_callback(callback: CallbackQuery, state: FSMContext):
     """Использование блюда из базы как готового продукта."""

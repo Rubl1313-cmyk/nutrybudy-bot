@@ -58,18 +58,56 @@ def _prepare_image(image_bytes: bytes) -> bytes:
 
 
 async def _get_food_data_cached(name: str) -> Dict:
-    """Получает данные продукта с кэшированием."""
+    """
+    ✅ ИСПРАВЛЕНО: Получает данные продукта, избегая готовых блюд
+    """
+    # 🔥 Сначала ищем в LOCAL_FOOD_DB (простые ингредиенты)
+    from services.food_api import LOCAL_FOOD_DB
+    
+    name_lower = name.lower().strip()
+    
+    # 1. Прямой поиск в базе простых продуктов
+    for key, item in LOCAL_FOOD_DB.items():
+        if name_lower == key or name_lower == item["name"].lower():
+            return {
+                'name': item['name'],
+                'base_calories': item.get('calories', 0),
+                'base_protein': item.get('protein', 0),
+                'base_fat': item.get('fat', 0),
+                'base_carbs': item.get('carbs', 0),
+                'source': 'local'
+            }
+    
+    # 2. Поиск по частичному совпадению (но НЕ готовые блюда!)
+    for key, item in LOCAL_FOOD_DB.items():
+        if name_lower in key or key in name_lower:
+            # 🔥 ПРОВЕРКА: это не готовое блюдо?
+            if key not in COMPOSITE_DISHES:
+                return {
+                    'name': item['name'],
+                    'base_calories': item.get('calories', 0),
+                    'base_protein': item.get('protein', 0),
+                    'base_fat': item.get('fat', 0),
+                    'base_carbs': item.get('carbs', 0),
+                    'source': 'local'
+                }
+    
+    # 3. Если не нашли - используем search_food (но с фильтром)
     search_results = await search_food(name)
     if search_results:
         best = search_results[0]
-        return {
-            'name': best['name'],
-            'base_calories': best.get('calories', 0),
-            'base_protein': best.get('protein', 0),
-            'base_fat': best.get('fat', 0),
-            'base_carbs': best.get('carbs', 0),
-            'source': best.get('source', 'local')
-        }
+        # 🔥 ПРОВЕРКА: это не готовое блюдо из COMPOSITE_DISHES?
+        if best['name'].lower() not in COMPOSITE_DISHES:
+            return {
+                'name': best['name'],
+                'base_calories': best.get('calories', 0),
+                'base_protein': best.get('protein', 0),
+                'base_fat': best.get('fat', 0),
+                'base_carbs': best.get('carbs', 0),
+                'source': best.get('source', 'local')
+            }
+    
+    # 4. fallback
     return {
         'name': name,
         'base_calories': 0,
@@ -78,29 +116,6 @@ async def _get_food_data_cached(name: str) -> Dict:
         'base_carbs': 0,
         'source': 'unknown'
     }
-
-
-def _calculate_nutrients(base: Dict, weight: float) -> Dict:
-    """Рассчитывает КБЖУ для заданного веса."""
-    if weight <= 0:
-        return {
-            'calories': 0, 'protein': 0, 'fat': 0, 'carbs': 0
-        }
-    
-    multiplier = weight / 100.0
-    base_calories = float(base.get('base_calories', 0) or 0)
-    base_protein = float(base.get('base_protein', 0) or 0)
-    base_fat = float(base.get('base_fat', 0) or 0)
-    base_carbs = float(base.get('base_carbs', 0) or 0)
-    
-    return {
-        'calories': round(base_calories * multiplier, 1),
-        'protein': round(base_protein * multiplier, 1),
-        'fat': round(base_fat * multiplier, 1),
-        'carbs': round(base_carbs * multiplier, 1)
-    }
-
-
 async def _safe_edit_message(bot, chat_id: int, message_id: int, text: str, reply_markup=None, parse_mode="HTML"):
     """Безопасное редактирование сообщения с обработкой ошибок."""
     try:

@@ -29,7 +29,7 @@ from services.cloudflare_ai import (
 )
 from services.food_api import LOCAL_FOOD_DB  # только ингредиенты
 from services.translator import translate_dish_name, translate_to_russian
-from services.dish_db import find_matching_dish, COMPOSITE_DISHES, get_dish_ingredients
+from services.dish_db import COMPOSITE_DISHES, get_dish_ingredients
 from utils.states import FoodStates
 from database.db import get_session
 from database.models import Meal, FoodItem, User

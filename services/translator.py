@@ -773,13 +773,13 @@ async def translate_dish_name(english_name: str) -> str:
     
     english_lower = english_name.lower().strip()
     
-    # 🔥 1. ПРЯМОЕ СОВПАДЕНИЕ В СЛОВАРЕ
+    # 1. ПРЯМОЕ СОВПАДЕНИЕ В СЛОВАРЕ
     if english_lower in COMMON_DISH_TRANSLATIONS:
         result = COMMON_DISH_TRANSLATIONS[english_lower]
         logger.info(f"🍽 Exact match: '{english_name}' → '{result}'")
         return result
     
-    # 🔥 2. ПОИСК ПО КЛЮЧЕВЫМ СЛОВАМ (шашлык, гриль, skewers и т.д.)
+    # 2. ПОИСК ПО КЛЮЧЕВЫМ СЛОВАМ
     key_phrases = {
         "skewer": "шашлык",
         "kebab": "шашлык",
@@ -797,21 +797,7 @@ async def translate_dish_name(english_name: str) -> str:
             logger.info(f"🍽 Keyword match '{phrase}': '{english_name}' → '{translation}'")
             return translation
     
-    # 🔥 3. ПОИСК ПО ЧАСТИЧНОМУ СОВПАДЕНИЮ (fuzzy search)
-    # Ищем если название содержит ключевые слова из словаря
-    for dict_name, translation in COMMON_DISH_TRANSLATIONS.items():
-        # Проверяем если одно название содержится в другом
-        if dict_name in english_lower or english_lower in dict_name:
-            # Дополнительная проверка на схожесть
-            words_dict = set(dict_name.split())
-            words_input = set(english_lower.split())
-            common_words = words_dict & words_input
-            
-            if len(common_words) >= 2:  # Хотя бы 2 общих слова
-                logger.info(f"🍽 Partial match: '{english_name}' → '{translation}'")
-                return translation
-    
-    # 🔥 4. ОБЫЧНЫЙ ПЕРЕВОД ЧЕРЕЗ API
+    # 3. ОБЫЧНЫЙ ПЕРЕВОД ЧЕРЕЗ API
     translated = await translate_to_russian(english_name)
     logger.info(f"🍽 API translation: '{english_name}' → '{translated}'")
     return translated

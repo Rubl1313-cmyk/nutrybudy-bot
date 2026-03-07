@@ -532,96 +532,63 @@ async def handle_photo(message: Message, state: FSMContext):
             total_stages=5
         )
         
-        if not result.get('success') or not result.get('data'):
-            await progress_msg.delete()
-            await _handle_recognition_failure(message, state)
-            return
-        
-        dish_data = result['data']
-        model_used = result.get('model', 'unknown')
-        
-        await _send_progress_update(
-            message.bot,
-            message.chat.id,
-            progress_msg.message_id,
-            stage=2,
-            progress=75,
-            total_stages=5
-        )
-        dish_name_en = dish_data.get('dish_name', '')
-        dish_name_ru = await translate_dish_name(dish_name_en) if dish_name_en else "Неизвестное блюдо"
-        dish_name_lower = dish_name_ru.lower().strip()
-        dish_in_dish_db = dish_name_lower in COMPOSITE_DISHES  # 🔥 ИСПРАВЛЕНО
-        
-        await _send_progress_update(
-            message.bot,
-            message.chat.id,
-            progress_msg.message_id,
-            stage=2,
-            progress=80,
-            total_stages=5
-        )
-        ingredients_ru = []
-        for ing in dish_data.get('ingredients', []):
-            if isinstance(ing, dict):
-                ing_name = ing.get('name', '')
-                if ing_name:
-                    translated = await translate_to_russian(ing_name)
-                    ingredients_ru.append({
-                        **ing,
-                        'name': translated,
-                        'original_name': ing_name
-                    })
-            elif isinstance(ing, str):
-                translated = await translate_to_russian(ing)
+# 🔥 ЕДИНЫЙ ПОДХОД ДЛЯ ВСЕХ БЛЮД
+if result.get('success') and result.get('data'):
+    dish_data = result['data']
+    model_used = result.get('model', 'unknown')
+    
+    # 🔥 Перевод названия
+    dish_name_en = dish_data.get('dish_name', '')
+    dish_name_ru = await translate_dish_name(dish_name_en) if dish_name_en else "Неизвестное блюдо"
+    
+    # 🔥 Перевод ингредиентов
+    ingredients_ru = []
+    for ing in dish_data.get('ingredients', []):
+        if isinstance(ing, dict):
+            ing_name = ing.get('name', '')
+            if ing_name:
+                translated = await translate_to_russian(ing_name)
                 ingredients_ru.append({
+                    **ing,
                     'name': translated,
-                    'original_name': ing,
-                    'type': 'other',
-                    'estimated_weight_grams': 100,
-                    'confidence': 0.7
+                    'original_name': ing_name
                 })
-        
-        dish_data['dish_name'] = dish_name_ru
-        dish_data['ingredients'] = ingredients_ru
-        
-        await _send_progress_update(
-            message.bot,
-            message.chat.id,
-            progress_msg.message_id,
-            stage=3,
-            progress=85,
-            total_stages=5
+        elif isinstance(ing, str):
+            translated = await translate_to_russian(ing)
+            ingredients_ru.append({
+                'name': translated,
+                'original_name': ing,
+                'type': 'other',
+                'estimated_weight_grams': 100,
+                'confidence': 0.7
+            })
+    
+    dish_data['dish_name'] = dish_name_ru
+    dish_data['ingredients'] = ingredients_ru
+    
+    # 🔥 ПРОВЕРКА: Есть ли веса от AI?
+    has_weights = any(
+        ing.get('estimated_weight_grams', 0) > 0 
+        for ing in ingredients_ru
+    )
+    
+    if has_weights:
+        # 🔥 ЕСТЬ ВЕСА ОТ AI → Показываем ингредиенты с граммовкой
+        await state.update_data(
+            recognized_dish=dish_data,
+            mode="photo_ai_ingredients"
         )
-        dish_info = await _get_food_data_cached(dish_name_ru)
-        
-        await _send_progress_update(
-            message.bot,
-            message.chat.id,
-            progress_msg.message_id,
-            stage=3,
-            progress=90,
-            total_stages=5
-        )
-        
-        if dish_info['base_calories'] > 50:
+        await _show_dish_confirmation(message, state, dish_data, model_used)
+    else:
+        # 🔥 НЕТ ВЕСОВ → Пробуем найти в базе готовых блюд
+        dish_name_lower = dish_name_ru.lower().strip()
+        if dish_name_lower in COMPOSITE_DISHES:
+            # Нашли в базе → используем веса из базы
             await state.update_data(
                 recognized_dish=dish_data,
                 dish_found_in_db=True,
-                mode="photo_recognition"
+                mode="photo_db_dish"
             )
-            
-            await _send_progress_update(
-                message.bot,
-                message.chat.id,
-                progress_msg.message_id,
-                stage=4,
-                progress=100,
-                total_stages=5
-            )
-            await asyncio.sleep(0.5)
-            await progress_msg.delete()
-            
             keyboard = InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(text="✅ Использовать как готовое блюдо", callback_data="confirm_dish_db")],
                 [InlineKeyboardButton(text="🔍 Разбить на ингредиенты", callback_data="use_ingredients_instead")]
@@ -632,19 +599,13 @@ async def handle_photo(message: Message, state: FSMContext):
                 reply_markup=keyboard,
                 parse_mode="Markdown"
             )
-            return
-        
-        await _send_progress_update(
-            message.bot,
-            message.chat.id,
-            progress_msg.message_id,
-            stage=4,
-            progress=100,
-            total_stages=5
-        )
-        await asyncio.sleep(0.5)
-        await progress_msg.delete()
-        await _show_dish_confirmation(message, state, dish_data, model_used)
+        else:
+            # Не нашли в базе → показываем как есть
+            await state.update_data(
+                recognized_dish=dish_data,
+                mode="photo_recognition"
+            )
+            await _show_dish_confirmation(message, state, dish_data, model_used)
         
     except Exception as e:
         logger.error(f"❌ Photo handler error: {e}\n{traceback.format_exc()}")

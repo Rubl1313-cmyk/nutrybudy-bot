@@ -281,7 +281,7 @@ async def _start_food_input(
         meal_type=meal_type,
         mode="manual"
     )
-sync def _start_food_input_with_weights(
+async def _start_food_input_with_weights(
     message: Message,
     state: FSMContext,
     food_items: List[Dict],

@@ -29,7 +29,7 @@ from services.cloudflare_ai import (
 )
 from services.food_api import LOCAL_FOOD_DB  # только ингредиенты
 from services.translator import translate_dish_name, translate_to_russian
-from services.dish_db import COMPOSITE_DISHES, get_dish_ingredients
+from services.dish_db import find_matching_dish, COMPOSITE_DISHES, get_dish_ingredients, find_matching_dishes
 from utils.states import FoodStates
 from database.db import get_session
 from database.models import Meal, FoodItem, User
@@ -353,7 +353,33 @@ async def _show_dish_confirmation(
         recognized_dish=dish_data,
         mode="photo_recognition"
     )
-
+async def _show_dish_selection(
+    message: Message,
+    state: FSMContext,
+    matches: list,
+    dish_data: Dict,
+    model_used: str
+):
+    """Показывает пользователю список похожих готовых блюд."""
+    text = f"🍽 <b>Распознано ({model_used}): {dish_data.get('dish_name', 'Блюдо')}</b>\n"
+    text += f"🎯 Уверенность: {dish_data.get('confidence', 0.5):.0%}\n\n"
+    text += "Найдены похожие готовые блюда в базе:\n"
+    
+    builder = InlineKeyboardBuilder()
+    for i, match in enumerate(matches):
+        btn_text = f"{match['name']} (совпадение {match['score']*100:.0f}%)"
+        builder.button(text=btn_text, callback_data=f"select_dish_{match['dish_key']}")
+    
+    builder.adjust(1)
+    builder.row(
+        InlineKeyboardButton(text="🔍 Разобрать на ингредиенты", callback_data="use_ingredients_instead"),
+        InlineKeyboardButton(text="📝 Ввести вручную", callback_data="manual_food_entry")
+    )
+    builder.row(InlineKeyboardButton(text="🔄 Перераспознать", callback_data="retry_photo"))
+    
+    await message.answer(text, reply_markup=builder.as_markup(), parse_mode="HTML")
+    await state.update_data(recognized_dish=dish_data, mode="photo_selection")
+    
 async def _handle_recognition_failure(message: Message, state: FSMContext):
     """Обработка случая, когда распознавание не удалось."""
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
@@ -561,34 +587,14 @@ async def handle_photo(message: Message, state: FSMContext):
                 progress_msg = None
             
             if has_weights:
-                await state.update_data(
-                    recognized_dish=dish_data,
-                    mode="photo_ai_ingredients"
-                )
-                await _show_dish_confirmation(message, state, dish_data, model_used)
+                    await state.update_data(recognized_dish=dish_data, mode="photo_ai_ingredients")
+                    await _show_dish_confirmation(message, state, dish_data, model_used)
             else:
-                dish_name_lower = dish_name_ru.lower().strip()
-                if dish_name_lower in COMPOSITE_DISHES:
-                    await state.update_data(
-                        recognized_dish=dish_data,
-                        dish_found_in_db=True,
-                        mode="photo_db_dish"
-                    )
-                    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-                        [InlineKeyboardButton(text="✅ Использовать как готовое блюдо", callback_data="confirm_dish_db")],
-                        [InlineKeyboardButton(text="🔍 Разбить на ингредиенты", callback_data="use_ingredients_instead")]
-                    ])
-                    await message.answer(
-                        f"🍽 Найдено в базе: **{dish_name_ru}**\n"
-                        f"Использовать как готовое блюдо или разбить на ингредиенты?",
-                        reply_markup=keyboard,
-                        parse_mode="Markdown"
-                    )
+                    matches = find_matching_dishes(dish_name_ru, dish_data.get('ingredients', []))
+                if matches:
+                    await _show_dish_selection(message, state, matches, dish_data, model_used)
                 else:
-                    await state.update_data(
-                        recognized_dish=dish_data,
-                        mode="photo_recognition"
-                    )
+                    await state.update_data(recognized_dish=dish_data, mode="photo_recognition")
                     await _show_dish_confirmation(message, state, dish_data, model_used)
         else:
             # Ошибка распознавания
@@ -645,7 +651,52 @@ async def confirm_dish_callback(callback: CallbackQuery, state: FSMContext):
         expanded_names,
         meal_type=dish_data.get('meal_type', 'snack')
     )
-
+@router.callback_query(F.data.startswith("select_dish_"))
+async def select_dish_callback(callback: CallbackQuery, state: FSMContext):
+    """Выбор готового блюда из списка."""
+    dish_key = callback.data.split("_", 2)[2]  # select_dish_ключ
+    data = await state.get_data()
+    dish_data = data.get('recognized_dish', {})
+    
+    # Получаем данные блюда из COMPOSITE_DISHES
+    from services.dish_db import get_dish_ingredients, COMPOSITE_DISHES
+    if dish_key not in COMPOSITE_DISHES:
+        await callback.answer("❌ Блюдо не найдено", show_alert=True)
+        return
+    
+    # Определяем вес порции: используем вес от AI, если он разумный, иначе default_weight
+    default_weight = COMPOSITE_DISHES[dish_key].get('default_weight', 300)
+    
+    ai_ingredients = dish_data.get('ingredients', [])
+    ai_total_weight = sum(ing.get('estimated_weight_grams', 0) for ing in ai_ingredients)
+    if 50 < ai_total_weight < 1500:
+        total_weight = ai_total_weight
+    else:
+        total_weight = default_weight
+    
+    ingredients_with_weights = get_dish_ingredients(dish_key, total_weight=total_weight)
+    
+    if not ingredients_with_weights:
+        await callback.answer("❌ Не удалось получить ингредиенты", show_alert=True)
+        return
+    
+    await callback.answer()
+    await callback.message.edit_text("⏳ Загружаю ингредиенты...")
+    
+    food_items = [{'name': ing['name'], 'weight': ing['estimated_weight_grams']} for ing in ingredients_with_weights]
+    
+    await _start_food_input_with_weights(
+        callback.message,
+        state,
+        food_items,
+        meal_type=dish_data.get('meal_type', 'snack')
+    )
+    
+    await state.update_data(
+        ai_description=dish_data.get('dish_name', ''),
+        cooking_method=dish_data.get('cooking_method', ''),
+        mode="photo_db_dish"
+    )
 @router.callback_query(F.data == "confirm_dish_db")
 async def confirm_dish_from_db_callback(callback: CallbackQuery, state: FSMContext):
     """Использует ингредиенты из базы готовых блюд с весами."""

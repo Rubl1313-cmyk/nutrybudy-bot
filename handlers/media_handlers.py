@@ -808,11 +808,16 @@ async def use_ingredients_callback(callback: CallbackQuery, state: FSMContext):
     dish_name = dish_data.get('dish_name', '').lower().strip()
     
     # 🔥 1. Сначала ищем в dish_db.py (с процентами)
+    from services.dish_db import COMPOSITE_DISHES, get_dish_ingredients
+    
     dish_info_db = COMPOSITE_DISHES.get(dish_name)
     
     if dish_info_db and dish_info_db.get('ingredients'):
         # Нашли в dish_db — используем проценты для расчёта весов
-        ai_total_weight = sum(ing.get('estimated_weight_grams', 0) for ing in dish_data.get('ingredients', []))
+        ai_total_weight = sum(
+            ing.get('estimated_weight_grams', 0) 
+            for ing in dish_data.get('ingredients', [])
+        )
         total_weight = ai_total_weight if ai_total_weight > 0 else 300
         
         # Получаем ингредиенты с весами из dish_db

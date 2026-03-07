@@ -35,10 +35,6 @@ from utils.states import FoodStates
 from database.db import get_session
 from database.models import Meal, FoodItem, User
 from sqlalchemy import select
-from handlers.media_handlers import (
-    _calculate_nutrients,  # ✅ Убедиться что импортировано
-    _start_food_input,
-    _start_food_input_with_weights
 
 router = Router()
 logger = logging.getLogger(__name__)

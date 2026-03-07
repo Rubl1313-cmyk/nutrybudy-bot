@@ -30,6 +30,7 @@ from utils.states import FoodStates
 from database.db import get_session
 from database.models import Meal, FoodItem, User
 from sqlalchemy import select
+from services.dish_db import COMPOSITE_DISHES, get_dish_ingredients
 
 router = Router()
 logger = logging.getLogger(__name__)
@@ -280,7 +281,7 @@ async def _start_food_input(
 async def _start_food_input_with_weights(
     message: Message,
     state: FSMContext,
-    food_items: List[Dict],  # Список словарей {'name': str, 'weight': int}
+    food_items: List[Dict],
     meal_type: str = "snack"
 ):
     """Запускает интерфейс ввода продуктов с уже указанными весами."""
@@ -302,7 +303,7 @@ async def _start_food_input_with_weights(
             'base_protein': data['base_protein'],
             'base_fat': data['base_fat'],
             'base_carbs': data['base_carbs'],
-            'weight': recognized_weight,  # 🔥 Используем распознанный вес!
+            'weight': recognized_weight,
             'calories': nutrients['calories'],
             'protein': nutrients['protein'],
             'fat': nutrients['fat'],
@@ -651,8 +652,35 @@ async def confirm_dish_callback(callback: CallbackQuery, state: FSMContext):
         return
     
     ingredients = dish_data.get('ingredients', [])
+    dish_name = dish_data.get('dish_name', '')
     
-    if not ingredients:
+    # 🔥 ФИЛЬТРУЕМ составные блюда
+    filtered_ingredients = []
+    for ing in ingredients:
+        if isinstance(ing, dict):
+            name = ing.get('name', '').lower().strip()
+            # Проверяем, не является ли это готовым блюдом
+            is_composite = any(
+                composite_name in name or name in composite_name
+                for composite_name in COMPOSITE_DISHES.keys()
+            )
+            if not is_composite:
+                filtered_ingredients.append(ing)
+        elif isinstance(ing, str):
+            is_composite = any(
+                composite_name in ing.lower() or ing.lower() in composite_name
+                for composite_name in COMPOSITE_DISHES.keys()
+            )
+            if not is_composite:
+                filtered_ingredients.append({'name': ing, 'estimated_weight_grams': 100})
+    
+    # 🔥 ЕСЛИ НЕТ ИНГРЕДИЕНТОВ - БЕРЁМ ИЗ БАЗЫ БЛЮД
+    if not filtered_ingredients and dish_name:
+        # Получаем ингредиенты из базы готовых блюд
+        total_weight = sum(ing.get('estimated_weight_grams', 100) for ing in ingredients) or 300
+        filtered_ingredients = get_dish_ingredients(dish_name, total_weight)
+    
+    if not filtered_ingredients:
         await callback.answer("❌ Нет ингредиентов", show_alert=True)
         return
     
@@ -661,7 +689,7 @@ async def confirm_dish_callback(callback: CallbackQuery, state: FSMContext):
     
     # 🔥 Создаём список с названиями И весами
     food_items = []
-    for ing in ingredients:
+    for ing in filtered_ingredients:
         if isinstance(ing, dict):
             name = ing.get('name', '')
             weight = ing.get('estimated_weight_grams', 0)

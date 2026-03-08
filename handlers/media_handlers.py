@@ -19,6 +19,7 @@ import io
 import traceback
 import re
 import asyncio
+import json
 from typing import List, Dict, Optional, Tuple
 from datetime import datetime
 
@@ -347,6 +348,7 @@ async def _show_final_interface(
     
     product_msg_ids = []
     for i, food in enumerate(selected_foods):
+        logger.info(f"📦 Creating product card for {food['name']} with weight {food.get('weight')}")
         msg_id = await _send_product_card(message.chat.id, message.bot, i, food, totals_msg.message_id)
         product_msg_ids.append(msg_id)
     
@@ -537,6 +539,7 @@ async def handle_photo(message: Message, state: FSMContext):
                 identify_food_cascade(optimized, progress_callback=progress_callback),
                 timeout=120
             )
+            logger.info(f"📸 AI raw result: {json.dumps(result, ensure_ascii=False, indent=2)}")
         except asyncio.TimeoutError:
             await _safe_edit_message(
                 message.bot,
@@ -700,9 +703,11 @@ async def select_dish_callback(callback: CallbackQuery, state: FSMContext):
     
     # Определяем вес порции: используем вес от AI, если он разумный, иначе default_weight
     default_weight = COMPOSITE_DISHES[dish_key].get('default_weight', 300)
-    
+    logger.info(f"🍔 select_dish_callback: dish_key={dish_key}")
+    logger.info(f"🍔 AI ingredients from state: {json.dumps(dish_data.get('ingredients', []), ensure_ascii=False, indent=2)}")
     ai_ingredients = dish_data.get('ingredients', [])
     ai_total_weight = sum(ing.get('estimated_weight_grams', 0) for ing in ai_ingredients)
+    logger.info(f"🍔 AI total weight calculated: {ai_total_weight}")
     if 50 < ai_total_weight < 1500:
         total_weight = ai_total_weight
     else:

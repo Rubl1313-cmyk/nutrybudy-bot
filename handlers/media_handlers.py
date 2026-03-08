@@ -1208,9 +1208,7 @@ async def select_dish_for_product_callback(callback: CallbackQuery, state: FSMCo
 
 @router.callback_query(F.data.startswith("select_dish_idx_"))
 async def select_dish_by_index_callback(callback: CallbackQuery, state: FSMContext):
-    import sys
-    sys.stderr.write(f"🔥🔥🔥 select_dish_by_index_callback вызван с data: {callback.data}\n")
-    sys.stderr.flush()
+    logger.info(f"🔥 Вызван select_dish_by_index_callback с data: {callback.data}")
     try:
         parts = callback.data.split("_")
         logger.info(f"🔥 Распарсено: {parts}")
@@ -1220,56 +1218,63 @@ async def select_dish_by_index_callback(callback: CallbackQuery, state: FSMConte
         logger.error(f"🔥 Ошибка парсинга индекса: {e}")
         await callback.answer("❌ Неверный индекс", show_alert=True)
         return
-
+    
     data = await state.get_data()
     matches = data.get('dish_matches')
     if not matches:
         logger.error("🔥 dish_matches нет в состоянии")
         await callback.answer("❌ Данные не найдены", show_alert=True)
         return
-
+    
     if idx >= len(matches):
         logger.error(f"🔥 Индекс {idx} вне диапазона (всего {len(matches)})")
         await callback.answer("❌ Индекс вне диапазона", show_alert=True)
         return
-
+    
     match = matches[idx]
     dish_key = match['dish_key'].strip()
     logger.info(f"🔥 Выбрано блюдо: {match['name']}, ключ: '{dish_key}'")
-
-    from services.dish_db import COMPOSITE_DISHES
+    
+    from services.dish_db import COMPOSITE_DISHES, get_dish_ingredients
+    
+    # 🔥 ИСПРАВЛЕНО: Поиск с fallback
     normalized_key = dish_key.lower().strip()
-    sys.stderr.write(f"🔥🔥🔥 dish_key = '{dish_key}', normalized_key = '{normalized_key}'\n")
-    #if normalized_key not in COMPOSITE_DISHES:
-       # sys.stderr.write(f"🔥🔥🔥 Ключ '{normalized_key}' НЕ НАЙДЕН в COMPOSITE_DISHES\n")
-       # logger.error(f"🔥 Ключ '{normalized_key}' не найден в COMPOSITE_DISHES. Доступные ключи: {list(COMPOSITE_DISHES.keys())}")
-       # await callback.answer("❌ Блюдо не найдено в базе", show_alert=True)
-       # return
-    if dish_key not in COMPOSITE_DISHES:
-    for db_key in COMPOSITE_DISHES.keys():
-        if db_key.lower() == dish_key.lower() or dish_key.lower() in db_key.lower():
-            dish_key = db_key
-            break
-    else:
-        await callback.answer("❌ Блюдо не найдено в базе", show_alert=True)
-        return
-
-
-    dish_info = COMPOSITE_DISHES[normalized_key]
+    
+    # Если точное совпадение не найдено, ищем по частичному совпадению
+    if normalized_key not in COMPOSITE_DISHES:
+        logger.warning(f"⚠️ Ключ '{normalized_key}' не найден точно, ищем fallback...")
+        for db_key in COMPOSITE_DISHES.keys():
+            if db_key.lower() == normalized_key or normalized_key in db_key.lower():
+                dish_key = db_key
+                logger.info(f"✅ Fallback найден: '{dish_key}'")
+                break
+        else:
+            logger.error(f"❌ Ключ '{normalized_key}' не найден в COMPOSITE_DISHES. Доступные ключи: {list(COMPOSITE_DISHES.keys())[:10]}...")
+            await callback.answer("❌ Блюдо не найдено в базе", show_alert=True)
+            return
+    
+    dish_info = COMPOSITE_DISHES[dish_key]
     logger.info(f"🍽 Найдено блюдо: {dish_info['name']}")
-
+    
+    # Получаем вес из состояния
+    pending_weight = data.get('pending_weight', 300)
+    pending_food_items = data.get('pending_food_items', [])
+    pending_index = data.get('pending_index', 0)
+    meal_type = data.get('pending_meal_type', 'snack')
+    selected_foods = data.get('selected_foods', [])
+    
     # Проверяем, есть ли готовое КБЖУ
     nutrition_per_100 = dish_info.get('nutrition_per_100')
     if nutrition_per_100:
         # Используем готовое КБЖУ
-        multiplier = weight / 100.0
+        multiplier = pending_weight / 100.0
         selected_food = {
             'name': dish_info['name'],
             'base_calories': nutrition_per_100.get('calories', 0),
             'base_protein': nutrition_per_100.get('protein', 0),
             'base_fat': nutrition_per_100.get('fat', 0),
             'base_carbs': nutrition_per_100.get('carbs', 0),
-            'weight': weight,
+            'weight': pending_weight,
             'calories': nutrition_per_100.get('calories', 0) * multiplier,
             'protein': nutrition_per_100.get('protein', 0) * multiplier,
             'fat': nutrition_per_100.get('fat', 0) * multiplier,
@@ -1277,10 +1282,8 @@ async def select_dish_by_index_callback(callback: CallbackQuery, state: FSMConte
             'source': 'composite_dish',
             'dish_key': dish_key
         }
-        selected_foods = data.get('selected_foods', [])
         selected_foods.append(selected_food)
         await state.update_data(selected_foods=selected_foods)
-
         await callback.message.delete()
         await process_food_items(
             callback.message,
@@ -1291,20 +1294,18 @@ async def select_dish_by_index_callback(callback: CallbackQuery, state: FSMConte
         )
         await callback.answer()
         return
-
+    
     # Если нет готового КБЖУ, разбиваем на ингредиенты
     default_weight = dish_info.get('default_weight', 300)
-    # Используем вес, заданный пользователем, если он разумный
-    total_weight = weight if 50 < weight < 1500 else default_weight
-
+    total_weight = pending_weight if 50 < pending_weight < 1500 else default_weight
     ingredients_with_weights = get_dish_ingredients(dish_key, total_weight=total_weight)
     food_items = [{'name': ing['name'], 'weight': ing['estimated_weight_grams']} for ing in ingredients_with_weights]
-
+    
     # Заменяем текущий элемент на список ингредиентов
     pending_food_items.pop(pending_index)
     for i, item in enumerate(food_items):
         pending_food_items.insert(pending_index + i, item)
-
+    
     await state.update_data(pending_food_items=pending_food_items)
     await callback.message.delete()
     await process_food_items(
@@ -1315,7 +1316,7 @@ async def select_dish_by_index_callback(callback: CallbackQuery, state: FSMConte
         pending_index  # начинаем с первого ингредиента вместо удалённого продукта
     )
     await callback.answer()
-
+    
 @router.callback_query(F.data == "continue_ingredient")
 async def continue_as_ingredient_callback(callback: CallbackQuery, state: FSMContext):
     """Пользователь решил, что это не готовое блюдо, а ингредиент."""

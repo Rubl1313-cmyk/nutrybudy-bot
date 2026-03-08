@@ -553,6 +553,7 @@ async def handle_photo(message: Message, state: FSMContext):
                         'confidence': 0.7
                     })
             
+            # Перевод ингредиентов уже выполнен
             dish_data['dish_name'] = dish_name_ru
             dish_data['ingredients'] = ingredients_ru
             
@@ -566,13 +567,7 @@ async def handle_photo(message: Message, state: FSMContext):
                 total_stages=5
             )
             
-            # Проверка наличия весов от AI
-            has_weights = any(
-                ing.get('estimated_weight_grams', 0) > 0 
-                for ing in ingredients_ru
-            )
-            
-            # Завершаем прогресс (100%) перед показом подтверждения
+            # Завершаем прогресс (100%) перед показом
             await _send_progress_update(
                 message.bot,
                 message.chat.id,
@@ -585,27 +580,19 @@ async def handle_photo(message: Message, state: FSMContext):
             if progress_msg:
                 await progress_msg.delete()
                 progress_msg = None
-            
-            if has_weights:
-                # Если AI дал веса, показываем подтверждение ингредиентов
+
+            # Ищем похожие готовые блюда
+            matches = find_matching_dishes(dish_name_ru, dish_data.get('ingredients', []))
+            if matches:
+                # Показываем список блюд
+                await _show_dish_selection(message, state, matches, dish_data, model_used)
+            else:
+                # Показываем подтверждение ингредиентов
                 await state.update_data(
                     recognized_dish=dish_data,
-                    mode="photo_ai_ingredients"
+                    mode="photo_recognition"
                 )
                 await _show_dish_confirmation(message, state, dish_data, model_used)
-            else:
-                # Ищем похожие готовые блюда
-                matches = find_matching_dishes(dish_name_ru, dish_data.get('ingredients', []))
-                if matches:
-                    # Показываем список вариантов
-                    await _show_dish_selection(message, state, matches, dish_data, model_used)
-                else:
-                    # Если нет совпадений, просто показываем ингредиенты (без кнопки готового блюда)
-                    await state.update_data(
-                        recognized_dish=dish_data,
-                        mode="photo_recognition"
-                    )
-                    await _show_dish_confirmation(message, state, dish_data, model_used)
         else:
             # Ошибка распознавания
             if progress_msg:

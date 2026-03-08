@@ -3,9 +3,7 @@ services/food_api.py
 Поиск продуктов: только локальная база ингредиентов.
 OpenFoodFacts отключён.
 """
-import aiohttp
 import logging
-import asyncio
 import time
 from typing import List, Dict, Optional, Tuple
 
@@ -795,16 +793,8 @@ def get_product_variants(base_name: str) -> List[Dict]:
     variants = []
     seen_keys = set()
 
-    # 1. Прямое совпадение с ключом в LOCAL_FOOD_DB
-    if base_name_lower in LOCAL_FOOD_DB:
-        item = LOCAL_FOOD_DB[base_name_lower].copy()
-        item['key'] = base_name_lower
-        variants.append(item)
-        seen_keys.add(base_name_lower)
-
-    # 2. Поиск по группам
+    # 1. Поиск по группам
     for group_name, keys in PRODUCT_VARIANT_GROUPS.items():
-        # Если базовое название совпадает с группой или входит в неё
         if base_name_lower == group_name or base_name_lower in group_name:
             for key in keys:
                 if key in LOCAL_FOOD_DB and key not in seen_keys:
@@ -812,9 +802,17 @@ def get_product_variants(base_name: str) -> List[Dict]:
                     item['key'] = key
                     variants.append(item)
                     seen_keys.add(key)
-            break  # Нашли группу, дальше не ищем
+            break  # нашли группу, дальше не ищем
 
-    # 3. Если вариантов мало, ищем по частичному вхождению в название
+    # 2. Если вариантов мало, добавляем точное совпадение ключа
+    if len(variants) < 3:
+        if base_name_lower in LOCAL_FOOD_DB and base_name_lower not in seen_keys:
+            item = LOCAL_FOOD_DB[base_name_lower].copy()
+            item['key'] = base_name_lower
+            variants.append(item)
+            seen_keys.add(base_name_lower)
+
+    # 3. Если всё ещё мало, ищем по частичному вхождению
     if len(variants) < 3:
         for key, item in LOCAL_FOOD_DB.items():
             if key not in seen_keys and (base_name_lower in key or base_name_lower in item['name'].lower()):
@@ -823,47 +821,12 @@ def get_product_variants(base_name: str) -> List[Dict]:
                 if len(variants) >= 5:
                     break
 
-    # Удаляем дубликаты по имени
+    # Убираем дубликаты по имени (названию продукта)
     unique = []
     seen_names = set()
     for v in variants:
         if v['name'] not in seen_names:
             seen_names.add(v['name'])
             unique.append(v)
-    
-    return unique[:5]
 
-async def search_food(query: str) -> List[Dict]:
-    """Поиск только в локальной базе (OpenFoodFacts отключён)."""
-    query = query.lower().strip()
-    if not query:
-        return []
-
-    cached = _get_cached_search(query)
-    if cached:
-        return cached
-
-    local_results = search_local_db(query)
-    _cache_search(query, local_results[:10])
-    return local_results[:10]
-
-async def get_food_data(name: str) -> Dict:
-    """Возвращает базовые данные продукта по названию."""
-    results = await search_food(name)
-    if results:
-        best = results[0]
-        return {
-            'name': best['name'],
-            'base_calories': best.get('calories', 0),
-            'base_protein': best.get('protein', 0),
-            'base_fat': best.get('fat', 0),
-            'base_carbs': best.get('carbs', 0)
-        }
-    else:
-        return {
-            'name': name,
-            'base_calories': 0,
-            'base_protein': 0,
-            'base_fat': 0,
-            'base_carbs': 0
-        }
+    return unique  # без ограничения

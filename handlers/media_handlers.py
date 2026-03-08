@@ -434,32 +434,30 @@ async def _show_dish_selection_for_product(
     current_item: Dict,
     meal_type: str
 ):
-    import sys
-    sys.stderr.write(f"🔥🔥🔥 _show_dish_selection_for_product вызвана для '{current_item['name']}'\n")
-    sys.stderr.flush()
     logger.info(f"🔍 Показываем выбор готового блюда для '{current_item['name']}', найдено совпадений: {len(matches)}")
+    
     """Показывает список готовых блюд для текущего продукта."""
-    text = f"🍽 <b>«{current_item['name']}» может быть готовым блюдом</b>\n\n"
+    text = f"🍽 <b>«{current_item['name']}» может быть готовым блюдом</b>\n"
     text += "Найдены похожие блюда в базе:\n"
-
+    
     # Сохраняем matches в состоянии для доступа по индексу
     await state.update_data(dish_matches=matches)
-
+    
     # Строим клавиатуру вручную, чтобы избежать проблем с builder
     keyboard = []
     for idx, match in enumerate(matches):
         btn_text = f"{match['name']} (совпадение {match['score']*100:.0f}%)"
         keyboard.append([InlineKeyboardButton(text=btn_text, callback_data=f"select_dish_idx_{idx}")])
     keyboard.append([InlineKeyboardButton(text="❌ Нет, это ингредиент", callback_data="continue_ingredient")])
+    
+    # 🔥 ИСПРАВЛЕНО: Редактируем существующее сообщение вместо отправки нового
     try:
-        sys.stderr.write(f"🔥🔥🔥 Отправляю сообщение с {len(matches)} вариантами\n")
+        await message.edit_text(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard), parse_mode="HTML")
+    except TelegramBadRequest:
+        # Если нельзя отредактировать, отправляем новое
         await message.answer(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard), parse_mode="HTML")
-        sys.stderr.write("🔥🔥🔥 Сообщение с выбором блюда отправлено\n")
-    except Exception as e:
-        sys.stderr.write(f"🔥🔥🔥 Ошибка при отправке: {e}\n")
-    await message.answer(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard), parse_mode="HTML")
+    
     # Контекст для продолжения уже сохранён в состоянии
-
 # ========== ОБРАБОТЧИК ПАГИНАЦИИ ==========
 
 @router.callback_query(F.data.startswith("variants_page_"))
@@ -1243,15 +1241,19 @@ async def select_dish_by_index_callback(callback: CallbackQuery, state: FSMConte
     # Если точное совпадение не найдено, ищем по частичному совпадению
     if normalized_key not in COMPOSITE_DISHES:
         logger.warning(f"⚠️ Ключ '{normalized_key}' не найден точно, ищем fallback...")
+        found_key = None
         for db_key in COMPOSITE_DISHES.keys():
-            if db_key.lower() == normalized_key or normalized_key in db_key.lower():
-                dish_key = db_key
-                logger.info(f"✅ Fallback найден: '{dish_key}'")
+            if db_key.lower() == normalized_key or normalized_key in db_key.lower() or db_key.lower() in normalized_key:
+                found_key = db_key
+                logger.info(f"✅ Fallback найден: '{found_key}'")
                 break
-        else:
+        
+        if not found_key:
             logger.error(f"❌ Ключ '{normalized_key}' не найден в COMPOSITE_DISHES. Доступные ключи: {list(COMPOSITE_DISHES.keys())[:10]}...")
             await callback.answer("❌ Блюдо не найдено в базе", show_alert=True)
             return
+        
+        dish_key = found_key
     
     dish_info = COMPOSITE_DISHES[dish_key]
     logger.info(f"🍽 Найдено блюдо: {dish_info['name']}")
@@ -1284,7 +1286,10 @@ async def select_dish_by_index_callback(callback: CallbackQuery, state: FSMConte
         }
         selected_foods.append(selected_food)
         await state.update_data(selected_foods=selected_foods)
+        
+        # 🔥 ИСПРАВЛЕНО: Удаляем сообщение с выбором перед продолжением
         await callback.message.delete()
+        
         await process_food_items(
             callback.message,
             state,
@@ -1307,7 +1312,10 @@ async def select_dish_by_index_callback(callback: CallbackQuery, state: FSMConte
         pending_food_items.insert(pending_index + i, item)
     
     await state.update_data(pending_food_items=pending_food_items)
+    
+    # 🔥 ИСПРАВЛЕНО: Удаляем сообщение с выбором перед продолжением
     await callback.message.delete()
+    
     await process_food_items(
         callback.message,
         state,

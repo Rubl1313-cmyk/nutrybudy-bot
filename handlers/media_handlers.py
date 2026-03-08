@@ -3,6 +3,7 @@
 ✅ Полная обработка множественных ингредиентов с выбором вариантов
 ✅ Сохранение весов от AI
 ✅ Подробное логирование
+✅ Пагинация при большом количестве вариантов (кнопка "Еще")
 """
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
@@ -16,6 +17,7 @@ import traceback
 import re
 import asyncio
 import json
+import math
 from typing import List, Dict, Optional, Tuple, Union
 from datetime import datetime
 
@@ -30,6 +32,9 @@ from sqlalchemy import select
 
 router = Router()
 logger = logging.getLogger(__name__)
+
+# Количество вариантов на одной странице
+VARIANTS_PER_PAGE = 5
 
 # ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
 
@@ -235,6 +240,60 @@ async def _show_final_interface(
         meal_type=meal_type
     )
 
+async def _show_variants_page(
+    message: Message,
+    state: FSMContext,
+    variants: List[Dict],
+    current_item: Dict,
+    meal_type: str,
+    current_index: int,
+    page: int,
+    total_pages: int
+):
+    """
+    Отображает одну страницу со списком вариантов продукта.
+    """
+    start = page * VARIANTS_PER_PAGE
+    end = min(start + VARIANTS_PER_PAGE, len(variants))
+    page_variants = variants[start:end]
+
+    # Формируем клавиатуру
+    keyboard = []
+    for variant in page_variants:
+        btn_text = f"{variant['name']} ({variant['calories']} ккал)"
+        keyboard.append([InlineKeyboardButton(text=btn_text, callback_data=f"select_variant_{variant['key']}")])
+
+    # Навигационные кнопки
+    nav_buttons = []
+    if page > 0:
+        nav_buttons.append(InlineKeyboardButton(text="⬅️ Назад", callback_data=f"variants_page_{page-1}"))
+    if page + 1 < total_pages:
+        remaining = len(variants) - end
+        nav_buttons.append(InlineKeyboardButton(text=f"➡️ Еще ({remaining})", callback_data=f"variants_page_{page+1}"))
+    if nav_buttons:
+        keyboard.append(nav_buttons)
+
+    keyboard.append([InlineKeyboardButton(text="❌ Отмена", callback_data="cancel_meal")])
+
+    text = (
+        f"🔍 Для «{current_item['name']}» найдено {len(variants)} вариантов "
+        f"(страница {page+1}/{total_pages}):\n"
+        f"Выберите подходящий:"
+    )
+
+    await message.answer(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard))
+
+    # Сохраняем состояние для навигации
+    await state.update_data(
+        all_variants=variants,
+        current_item=current_item,
+        meal_type=meal_type,
+        current_index=current_index,
+        food_items= (await state.get_data()).get('pending_food_items'),
+        variants_page=page,
+        variants_total_pages=total_pages
+    )
+
 async def process_food_items(
     message: Message,
     state: FSMContext,
@@ -244,13 +303,11 @@ async def process_food_items(
 ):
     """
     Обрабатывает список food_items последовательно.
-    Если для очередного продукта есть несколько вариантов, показывает выбор.
-    Иначе добавляет продукт в selected_foods и переходит к следующему.
+    Если для очередного продукта есть несколько вариантов, показывает выбор с пагинацией.
     """
     data = await state.get_data()
     selected_foods = data.get('selected_foods', [])
 
-    # Если обработаны все продукты, показываем итоговый интерфейс
     if start_index >= len(food_items):
         logger.info(f"✅ Все продукты обработаны, всего: {len(selected_foods)}")
         await _show_final_interface(message, state, selected_foods, meal_type)
@@ -259,39 +316,153 @@ async def process_food_items(
     current_item = food_items[start_index]
     logger.info(f"🔄 Обрабатываем продукт {start_index+1}/{len(food_items)}: {current_item}")
 
-    # Получаем данные продукта с проверкой на варианты
-    food_data = await _get_food_data_cached(current_item['name'], return_variants=True)
+    # Получаем все варианты для текущего продукта
+    variants = await _get_food_data_cached(current_item['name'], return_variants=True)
 
-    # Если это список вариантов (больше 1), показываем выбор
-    if isinstance(food_data, list) and len(food_data) > 1:
-        # Сохраняем состояние для продолжения после выбора
-        await state.update_data(
-            pending_food_items=food_items,
-            pending_index=start_index,
-            pending_meal_type=meal_type,
-            pending_weight=current_item.get('weight', 100)
-        )
+    # Если вариантов нет или один – обрабатываем как единичный продукт
+    if not isinstance(variants, list) or len(variants) == 0:
+        # Fallback: если список пуст, создаём заглушку
+        food_data = {
+            'name': current_item['name'],
+            'base_calories': 0,
+            'base_protein': 0,
+            'base_fat': 0,
+            'base_carbs': 0,
+            'source': 'unknown'
+        }
+        weight = current_item.get('weight', 100)
+        nutrients = _calculate_nutrients(food_data, weight)
 
-        # Показываем клавиатуру с вариантами
-        builder = InlineKeyboardBuilder()
-        for variant in food_data:
-            btn_text = f"{variant['name']} ({variant['calories']} ккал)"
-            builder.button(text=btn_text, callback_data=f"select_variant_{variant['key']}")
-        builder.adjust(1)
-        builder.button(text="❌ Отмена", callback_data="cancel_meal")
+        selected_food = {
+            'name': food_data['name'],
+            'base_calories': food_data['base_calories'],
+            'base_protein': food_data['base_protein'],
+            'base_fat': food_data['base_fat'],
+            'base_carbs': food_data['base_carbs'],
+            'weight': weight,
+            'calories': nutrients['calories'],
+            'protein': nutrients['protein'],
+            'fat': nutrients['fat'],
+            'carbs': nutrients['carbs'],
+            'source': 'unknown',
+            'ai_confidence': current_item.get('ai_confidence', 0.5)
+        }
 
-        await message.answer(
-            f"🔍 Для «{current_item['name']}» найдено несколько вариантов:\n"
-            f"Выберите подходящий:",
-            reply_markup=builder.as_markup()
-        )
-        return  # Ждём выбора пользователя
+        selected_foods.append(selected_food)
+        await state.update_data(selected_foods=selected_foods)
+        await process_food_items(message, state, food_items, meal_type, start_index + 1)
+        return
 
-    # Если это один продукт (словарь) или список из одного элемента
-    if isinstance(food_data, list):
-        food_data = food_data[0]  # берём единственный вариант
+    if len(variants) == 1:
+        # Единственный вариант – сразу добавляем
+        variant = variants[0]
+        food_data = {
+            'name': variant['name'],
+            'base_calories': variant.get('calories', 0),
+            'base_protein': variant.get('protein', 0),
+            'base_fat': variant.get('fat', 0),
+            'base_carbs': variant.get('carbs', 0),
+            'source': 'local'
+        }
+        weight = current_item.get('weight', 100)
+        nutrients = _calculate_nutrients(food_data, weight)
 
-    weight = current_item.get('weight', 100)
+        selected_food = {
+            'name': food_data['name'],
+            'base_calories': food_data['base_calories'],
+            'base_protein': food_data['base_protein'],
+            'base_fat': food_data['base_fat'],
+            'base_carbs': food_data['base_carbs'],
+            'weight': weight,
+            'calories': nutrients['calories'],
+            'protein': nutrients['protein'],
+            'fat': nutrients['fat'],
+            'carbs': nutrients['carbs'],
+            'source': 'local',
+            'ai_confidence': current_item.get('ai_confidence', 0.8)
+        }
+
+        selected_foods.append(selected_food)
+        await state.update_data(selected_foods=selected_foods)
+        await process_food_items(message, state, food_items, meal_type, start_index + 1)
+        return
+
+    # Несколько вариантов – нужен выбор
+    total_pages = math.ceil(len(variants) / VARIANTS_PER_PAGE)
+
+    # Сохраняем контекст для продолжения после выбора
+    await state.update_data(
+        pending_food_items=food_items,
+        pending_index=start_index,
+        pending_meal_type=meal_type,
+        pending_weight=current_item.get('weight', 100),
+        selected_foods=selected_foods
+    )
+
+    # Показываем первую страницу
+    await _show_variants_page(
+        message, state, variants, current_item, meal_type,
+        current_index=start_index, page=0, total_pages=total_pages
+    )
+
+# ========== ОБРАБОТЧИК ПАГИНАЦИИ ==========
+
+@router.callback_query(F.data.startswith("variants_page_"))
+async def variants_page_callback(callback: CallbackQuery, state: FSMContext):
+    """Обработчик переключения страниц при выборе вариантов."""
+    page = int(callback.data.split("_")[2])
+    data = await state.get_data()
+
+    variants = data.get('all_variants')
+    current_item = data.get('current_item')
+    meal_type = data.get('meal_type')
+    current_index = data.get('current_index')
+    total_pages = data.get('variants_total_pages', 1)
+
+    if not variants or not current_item:
+        await callback.answer("❌ Ошибка: данные не найдены", show_alert=True)
+        await callback.message.delete()
+        return
+
+    await _show_variants_page(
+        callback.message, state, variants, current_item, meal_type,
+        current_index, page, total_pages
+    )
+    await callback.answer()
+    await callback.message.delete()
+
+# ========== ОБРАБОТЧИК ВЫБОРА ВАРИАНТА ==========
+
+@router.callback_query(F.data.startswith("select_variant_"))
+async def select_variant_callback(callback: CallbackQuery, state: FSMContext):
+    """Обработчик выбора варианта продукта."""
+    parts = callback.data.split("_")
+    if len(parts) < 3:
+        await callback.answer("❌ Ошибка", show_alert=True)
+        return
+
+    product_key = parts[2]
+    data = await state.get_data()
+
+    if product_key not in LOCAL_FOOD_DB:
+        await callback.answer("❌ Продукт не найден", show_alert=True)
+        return
+
+    product = LOCAL_FOOD_DB[product_key]
+    weight = data.get('pending_weight', 100)
+    meal_type = data.get('pending_meal_type', 'snack')
+    food_items = data.get('pending_food_items', [])
+    current_index = data.get('pending_index', 0)
+
+    # Создаём запись для выбранного продукта
+    food_data = {
+        'name': product['name'],
+        'base_calories': product.get('calories', 0),
+        'base_protein': product.get('protein', 0),
+        'base_fat': product.get('fat', 0),
+        'base_carbs': product.get('carbs', 0),
+        'source': 'local'
+    }
     nutrients = _calculate_nutrients(food_data, weight)
 
     selected_food = {
@@ -305,15 +476,25 @@ async def process_food_items(
         'protein': nutrients['protein'],
         'fat': nutrients['fat'],
         'carbs': nutrients['carbs'],
-        'source': food_data.get('source', 'ai_recognition'),
-        'ai_confidence': current_item.get('ai_confidence', 0.7)
+        'source': 'local',
+        'ai_confidence': 0.8
     }
 
+    # Добавляем в список выбранных
+    selected_foods = data.get('selected_foods', [])
     selected_foods.append(selected_food)
     await state.update_data(selected_foods=selected_foods)
 
     # Переходим к следующему продукту
-    await process_food_items(message, state, food_items, meal_type, start_index + 1)
+    await callback.message.delete()
+    await process_food_items(
+        callback.message,
+        state,
+        food_items,
+        meal_type,
+        current_index + 1
+    )
+    await callback.answer()
 
 # ========== ОСНОВНОЙ ОБРАБОТЧИК ФОТО ==========
 
@@ -741,101 +922,100 @@ async def use_ingredients_callback(callback: CallbackQuery, state: FSMContext):
     )
 
 @router.callback_query(F.data.startswith("select_dish_"))
-@router.callback_query(F.data.startswith("select_dish_"))
 async def select_dish_callback(callback: CallbackQuery, state: FSMContext):
-    """Обработчик выбора готового блюда из списка."""
-    dish_key = callback.data.split("_", 2)[2]
+    """Выбор готового блюда из списка."""
+    dish_key = callback.data.split("_", 2)[2]  # select_dish_ключ
     data = await state.get_data()
     dish_data = data.get('recognized_dish', {})
 
-    from services.dish_db import COMPOSITE_DISHES
     if dish_key not in COMPOSITE_DISHES:
-        await callback.answer("❌ Блюдо не найдено в базе", show_alert=True)
+        await callback.answer("❌ Блюдо не найдено", show_alert=True)
         return
 
     dish_info = COMPOSITE_DISHES[dish_key]
-    dish_name = dish_info['name']
-
-    # Определяем вес порции
     default_weight = dish_info.get('default_weight', 300)
+
     ai_ingredients = dish_data.get('ingredients', [])
     ai_total_weight = sum(ing.get('estimated_weight_grams', 0) for ing in ai_ingredients)
     if 50 < ai_total_weight < 1500:
-        final_weight = ai_total_weight
+        total_weight = ai_total_weight
     else:
-        final_weight = default_weight
+        total_weight = default_weight
 
-    # Берём КБЖУ на 100 г
-    nutrition_per_100 = dish_info.get('nutrition_per_100', {})
-    if not nutrition_per_100:
-        await callback.answer("⚠️ Для этого блюда нет данных о калорийности.", show_alert=True)
+    # Получаем КБЖУ на 100г из базы (если есть)
+    nutrition_per_100 = dish_info.get('nutrition_per_100')
+    if nutrition_per_100:
+        # Используем готовые КБЖУ
+        multiplier = total_weight / 100.0
+        selected_food = {
+            'name': dish_info['name'],
+            'base_calories': nutrition_per_100.get('calories', 0),
+            'base_protein': nutrition_per_100.get('protein', 0),
+            'base_fat': nutrition_per_100.get('fat', 0),
+            'base_carbs': nutrition_per_100.get('carbs', 0),
+            'weight': total_weight,
+            'calories': nutrition_per_100.get('calories', 0) * multiplier,
+            'protein': nutrition_per_100.get('protein', 0) * multiplier,
+            'fat': nutrition_per_100.get('fat', 0) * multiplier,
+            'carbs': nutrition_per_100.get('carbs', 0) * multiplier,
+            'source': 'composite_dish',
+            'dish_key': dish_key
+        }
+        await state.update_data(selected_foods=[selected_food], meal_type=dish_data.get('meal_type', 'snack'))
+        # Показываем карточку блюда
+        totals_msg = await callback.message.answer(
+            f"🍽️ <b>Выбрано блюдо: {dish_info['name']}</b>\n"
+            f"⚖️ Вес порции: {total_weight} г\n"
+            f"🔥 {selected_food['calories']:.0f} ккал | 🥩 {selected_food['protein']:.1f}г | 🥑 {selected_food['fat']:.1f}г | 🍚 {selected_food['carbs']:.1f}г",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="➖10", callback_data=f"weight_dec_0_10_{totals_msg.message_id}"),
+                 InlineKeyboardButton(text="➕10", callback_data=f"weight_inc_0_10_{totals_msg.message_id}")],
+                [InlineKeyboardButton(text="50", callback_data=f"weight_set_0_50_{totals_msg.message_id}"),
+                 InlineKeyboardButton(text="100", callback_data=f"weight_set_0_100_{totals_msg.message_id}"),
+                 InlineKeyboardButton(text="200", callback_data=f"weight_set_0_200_{totals_msg.message_id}")],
+                [InlineKeyboardButton(text="🔍 Разобрать на ингредиенты", callback_data=f"explode_dish_{dish_key}")],
+                [InlineKeyboardButton(text="✅ Подтвердить", callback_data="confirm_meal"),
+                 InlineKeyboardButton(text="❌ Отмена", callback_data="cancel_meal")]
+            ])
+        )
+        await state.update_data(totals_msg_id=totals_msg.message_id)
+        await callback.message.delete()
+        await callback.answer()
         return
 
-    multiplier = final_weight / 100.0
-    total_calories = nutrition_per_100.get('calories', 0) * multiplier
-    total_protein = nutrition_per_100.get('protein', 0) * multiplier
-    total_fat = nutrition_per_100.get('fat', 0) * multiplier
-    total_carbs = nutrition_per_100.get('carbs', 0) * multiplier
+    # Если нет готовых КБЖУ, используем старую логику разбивки на ингредиенты
+    ingredients_with_weights = get_dish_ingredients(dish_key, total_weight=total_weight)
 
-    selected_food = {
-        'name': dish_name,
-        'base_calories': nutrition_per_100.get('calories', 0),
-        'base_protein': nutrition_per_100.get('protein', 0),
-        'base_fat': nutrition_per_100.get('fat', 0),
-        'base_carbs': nutrition_per_100.get('carbs', 0),
-        'weight': final_weight,
-        'calories': round(total_calories, 1),
-        'protein': round(total_protein, 1),
-        'fat': round(total_fat, 1),
-        'carbs': round(total_carbs, 1),
-        'source': 'composite_dish',
-        'dish_key': dish_key
-    }
+    if not ingredients_with_weights:
+        await callback.answer("❌ Не удалось получить ингредиенты", show_alert=True)
+        return
 
-    await state.update_data(selected_foods=[selected_food], meal_type=dish_data.get('meal_type', 'snack'))
+    await callback.answer()
+    await callback.message.edit_text("⏳ Загружаю ингредиенты...")
 
-    totals_text = (
-        f"🍽️ <b>Выбрано блюдо: {dish_name}</b>\n"
-        f"⚖️ Вес порции: {final_weight} г\n"
-        f"🔥 {total_calories:.0f} ккал | 🥩 {total_protein:.1f}г | 🥑 {total_fat:.1f}г | 🍚 {total_carbs:.1f}г"
+    food_items = [{'name': ing['name'], 'weight': ing['estimated_weight_grams']} for ing in ingredients_with_weights]
+    logger.info(f"🍔 food_items для готового блюда: {food_items}")
+
+    await state.update_data(selected_foods=[])
+    await process_food_items(
+        callback.message,
+        state,
+        food_items,
+        meal_type=dish_data.get('meal_type', 'snack')
     )
 
-    # Отправляем сообщение и получаем его ID
-    totals_msg = await callback.message.answer(totals_text, parse_mode="HTML")
-    totals_msg_id = totals_msg.message_id
-    await state.update_data(totals_msg_id=totals_msg_id)
+    await state.update_data(
+        ai_description=dish_data.get('dish_name', ''),
+        cooking_method=dish_data.get('cooking_method', ''),
+        mode="photo_db_dish"
+    )
 
-    # Формируем клавиатуру с правильным totals_msg_id
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [
-            InlineKeyboardButton(text="➖10", callback_data=f"weight_dec_0_10_{totals_msg_id}"),
-            InlineKeyboardButton(text="➕10", callback_data=f"weight_inc_0_10_{totals_msg_id}")
-        ],
-        [
-            InlineKeyboardButton(text="50", callback_data=f"weight_set_0_50_{totals_msg_id}"),
-            InlineKeyboardButton(text="100", callback_data=f"weight_set_0_100_{totals_msg_id}"),
-            InlineKeyboardButton(text="200", callback_data=f"weight_set_0_200_{totals_msg_id}")
-        ],
-        [InlineKeyboardButton(text="🔍 Разобрать на ингредиенты", callback_data=f"explode_dish_{dish_key}")],
-        [
-            InlineKeyboardButton(text="✅ Подтвердить", callback_data="confirm_meal"),
-            InlineKeyboardButton(text="❌ Отмена", callback_data="cancel_meal")
-        ]
-    ])
-
-    # Редактируем сообщение, добавляя клавиатуру
-    await totals_msg.edit_text(totals_text, reply_markup=keyboard, parse_mode="HTML")
-
-    await callback.message.delete()
-    await callback.answer()
-    
 @router.callback_query(F.data.startswith("explode_dish_"))
 async def explode_dish_callback(callback: CallbackQuery, state: FSMContext):
     """Разбирает готовое блюдо на ингредиенты для ручной корректировки."""
     dish_key = callback.data.split("_", 2)[2]
     data = await state.get_data()
 
-    # Получаем текущий вес порции из состояния (если пользователь его менял)
     selected_foods = data.get('selected_foods', [])
     if selected_foods:
         current_weight = selected_foods[0].get('weight', 300)
@@ -846,12 +1026,10 @@ async def explode_dish_callback(callback: CallbackQuery, state: FSMContext):
     ingredients_with_weights = get_dish_ingredients(dish_key, total_weight=current_weight)
     food_items = [{'name': ing['name'], 'weight': ing['estimated_weight_grams']} for ing in ingredients_with_weights]
 
-    # Сбрасываем список выбранных продуктов и запускаем процесс поингредиентного ввода
     await state.update_data(selected_foods=[])
     await process_food_items(callback.message, state, food_items, meal_type=data.get('meal_type', 'snack'))
     await callback.message.delete()
     await callback.answer()
-    
 
 @router.callback_query(F.data == "retry_photo")
 async def retry_photo_callback(callback: CallbackQuery, state: FSMContext):
@@ -901,67 +1079,7 @@ async def manual_food_callback(callback: CallbackQuery, state: FSMContext):
     from handlers.food import cmd_log_food
     await cmd_log_food(callback.message, state, user_id=callback.from_user.id)
     await callback.answer()
-@router.callback_query(F.data.startswith("select_variant_"))
-async def select_variant_callback(callback: CallbackQuery, state: FSMContext):
-    parts = callback.data.split("_")
-    if len(parts) < 3:
-        await callback.answer("❌ Ошибка", show_alert=True)
-        return
 
-    product_key = parts[2]
-    data = await state.get_data()
-
-    if product_key not in LOCAL_FOOD_DB:
-        await callback.answer("❌ Продукт не найден", show_alert=True)
-        return
-
-    product = LOCAL_FOOD_DB[product_key]
-    weight = data.get('pending_weight', 100)
-    meal_type = data.get('pending_meal_type', 'snack')
-    food_items = data.get('pending_food_items', [])
-    current_index = data.get('pending_index', 0)
-
-    # Создаём запись для выбранного продукта
-    food_data = {
-        'name': product['name'],
-        'base_calories': product.get('calories', 0),
-        'base_protein': product.get('protein', 0),
-        'base_fat': product.get('fat', 0),
-        'base_carbs': product.get('carbs', 0),
-        'source': 'local'
-    }
-    nutrients = _calculate_nutrients(food_data, weight)
-
-    selected_food = {
-        'name': food_data['name'],
-        'base_calories': food_data['base_calories'],
-        'base_protein': food_data['base_protein'],
-        'base_fat': food_data['base_fat'],
-        'base_carbs': food_data['base_carbs'],
-        'weight': weight,
-        'calories': nutrients['calories'],
-        'protein': nutrients['protein'],
-        'fat': nutrients['fat'],
-        'carbs': nutrients['carbs'],
-        'source': 'local',
-        'ai_confidence': 0.8
-    }
-
-    # Добавляем в список выбранных
-    selected_foods = data.get('selected_foods', [])
-    selected_foods.append(selected_food)
-    await state.update_data(selected_foods=selected_foods)
-
-    # Переходим к следующему продукту
-    await callback.message.delete()
-    await process_food_items(
-        callback.message,
-        state,
-        food_items,
-        meal_type,
-        current_index + 1
-    )
-    await callback.answer()
 # ========== ОБРАБОТЧИКИ УПРАВЛЕНИЯ ВЕСОМ ==========
 
 @router.callback_query(F.data.startswith("weight_"))

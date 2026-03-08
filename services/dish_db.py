@@ -4,7 +4,8 @@
 Добавлен параметр default_weight - средняя масса готовой порции в граммах.
 """
 from typing import Dict, List, Optional
-
+import logging
+logger = logging.getLogger(__name__)
 # 🔥 БАЗА ГОТОВЫХ БЛЮД С ПОЛНЫМИ ИНГРЕДИЕНТАМИ
 COMPOSITE_DISHES = {
     # ========== САЛАТЫ ==========

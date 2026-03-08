@@ -303,7 +303,9 @@ async def process_food_items(
 ):
     """
     Обрабатывает список food_items последовательно.
-    Если для очередного продукта есть несколько вариантов, показывает выбор с пагинацией.
+    Сначала проверяет, не является ли продукт готовым блюдом.
+    Если да – показывает список готовых блюд.
+    Иначе – обрабатывает как ингредиент с выбором вариантов.
     """
     data = await state.get_data()
     selected_foods = data.get('selected_foods', [])
@@ -314,16 +316,36 @@ async def process_food_items(
         return
 
     current_item = food_items[start_index]
+    product_name = current_item['name']
     logger.info(f"🔄 Обрабатываем продукт {start_index+1}/{len(food_items)}: {current_item}")
 
-    # Получаем все варианты для текущего продукта
-    variants = await _get_food_data_cached(current_item['name'], return_variants=True)
+    # 1. Ищем готовые блюда по названию продукта
+    from services.dish_db import find_matching_dishes
+    matches = find_matching_dishes(product_name, threshold=0.5)  # используем высокий порог
+
+    if matches:
+        # Найдены готовые блюда – показываем список для выбора
+        # Сохраняем контекст для продолжения после выбора
+        await state.update_data(
+            pending_food_items=food_items,
+            pending_index=start_index,
+            pending_meal_type=meal_type,
+            pending_weight=current_item.get('weight', 100),
+            selected_foods=selected_foods
+        )
+        # Показываем список готовых блюд (используем существующую функцию)
+        await _show_dish_selection_for_product(message, state, matches, current_item, meal_type)
+        return
+
+    # 2. Если готовых блюд нет – ищем ингредиенты
+    # Получаем все варианты для текущего продукта как ингредиента
+    variants = await _get_food_data_cached(product_name, return_variants=True)
 
     # Если вариантов нет или один – обрабатываем как единичный продукт
     if not isinstance(variants, list) or len(variants) == 0:
         # Fallback: если список пуст, создаём заглушку
         food_data = {
-            'name': current_item['name'],
+            'name': product_name,
             'base_calories': 0,
             'base_protein': 0,
             'base_fat': 0,
@@ -387,10 +409,9 @@ async def process_food_items(
         await process_food_items(message, state, food_items, meal_type, start_index + 1)
         return
 
-    # Несколько вариантов – нужен выбор
+    # Несколько вариантов – нужен выбор с пагинацией
     total_pages = math.ceil(len(variants) / VARIANTS_PER_PAGE)
 
-    # Сохраняем контекст для продолжения после выбора
     await state.update_data(
         pending_food_items=food_items,
         pending_index=start_index,
@@ -399,12 +420,40 @@ async def process_food_items(
         selected_foods=selected_foods
     )
 
-    # Показываем первую страницу
     await _show_variants_page(
         message, state, variants, current_item, meal_type,
         current_index=start_index, page=0, total_pages=total_pages
     )
 
+async def _show_dish_selection_for_product(
+    message: Message,
+    state: FSMContext,
+    matches: list,
+    current_item: Dict,
+    meal_type: str
+):
+    """Показывает список готовых блюд для текущего продукта."""
+    text = f"🍽 <b>«{current_item['name']}» может быть готовым блюдом</b>\n\n"
+    text += "Найдены похожие блюда в базе:\n"
+
+    builder = InlineKeyboardBuilder()
+    for match in matches:
+        btn_text = f"{match['name']} (совпадение {match['score']*100:.0f}%)"
+        builder.button(text=btn_text, callback_data=f"select_dish_for_product_{match['dish_key']}")
+    builder.adjust(1)
+    builder.row(
+        InlineKeyboardButton(text="❌ Нет, это ингредиент", callback_data=f"continue_as_ingredient_{current_item['name']}")
+    )
+
+    await message.answer(text, reply_markup=builder.as_markup(), parse_mode="HTML")
+    # Сохраняем контекст для продолжения
+    await state.update_data(
+        pending_food_items= (await state.get_data()).get('pending_food_items'),
+        pending_index= (await state.get_data()).get('pending_index'),
+        pending_meal_type=meal_type,
+        pending_weight=current_item.get('weight', 100),
+        current_product_name=current_item['name']
+    )
 # ========== ОБРАБОТЧИК ПАГИНАЦИИ ==========
 
 @router.callback_query(F.data.startswith("variants_page_"))
@@ -1080,6 +1129,92 @@ async def manual_food_callback(callback: CallbackQuery, state: FSMContext):
     await cmd_log_food(callback.message, state, user_id=callback.from_user.id)
     await callback.answer()
 
+@router.callback_query(F.data.startswith("select_dish_for_product_"))
+async def select_dish_for_product_callback(callback: CallbackQuery, state: FSMContext):
+    """Выбор готового блюда для текущего продукта."""
+    dish_key = callback.data.replace("select_dish_for_product_", "")
+    data = await state.get_data()
+
+    # Получаем данные блюда из базы
+    from services.dish_db import COMPOSITE_DISHES, get_dish_ingredients
+    if dish_key not in COMPOSITE_DISHES:
+        await callback.answer("❌ Блюдо не найдено", show_alert=True)
+        return
+
+    dish_info = COMPOSITE_DISHES[dish_key]
+    default_weight = dish_info.get('default_weight', 300)
+    weight = data.get('pending_weight', 100)  # используем вес, заданный пользователем
+
+    # Проверяем, есть ли готовое КБЖУ
+    nutrition_per_100 = dish_info.get('nutrition_per_100')
+    if nutrition_per_100:
+        # Используем готовое КБЖУ
+        multiplier = weight / 100.0
+        selected_food = {
+            'name': dish_info['name'],
+            'base_calories': nutrition_per_100.get('calories', 0),
+            'base_protein': nutrition_per_100.get('protein', 0),
+            'base_fat': nutrition_per_100.get('fat', 0),
+            'base_carbs': nutrition_per_100.get('carbs', 0),
+            'weight': weight,
+            'calories': nutrition_per_100.get('calories', 0) * multiplier,
+            'protein': nutrition_per_100.get('protein', 0) * multiplier,
+            'fat': nutrition_per_100.get('fat', 0) * multiplier,
+            'carbs': nutrition_per_100.get('carbs', 0) * multiplier,
+            'source': 'composite_dish',
+            'dish_key': dish_key
+        }
+        # Добавляем к выбранным продуктам
+        selected_foods = data.get('selected_foods', [])
+        selected_foods.append(selected_food)
+        await state.update_data(selected_foods=selected_foods)
+        # Продолжаем со следующим продуктом
+        await callback.message.delete()
+        await process_food_items(
+            callback.message,
+            state,
+            data.get('pending_food_items'),
+            data.get('pending_meal_type'),
+            data.get('pending_index', 0) + 1
+        )
+        await callback.answer()
+        return
+
+    # Если нет готового КБЖУ, разбиваем на ингредиенты
+    ingredients_with_weights = get_dish_ingredients(dish_key, total_weight=weight)
+    food_items = [{'name': ing['name'], 'weight': ing['estimated_weight_grams']} for ing in ingredients_with_weights]
+
+    # Заменяем текущий элемент на список ингредиентов
+    pending_items = data.get('pending_food_items')
+    pending_items.pop(data.get('pending_index'))
+    pending_items[data.get('pending_index'):data.get('pending_index')] = food_items
+
+    await state.update_data(pending_food_items=pending_items)
+    await callback.message.delete()
+    await process_food_items(
+        callback.message,
+        state,
+        pending_items,
+        data.get('pending_meal_type'),
+        data.get('pending_index')
+    )
+    await callback.answer()
+
+@router.callback_query(F.data.startswith("continue_as_ingredient_"))
+async def continue_as_ingredient_callback(callback: CallbackQuery, state: FSMContext):
+    """Пользователь решил, что это не готовое блюдо, а ингредиент."""
+    product_name = callback.data.replace("continue_as_ingredient_", "")
+    data = await state.get_data()
+    await callback.message.delete()
+    # Просто продолжаем обработку как ингредиент
+    await process_food_items(
+        callback.message,
+        state,
+        data.get('pending_food_items'),
+        data.get('pending_meal_type'),
+        data.get('pending_index')
+    )
+    await callback.answer()
 # ========== ОБРАБОТЧИКИ УПРАВЛЕНИЯ ВЕСОМ ==========
 
 @router.callback_query(F.data.startswith("weight_"))

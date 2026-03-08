@@ -318,6 +318,45 @@ async def _start_food_input_with_weights(
     # Если все продукты обработаны, показываем итоговый интерфейс
     await _show_final_interface(message, state, selected_foods, meal_type)
 
+async def _show_final_interface(
+    message: Message,
+    state: FSMContext,
+    selected_foods: List[Dict],
+    meal_type: str
+):
+    """Показывает итоговый интерфейс с карточками продуктов."""
+    total_cal = sum(f['calories'] for f in selected_foods)
+    total_prot = sum(f['protein'] for f in selected_foods)
+    total_fat = sum(f['fat'] for f in selected_foods)
+    total_carbs = sum(f['carbs'] for f in selected_foods)
+    
+    totals_text = (
+        f"🍽️ <b>Приём пищи ({meal_type}):</b>\n"
+        f"🔥 {total_cal:.0f} ккал | 🥩 {total_prot:.1f}г | 🥑 {total_fat:.1f}г | 🍚 {total_carbs:.1f}г"
+    )
+    
+    totals_keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="➕ Добавить продукт", callback_data="add_food")],
+        [
+            InlineKeyboardButton(text="✅ Подтвердить", callback_data="confirm_meal"),
+            InlineKeyboardButton(text="❌ Отмена", callback_data="cancel_meal")
+        ]
+    ])
+    
+    totals_msg = await message.answer(totals_text, reply_markup=totals_keyboard, parse_mode="HTML")
+    
+    product_msg_ids = []
+    for i, food in enumerate(selected_foods):
+        msg_id = await _send_product_card(message.chat.id, message.bot, i, food, totals_msg.message_id)
+        product_msg_ids.append(msg_id)
+    
+    await state.update_data(
+        selected_foods=selected_foods,
+        totals_msg_id=totals_msg.message_id,
+        product_msg_ids=product_msg_ids,
+        meal_type=meal_type
+    )
+
 async def _show_dish_confirmation(
     message: Message,
     state: FSMContext,

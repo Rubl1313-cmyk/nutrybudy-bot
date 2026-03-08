@@ -596,7 +596,7 @@ async def handle_photo(message: Message, state: FSMContext):
             # Перевод ингредиентов уже выполнен
             dish_data['dish_name'] = dish_name_ru
             dish_data['ingredients'] = ingredients_ru
-            
+
             # Обновляем прогресс до 85%
             await _send_progress_update(
                 message.bot,
@@ -606,8 +606,8 @@ async def handle_photo(message: Message, state: FSMContext):
                 progress=85,
                 total_stages=5
             )
-            
-            # Завершаем прогресс (100%) перед показом
+
+            # Завершаем прогресс (100%) перед показом подтверждения
             await _send_progress_update(
                 message.bot,
                 message.chat.id,
@@ -621,17 +621,16 @@ async def handle_photo(message: Message, state: FSMContext):
                 await progress_msg.delete()
                 progress_msg = None
 
-            # Ищем похожие готовые блюда
+            # Ищем похожие готовые блюда ВСЕГДА (независимо от наличия весов)
             matches = find_matching_dishes(dish_name_ru, dish_data.get('ingredients', []))
+
             if matches:
-                # Показываем список блюд
+                # Если есть похожие блюда, показываем список для выбора
+                await state.update_data(recognized_dish=dish_data, mode="photo_selection")
                 await _show_dish_selection(message, state, matches, dish_data, model_used)
             else:
-                # Показываем подтверждение ингредиентов
-                await state.update_data(
-                    recognized_dish=dish_data,
-                    mode="photo_recognition"
-                )
+                # Если нет совпадений, показываем подтверждение ингредиентов
+                await state.update_data(recognized_dish=dish_data, mode="photo_recognition")
                 await _show_dish_confirmation(message, state, dish_data, model_used)
         else:
             # Ошибка распознавания

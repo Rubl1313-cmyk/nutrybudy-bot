@@ -742,17 +742,13 @@ async def use_ingredients_callback(callback: CallbackQuery, state: FSMContext):
     )
 
 @router.callback_query(F.data.startswith("select_dish_"))
+@router.callback_query(F.data.startswith("select_dish_"))
 async def select_dish_callback(callback: CallbackQuery, state: FSMContext):
-    """
-    Обработчик выбора готового блюда из списка.
-    Теперь использует готовое КБЖУ из nutrition_per_100.
-    """
-    # Извлекаем ключ блюда из callback (например, "select_dish_чизбургер")
+    """Обработчик выбора готового блюда из списка."""
     dish_key = callback.data.split("_", 2)[2]
     data = await state.get_data()
     dish_data = data.get('recognized_dish', {})
 
-    # Получаем информацию о блюде из базы
     from services.dish_db import COMPOSITE_DISHES
     if dish_key not in COMPOSITE_DISHES:
         await callback.answer("❌ Блюдо не найдено в базе", show_alert=True)
@@ -761,10 +757,8 @@ async def select_dish_callback(callback: CallbackQuery, state: FSMContext):
     dish_info = COMPOSITE_DISHES[dish_key]
     dish_name = dish_info['name']
 
-    # 1. Определяем вес порции
+    # Определяем вес порции
     default_weight = dish_info.get('default_weight', 300)
-
-    # Пытаемся использовать вес, оценённый AI (если он разумный)
     ai_ingredients = dish_data.get('ingredients', [])
     ai_total_weight = sum(ing.get('estimated_weight_grams', 0) for ing in ai_ingredients)
     if 50 < ai_total_weight < 1500:
@@ -772,76 +766,70 @@ async def select_dish_callback(callback: CallbackQuery, state: FSMContext):
     else:
         final_weight = default_weight
 
-    # 2. Берём КБЖУ на 100 г из базы
+    # Берём КБЖУ на 100 г
     nutrition_per_100 = dish_info.get('nutrition_per_100', {})
     if not nutrition_per_100:
-        # На случай, если у блюда нет nutrition_per_100 (старые записи)
-        await callback.answer("⚠️ Для этого блюда нет данных о калорийности. Используйте разбор на ингредиенты.", show_alert=True)
-        # Можно либо вернуться к старой логике разбивки, либо просто выйти
+        await callback.answer("⚠️ Для этого блюда нет данных о калорийности.", show_alert=True)
         return
 
-    # Рассчитываем КБЖУ для итогового веса
     multiplier = final_weight / 100.0
     total_calories = nutrition_per_100.get('calories', 0) * multiplier
     total_protein = nutrition_per_100.get('protein', 0) * multiplier
     total_fat = nutrition_per_100.get('fat', 0) * multiplier
     total_carbs = nutrition_per_100.get('carbs', 0) * multiplier
 
-    # 3. Создаём объект "продукта", представляющий готовое блюдо
     selected_food = {
         'name': dish_name,
-        # Базовые значения на 100 г (нужны для пересчёта при изменении веса)
         'base_calories': nutrition_per_100.get('calories', 0),
         'base_protein': nutrition_per_100.get('protein', 0),
         'base_fat': nutrition_per_100.get('fat', 0),
         'base_carbs': nutrition_per_100.get('carbs', 0),
-        # Текущий вес и КБЖУ
         'weight': final_weight,
         'calories': round(total_calories, 1),
         'protein': round(total_protein, 1),
         'fat': round(total_fat, 1),
         'carbs': round(total_carbs, 1),
-        'source': 'composite_dish',  # метка, что это готовое блюдо
-        'dish_key': dish_key          # сохраняем ключ для возможного разбора
+        'source': 'composite_dish',
+        'dish_key': dish_key
     }
 
-    # Сохраняем в состоянии как единственный выбранный продукт
-    await state.update_data(
-        selected_foods=[selected_food],
-        meal_type=dish_data.get('meal_type', 'snack')
-    )
+    await state.update_data(selected_foods=[selected_food], meal_type=dish_data.get('meal_type', 'snack'))
 
-    # 4. Показываем карточку блюда (используем существующую функцию)
-    # Нужно передать totals_msg_id, но у нас его пока нет. Создадим сообщение с итогами.
     totals_text = (
         f"🍽️ <b>Выбрано блюдо: {dish_name}</b>\n"
         f"⚖️ Вес порции: {final_weight} г\n"
         f"🔥 {total_calories:.0f} ккал | 🥩 {total_protein:.1f}г | 🥑 {total_fat:.1f}г | 🍚 {total_carbs:.1f}г"
     )
 
-    totals_keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        # Кнопки для изменения веса (аналогично карточкам продуктов)
-        [InlineKeyboardButton(text="➖10", callback_data=f"weight_dec_0_10_"),
-         InlineKeyboardButton(text="➕10", callback_data=f"weight_inc_0_10_")],
-        [InlineKeyboardButton(text="50", callback_data=f"weight_set_0_50_"),
-         InlineKeyboardButton(text="100", callback_data=f"weight_set_0_100_"),
-         InlineKeyboardButton(text="200", callback_data=f"weight_set_0_200_")],
-        # Кнопка для разбора на ингредиенты (альтернативный путь)
+    # Отправляем сообщение и получаем его ID
+    totals_msg = await callback.message.answer(totals_text, parse_mode="HTML")
+    totals_msg_id = totals_msg.message_id
+    await state.update_data(totals_msg_id=totals_msg_id)
+
+    # Формируем клавиатуру с правильным totals_msg_id
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="➖10", callback_data=f"weight_dec_0_10_{totals_msg_id}"),
+            InlineKeyboardButton(text="➕10", callback_data=f"weight_inc_0_10_{totals_msg_id}")
+        ],
+        [
+            InlineKeyboardButton(text="50", callback_data=f"weight_set_0_50_{totals_msg_id}"),
+            InlineKeyboardButton(text="100", callback_data=f"weight_set_0_100_{totals_msg_id}"),
+            InlineKeyboardButton(text="200", callback_data=f"weight_set_0_200_{totals_msg_id}")
+        ],
         [InlineKeyboardButton(text="🔍 Разобрать на ингредиенты", callback_data=f"explode_dish_{dish_key}")],
-        # Кнопки подтверждения/отмены
         [
             InlineKeyboardButton(text="✅ Подтвердить", callback_data="confirm_meal"),
             InlineKeyboardButton(text="❌ Отмена", callback_data="cancel_meal")
         ]
     ])
 
-    # Отправляем сообщение и сохраняем его ID для дальнейшего обновления
-    totals_msg = await callback.message.answer(totals_text, reply_markup=totals_keyboard, parse_mode="HTML")
-    await state.update_data(totals_msg_id=totals_msg.message_id)
+    # Редактируем сообщение, добавляя клавиатуру
+    await totals_msg.edit_text(totals_text, reply_markup=keyboard, parse_mode="HTML")
 
-    # Удаляем предыдущее сообщение (со списком блюд)
     await callback.message.delete()
     await callback.answer()
+    
 @router.callback_query(F.data.startswith("explode_dish_"))
 async def explode_dish_callback(callback: CallbackQuery, state: FSMContext):
     """Разбирает готовое блюдо на ингредиенты для ручной корректировки."""

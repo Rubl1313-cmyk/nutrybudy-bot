@@ -32,12 +32,7 @@ from sqlalchemy import select
 import sys
 
 router = Router()
-@router.callback_query()
-async def catch_all_callbacks(callback: CallbackQuery):
-    import sys
-    sys.stderr.write(f"🔥🔥🔥 CATCH_ALL: {callback.data}\n")
-    sys.stderr.flush()
-    await callback.answer()  # чтобы callback не зависал
+
 logger = logging.getLogger(__name__)
 
 # Количество вариантов на одной странице
@@ -439,6 +434,9 @@ async def _show_dish_selection_for_product(
     current_item: Dict,
     meal_type: str
 ):
+    import sys
+    sys.stderr.write(f"🔥🔥🔥 _show_dish_selection_for_product вызвана для '{current_item['name']}'\n")
+    sys.stderr.flush()
     logger.info(f"🔍 Показываем выбор готового блюда для '{current_item['name']}', найдено совпадений: {len(matches)}")
     """Показывает список готовых блюд для текущего продукта."""
     text = f"🍽 <b>«{current_item['name']}» может быть готовым блюдом</b>\n\n"
@@ -453,7 +451,12 @@ async def _show_dish_selection_for_product(
         btn_text = f"{match['name']} (совпадение {match['score']*100:.0f}%)"
         keyboard.append([InlineKeyboardButton(text=btn_text, callback_data=f"select_dish_idx_{idx}")])
     keyboard.append([InlineKeyboardButton(text="❌ Нет, это ингредиент", callback_data="continue_ingredient")])
-
+    try:
+        sys.stderr.write(f"🔥🔥🔥 Отправляю сообщение с {len(matches)} вариантами\n")
+        await message.answer(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard), parse_mode="HTML")
+        sys.stderr.write("🔥🔥🔥 Сообщение с выбором блюда отправлено\n")
+    except Exception as e:
+        sys.stderr.write(f"🔥🔥🔥 Ошибка при отправке: {e}\n")
     await message.answer(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard), parse_mode="HTML")
     # Контекст для продолжения уже сохранён в состоянии
 

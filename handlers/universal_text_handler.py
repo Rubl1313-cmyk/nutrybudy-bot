@@ -21,7 +21,7 @@ from utils.states import ActivityStates
 from database.db import get_session
 from database.models import User, Activity
 from services.activity import CALORIES_PER_MINUTE
-from services.ai_tools import get_weather
+from utils.ai_tools import get_weather
 # Новый импорт
 from handlers.media_handlers import process_food_items
 

@@ -29,6 +29,7 @@ from utils.states import FoodStates
 from database.db import get_session
 from database.models import Meal, FoodItem, User
 from sqlalchemy import select
+import sys
 
 router = Router()
 logger = logging.getLogger(__name__)

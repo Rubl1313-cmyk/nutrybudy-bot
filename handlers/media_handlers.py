@@ -1208,7 +1208,9 @@ async def select_dish_for_product_callback(callback: CallbackQuery, state: FSMCo
 
 @router.callback_query(F.data.startswith("select_dish_idx_"))
 async def select_dish_by_index_callback(callback: CallbackQuery, state: FSMContext):
-    logger.info(f"🔥 Вызван select_dish_by_index_callback с data: {callback.data}")
+    import sys
+    sys.stderr.write(f"🔥🔥🔥 select_dish_by_index_callback вызван с data: {callback.data}\n")
+    sys.stderr.flush()
     try:
         parts = callback.data.split("_")
         logger.info(f"🔥 Распарсено: {parts}")
@@ -1237,11 +1239,9 @@ async def select_dish_by_index_callback(callback: CallbackQuery, state: FSMConte
 
     from services.dish_db import COMPOSITE_DISHES
     normalized_key = dish_key.lower().strip()
-
+    sys.stderr.write(f"🔥🔥🔥 dish_key = '{dish_key}', normalized_key = '{normalized_key}'\n")
     if normalized_key not in COMPOSITE_DISHES:
-        print(f"🔥 DEBUG: dish_key from matches = '{dish_key}'", file=sys.stderr)
-        print(f"🔥 DEBUG: normalized_key = '{normalized_key}'", file=sys.stderr)
-        print(f"🔥 DEBUG: available keys sample: {list(COMPOSITE_DISHES.keys())[:5]}", file=sys.stderr)
+        sys.stderr.write(f"🔥🔥🔥 Ключ '{normalized_key}' НЕ НАЙДЕН в COMPOSITE_DISHES\n")
         logger.error(f"🔥 Ключ '{normalized_key}' не найден в COMPOSITE_DISHES. Доступные ключи: {list(COMPOSITE_DISHES.keys())}")
         await callback.answer("❌ Блюдо не найдено в базе", show_alert=True)
         return

@@ -1240,9 +1240,17 @@ async def select_dish_by_index_callback(callback: CallbackQuery, state: FSMConte
     from services.dish_db import COMPOSITE_DISHES
     normalized_key = dish_key.lower().strip()
     sys.stderr.write(f"🔥🔥🔥 dish_key = '{dish_key}', normalized_key = '{normalized_key}'\n")
-    if normalized_key not in COMPOSITE_DISHES:
-        sys.stderr.write(f"🔥🔥🔥 Ключ '{normalized_key}' НЕ НАЙДЕН в COMPOSITE_DISHES\n")
-        logger.error(f"🔥 Ключ '{normalized_key}' не найден в COMPOSITE_DISHES. Доступные ключи: {list(COMPOSITE_DISHES.keys())}")
+    #if normalized_key not in COMPOSITE_DISHES:
+       # sys.stderr.write(f"🔥🔥🔥 Ключ '{normalized_key}' НЕ НАЙДЕН в COMPOSITE_DISHES\n")
+       # logger.error(f"🔥 Ключ '{normalized_key}' не найден в COMPOSITE_DISHES. Доступные ключи: {list(COMPOSITE_DISHES.keys())}")
+       # await callback.answer("❌ Блюдо не найдено в базе", show_alert=True)
+       # return
+    if dish_key not in COMPOSITE_DISHES:
+    for db_key in COMPOSITE_DISHES.keys():
+        if db_key.lower() == dish_key.lower() or dish_key.lower() in db_key.lower():
+            dish_key = db_key
+            break
+    else:
         await callback.answer("❌ Блюдо не найдено в базе", show_alert=True)
         return
 
@@ -1734,8 +1742,3 @@ async def handle_voice(message: Message, state: FSMContext):
         logger.error(f"❌ Voice handler error: {e}\n{traceback.format_exc()}")
         await message.answer("❌ Ошибка при обработке голоса.")
 
-@router.callback_query()
-async def debug_callback(callback: CallbackQuery):
-    import sys
-    sys.stderr.write(f"🔥🔥🔥 DEBUG_CALLBACK: {callback.data}\n")
-    sys.stderr.flush()

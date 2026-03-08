@@ -417,7 +417,7 @@ LOCAL_FOOD_DB = {
 "осьминоги": {"name": "Осьминоги отварные", "calories": 85, "protein": 15.0, "fat": 1.0, "carbs": 2.0},
 "устрицы": {"name": "Устрицы свежие", "calories": 72, "protein": 9.0, "fat": 2.5, "carbs": 4.5},
 "гребешки": {"name": "Морские гребешки жареные", "calories": 120, "protein": 17.0, "fat": 5.0, "carbs": 3.0},
-"крабы": {"name": "Крабы (мясо) отварное", "calories": 90, "protein": 18.0, "fat": 1.0, "carbs": 0.5},
+"крабы": {"name": "Краб отварной", "calories": 90, "protein": 18.0, "fat": 1.0, "carbs": 0.5},
 "лангусты": {"name": "Лангусты отварные", "calories": 95, "protein": 19.0, "fat": 1.5, "carbs": 0.5},
 "омары": {"name": "Омары (лобстеры) отварные", "calories": 95, "protein": 19.0, "fat": 1.5, "carbs": 0.5},
 

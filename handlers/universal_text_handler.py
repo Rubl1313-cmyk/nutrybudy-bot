@@ -1,7 +1,6 @@
 """
 Универсальный обработчик текстовых сообщений.
-✅ Исправлено: добавлен импорт StateFilter
-✅ Исправлено: проверка состояний через state.get_state()
+Теперь для всех случаев, связанных с едой, использует process_food_items.
 """
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
@@ -10,19 +9,21 @@ from aiogram.exceptions import TelegramBadRequest
 import logging
 from sqlalchemy import select
 from datetime import datetime
+
 from services.intent_classifier import classify
 from utils.water_parser import parse_water_amount
-from handlers.food import cmd_log_food
-from handlers.water import cmd_water, add_water_quick
-from handlers.shopping import cmd_shopping, add_to_shopping_list, update_list_message, get_or_create_default_list
+from handlers.water import add_water_quick, cmd_water
+from handlers.shopping import add_to_shopping_list, update_list_message, get_or_create_default_list
 from handlers.activity import cmd_fitness
 from handlers.reminders import cmd_reminders, quick_create_reminder
 from utils.parsers import parse_shopping_items
 from utils.states import ActivityStates
 from database.db import get_session
 from database.models import User, Activity
-from utils.ai_tools import get_weather
 from services.activity import CALORIES_PER_MINUTE
+from services.ai_tools import get_weather
+# Новый импорт
+from handlers.media_handlers import process_food_items
 
 logger = logging.getLogger(__name__)
 universal_router = Router()
@@ -30,26 +31,22 @@ universal_router = Router()
 @universal_router.message(F.text, ~F.text.startswith("/"))
 async def universal_message_handler(message: Message, state: FSMContext):
     """Точка входа для всех текстовых сообщений, не начинающихся с '/'."""
-    # ✅ Получаем текущее состояние
     current_state = await state.get_state()
-    
-    # ✅ Если пользователь в состоянии FoodStates - пропускаем
     if current_state and current_state.startswith("FoodStates"):
         return
-    
     await handle_universal_text(message, state)
 
 async def handle_universal_text(message: Message, state: FSMContext, text: str = None):
     """Универсальный обработчик любого текста."""
     if text is None:
         text = message.text
-    
+
     logger.info(f"📨 Получен текст: {text}")
-    
+
     intent_data = classify(text)
     intent = intent_data.get("intent")
     text_lower = text.lower()
-    
+
     # ----- ВОДА -----
     if intent == "water":
         amount = parse_water_amount(text)
@@ -78,14 +75,14 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
                 reply_markup=keyboard
             )
             return
-    
+
     # ----- АКТИВНОСТЬ -----
     if intent == "activity":
         act_type = intent_data.get("activity_type")
         duration = intent_data.get("duration")
         distance_km = intent_data.get("distance_km")
         steps = intent_data.get("steps")
-        
+
         if steps:
             user_id = message.from_user.id
             calories = round(steps * 0.04, 1)
@@ -111,7 +108,7 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
                 await session.commit()
             await message.answer(f"✅ Записано {steps} шагов (сожжено ~{calories} ккал).")
             return
-        
+
         if distance_km and not duration:
             if act_type == "running":
                 pace = 6.0
@@ -122,7 +119,7 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
             else:
                 pace = 8.0
             duration = int(distance_km * pace)
-        
+
         if act_type and (duration or distance_km):
             if duration and not distance_km:
                 await state.update_data(activity_type=act_type, duration=duration)
@@ -147,38 +144,35 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
                         return
                     weight = user.weight or 70
                     met = CALORIES_PER_MINUTE.get(act_type, 5)
-                    if not duration:
-                        pass
                     calories = met * weight * (duration / 60)
-                    async with get_session() as session:
-                        activity = Activity(
-                            user_id=user.id,
-                            activity_type=act_type,
-                            duration=duration,
-                            distance=distance_km if distance_km else 0,
-                            calories_burned=calories,
-                            steps=0,
-                            datetime=datetime.now(),
-                            source="text"
-                        )
-                        session.add(activity)
-                        await session.commit()
-                    msg_parts = [f"✅ Активность записана: {act_type}"]
-                    if duration:
-                        msg_parts.append(f"{duration} мин")
-                    if distance_km:
-                        msg_parts.append(f"{distance_km} км")
-                    msg_parts.append(f"сожжено ~{calories:.0f} ккал")
-                    await message.answer(" ".join(msg_parts))
-                    return
-        
+                    activity = Activity(
+                        user_id=user.id,
+                        activity_type=act_type,
+                        duration=duration,
+                        distance=distance_km if distance_km else 0,
+                        calories_burned=calories,
+                        steps=0,
+                        datetime=datetime.now(),
+                        source="text"
+                    )
+                    session.add(activity)
+                    await session.commit()
+                msg_parts = [f"✅ Активность записана: {act_type}"]
+                if duration:
+                    msg_parts.append(f"{duration} мин")
+                if distance_km:
+                    msg_parts.append(f"{distance_km} км")
+                msg_parts.append(f"сожжено ~{calories:.0f} ккал")
+                await message.answer(" ".join(msg_parts))
+                return
+
         if act_type:
             await state.update_data(activity_type=act_type)
             await cmd_fitness(message, state)
             return
         await cmd_fitness(message, state)
         return
-    
+
     # ----- НАПОМИНАНИЯ -----
     if intent == "reminder":
         title = intent_data.get("reminder_title")
@@ -189,7 +183,7 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
         else:
             await cmd_reminders(message, state)
         return
-    
+
     # ----- СПИСОК ПОКУПОК -----
     if intent == "shopping":
         items = intent_data.get("items")
@@ -199,18 +193,27 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
         else:
             await cmd_shopping(message, state)
         return
-    
-    # ----- ПРИЁМ ПИЩИ -----
+
+    # ----- ПРИЁМ ПИЩИ (НОВЫЙ УНИВЕРСАЛЬНЫЙ МЕХАНИЗМ) -----
     if intent == "food":
         meal_type = intent_data.get("meal_type", "snack")
+        # Если классификатор выделил отдельные продукты, используем их
         items = intent_data.get("items")
         if items:
-            from handlers.media_handlers import start_food_input
-            await start_food_input(message, state, items, meal_type)
+            food_items = [{'name': item, 'weight': 100} for item in items]
         else:
-            await cmd_log_food(message, state)
+            # Иначе разбираем исходный текст через парсер
+            parsed = parse_shopping_items(text)
+            if not parsed:
+                # Если не удалось распознать, показываем клавиатуру выбора (старое поведение)
+                await show_unknown_keyboard(message, state, text)
+                return
+            food_items = [{'name': name, 'weight': 100} for name, _, _ in parsed]
+
+        await state.update_data(selected_foods=[], meal_type=meal_type)
+        await process_food_items(message, state, food_items, meal_type)
         return
-    
+
     # ----- ПОГОДА -----
     if intent == "weather":
         user_id = message.from_user.id
@@ -229,7 +232,7 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
         weather_info = await get_weather(city)
         await message.answer(weather_info)
         return
-    
+
     # ----- НЕОПРЕДЕЛЁННОЕ -----
     await state.update_data(pending_text=text)
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
@@ -243,6 +246,43 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
         reply_markup=keyboard
     )
     return
+
+# ----- ОБРАБОТЧИКИ КНОПОК ДЛЯ НЕОПРЕДЕЛЁННЫХ ТЕКСТОВ -----
+@universal_router.callback_query(lambda c: c.data == "choose_shopping")
+async def choose_shopping_callback(callback: CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+    text = data.get('pending_text', '')
+    await add_to_shopping_list(callback, text)
+    async with get_session() as session:
+        shopping_list = await get_or_create_default_list(callback.from_user.id, session, callback)
+        if shopping_list:
+            await update_list_message(callback, shopping_list.id)
+    await callback.message.delete()
+    await callback.answer("✅ Добавлено в список покупок")
+
+@universal_router.callback_query(lambda c: c.data == "choose_food")
+async def choose_food_callback(callback: CallbackQuery, state: FSMContext):
+    """Обработка выбора «Записать как приём пищи» для неопределённого текста."""
+    data = await state.get_data()
+    text = data.get('pending_text', '')
+    parsed = parse_shopping_items(text)
+    if not parsed:
+        await callback.answer("❌ Не удалось распознать продукты.", show_alert=True)
+        return
+    food_items = [{'name': name, 'weight': 100} for name, _, _ in parsed]
+    await state.update_data(selected_foods=[], meal_type='snack')
+    await process_food_items(callback.message, state, food_items, meal_type='snack')
+    await callback.message.delete()
+    await callback.answer()
+
+@universal_router.callback_query(lambda c: c.data == "choose_ai")
+async def choose_ai_callback(callback: CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+    text = data.get('pending_text', '')
+    from handlers.ai_assistant import process_single_ai_query
+    await process_single_ai_query(callback.message, text)
+    await callback.message.delete()
+    await callback.answer()
 
 # ----- ОБРАБОТЧИКИ КНОПОК ДЛЯ ВОДЫ -----
 @universal_router.callback_query(lambda c: c.data == "water_drink")
@@ -270,46 +310,11 @@ async def water_buy_callback(callback: CallbackQuery, state: FSMContext):
 @universal_router.callback_query(lambda c: c.data == "action_cancel")
 async def action_cancel_callback(callback: CallbackQuery, state: FSMContext):
     await state.clear()
-    await callback.message.delete()
+    try:
+        await callback.message.delete()
+    except:
+        pass
     await callback.message.answer("❌ Действие отменено.")
-    await callback.answer()
-
-# ----- ОБРАБОТЧИКИ КНОПОК ДЛЯ НЕОПРЕДЕЛЁННЫХ ТЕКСТОВ -----
-@universal_router.callback_query(lambda c: c.data == "choose_shopping")
-async def choose_shopping_callback(callback: CallbackQuery, state: FSMContext):
-    data = await state.get_data()
-    text = data.get('pending_text', '')
-    await add_to_shopping_list(callback, text)
-    async with get_session() as session:
-        shopping_list = await get_or_create_default_list(callback.from_user.id, session, callback)
-        if shopping_list:
-            await update_list_message(callback, shopping_list.id)
-    await callback.message.delete()
-    await callback.answer("✅ Добавлено в список покупок")
-
-@universal_router.callback_query(lambda c: c.data == "choose_food")
-async def choose_food_callback(callback: CallbackQuery, state: FSMContext):
-    data = await state.get_data()
-    text = data.get('pending_text', '')
-    items = [name for name, _, _ in parse_shopping_items(text)]
-    await state.update_data(
-        pending_items=items,
-        current_index=0,
-        selected_foods=[],
-        meal_type="snack"
-    )
-    from handlers.food import process_next_food
-    await process_next_food(callback.message, state)
-    await callback.message.delete()
-    await callback.answer()
-
-@universal_router.callback_query(lambda c: c.data == "choose_ai")
-async def choose_ai_callback(callback: CallbackQuery, state: FSMContext):
-    data = await state.get_data()
-    text = data.get('pending_text', '')
-    from handlers.ai_assistant import process_ai_query
-    await process_ai_query(callback.message, state, text)
-    await callback.message.delete()
     await callback.answer()
 
 # ----- ОБРАБОТЧИКИ ДЛЯ ПОДТВЕРЖДЕНИЯ АКТИВНОСТИ -----
@@ -367,3 +372,17 @@ async def safe_edit(callback: CallbackQuery, text: str, reply_markup=None):
             logger.debug("Сообщение не изменилось, пропускаем")
         else:
             raise e
+
+async def show_unknown_keyboard(message: Message, state: FSMContext, text: str):
+    """Показывает клавиатуру для неопределённого текста."""
+    await state.update_data(pending_text=text)
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📋 В список покупок", callback_data="choose_shopping")],
+        [InlineKeyboardButton(text="🍽️ Записать как приём пищи", callback_data="choose_food")],
+        [InlineKeyboardButton(text="🤖 Спросить AI", callback_data="choose_ai")],
+        [InlineKeyboardButton(text="❌ Отмена", callback_data="action_cancel")]
+    ])
+    await message.answer(
+        f"📝 Вы написали:\n«{text}»\nКуда это добавить?",
+        reply_markup=keyboard
+    )

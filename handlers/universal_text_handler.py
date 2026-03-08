@@ -266,6 +266,8 @@ async def choose_food_callback(callback: CallbackQuery, state: FSMContext):
     data = await state.get_data()
     text = data.get('pending_text', '')
     parsed = parse_shopping_items(text)
+    import sys
+    sys.stderr.write("🔥🔥🔥 choose_food_callback вызван\n")
     if not parsed:
         await callback.answer("❌ Не удалось распознать продукты.", show_alert=True)
         return

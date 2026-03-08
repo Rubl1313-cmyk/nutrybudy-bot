@@ -3348,6 +3348,570 @@ COMPOSITE_DISHES = {
             {"name": "вода", "type": "liquid", "percent": 10}
         ]
     }
+        # =========================================================================
+    # 🍔 ФАСТФУД
+    # =========================================================================
+    "гамбургер": {
+        "name": "Гамбургер",
+        "category": "fastfood",
+        "default_weight": 200,
+        "nutrition_per_100": {"calories": 250, "protein": 12.0, "fat": 10.0, "carbs": 28.0},
+        "ingredients": [
+            {"name": "булочка для бургера", "type": "carb", "percent": 35},
+            {"name": "котлета говяжья", "type": "protein", "percent": 30},
+            {"name": "салат", "type": "vegetable", "percent": 10},
+            {"name": "помидоры", "type": "vegetable", "percent": 10},
+            {"name": "лук", "type": "vegetable", "percent": 5},
+            {"name": "кетчуп", "type": "sauce", "percent": 5},
+            {"name": "горчица", "type": "sauce", "percent": 5}
+        ]
+    },
+    "чизбургер": {
+        "name": "Чизбургер",
+        "category": "fastfood",
+        "default_weight": 220,
+        "nutrition_per_100": {"calories": 270, "protein": 13.0, "fat": 13.0, "carbs": 26.0},
+        "ingredients": [
+            {"name": "булочка для бургера", "type": "carb", "percent": 30},
+            {"name": "котлета говяжья", "type": "protein", "percent": 25},
+            {"name": "сыр чеддер", "type": "dairy", "percent": 15},
+            {"name": "салат", "type": "vegetable", "percent": 10},
+            {"name": "помидоры", "type": "vegetable", "percent": 8},
+            {"name": "лук", "type": "vegetable", "percent": 5},
+            {"name": "кетчуп", "type": "sauce", "percent": 4},
+            {"name": "горчица", "type": "sauce", "percent": 3}
+        ]
+    },
+    "двойной чизбургер": {
+        "name": "Двойной чизбургер",
+        "category": "fastfood",
+        "default_weight": 280,
+        "nutrition_per_100": {"calories": 290, "protein": 16.0, "fat": 16.0, "carbs": 21.0},
+        "ingredients": [
+            {"name": "булочка для бургера", "type": "carb", "percent": 25},
+            {"name": "котлета говяжья (2 шт)", "type": "protein", "percent": 35},
+            {"name": "сыр чеддер (2 ломтика)", "type": "dairy", "percent": 15},
+            {"name": "салат", "type": "vegetable", "percent": 8},
+            {"name": "помидоры", "type": "vegetable", "percent": 6},
+            {"name": "лук", "type": "vegetable", "percent": 4},
+            {"name": "кетчуп", "type": "sauce", "percent": 4},
+            {"name": "горчица", "type": "sauce", "percent": 3}
+        ]
+    },
+    "бургер с курицей": {
+        "name": "Бургер с курицей",
+        "category": "fastfood",
+        "default_weight": 210,
+        "nutrition_per_100": {"calories": 220, "protein": 14.0, "fat": 8.0, "carbs": 25.0},
+        "ingredients": [
+            {"name": "булочка для бургера", "type": "carb", "percent": 35},
+            {"name": "куриная котлета", "type": "protein", "percent": 30},
+            {"name": "салат", "type": "vegetable", "percent": 12},
+            {"name": "помидоры", "type": "vegetable", "percent": 10},
+            {"name": "майонез", "type": "sauce", "percent": 8},
+            {"name": "лук", "type": "vegetable", "percent": 5}
+        ]
+    },
+    "бургер с рыбой": {
+        "name": "Бургер с рыбой",
+        "category": "fastfood",
+        "default_weight": 200,
+        "nutrition_per_100": {"calories": 210, "protein": 11.0, "fat": 9.0, "carbs": 23.0},
+        "ingredients": [
+            {"name": "булочка для бургера", "type": "carb", "percent": 35},
+            {"name": "рыбное филе в панировке", "type": "protein", "percent": 30},
+            {"name": "салат", "type": "vegetable", "percent": 10},
+            {"name": "соус тартар", "type": "sauce", "percent": 15},
+            {"name": "лук", "type": "vegetable", "percent": 5},
+            {"name": "сыр", "type": "dairy", "percent": 5}
+        ]
+    },
+    "хот-дог": {
+        "name": "Хот-дог",
+        "category": "fastfood",
+        "default_weight": 150,
+        "nutrition_per_100": {"calories": 250, "protein": 9.0, "fat": 14.0, "carbs": 22.0},
+        "ingredients": [
+            {"name": "булочка для хот-дога", "type": "carb", "percent": 50},
+            {"name": "сосиска", "type": "protein", "percent": 30},
+            {"name": "кетчуп", "type": "sauce", "percent": 10},
+            {"name": "горчица", "type": "sauce", "percent": 5},
+            {"name": "лук жареный", "type": "vegetable", "percent": 5}
+        ]
+    },
+    "шаурма (донер) с курицей": {
+        "name": "Шаурма с курицей",
+        "category": "fastfood",
+        "default_weight": 350,
+        "nutrition_per_100": {"calories": 180, "protein": 10.0, "fat": 7.0, "carbs": 19.0},
+        "ingredients": [
+            {"name": "лаваш", "type": "carb", "percent": 30},
+            {"name": "курица гриль", "type": "protein", "percent": 25},
+            {"name": "капуста", "type": "vegetable", "percent": 15},
+            {"name": "огурцы", "type": "vegetable", "percent": 8},
+            {"name": "помидоры", "type": "vegetable", "percent": 8},
+            {"name": "лук", "type": "vegetable", "percent": 4},
+            {"name": "чесночный соус", "type": "sauce", "percent": 10}
+        ]
+    },
+    "шаурма с говядиной": {
+        "name": "Шаурма с говядиной",
+        "category": "fastfood",
+        "default_weight": 350,
+        "nutrition_per_100": {"calories": 190, "protein": 11.0, "fat": 8.0, "carbs": 18.0},
+        "ingredients": [
+            {"name": "лаваш", "type": "carb", "percent": 30},
+            {"name": "говядина", "type": "protein", "percent": 25},
+            {"name": "капуста", "type": "vegetable", "percent": 15},
+            {"name": "огурцы", "type": "vegetable", "percent": 8},
+            {"name": "помидоры", "type": "vegetable", "percent": 8},
+            {"name": "лук", "type": "vegetable", "percent": 4},
+            {"name": "чесночный соус", "type": "sauce", "percent": 10}
+        ]
+    },
+    "наггетсы куриные": {
+        "name": "Наггетсы куриные",
+        "category": "fastfood",
+        "default_weight": 150,
+        "nutrition_per_100": {"calories": 290, "protein": 16.0, "fat": 17.0, "carbs": 18.0},
+        "ingredients": [
+            {"name": "куриное филе", "type": "protein", "percent": 60},
+            {"name": "панировка", "type": "carb", "percent": 20},
+            {"name": "масло растительное", "type": "fat", "percent": 20}
+        ]
+    },
+    "луковые кольца": {
+        "name": "Луковые кольца",
+        "category": "fastfood",
+        "default_weight": 120,
+        "nutrition_per_100": {"calories": 310, "protein": 4.0, "fat": 18.0, "carbs": 33.0},
+        "ingredients": [
+            {"name": "лук репчатый", "type": "vegetable", "percent": 50},
+            {"name": "мука", "type": "carb", "percent": 20},
+            {"name": "панировка", "type": "carb", "percent": 10},
+            {"name": "масло растительное", "type": "fat", "percent": 20}
+        ]
+    },
+    "сырные палочки": {
+        "name": "Сырные палочки",
+        "category": "fastfood",
+        "default_weight": 120,
+        "nutrition_per_100": {"calories": 350, "protein": 14.0, "fat": 22.0, "carbs": 23.0},
+        "ingredients": [
+            {"name": "сыр моцарелла", "type": "dairy", "percent": 60},
+            {"name": "панировка", "type": "carb", "percent": 20},
+            {"name": "яйцо", "type": "protein", "percent": 5},
+            {"name": "масло растительное", "type": "fat", "percent": 15}
+        ]
+    },
+    "сэндвич с ветчиной и сыром": {
+        "name": "Сэндвич с ветчиной и сыром",
+        "category": "fastfood",
+        "default_weight": 200,
+        "nutrition_per_100": {"calories": 240, "protein": 11.0, "fat": 11.0, "carbs": 24.0},
+        "ingredients": [
+            {"name": "хлеб тостовый", "type": "carb", "percent": 50},
+            {"name": "ветчина", "type": "protein", "percent": 20},
+            {"name": "сыр", "type": "dairy", "percent": 15},
+            {"name": "салат", "type": "vegetable", "percent": 5},
+            {"name": "помидоры", "type": "vegetable", "percent": 5},
+            {"name": "майонез", "type": "sauce", "percent": 5}
+        ]
+    },
+    "клубный сэндвич": {
+        "name": "Клубный сэндвич",
+        "category": "fastfood",
+        "default_weight": 250,
+        "nutrition_per_100": {"calories": 210, "protein": 12.0, "fat": 9.0, "carbs": 21.0},
+        "ingredients": [
+            {"name": "тостовый хлеб (3 ломтика)", "type": "carb", "percent": 40},
+            {"name": "куриная грудка", "type": "protein", "percent": 20},
+            {"name": "бекон", "type": "protein", "percent": 10},
+            {"name": "салат", "type": "vegetable", "percent": 10},
+            {"name": "помидоры", "type": "vegetable", "percent": 8},
+            {"name": "майонез", "type": "sauce", "percent": 7},
+            {"name": "яйцо", "type": "protein", "percent": 5}
+        ]
+    },
+    "сэндвич с тунцом": {
+        "name": "Сэндвич с тунцом",
+        "category": "fastfood",
+        "default_weight": 220,
+        "nutrition_per_100": {"calories": 200, "protein": 11.0, "fat": 8.0, "carbs": 22.0},
+        "ingredients": [
+            {"name": "хлеб", "type": "carb", "percent": 50},
+            {"name": "тунец консервированный", "type": "protein", "percent": 25},
+            {"name": "майонез", "type": "sauce", "percent": 10},
+            {"name": "сельдерей", "type": "vegetable", "percent": 5},
+            {"name": "лук", "type": "vegetable", "percent": 5},
+            {"name": "салат", "type": "vegetable", "percent": 5}
+        ]
+    },
+    "картофель по-деревенски (фастфуд)": {
+        "name": "Картофель по-деревенски",
+        "category": "fastfood",
+        "default_weight": 180,
+        "nutrition_per_100": {"calories": 180, "protein": 3.0, "fat": 8.0, "carbs": 24.0},
+        "ingredients": [
+            {"name": "картофель", "type": "carb", "percent": 80},
+            {"name": "масло растительное", "type": "fat", "percent": 15},
+            {"name": "специи", "type": "other", "percent": 5}
+        ]
+    },
+    "крылышки буффало": {
+        "name": "Крылышки Буффало",
+        "category": "fastfood",
+        "default_weight": 200,
+        "nutrition_per_100": {"calories": 260, "protein": 20.0, "fat": 18.0, "carbs": 5.0},
+        "ingredients": [
+            {"name": "куриные крылья", "type": "protein", "percent": 80},
+            {"name": "соус острый", "type": "sauce", "percent": 15},
+            {"name": "масло", "type": "fat", "percent": 5}
+        ]
+    },
+
+    # =========================================================================
+    # 🍣 АЗИАТСКАЯ КУХНЯ
+    # =========================================================================
+    "суши с лососем": {
+        "name": "Суши с лососем",
+        "category": "asian",
+        "default_weight": 50,
+        "nutrition_per_100": {"calories": 180, "protein": 8.0, "fat": 4.0, "carbs": 28.0},
+        "ingredients": [
+            {"name": "рис для суши", "type": "carb", "percent": 70},
+            {"name": "лосось", "type": "protein", "percent": 25},
+            {"name": "нори", "type": "vegetable", "percent": 5}
+        ]
+    },
+    "суши с угрем": {
+        "name": "Суши с угрем",
+        "category": "asian",
+        "default_weight": 55,
+        "nutrition_per_100": {"calories": 200, "protein": 9.0, "fat": 6.0, "carbs": 27.0},
+        "ingredients": [
+            {"name": "рис для суши", "type": "carb", "percent": 65},
+            {"name": "угорь копченый", "type": "protein", "percent": 30},
+            {"name": "нори", "type": "vegetable", "percent": 5}
+        ]
+    },
+    "ролл Филадельфия": {
+        "name": "Ролл Филадельфия",
+        "category": "asian",
+        "default_weight": 250,
+        "nutrition_per_100": {"calories": 190, "protein": 7.0, "fat": 8.0, "carbs": 23.0},
+        "ingredients": [
+            {"name": "рис для суши", "type": "carb", "percent": 50},
+            {"name": "лосось", "type": "protein", "percent": 20},
+            {"name": "сливочный сыр", "type": "dairy", "percent": 15},
+            {"name": "огурец", "type": "vegetable", "percent": 10},
+            {"name": "нори", "type": "vegetable", "percent": 5}
+        ]
+    },
+    "ролл Калифорния": {
+        "name": "Ролл Калифорния",
+        "category": "asian",
+        "default_weight": 250,
+        "nutrition_per_100": {"calories": 170, "protein": 6.0, "fat": 5.0, "carbs": 26.0},
+        "ingredients": [
+            {"name": "рис для суши", "type": "carb", "percent": 55},
+            {"name": "крабовое мясо", "type": "protein", "percent": 15},
+            {"name": "авокадо", "type": "fruit", "percent": 10},
+            {"name": "огурец", "type": "vegetable", "percent": 10},
+            {"name": "икра тобико", "type": "protein", "percent": 5},
+            {"name": "нори", "type": "vegetable", "percent": 5}
+        ]
+    },
+    "ролл с огурцом": {
+        "name": "Ролл с огурцом",
+        "category": "asian",
+        "default_weight": 200,
+        "nutrition_per_100": {"calories": 130, "protein": 3.0, "fat": 1.0, "carbs": 28.0},
+        "ingredients": [
+            {"name": "рис для суши", "type": "carb", "percent": 70},
+            {"name": "огурец", "type": "vegetable", "percent": 25},
+            {"name": "нори", "type": "vegetable", "percent": 5}
+        ]
+    },
+    "ролл с лососем и авокадо": {
+        "name": "Ролл с лососем и авокадо",
+        "category": "asian",
+        "default_weight": 240,
+        "nutrition_per_100": {"calories": 190, "protein": 7.0, "fat": 7.0, "carbs": 24.0},
+        "ingredients": [
+            {"name": "рис для суши", "type": "carb", "percent": 55},
+            {"name": "лосось", "type": "protein", "percent": 20},
+            {"name": "авокадо", "type": "fruit", "percent": 15},
+            {"name": "нори", "type": "vegetable", "percent": 10}
+        ]
+    },
+    "лапша WOK с курицей": {
+        "name": "Лапша WOK с курицей",
+        "category": "asian",
+        "default_weight": 350,
+        "nutrition_per_100": {"calories": 150, "protein": 8.0, "fat": 5.0, "carbs": 18.0},
+        "ingredients": [
+            {"name": "лапша удон", "type": "carb", "percent": 40},
+            {"name": "куриное филе", "type": "protein", "percent": 20},
+            {"name": "морковь", "type": "vegetable", "percent": 10},
+            {"name": "перец болгарский", "type": "vegetable", "percent": 10},
+            {"name": "лук", "type": "vegetable", "percent": 8},
+            {"name": "соус соевый", "type": "sauce", "percent": 7},
+            {"name": "масло кунжутное", "type": "fat", "percent": 5}
+        ]
+    },
+    "лапша WOK с морепродуктами": {
+        "name": "Лапша WOK с морепродуктами",
+        "category": "asian",
+        "default_weight": 350,
+        "nutrition_per_100": {"calories": 140, "protein": 9.0, "fat": 4.0, "carbs": 17.0},
+        "ingredients": [
+            {"name": "лапша удон", "type": "carb", "percent": 40},
+            {"name": "креветки", "type": "protein", "percent": 15},
+            {"name": "кальмары", "type": "protein", "percent": 10},
+            {"name": "мидии", "type": "protein", "percent": 5},
+            {"name": "морковь", "type": "vegetable", "percent": 8},
+            {"name": "перец", "type": "vegetable", "percent": 8},
+            {"name": "лук", "type": "vegetable", "percent": 5},
+            {"name": "соус", "type": "sauce", "percent": 5},
+            {"name": "масло", "type": "fat", "percent": 4}
+        ]
+    },
+    "рамен с курицей": {
+        "name": "Рамен с курицей",
+        "category": "asian",
+        "default_weight": 500,
+        "nutrition_per_100": {"calories": 90, "protein": 5.0, "fat": 3.0, "carbs": 11.0},
+        "ingredients": [
+            {"name": "лапша рамен", "type": "carb", "percent": 30},
+            {"name": "бульон куриный", "type": "liquid", "percent": 50},
+            {"name": "курица", "type": "protein", "percent": 10},
+            {"name": "яйцо", "type": "protein", "percent": 3},
+            {"name": "шпинат", "type": "vegetable", "percent": 3},
+            {"name": "лук зеленый", "type": "vegetable", "percent": 2},
+            {"name": "нори", "type": "vegetable", "percent": 2}
+        ]
+    },
+    "фо-бо с говядиной": {
+        "name": "Фо-бо с говядиной",
+        "category": "asian",
+        "default_weight": 500,
+        "nutrition_per_100": {"calories": 85, "protein": 6.0, "fat": 2.0, "carbs": 11.0},
+        "ingredients": [
+            {"name": "бульон говяжий", "type": "liquid", "percent": 70},
+            {"name": "рисовая лапша", "type": "carb", "percent": 15},
+            {"name": "говядина", "type": "protein", "percent": 8},
+            {"name": "лук", "type": "vegetable", "percent": 3},
+            {"name": "зелень", "type": "herb", "percent": 2},
+            {"name": "проростки сои", "type": "vegetable", "percent": 2}
+        ]
+    },
+
+    # =========================================================================
+    # 🌮 МЕКСИКАНСКАЯ КУХНЯ
+    # =========================================================================
+    "тако с говядиной": {
+        "name": "Тако с говядиной",
+        "category": "mexican",
+        "default_weight": 150,
+        "nutrition_per_100": {"calories": 200, "protein": 10.0, "fat": 9.0, "carbs": 20.0},
+        "ingredients": [
+            {"name": "тортилья кукурузная", "type": "carb", "percent": 40},
+            {"name": "говяжий фарш", "type": "protein", "percent": 25},
+            {"name": "салат", "type": "vegetable", "percent": 10},
+            {"name": "помидоры", "type": "vegetable", "percent": 8},
+            {"name": "сыр", "type": "dairy", "percent": 7},
+            {"name": "сметана", "type": "dairy", "percent": 5},
+            {"name": "соус сальса", "type": "sauce", "percent": 5}
+        ]
+    },
+    "тако с курицей": {
+        "name": "Тако с курицей",
+        "category": "mexican",
+        "default_weight": 150,
+        "nutrition_per_100": {"calories": 180, "protein": 11.0, "fat": 6.0, "carbs": 21.0},
+        "ingredients": [
+            {"name": "тортилья кукурузная", "type": "carb", "percent": 45},
+            {"name": "курица", "type": "protein", "percent": 25},
+            {"name": "салат", "type": "vegetable", "percent": 10},
+            {"name": "помидоры", "type": "vegetable", "percent": 8},
+            {"name": "сыр", "type": "dairy", "percent": 5},
+            {"name": "сметана", "type": "dairy", "percent": 4},
+            {"name": "соус", "type": "sauce", "percent": 3}
+        ]
+    },
+    "буррито с говядиной": {
+        "name": "Буррито с говядиной",
+        "category": "mexican",
+        "default_weight": 350,
+        "nutrition_per_100": {"calories": 190, "protein": 9.0, "fat": 7.0, "carbs": 23.0},
+        "ingredients": [
+            {"name": "тортилья пшеничная", "type": "carb", "percent": 40},
+            {"name": "говяжий фарш", "type": "protein", "percent": 20},
+            {"name": "рис", "type": "carb", "percent": 15},
+            {"name": "фасоль", "type": "protein", "percent": 10},
+            {"name": "сыр", "type": "dairy", "percent": 5},
+            {"name": "сметана", "type": "dairy", "percent": 4},
+            {"name": "салат", "type": "vegetable", "percent": 3},
+            {"name": "помидоры", "type": "vegetable", "percent": 3}
+        ]
+    },
+    "кесадилья с курицей": {
+        "name": "Кесадилья с курицей",
+        "category": "mexican",
+        "default_weight": 250,
+        "nutrition_per_100": {"calories": 240, "protein": 13.0, "fat": 11.0, "carbs": 22.0},
+        "ingredients": [
+            {"name": "тортилья пшеничная", "type": "carb", "percent": 40},
+            {"name": "курица", "type": "protein", "percent": 20},
+            {"name": "сыр моцарелла", "type": "dairy", "percent": 25},
+            {"name": "перец", "type": "vegetable", "percent": 10},
+            {"name": "лук", "type": "vegetable", "percent": 5}
+        ]
+    },
+    "начос с сыром": {
+        "name": "Начос с сыром",
+        "category": "mexican",
+        "default_weight": 250,
+        "nutrition_per_100": {"calories": 300, "protein": 8.0, "fat": 16.0, "carbs": 32.0},
+        "ingredients": [
+            {"name": "чипсы начос", "type": "carb", "percent": 60},
+            {"name": "сыр чеддер", "type": "dairy", "percent": 30},
+            {"name": "халапеньо", "type": "vegetable", "percent": 5},
+            {"name": "соус", "type": "sauce", "percent": 5}
+        ]
+    },
+    "гуакамоле": {
+        "name": "Гуакамоле",
+        "category": "mexican",
+        "default_weight": 100,
+        "nutrition_per_100": {"calories": 160, "protein": 2.0, "fat": 14.0, "carbs": 9.0},
+        "ingredients": [
+            {"name": "авокадо", "type": "fruit", "percent": 80},
+            {"name": "лук", "type": "vegetable", "percent": 5},
+            {"name": "помидоры", "type": "vegetable", "percent": 5},
+            {"name": "лайм", "type": "fruit", "percent": 5},
+            {"name": "кинза", "type": "herb", "percent": 3},
+            {"name": "соль", "type": "other", "percent": 2}
+        ]
+    },
+
+    # =========================================================================
+    # 🍨 ДЕСЕРТЫ (ДОПОЛНИТЕЛЬНО)
+    # =========================================================================
+    "мороженое пломбир": {
+        "name": "Мороженое пломбир",
+        "category": "dessert",
+        "default_weight": 100,
+        "nutrition_per_100": {"calories": 230, "protein": 3.5, "fat": 15.0, "carbs": 20.0},
+        "ingredients": [
+            {"name": "молоко", "type": "dairy", "percent": 50},
+            {"name": "сливки", "type": "dairy", "percent": 25},
+            {"name": "сахар", "type": "carb", "percent": 20},
+            {"name": "яйцо", "type": "protein", "percent": 5}
+        ]
+    },
+    "мороженое шоколадное": {
+        "name": "Мороженое шоколадное",
+        "category": "dessert",
+        "default_weight": 100,
+        "nutrition_per_100": {"calories": 240, "protein": 4.0, "fat": 14.0, "carbs": 25.0},
+        "ingredients": [
+            {"name": "молоко", "type": "dairy", "percent": 45},
+            {"name": "сливки", "type": "dairy", "percent": 20},
+            {"name": "сахар", "type": "carb", "percent": 20},
+            {"name": "какао", "type": "other", "percent": 10},
+            {"name": "яйцо", "type": "protein", "percent": 5}
+        ]
+    },
+    "мороженое фруктовый лед": {
+        "name": "Фруктовый лед",
+        "category": "dessert",
+        "default_weight": 80,
+        "nutrition_per_100": {"calories": 80, "protein": 0.2, "fat": 0.1, "carbs": 20.0},
+        "ingredients": [
+            {"name": "сок фруктовый", "type": "liquid", "percent": 70},
+            {"name": "сахар", "type": "carb", "percent": 25},
+            {"name": "вода", "type": "liquid", "percent": 5}
+        ]
+    },
+    "панкейки": {
+        "name": "Панкейки",
+        "category": "dessert",
+        "default_weight": 200,
+        "nutrition_per_100": {"calories": 220, "protein": 6.0, "fat": 7.0, "carbs": 34.0},
+        "ingredients": [
+            {"name": "мука", "type": "carb", "percent": 30},
+            {"name": "молоко", "type": "dairy", "percent": 35},
+            {"name": "яйцо", "type": "protein", "percent": 10},
+            {"name": "сахар", "type": "carb", "percent": 10},
+            {"name": "масло растительное", "type": "fat", "percent": 10},
+            {"name": "разрыхлитель", "type": "other", "percent": 5}
+        ]
+    },
+    "вафли бельгийские": {
+        "name": "Вафли бельгийские",
+        "category": "dessert",
+        "default_weight": 150,
+        "nutrition_per_100": {"calories": 300, "protein": 6.0, "fat": 13.0, "carbs": 40.0},
+        "ingredients": [
+            {"name": "мука", "type": "carb", "percent": 35},
+            {"name": "молоко", "type": "dairy", "percent": 25},
+            {"name": "масло сливочное", "type": "fat", "percent": 15},
+            {"name": "яйцо", "type": "protein", "percent": 10},
+            {"name": "сахар", "type": "carb", "percent": 10},
+            {"name": "дрожжи", "type": "other", "percent": 5}
+        ]
+    },
+    "вафли венские": {
+        "name": "Вафли венские",
+        "category": "dessert",
+        "default_weight": 130,
+        "nutrition_per_100": {"calories": 280, "protein": 5.0, "fat": 11.0, "carbs": 40.0},
+        "ingredients": [
+            {"name": "мука", "type": "carb", "percent": 40},
+            {"name": "молоко", "type": "dairy", "percent": 20},
+            {"name": "масло сливочное", "type": "fat", "percent": 12},
+            {"name": "яйцо", "type": "protein", "percent": 10},
+            {"name": "сахар", "type": "carb", "percent": 15},
+            {"name": "разрыхлитель", "type": "other", "percent": 3}
+        ]
+    },
+
+    # =========================================================================
+    # 🥤 НАПИТКИ (ГАЗИРОВАННЫЕ)
+    # =========================================================================
+    "кола": {
+        "name": "Кола",
+        "category": "drink",
+        "default_weight": 330,
+        "nutrition_per_100": {"calories": 42, "protein": 0.0, "fat": 0.0, "carbs": 10.6},
+        "ingredients": [
+            {"name": "вода", "type": "liquid", "percent": 90},
+            {"name": "сахар", "type": "carb", "percent": 10}
+        ]
+    },
+    "спрайт": {
+        "name": "Спрайт",
+        "category": "drink",
+        "default_weight": 330,
+        "nutrition_per_100": {"calories": 40, "protein": 0.0, "fat": 0.0, "carbs": 10.0},
+        "ingredients": [
+            {"name": "вода", "type": "liquid", "percent": 92},
+            {"name": "сахар", "type": "carb", "percent": 8}
+        ]
+    },
+    "фанта": {
+        "name": "Фанта",
+        "category": "drink",
+        "default_weight": 330,
+        "nutrition_per_100": {"calories": 45, "protein": 0.0, "fat": 0.0, "carbs": 11.2},
+        "ingredients": [
+            {"name": "вода", "type": "liquid", "percent": 90},
+            {"name": "сахар", "type": "carb", "percent": 9},
+            {"name": "сок", "type": "liquid", "percent": 1}
+        ]
+    }
 }
 # Функция для поиска блюда по названию (без учета регистра)
 def find_dish(query: str) -> Optional[Dict]:

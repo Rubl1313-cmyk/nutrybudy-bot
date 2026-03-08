@@ -439,17 +439,15 @@ async def _show_dish_selection_for_product(
     # Сохраняем matches в состоянии для доступа по индексу
     await state.update_data(dish_matches=matches)
 
-    builder = InlineKeyboardBuilder()
+    # Строим клавиатуру вручную, чтобы избежать проблем с builder
+    keyboard = []
     for idx, match in enumerate(matches):
         btn_text = f"{match['name']} (совпадение {match['score']*100:.0f}%)"
-        builder.button(text=btn_text, callback_data=f"select_dish_idx_{idx}")
-    builder.adjust(1)
-    builder.row(
-        InlineKeyboardButton(text="❌ Нет, это ингредиент", callback_data="continue_ingredient")
-    )
+        keyboard.append([InlineKeyboardButton(text=btn_text, callback_data=f"select_dish_idx_{idx}")])
+    keyboard.append([InlineKeyboardButton(text="❌ Нет, это ингредиент", callback_data="continue_ingredient")])
 
-    await message.answer(text, reply_markup=builder.as_markup(), parse_mode="HTML")
-    # Контекст для продолжения уже сохранён в состоянии (pending_food_items, pending_index и т.д.)
+    await message.answer(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard), parse_mode="HTML")
+    # Контекст для продолжения уже сохранён в состоянии
 
 # ========== ОБРАБОТЧИК ПАГИНАЦИИ ==========
 
@@ -1215,7 +1213,6 @@ async def continue_as_ingredient_callback(callback: CallbackQuery, state: FSMCon
 
 @router.callback_query(F.data.startswith("select_dish_idx_"))
 async def select_dish_by_index_callback(callback: CallbackQuery, state: FSMContext):
-    """Выбор готового блюда по индексу."""
     try:
         idx = int(callback.data.split("_")[3])
     except (IndexError, ValueError):

@@ -536,76 +536,57 @@ LOCAL_FOOD_DB = {
 # Ключ — базовое название (то, что может определить AI)
 # Значение — список ключей из LOCAL_FOOD_DB, которые соответствуют разным вариантам
 PRODUCT_VARIANT_GROUPS = {
+    "мясо": [
+        "говядина", "говяжий фарш", "говяжья печень",
+        "свинина", "свиная вырезка", "бекон",
+        "курица", "куриная грудка", "куриное бедро", "куриное крыло", "куриная печень",
+        "индейка", "индюшиная грудка",
+        "баранина",
+        "кролик",
+        "утка",
+        "телятина"
+    ],
     "курица": [
-        "курица",
-        "куриная грудка",
-        "куриное бедро",
-        "куриное крыло",
-        "куриная печень"
+        "курица", "куриная грудка", "куриное бедро", "куриное крыло", "куриная печень"
     ],
     "говядина": [
-        "говядина",
-        "говяжий фарш",
-        "говяжья печень"
+        "говядина", "говяжий фарш", "говяжья печень"
     ],
     "свинина": [
-        "свинина",
-        "свиная вырезка",
-        "бекон"
+        "свинина", "свиная вырезка", "бекон"
     ],
     "рыба": [
-        "лосось",
-        "семга",
-        "треска",
-        "минтай",
-        "хек",
-        "скумбрия",
-        "тунец",
-        "форель"
+        "лосось", "семга", "треска", "минтай", "хек", "скумбрия", "тунец", "форель", "сельдь"
     ],
-    "яйцо": [
-        "яйцо",
-        "яичный белок",
-        "яичный желток"
+    "перец": [
+        "перец болгарский", "перец чили"
+    ],
+    "лук": [
+        "лук"
     ],
     "картофель": [
-        "картофель",
-        "картофель фри",
-        "картофельное пюре"
+        "картофель", "картофель фри"
     ],
     "рис": [
-        "рис",
-        "рис бурый"
+        "рис", "рис бурый"
     ],
     "макароны": [
-        "макароны",
-        "спагетти",
-        "лапша",
-        "вермишель"
+        "макароны", "спагетти", "лапша", "вермишель"
     ],
     "хлеб": [
-        "хлеб",
-        "хлеб ржаной",
-        "батон",
-        "лаваш",
-        "булочка"
+        "хлеб", "хлеб ржаной", "батон", "лаваш", "булочка"
     ],
-    "молоко": [
-        "молоко",
-        "кефир",
-        "йогурт"
-    ],
-    "творог": [
-        "творог",
-        "творог обезжиренный"
+    "яйцо": [
+        "яйцо", "яичный белок", "яичный желток"
     ],
     "сыр": [
-        "сыр",
-        "пармезан",
-        "моцарелла",
-        "фета",
-        "брынза",
-        "сулугуни"
+        "сыр", "пармезан", "моцарелла", "фета", "брынза", "сулугуни"
+    ],
+    "творог": [
+        "творог", "творог обезжиренный"
+    ],
+    "молоко": [
+        "молоко", "кефир", "йогурт"
     ]
 }
 
@@ -616,114 +597,45 @@ def get_product_variants(base_name: str) -> List[Dict]:
     """
     base_name_lower = base_name.lower().strip()
     variants = []
-    
-    # Ищем в группах
+    seen_keys = set()
+
+    # 1. Прямое совпадение с ключом в LOCAL_FOOD_DB
+    if base_name_lower in LOCAL_FOOD_DB:
+        item = LOCAL_FOOD_DB[base_name_lower].copy()
+        item['key'] = base_name_lower
+        variants.append(item)
+        seen_keys.add(base_name_lower)
+
+    # 2. Поиск по группам
     for group_name, keys in PRODUCT_VARIANT_GROUPS.items():
+        # Если базовое название совпадает с группой или входит в неё
         if base_name_lower == group_name or base_name_lower in group_name:
             for key in keys:
-                if key in LOCAL_FOOD_DB:
+                if key in LOCAL_FOOD_DB and key not in seen_keys:
                     item = LOCAL_FOOD_DB[key].copy()
                     item['key'] = key
                     variants.append(item)
-            break
-    
-    # Если группа не найдена, но есть точное совпадение в базе
-    if not variants and base_name_lower in LOCAL_FOOD_DB:
-        item = LOCAL_FOOD_DB[base_name_lower].copy()
-        item['key'] = base_name_lower
-        variants = [item]
-    
-    # Если ничего не найдено, ищем по частичному совпадению
-    if not variants:
+                    seen_keys.add(key)
+            break  # Нашли группу, дальше не ищем
+
+    # 3. Если вариантов мало, ищем по частичному вхождению в название
+    if len(variants) < 3:
         for key, item in LOCAL_FOOD_DB.items():
-            if base_name_lower in key or base_name_lower in item['name'].lower():
+            if key not in seen_keys and (base_name_lower in key or base_name_lower in item['name'].lower()):
                 variants.append({**item, 'key': key})
+                seen_keys.add(key)
+                if len(variants) >= 5:
+                    break
+
+    # Удаляем дубликаты по имени
+    unique = []
+    seen_names = set()
+    for v in variants:
+        if v['name'] not in seen_names:
+            seen_names.add(v['name'])
+            unique.append(v)
     
-    return variants[:5]  # Ограничиваем до 5 вариантов
-    
-# ========== КЭШИРОВАНИЕ ПОИСКА ==========
-def _get_cached_search(query: str) -> Optional[List[Dict]]:
-    query_lower = query.lower().strip()
-    if query_lower in _SEARCH_CACHE:
-        results, timestamp = _SEARCH_CACHE[query_lower]
-        if time.time() - timestamp < _CACHE_TTL:
-            logger.info(f"♻️ Cache hit for '{query_lower}'")
-            return results
-        else:
-            del _SEARCH_CACHE[query_lower]
-    return None
-
-def _cache_search(query: str, results: List[Dict]):
-    query_lower = query.lower().strip()
-    _SEARCH_CACHE[query_lower] = (results, time.time())
-    if len(_SEARCH_CACHE) > _CACHE_LIMIT:
-        oldest = sorted(_SEARCH_CACHE.items(), key=lambda x: x[1][1])[:50]
-        for key, _ in oldest:
-            del _SEARCH_CACHE[key]
-
-def search_local_db(query: str) -> List[Dict]:
-    """Поиск в локальной базе по частичному совпадению."""
-    results = []
-    query_lower = query.lower().strip()
-    normalized_query = query_lower
-    # Простейшее удаление окончаний (можно улучшить)
-    for ending in ['а', 'ы', 'и', 'у', 'ом', 'е', 'ой', 'ей', 'ами', 'ах', 'ов', 'ев']:
-        if query_lower.endswith(ending) and len(query_lower) > 4:
-            normalized_query = query_lower[:-len(ending)]
-            break
-
-    for key, item in LOCAL_FOOD_DB.items():
-        if query_lower == key:
-            results.append({
-                'name': item['name'],
-                'calories': item['calories'],
-                'protein': item['protein'],
-                'fat': item['fat'],
-                'carbs': item['carbs'],
-                'source': 'local',
-                'score': 1.0
-            })
-        elif query_lower in key:
-            results.append({
-                'name': item['name'],
-                'calories': item['calories'],
-                'protein': item['protein'],
-                'fat': item['fat'],
-                'carbs': item['carbs'],
-                'source': 'local',
-                'score': 0.9
-            })
-        elif normalized_query in key and len(normalized_query) >= 3:
-            results.append({
-                'name': item['name'],
-                'calories': item['calories'],
-                'protein': item['protein'],
-                'fat': item['fat'],
-                'carbs': item['carbs'],
-                'source': 'local',
-                'score': 0.8
-            })
-        elif query_lower in item['name'].lower():
-            results.append({
-                'name': item['name'],
-                'calories': item['calories'],
-                'protein': item['protein'],
-                'fat': item['fat'],
-                'carbs': item['carbs'],
-                'source': 'local',
-                'score': 0.85
-            })
-
-    # Убираем дубликаты по имени
-    seen = set()
-    unique_results = []
-    for r in results:
-        if r['name'] not in seen:
-            seen.add(r['name'])
-            unique_results.append(r)
-
-    unique_results.sort(key=lambda x: x['score'], reverse=True)
-    return unique_results[:15]
+    return unique[:5]
 
 async def search_food(query: str) -> List[Dict]:
     """Поиск только в локальной базе (OpenFoodFacts отключён)."""

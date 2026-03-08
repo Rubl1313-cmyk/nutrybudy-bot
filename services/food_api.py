@@ -532,7 +532,115 @@ LOCAL_FOOD_DB = {
 "яйцо перепелиное сырое": {"name": "Яйцо перепелиное сырое (1 шт.)", "calories": 14, "protein": 1.2, "fat": 1.0, "carbs": 0.1},
 "яйцо перепелиное жареное": {"name": "Яйцо перепелиное жареное (1 шт.)", "calories": 20, "protein": 1.3, "fat": 1.6, "carbs": 0.2},
 }
+# ========== ГРУППЫ ПРОДУКТОВ ДЛЯ ВЫБОРА ВАРИАНТА ПРИГОТОВЛЕНИЯ ==========
+# Ключ — базовое название (то, что может определить AI)
+# Значение — список ключей из LOCAL_FOOD_DB, которые соответствуют разным вариантам
+PRODUCT_VARIANT_GROUPS = {
+    "курица": [
+        "курица",
+        "куриная грудка",
+        "куриное бедро",
+        "куриное крыло",
+        "куриная печень"
+    ],
+    "говядина": [
+        "говядина",
+        "говяжий фарш",
+        "говяжья печень"
+    ],
+    "свинина": [
+        "свинина",
+        "свиная вырезка",
+        "бекон"
+    ],
+    "рыба": [
+        "лосось",
+        "семга",
+        "треска",
+        "минтай",
+        "хек",
+        "скумбрия",
+        "тунец",
+        "форель"
+    ],
+    "яйцо": [
+        "яйцо",
+        "яичный белок",
+        "яичный желток"
+    ],
+    "картофель": [
+        "картофель",
+        "картофель фри",
+        "картофельное пюре"
+    ],
+    "рис": [
+        "рис",
+        "рис бурый"
+    ],
+    "макароны": [
+        "макароны",
+        "спагетти",
+        "лапша",
+        "вермишель"
+    ],
+    "хлеб": [
+        "хлеб",
+        "хлеб ржаной",
+        "батон",
+        "лаваш",
+        "булочка"
+    ],
+    "молоко": [
+        "молоко",
+        "кефир",
+        "йогурт"
+    ],
+    "творог": [
+        "творог",
+        "творог обезжиренный"
+    ],
+    "сыр": [
+        "сыр",
+        "пармезан",
+        "моцарелла",
+        "фета",
+        "брынза",
+        "сулугуни"
+    ]
+}
 
+def get_product_variants(base_name: str) -> List[Dict]:
+    """
+    Возвращает список вариантов продукта по базовому названию.
+    Каждый вариант содержит name, key и КБЖУ.
+    """
+    base_name_lower = base_name.lower().strip()
+    variants = []
+    
+    # Ищем в группах
+    for group_name, keys in PRODUCT_VARIANT_GROUPS.items():
+        if base_name_lower == group_name or base_name_lower in group_name:
+            for key in keys:
+                if key in LOCAL_FOOD_DB:
+                    item = LOCAL_FOOD_DB[key].copy()
+                    item['key'] = key
+                    variants.append(item)
+            break
+    
+    # Если группа не найдена, но есть точное совпадение в базе
+    if not variants and base_name_lower in LOCAL_FOOD_DB:
+        item = LOCAL_FOOD_DB[base_name_lower].copy()
+        item['key'] = base_name_lower
+        variants = [item]
+    
+    # Если ничего не найдено, ищем по частичному совпадению
+    if not variants:
+        for key, item in LOCAL_FOOD_DB.items():
+            if base_name_lower in key or base_name_lower in item['name'].lower():
+                variants.append({**item, 'key': key})
+    
+    return variants[:5]  # Ограничиваем до 5 вариантов
+    
 # ========== КЭШИРОВАНИЕ ПОИСКА ==========
 def _get_cached_search(query: str) -> Optional[List[Dict]]:
     query_lower = query.lower().strip()

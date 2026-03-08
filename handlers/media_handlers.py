@@ -1227,18 +1227,12 @@ async def select_dish_by_index_callback(callback: CallbackQuery, state: FSMConte
 
     match = matches[idx]
     dish_key = match['dish_key']
-    pending_food_items = data.get('pending_food_items')
-    pending_index = data.get('pending_index')
-    meal_type = data.get('pending_meal_type')
-    weight = data.get('pending_weight', 100)
+    logger.info(f"🍽 Выбрано блюдо с ключом: {dish_key}")
 
-    # Очищаем временные данные
-    await state.update_data(dish_matches=None)
-
-    # Получаем информацию о блюде из базы
-    from services.dish_db import COMPOSITE_DISHES, get_dish_ingredients
+    from services.dish_db import COMPOSITE_DISHES
     if dish_key not in COMPOSITE_DISHES:
-        await callback.answer("❌ Блюдо не найдено", show_alert=True)
+        logger.error(f"❌ Ключ {dish_key} не найден в COMPOSITE_DISHES")
+        await callback.answer("❌ Блюдо не найдено в базе", show_alert=True)
         return
 
     dish_info = COMPOSITE_DISHES[dish_key]

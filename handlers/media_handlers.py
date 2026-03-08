@@ -436,24 +436,21 @@ async def _show_dish_selection_for_product(
     text = f"🍽 <b>«{current_item['name']}» может быть готовым блюдом</b>\n\n"
     text += "Найдены похожие блюда в базе:\n"
 
+    # Сохраняем matches в состоянии для доступа по индексу
+    await state.update_data(dish_matches=matches)
+
     builder = InlineKeyboardBuilder()
-    for match in matches:
+    for idx, match in enumerate(matches):
         btn_text = f"{match['name']} (совпадение {match['score']*100:.0f}%)"
-        builder.button(text=btn_text, callback_data=f"select_dish_for_product_{match['dish_key']}")
+        builder.button(text=btn_text, callback_data=f"select_dish_idx_{idx}")
     builder.adjust(1)
     builder.row(
-        InlineKeyboardButton(text="❌ Нет, это ингредиент", callback_data=f"continue_as_ingredient_{current_item['name']}")
+        InlineKeyboardButton(text="❌ Нет, это ингредиент", callback_data="continue_ingredient")
     )
 
     await message.answer(text, reply_markup=builder.as_markup(), parse_mode="HTML")
-    # Сохраняем контекст для продолжения
-    await state.update_data(
-        pending_food_items= (await state.get_data()).get('pending_food_items'),
-        pending_index= (await state.get_data()).get('pending_index'),
-        pending_meal_type=meal_type,
-        pending_weight=current_item.get('weight', 100),
-        current_product_name=current_item['name']
-    )
+    # Контекст для продолжения уже сохранён в состоянии (pending_food_items, pending_index и т.д.)
+
 # ========== ОБРАБОТЧИК ПАГИНАЦИИ ==========
 
 @router.callback_query(F.data.startswith("variants_page_"))
@@ -1204,6 +1201,112 @@ async def select_dish_for_product_callback(callback: CallbackQuery, state: FSMCo
 async def continue_as_ingredient_callback(callback: CallbackQuery, state: FSMContext):
     """Пользователь решил, что это не готовое блюдо, а ингредиент."""
     product_name = callback.data.replace("continue_as_ingredient_", "")
+    data = await state.get_data()
+    await callback.message.delete()
+    # Просто продолжаем обработку как ингредиент
+    await process_food_items(
+        callback.message,
+        state,
+        data.get('pending_food_items'),
+        data.get('pending_meal_type'),
+        data.get('pending_index')
+    )
+    await callback.answer()
+
+@router.callback_query(F.data.startswith("select_dish_idx_"))
+async def select_dish_by_index_callback(callback: CallbackQuery, state: FSMContext):
+    """Выбор готового блюда по индексу."""
+    try:
+        idx = int(callback.data.split("_")[3])
+    except (IndexError, ValueError):
+        await callback.answer("❌ Неверный индекс", show_alert=True)
+        return
+
+    data = await state.get_data()
+    matches = data.get('dish_matches')
+    if not matches or idx >= len(matches):
+        await callback.answer("❌ Данные не найдены", show_alert=True)
+        return
+
+    match = matches[idx]
+    dish_key = match['dish_key']
+    pending_food_items = data.get('pending_food_items')
+    pending_index = data.get('pending_index')
+    meal_type = data.get('pending_meal_type')
+    weight = data.get('pending_weight', 100)
+
+    # Очищаем временные данные
+    await state.update_data(dish_matches=None)
+
+    # Получаем информацию о блюде из базы
+    from services.dish_db import COMPOSITE_DISHES, get_dish_ingredients
+    if dish_key not in COMPOSITE_DISHES:
+        await callback.answer("❌ Блюдо не найдено", show_alert=True)
+        return
+
+    dish_info = COMPOSITE_DISHES[dish_key]
+
+    # Проверяем, есть ли готовое КБЖУ
+    nutrition_per_100 = dish_info.get('nutrition_per_100')
+    if nutrition_per_100:
+        # Используем готовое КБЖУ
+        multiplier = weight / 100.0
+        selected_food = {
+            'name': dish_info['name'],
+            'base_calories': nutrition_per_100.get('calories', 0),
+            'base_protein': nutrition_per_100.get('protein', 0),
+            'base_fat': nutrition_per_100.get('fat', 0),
+            'base_carbs': nutrition_per_100.get('carbs', 0),
+            'weight': weight,
+            'calories': nutrition_per_100.get('calories', 0) * multiplier,
+            'protein': nutrition_per_100.get('protein', 0) * multiplier,
+            'fat': nutrition_per_100.get('fat', 0) * multiplier,
+            'carbs': nutrition_per_100.get('carbs', 0) * multiplier,
+            'source': 'composite_dish',
+            'dish_key': dish_key
+        }
+        selected_foods = data.get('selected_foods', [])
+        selected_foods.append(selected_food)
+        await state.update_data(selected_foods=selected_foods)
+
+        await callback.message.delete()
+        await process_food_items(
+            callback.message,
+            state,
+            pending_food_items,
+            meal_type,
+            pending_index + 1
+        )
+        await callback.answer()
+        return
+
+    # Если нет готового КБЖУ, разбиваем на ингредиенты
+    default_weight = dish_info.get('default_weight', 300)
+    # Используем вес, заданный пользователем, если он разумный
+    total_weight = weight if 50 < weight < 1500 else default_weight
+
+    ingredients_with_weights = get_dish_ingredients(dish_key, total_weight=total_weight)
+    food_items = [{'name': ing['name'], 'weight': ing['estimated_weight_grams']} for ing in ingredients_with_weights]
+
+    # Заменяем текущий элемент на список ингредиентов
+    pending_food_items.pop(pending_index)
+    for i, item in enumerate(food_items):
+        pending_food_items.insert(pending_index + i, item)
+
+    await state.update_data(pending_food_items=pending_food_items)
+    await callback.message.delete()
+    await process_food_items(
+        callback.message,
+        state,
+        pending_food_items,
+        meal_type,
+        pending_index  # начинаем с первого ингредиента вместо удалённого продукта
+    )
+    await callback.answer()
+
+@router.callback_query(F.data == "continue_ingredient")
+async def continue_as_ingredient_callback(callback: CallbackQuery, state: FSMContext):
+    """Пользователь решил, что это не готовое блюдо, а ингредиент."""
     data = await state.get_data()
     await callback.message.delete()
     # Просто продолжаем обработку как ингредиент

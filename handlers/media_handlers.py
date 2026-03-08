@@ -901,7 +901,67 @@ async def manual_food_callback(callback: CallbackQuery, state: FSMContext):
     from handlers.food import cmd_log_food
     await cmd_log_food(callback.message, state, user_id=callback.from_user.id)
     await callback.answer()
+@router.callback_query(F.data.startswith("select_variant_"))
+async def select_variant_callback(callback: CallbackQuery, state: FSMContext):
+    parts = callback.data.split("_")
+    if len(parts) < 3:
+        await callback.answer("❌ Ошибка", show_alert=True)
+        return
 
+    product_key = parts[2]
+    data = await state.get_data()
+
+    if product_key not in LOCAL_FOOD_DB:
+        await callback.answer("❌ Продукт не найден", show_alert=True)
+        return
+
+    product = LOCAL_FOOD_DB[product_key]
+    weight = data.get('pending_weight', 100)
+    meal_type = data.get('pending_meal_type', 'snack')
+    food_items = data.get('pending_food_items', [])
+    current_index = data.get('pending_index', 0)
+
+    # Создаём запись для выбранного продукта
+    food_data = {
+        'name': product['name'],
+        'base_calories': product.get('calories', 0),
+        'base_protein': product.get('protein', 0),
+        'base_fat': product.get('fat', 0),
+        'base_carbs': product.get('carbs', 0),
+        'source': 'local'
+    }
+    nutrients = _calculate_nutrients(food_data, weight)
+
+    selected_food = {
+        'name': food_data['name'],
+        'base_calories': food_data['base_calories'],
+        'base_protein': food_data['base_protein'],
+        'base_fat': food_data['base_fat'],
+        'base_carbs': food_data['base_carbs'],
+        'weight': weight,
+        'calories': nutrients['calories'],
+        'protein': nutrients['protein'],
+        'fat': nutrients['fat'],
+        'carbs': nutrients['carbs'],
+        'source': 'local',
+        'ai_confidence': 0.8
+    }
+
+    # Добавляем в список выбранных
+    selected_foods = data.get('selected_foods', [])
+    selected_foods.append(selected_food)
+    await state.update_data(selected_foods=selected_foods)
+
+    # Переходим к следующему продукту
+    await callback.message.delete()
+    await process_food_items(
+        callback.message,
+        state,
+        food_items,
+        meal_type,
+        current_index + 1
+    )
+    await callback.answer()
 # ========== ОБРАБОТЧИКИ УПРАВЛЕНИЯ ВЕСОМ ==========
 
 @router.callback_query(F.data.startswith("weight_"))

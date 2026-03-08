@@ -32,6 +32,12 @@ from sqlalchemy import select
 import sys
 
 router = Router()
+@router.callback_query()
+async def catch_all_callbacks(callback: CallbackQuery):
+    import sys
+    sys.stderr.write(f"🔥🔥🔥 CATCH_ALL: {callback.data}\n")
+    sys.stderr.flush()
+    await callback.answer()  # чтобы callback не зависал
 logger = logging.getLogger(__name__)
 
 # Количество вариантов на одной странице

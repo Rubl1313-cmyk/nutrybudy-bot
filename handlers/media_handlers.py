@@ -1229,6 +1229,9 @@ async def select_dish_by_index_callback(callback: CallbackQuery, state: FSMConte
     normalized_key = dish_key.lower().strip()
 
     if normalized_key not in COMPOSITE_DISHES:
+        print(f"🔥 DEBUG: dish_key from matches = '{dish_key}'", file=sys.stderr)
+        print(f"🔥 DEBUG: normalized_key = '{normalized_key}'", file=sys.stderr)
+        print(f"🔥 DEBUG: available keys sample: {list(COMPOSITE_DISHES.keys())[:5]}", file=sys.stderr)
         logger.error(f"🔥 Ключ '{normalized_key}' не найден в COMPOSITE_DISHES. Доступные ключи: {list(COMPOSITE_DISHES.keys())}")
         await callback.answer("❌ Блюдо не найдено в базе", show_alert=True)
         return
@@ -1721,11 +1724,3 @@ async def handle_voice(message: Message, state: FSMContext):
         logger.error(f"❌ Voice handler error: {e}\n{traceback.format_exc()}")
         await message.answer("❌ Ошибка при обработке голоса.")
 
-@router.callback_query()
-async def debug_all_callbacks(callback: CallbackQuery):
-    """Временный отладчик: логирует любой callback_query."""
-    logger.warning(f"🐞 DEBUG: Получен callback с data = '{callback.data}'")
-    logger.warning(f"🐞 DEBUG: from_user = {callback.from_user.id}")
-    logger.warning(f"🐞 DEBUG: message_id = {callback.message.message_id}")
-    # Не отвечаем, чтобы не мешать другим обработчикам, но даём знать пользователю
-    await callback.answer("🔄 Обработка...", show_alert=False)

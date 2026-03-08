@@ -1195,22 +1195,6 @@ async def select_dish_for_product_callback(callback: CallbackQuery, state: FSMCo
     )
     await callback.answer()
 
-@router.callback_query(F.data.startswith("continue_as_ingredient_"))
-async def continue_as_ingredient_callback(callback: CallbackQuery, state: FSMContext):
-    """Пользователь решил, что это не готовое блюдо, а ингредиент."""
-    product_name = callback.data.replace("continue_as_ingredient_", "")
-    data = await state.get_data()
-    await callback.message.delete()
-    # Просто продолжаем обработку как ингредиент
-    await process_food_items(
-        callback.message,
-        state,
-        data.get('pending_food_items'),
-        data.get('pending_meal_type'),
-        data.get('pending_index')
-    )
-    await callback.answer()
-
 @router.callback_query(F.data.startswith("select_dish_idx_"))
 async def select_dish_by_index_callback(callback: CallbackQuery, state: FSMContext):
     try:
@@ -1226,16 +1210,21 @@ async def select_dish_by_index_callback(callback: CallbackQuery, state: FSMConte
         return
 
     match = matches[idx]
-    dish_key = match['dish_key']
-    logger.info(f"🍽 Выбрано блюдо с ключом: {dish_key}")
+    dish_key = match['dish_key'].strip()
+    logger.info(f"🍽 Выбрано блюдо с ключом: '{dish_key}'")
 
     from services.dish_db import COMPOSITE_DISHES
-    if dish_key not in COMPOSITE_DISHES:
-        logger.error(f"❌ Ключ {dish_key} не найден в COMPOSITE_DISHES")
+    # Нормализуем ключ: приводим к нижнему регистру и убираем лишние пробелы
+    normalized_key = dish_key.lower().strip()
+
+    if normalized_key not in COMPOSITE_DISHES:
+        # Логируем доступные ключи для отладки
+        available_keys = list(COMPOSITE_DISHES.keys())
+        logger.error(f"❌ Ключ '{normalized_key}' не найден. Доступные ключи (первые 10): {available_keys[:10]}")
         await callback.answer("❌ Блюдо не найдено в базе", show_alert=True)
         return
 
-    dish_info = COMPOSITE_DISHES[dish_key]
+    dish_info = COMPOSITE_DISHES[normalized_key]
 
     # Проверяем, есть ли готовое КБЖУ
     nutrition_per_100 = dish_info.get('nutrition_per_100')

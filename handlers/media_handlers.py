@@ -1734,3 +1734,8 @@ async def handle_voice(message: Message, state: FSMContext):
         logger.error(f"❌ Voice handler error: {e}\n{traceback.format_exc()}")
         await message.answer("❌ Ошибка при обработке голоса.")
 
+@router.callback_query()
+async def debug_callback(callback: CallbackQuery):
+    import sys
+    sys.stderr.write(f"🔥🔥🔥 DEBUG_CALLBACK: {callback.data}\n")
+    sys.stderr.flush()

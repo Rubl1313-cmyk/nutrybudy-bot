@@ -34,6 +34,7 @@ from utils.states import FoodStates
 from database.db import get_session
 from database.models import Meal, FoodItem, User
 from sqlalchemy import select
+from typing import Union
 
 router = Router()
 logger = logging.getLogger(__name__)
@@ -55,36 +56,34 @@ def _prepare_image(image_bytes: bytes) -> bytes:
         logger.warning(f"⚠️ Image prep error: {e}")
         return image_bytes
 
-async def _get_food_data_cached(name: str) -> Dict:
+async def _get_food_data_cached(name: str, return_variants: bool = False) -> Union[Dict, List[Dict]]:
     """
-    Получает данные продукта из локальной базы ингредиентов (LOCAL_FOOD_DB).
-    Больше не проверяет COMPOSITE_DISHES.
+    Получает данные продукта из локальной базы ингредиентов.
+    Если return_variants=True и для продукта есть несколько вариантов,
+    возвращает список вариантов для выбора.
     """
     name_lower = name.lower().strip()
     
-    # Прямой поиск в базе ингредиентов
-    for key, product_item in LOCAL_FOOD_DB.items():
-        if name_lower == key or name_lower == product_item["name"].lower():
-            return {
-                'name': product_item['name'],
-                'base_calories': product_item.get('calories', 0),
-                'base_protein': product_item.get('protein', 0),
-                'base_fat': product_item.get('fat', 0),
-                'base_carbs': product_item.get('carbs', 0),
-                'source': 'local'
-            }
+    # Проверяем, есть ли группа для этого продукта
+    from services.food_api import get_product_variants
+    variants = get_product_variants(name_lower)
     
-    # Поиск по частичному совпадению (запрос входит в ключ)
-    for key, product_item in LOCAL_FOOD_DB.items():
-        if name_lower in key:
-            return {
-                'name': product_item['name'],
-                'base_calories': product_item.get('calories', 0),
-                'base_protein': product_item.get('protein', 0),
-                'base_fat': product_item.get('fat', 0),
-                'base_carbs': product_item.get('carbs', 0),
-                'source': 'local'
-            }
+    if return_variants and len(variants) > 1:
+        # Возвращаем список вариантов для выбора
+        return variants
+    
+    # Если вариантов нет или return_variants=False, берём первый подходящий
+    if variants:
+        best = variants[0]
+        return {
+            'name': best['name'],
+            'base_calories': best.get('calories', 0),
+            'base_protein': best.get('protein', 0),
+            'base_fat': best.get('fat', 0),
+            'base_carbs': best.get('carbs', 0),
+            'source': 'local',
+            'key': best.get('key', name_lower)
+        }
     
     # fallback
     return {
@@ -95,7 +94,6 @@ async def _get_food_data_cached(name: str) -> Dict:
         'base_carbs': 0,
         'source': 'unknown'
     }
-
 async def _safe_edit_message(bot, chat_id: int, message_id: int, text: str, reply_markup=None, parse_mode="HTML"):
     """Безопасное редактирование сообщения с обработкой ошибок."""
     try:
@@ -268,57 +266,57 @@ async def _start_food_input_with_weights(
     selected_foods = []
     
     for item in food_items:
-        food_data = await _get_food_data_cached(item['name'])
-        weight = item.get('weight', 100)
-        nutrients = _calculate_nutrients(food_data, weight)
+        # Получаем данные продукта с проверкой на варианты
+        food_data = await _get_food_data_cached(item['name'], return_variants=True)
         
-        selected_foods.append({
-            'name': food_data['name'],
-            'base_calories': food_data['base_calories'],
-            'base_protein': food_data['base_protein'],
-            'base_fat': food_data['base_fat'],
-            'base_carbs': food_data['base_carbs'],
-            'weight': weight,
-            'calories': nutrients['calories'],
-            'protein': nutrients['protein'],
-            'fat': nutrients['fat'],
-            'carbs': nutrients['carbs'],
-            'source': food_data.get('source', 'ai_recognition'),
-            'ai_confidence': item.get('ai_confidence', 0.7)
-        })
+        # Если это список вариантов (больше 1), показываем выбор
+        if isinstance(food_data, list) and len(food_data) > 1:
+            # Сохраняем информацию о pending продукте
+            await state.update_data(
+                pending_weight=item.get('weight', 100),
+                pending_meal_type=meal_type
+            )
+            
+            # Показываем клавиатуру с вариантами
+            builder = InlineKeyboardBuilder()
+            for variant in food_data:
+                btn_text = f"{variant['name']} ({variant['calories']} ккал)"
+                builder.button(text=btn_text, callback_data=f"select_variant_{variant['key']}")
+            builder.adjust(1)
+            builder.button(text="❌ Отмена", callback_data="cancel_meal")
+            
+            await message.answer(
+                f"🔍 Для «{item['name']}» найдено несколько вариантов:\n"
+                f"Выберите подходящий:",
+                reply_markup=builder.as_markup()
+            )
+            return  # Прерываем, ждём выбора пользователя
+        
+        # Если это один продукт (словарь)
+        elif isinstance(food_data, dict):
+            weight = item.get('weight', 100)
+            nutrients = _calculate_nutrients(food_data, weight)
+            
+            selected_foods.append({
+                'name': food_data['name'],
+                'base_calories': food_data['base_calories'],
+                'base_protein': food_data['base_protein'],
+                'base_fat': food_data['base_fat'],
+                'base_carbs': food_data['base_carbs'],
+                'weight': weight,
+                'calories': nutrients['calories'],
+                'protein': nutrients['protein'],
+                'fat': nutrients['fat'],
+                'carbs': nutrients['carbs'],
+                'source': food_data.get('source', 'ai_recognition'),
+                'ai_confidence': item.get('ai_confidence', 0.7)
+            })
+        else:
+            # Неизвестный формат, пропускаем
+            continue
     
-    total_cal = sum(f['calories'] for f in selected_foods)
-    total_prot = sum(f['protein'] for f in selected_foods)
-    total_fat = sum(f['fat'] for f in selected_foods)
-    total_carbs = sum(f['carbs'] for f in selected_foods)
-    
-    totals_text = (
-        f"🍽️ <b>Приём пищи ({meal_type}):</b>\n"
-        f"🔥 {total_cal:.0f} ккал | 🥩 {total_prot:.1f}г | 🥑 {total_fat:.1f}г | 🍚 {total_carbs:.1f}г"
-    )
-    
-    totals_keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="➕ Добавить продукт", callback_data="add_food")],
-        [
-            InlineKeyboardButton(text="✅ Подтвердить", callback_data="confirm_meal"),
-            InlineKeyboardButton(text="❌ Отмена", callback_data="cancel_meal")
-        ]
-    ])
-    
-    totals_msg = await message.answer(totals_text, reply_markup=totals_keyboard, parse_mode="HTML")
-    
-    product_msg_ids = []
-    for i, food in enumerate(selected_foods):
-        msg_id = await _send_product_card(message.chat.id, message.bot, i, food, totals_msg.message_id)
-        product_msg_ids.append(msg_id)
-    
-    await state.update_data(
-        selected_foods=selected_foods,
-        totals_msg_id=totals_msg.message_id,
-        product_msg_ids=product_msg_ids,
-        meal_type=meal_type,
-        mode="photo_ai_ingredients"
-    )
+    # Если все продукты обработаны, показываем итоговый интерфейс
+    await _show_final_interface(message, state, selected_foods, meal_type)
 
 async def _show_dish_confirmation(
     message: Message,
@@ -1189,6 +1187,51 @@ async def food_manual_callback(callback: CallbackQuery, state: FSMContext):
     from handlers.food import cmd_log_food
     await cmd_log_food(callback.message, state, user_id=callback.from_user.id)
     await _safe_answer(callback)
+
+@router.callback_query(F.data.startswith("select_variant_"))
+async def select_variant_callback(callback: CallbackQuery, state: FSMContext):
+    """Обработчик выбора варианта продукта."""
+    parts = callback.data.split("_")
+    if len(parts) < 3:
+        await callback.answer("❌ Ошибка", show_alert=True)
+        return
+    
+    # Получаем данные из callback
+    product_key = parts[2]  # ключ продукта в LOCAL_FOOD_DB
+    data = await state.get_data()
+    
+    # Получаем информацию о продукте из базы
+    from services.food_api import LOCAL_FOOD_DB
+    if product_key not in LOCAL_FOOD_DB:
+        await callback.answer("❌ Продукт не найден", show_alert=True)
+        return
+    
+    product = LOCAL_FOOD_DB[product_key]
+    
+    # Создаём запись для выбранного продукта
+    selected_food = {
+        'name': product['name'],
+        'base_calories': product.get('calories', 0),
+        'base_protein': product.get('protein', 0),
+        'base_fat': product.get('fat', 0),
+        'base_carbs': product.get('carbs', 0),
+        'weight': data.get('pending_weight', 0),
+        'source': 'local'
+    }
+    
+    # Обновляем состояние
+    await state.update_data(selected_food=selected_food)
+    
+    # Запрашиваем вес
+    await state.set_state(FoodStates.entering_weight)
+    await callback.message.edit_text(
+        f"✅ Выбрано: <b>{product['name']}</b>\n"
+        f"📊 {product.get('calories', 0)} ккал | "
+        f"Б:{product.get('protein', 0)} Ж:{product.get('fat', 0)} У:{product.get('carbs', 0)} (на 100г)\n\n"
+        f"⚖️ Введите вес в граммах:",
+        parse_mode="HTML"
+    )
+    await callback.answer()
 
 # ========== ОБРАБОТЧИК ГОЛОСОВЫХ СООБЩЕНИЙ ==========
 

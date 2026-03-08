@@ -1720,3 +1720,12 @@ async def handle_voice(message: Message, state: FSMContext):
     except Exception as e:
         logger.error(f"❌ Voice handler error: {e}\n{traceback.format_exc()}")
         await message.answer("❌ Ошибка при обработке голоса.")
+
+@router.callback_query()
+async def debug_all_callbacks(callback: CallbackQuery):
+    """Временный отладчик: логирует любой callback_query."""
+    logger.warning(f"🐞 DEBUG: Получен callback с data = '{callback.data}'")
+    logger.warning(f"🐞 DEBUG: from_user = {callback.from_user.id}")
+    logger.warning(f"🐞 DEBUG: message_id = {callback.message.message_id}")
+    # Не отвечаем, чтобы не мешать другим обработчикам, но даём знать пользователю
+    await callback.answer("🔄 Обработка...", show_alert=False)

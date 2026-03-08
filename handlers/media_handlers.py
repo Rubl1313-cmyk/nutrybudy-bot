@@ -559,7 +559,6 @@ async def _show_dish_confirmation(
 
     builder = InlineKeyboardBuilder()
     builder.button(text="✅ Использовать ингредиенты", callback_data="confirm_dish_as_is")
-    builder.button(text="✏️ Редактировать ингредиенты", callback_data="edit_dish_ingredients")
     builder.button(text="🔄 Перераспознать", callback_data="retry_photo")
     builder.button(text="📝 Ввести вручную", callback_data="manual_food_entry")
     builder.adjust(1)

@@ -4041,6 +4041,7 @@ def calculate_dish_nutrition(dish_name: str, total_weight: int = 300) -> Dict:
         'carbs': round(total_carbs, 1),
         'ingredients_count': len(ingredients)
     }
+# services/dish_db.py
 def find_matching_dishes(dish_name: str, ai_ingredients: list = None, threshold: float = 0.2) -> list:
     """
     Ищет похожие готовые блюда в COMPOSITE_DISHES.
@@ -4050,6 +4051,7 @@ def find_matching_dishes(dish_name: str, ai_ingredients: list = None, threshold:
         return []
     
     dish_name_lower = dish_name.lower().strip() if dish_name else ""
+    
     # Множество имён ингредиентов от AI (если есть)
     ai_ingredient_names = set()
     if ai_ingredients:
@@ -4066,6 +4068,7 @@ def find_matching_dishes(dish_name: str, ai_ingredients: list = None, threshold:
     matches = []
     for key, dish_data in COMPOSITE_DISHES.items():
         dish_display_name = dish_data.get('name', key)
+        
         # Ингредиенты блюда
         dish_ingredients = dish_data.get('ingredients', [])
         dish_ingredient_names = set(ing.get('name', '').lower() for ing in dish_ingredients if ing.get('name'))
@@ -4075,7 +4078,7 @@ def find_matching_dishes(dish_name: str, ai_ingredients: list = None, threshold:
         if dish_name_lower:
             if dish_name_lower == key or dish_name_lower == dish_display_name.lower():
                 name_score = 1.0
-            elif (dish_name_lower in key or key in dish_name_lower or 
+            elif (dish_name_lower in key or key in dish_name_lower or
                   dish_name_lower in dish_display_name.lower() or dish_display_name.lower() in dish_name_lower):
                 name_score = 0.6  # частичное совпадение
         
@@ -4103,10 +4106,10 @@ def find_matching_dishes(dish_name: str, ai_ingredients: list = None, threshold:
             matches.append({
                 'name': dish_display_name,
                 'score': round(combined, 2),
-                'dish_key': key.lower(),
+                'dish_key': key,  # 🔥 ИСПРАВЛЕНО: не key.lower(), а оригинальный key
                 'ingredients': list(dish_ingredient_names)
             })
-            logger.info(f"✅ Найдено совпадение: {dish_display_name} со скором {combined}")
+            logger.info(f"✅ Найдено совпадение: {dish_display_name} со скором {combined}, ключ: '{key}'")
     
     matches.sort(key=lambda x: x['score'], reverse=True)
     return matches[:5]

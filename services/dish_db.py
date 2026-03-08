@@ -4103,7 +4103,7 @@ def find_matching_dishes(dish_name: str, ai_ingredients: list = None, threshold:
             matches.append({
                 'name': dish_display_name,
                 'score': round(combined, 2),
-                'dish_key': key,
+                'dish_key': key.lower(),
                 'ingredients': list(dish_ingredient_names)
             })
             logger.info(f"✅ Найдено совпадение: {dish_display_name} со скором {combined}")

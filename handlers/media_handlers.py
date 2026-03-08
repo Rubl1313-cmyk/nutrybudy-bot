@@ -277,7 +277,7 @@ async def _start_food_input_with_weights(
                 pending_weight=item.get('weight', 100),
                 pending_meal_type=meal_type
             )
-            
+            logger.info(f"🍔 food_items для готового блюда: {food_items}")
             # Показываем клавиатуру с вариантами
             builder = InlineKeyboardBuilder()
             for variant in food_data:
@@ -654,7 +654,7 @@ async def handle_photo(message: Message, state: FSMContext):
 
 @router.callback_query(F.data == "confirm_dish_as_is")
 async def confirm_dish_callback(callback: CallbackQuery, state: FSMContext):
-    """Использует ингредиенты, распознанные AI, без изменений."""
+    """Использует ингредиенты, распознанные AI, с сохранением весов, если они есть."""
     await callback.answer("⏳ Загружаю данные...")
     
     data = await state.get_data()
@@ -665,29 +665,69 @@ async def confirm_dish_callback(callback: CallbackQuery, state: FSMContext):
         return
     
     ingredients = dish_data.get('ingredients', [])
-    food_names = [ing.get('name', '') for ing in ingredients if ing.get('name')]
-    
-    if not food_names:
+    if not ingredients:
         await callback.message.edit_text("❌ Нет ингредиентов")
         return
     
-    # Разворачиваем составные блюда (если AI ошибочно определил ингредиент как готовое блюдо)
-    expanded_names = []
-    for name in food_names:
-        name_lower = name.lower()
-        if name_lower in COMPOSITE_DISHES:
-            dish_ings = get_dish_ingredients(name_lower, total_weight=300)
-            expanded_names.extend([ing['name'] for ing in dish_ings])
-        else:
-            expanded_names.append(name)
+    # Проверяем, есть ли веса от AI
+    has_weights = any(ing.get('estimated_weight_grams', 0) > 0 for ing in ingredients)
     
-    await callback.message.edit_text(f"⏳ Загружаю {len(expanded_names)} продуктов...")
-    await _start_food_input(
-        callback.message,
-        state,
-        expanded_names,
-        meal_type=dish_data.get('meal_type', 'snack')
-    )
+    if has_weights:
+        # Если есть веса, передаём их
+        food_items = []
+        for ing in ingredients:
+            name = ing.get('name', '')
+            weight = ing.get('estimated_weight_grams', 0) or ing.get('weight', 100)
+            if name:
+                food_items.append({
+                    'name': name,
+                    'weight': weight,
+                    'ai_confidence': ing.get('confidence', 0.7)
+                })
+        
+        # Разворачиваем составные блюда (если AI ошибочно определил ингредиент как готовое блюдо)
+        expanded_items = []
+        for item in food_items:
+            name_lower = item['name'].lower()
+            if name_lower in COMPOSITE_DISHES:
+                dish_ings = get_dish_ingredients(name_lower, total_weight=item['weight'])
+                for d_ing in dish_ings:
+                    expanded_items.append({
+                        'name': d_ing['name'],
+                        'weight': d_ing['estimated_weight_grams'],
+                        'ai_confidence': item['ai_confidence']
+                    })
+            else:
+                expanded_items.append(item)
+        
+        await callback.message.edit_text(f"⏳ Загружаю {len(expanded_items)} продуктов с весами...")
+        await _start_food_input_with_weights(
+            callback.message,
+            state,
+            expanded_items,
+            meal_type=dish_data.get('meal_type', 'snack')
+        )
+    else:
+        # Если весов нет, используем только названия
+        food_names = [ing.get('name', '') for ing in ingredients if ing.get('name')]
+        
+        # Разворачиваем составные блюда
+        expanded_names = []
+        for name in food_names:
+            name_lower = name.lower()
+            if name_lower in COMPOSITE_DISHES:
+                dish_ings = get_dish_ingredients(name_lower, total_weight=300)
+                expanded_names.extend([ing['name'] for ing in dish_ings])
+            else:
+                expanded_names.append(name)
+        
+        await callback.message.edit_text(f"⏳ Загружаю {len(expanded_names)} продуктов...")
+        await _start_food_input(
+            callback.message,
+            state,
+            expanded_names,
+            meal_type=dish_data.get('meal_type', 'snack')
+        )
 @router.callback_query(F.data.startswith("select_dish_"))
 async def select_dish_callback(callback: CallbackQuery, state: FSMContext):
     """Выбор готового блюда из списка."""

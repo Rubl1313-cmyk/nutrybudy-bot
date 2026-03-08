@@ -2059,6 +2059,8 @@ def find_matching_dishes(dish_name: str, ai_ingredients: list = None, threshold:
             elif isinstance(ing, str):
                 ai_ingredient_names.add(ing.lower())
     
+    logger.info(f"🔍 Поиск готовых блюд для '{dish_name_lower}' с ингредиентами {ai_ingredient_names}")
+    
     matches = []
     for key, dish_data in COMPOSITE_DISHES.items():
         dish_display_name = dish_data.get('name', key)
@@ -2102,6 +2104,7 @@ def find_matching_dishes(dish_name: str, ai_ingredients: list = None, threshold:
                 'dish_key': key,
                 'ingredients': list(dish_ingredient_names)
             })
+            logger.info(f"✅ Найдено совпадение: {dish_display_name} со скором {combined}")
     
     matches.sort(key=lambda x: x['score'], reverse=True)
     return matches[:5]

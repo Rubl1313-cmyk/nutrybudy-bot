@@ -1197,34 +1197,48 @@ async def select_dish_for_product_callback(callback: CallbackQuery, state: FSMCo
 
 @router.callback_query(F.data.startswith("select_dish_idx_"))
 async def select_dish_by_index_callback(callback: CallbackQuery, state: FSMContext):
+    logger.info(f"🍽 Получен callback: {callback.data}")
     try:
-        idx = int(callback.data.split("_")[3])
-    except (IndexError, ValueError):
-        await callback.answer("❌ Неверный индекс", show_alert=True)
+        parts = callback.data.split("_")
+        logger.info(f"🍽 Разобранные части: {parts}")
+        idx = int(parts[3])
+    except (IndexError, ValueError) as e:
+        logger.error(f"❌ Ошибка парсинга индекса: {e}")
+        await callback.answer("❌ Неверный формат", show_alert=True)
         return
 
     data = await state.get_data()
+    logger.info(f"🍽 Данные состояния: {list(data.keys())}")
+
     matches = data.get('dish_matches')
-    if not matches or idx >= len(matches):
+    if not matches:
+        logger.error("❌ dish_matches отсутствует в состоянии")
         await callback.answer("❌ Данные не найдены", show_alert=True)
         return
 
+    logger.info(f"🍽 matches содержит {len(matches)} элементов")
+    if idx >= len(matches):
+        logger.error(f"❌ Индекс {idx} вне диапазона (макс {len(matches)-1})")
+        await callback.answer("❌ Неверный индекс", show_alert=True)
+        return
+
     match = matches[idx]
-    dish_key = match['dish_key'].strip()
-    logger.info(f"🍽 Выбрано блюдо с ключом: '{dish_key}'")
+    dish_key = match['dish_key']
+    logger.info(f"🍽 Выбрано блюдо: {match['name']}, ключ: '{dish_key}'")
 
     from services.dish_db import COMPOSITE_DISHES
-    # Нормализуем ключ: приводим к нижнему регистру и убираем лишние пробелы
     normalized_key = dish_key.lower().strip()
+    logger.info(f"🍽 Нормализованный ключ: '{normalized_key}'")
 
     if normalized_key not in COMPOSITE_DISHES:
-        # Логируем доступные ключи для отладки
-        available_keys = list(COMPOSITE_DISHES.keys())
-        logger.error(f"❌ Ключ '{normalized_key}' не найден. Доступные ключи (первые 10): {available_keys[:10]}")
+        logger.error(f"❌ Ключ '{normalized_key}' не найден в COMPOSITE_DISHES")
+        # Для отладки выведем первые 10 ключей
+        logger.error(f"Доступные ключи: {list(COMPOSITE_DISHES.keys())[:10]}")
         await callback.answer("❌ Блюдо не найдено в базе", show_alert=True)
         return
 
     dish_info = COMPOSITE_DISHES[normalized_key]
+    logger.info(f"🍽 Найдено блюдо: {dish_info['name']}")
 
     # Проверяем, есть ли готовое КБЖУ
     nutrition_per_100 = dish_info.get('nutrition_per_100')

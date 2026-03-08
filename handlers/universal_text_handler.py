@@ -266,15 +266,13 @@ async def choose_food_callback(callback: CallbackQuery, state: FSMContext):
     data = await state.get_data()
     text = data.get('pending_text', '')
     parsed = parse_shopping_items(text)
-    import sys
-    sys.stderr.write("🔥🔥🔥 choose_food_callback вызван\n")
     if not parsed:
         await callback.answer("❌ Не удалось распознать продукты.", show_alert=True)
         return
     food_items = [{'name': name, 'weight': 100} for name, _, _ in parsed]
     await state.update_data(selected_foods=[], meal_type='snack')
     await process_food_items(callback.message, state, food_items, meal_type='snack')
-    await callback.message.delete()
+    # ✅ УДАЛЕНО: await callback.message.delete()
     await callback.answer()
 
 @universal_router.callback_query(lambda c: c.data == "choose_ai")

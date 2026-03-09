@@ -348,7 +348,8 @@ async def process_food_items(
             return
 
     # Ищем ингредиенты
-    food_data = await _get_food_data_cached(product_name, return_variants=True)  # получим словарь с базовыми значениями
+        food_data = await _get_food_data_cached(product_name, return_variants=True)   # ✅ получаем все варианты
+
         if isinstance(food_data, list) and len(food_data) > 1:
             # Показываем пользователю список вариантов
             total_pages = (len(food_data) + VARIANTS_PER_PAGE - 1) // VARIANTS_PER_PAGE

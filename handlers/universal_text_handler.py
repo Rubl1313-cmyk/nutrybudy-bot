@@ -13,9 +13,7 @@ from datetime import datetime
 from services.intent_classifier import classify
 from utils.water_parser import parse_water_amount
 from handlers.water import add_water_quick, cmd_water
-from handlers.shopping import add_to_shopping_list, update_list_message, get_or_create_default_list
 from handlers.activity import cmd_fitness
-from handlers.reminders import cmd_reminders, quick_create_reminder
 from utils.parsers import parse_shopping_items
 from utils.states import ActivityStates
 from database.db import get_session
@@ -173,27 +171,6 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
         await cmd_fitness(message, state)
         return
 
-    # ----- НАПОМИНАНИЯ -----
-    if intent == "reminder":
-        title = intent_data.get("reminder_title")
-        time = intent_data.get("reminder_time")
-        if title and time:
-            await quick_create_reminder(message.from_user.id, title, time, "daily")
-            await message.answer(f"✅ Напоминание «{title}» на {time} создано.")
-        else:
-            await cmd_reminders(message, state)
-        return
-
-    # ----- СПИСОК ПОКУПОК -----
-    if intent == "shopping":
-        items = intent_data.get("items")
-        if items:
-            await add_to_shopping_list(message, ' '.join(items))
-            await message.answer("✅ Добавлено в список покупок.")
-        else:
-            await cmd_shopping(message, state)
-        return
-
     # ----- ПРИЁМ ПИЩИ (НОВЫЙ УНИВЕРСАЛЬНЫЙ МЕХАНИЗМ) -----
     if intent == "food":
         meal_type = intent_data.get("meal_type", "snack")
@@ -236,7 +213,6 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
     # ----- НЕОПРЕДЕЛЁННОЕ -----
     await state.update_data(pending_text=text)
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📋 В список покупок", callback_data="choose_shopping")],
         [InlineKeyboardButton(text="🍽️ Записать как приём пищи", callback_data="choose_food")],
         [InlineKeyboardButton(text="🤖 Спросить AI", callback_data="choose_ai")],
         [InlineKeyboardButton(text="❌ Отмена", callback_data="action_cancel")]
@@ -248,17 +224,6 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
     return
 
 # ----- ОБРАБОТЧИКИ КНОПОК ДЛЯ НЕОПРЕДЕЛЁННЫХ ТЕКСТОВ -----
-@universal_router.callback_query(lambda c: c.data == "choose_shopping")
-async def choose_shopping_callback(callback: CallbackQuery, state: FSMContext):
-    data = await state.get_data()
-    text = data.get('pending_text', '')
-    await add_to_shopping_list(callback, text)
-    async with get_session() as session:
-        shopping_list = await get_or_create_default_list(callback.from_user.id, session, callback)
-        if shopping_list:
-            await update_list_message(callback, shopping_list.id)
-    await callback.message.delete()
-    await callback.answer("✅ Добавлено в список покупок")
 
 @universal_router.callback_query(lambda c: c.data == "choose_food")
 async def choose_food_callback(callback: CallbackQuery, state: FSMContext):
@@ -297,15 +262,6 @@ async def water_drink_callback(callback: CallbackQuery, state: FSMContext):
     await callback.message.delete()
     await callback.answer()
 
-@universal_router.callback_query(lambda c: c.data == "water_buy")
-async def water_buy_callback(callback: CallbackQuery, state: FSMContext):
-    data = await state.get_data()
-    amount = data.get('water_amount')
-    item_text = f"вода {amount} мл" if amount else "вода"
-    await add_to_shopping_list(callback.message, item_text)
-    await callback.message.answer("✅ Добавлено в список покупок.")
-    await callback.message.delete()
-    await callback.answer()
 
 @universal_router.callback_query(lambda c: c.data == "action_cancel")
 async def action_cancel_callback(callback: CallbackQuery, state: FSMContext):

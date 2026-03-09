@@ -6,7 +6,6 @@ def get_main_keyboard():
         [KeyboardButton(text="🍽️ Питание")],
         [KeyboardButton(text="💧 Вода и активность")],
         [KeyboardButton(text="📊 Прогресс и статистика")],
-        [KeyboardButton(text="📋 Списки и напоминания")],
         [KeyboardButton(text="👤 Профиль и настройки")],
         [KeyboardButton(text="❓ Помощь")],
         [KeyboardButton(text="🤖 AI Помощник")]  # новая кнопка

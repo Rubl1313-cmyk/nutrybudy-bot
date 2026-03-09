@@ -977,7 +977,7 @@ async def use_ingredients_callback(callback: CallbackQuery, state: FSMContext):
 @router.callback_query(F.data.startswith("select_dish_"))
 async def select_dish_callback(callback: CallbackQuery, state: FSMContext):
     """Выбор готового блюда из списка."""
-    dish_key = callback.data.split("_", 2)[2]  # select_dish_ключ
+    dish_key = callback.data.split("_", 2)[2].strip  # select_dish_ключ
     data = await state.get_data()
     dish_data = data.get('recognized_dish', {})
 

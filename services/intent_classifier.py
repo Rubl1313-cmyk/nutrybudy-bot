@@ -62,19 +62,11 @@ INTENT_KEYWORDS = {
         r'\bпопила\b', r'\bпить\b', r'\bхочу пить\b', r'\bвыпей\b', r'\bнапился\b',
         r'\bнапилась\b', r'\bстакан воды\b', r'\bводы выпил\b', r'\bводы выпила\b'
     ],
-    "shopping": [
-        r'\bкупить\b', r'\bсписок покупок\b', r'\bдобавь в список\b',
-        r'\bнадо купить\b', r'\bзапиши в покупки\b', r'\bдобавь в покупки\b',
-        r'\bкуплю\b', r'\bв список покупок\b'
-    ],
     "activity": [
         r'\bтренировка\b', r'\bспорт\b', r'\bзанятие\b', r'\bпробежка\b',
         r'\bактивность\b', r'\bупражнения\b', r'\bфитнес\b'
     ],
-    "reminder": [
-        r'\bнапомни\b', r'\bнапоминание\b', r'\bне забудь\b', r'\bнапомни мне\b',
-        r'\bсоздай напоминание\b'
-    ],
+  
     "food": [
         r'\bзапиши еду\b', r'\bдобавь еду\b', r'\bсъел\b', r'\bсъела\b',
         r'\bпоел\b', r'\bпоела\b', r'\bпокушать\b', r'\bпокушал\b', r'\bпокушала\b',
@@ -94,7 +86,7 @@ INTENT_KEYWORDS = {
         r'\bобъясни\b', r'\bпосоветуй\b', r'\bджарвис\b',
         r'\bкак работает\b', r'\bкак считаются\b', r'\bоткуда данные\b',
         r'\bчто значит\b', r'\bформула\b', r'\bрасчет\b', r'\bкалории\b',
-        r'\bбжу\b', r'\bнорма\b', r'\как\b'
+        r'\bбжу\b', r'\bнорма\b', r'\как\b', r'\джарвис\b', r'\джарвиз\b'
     ]
 }
 
@@ -145,24 +137,6 @@ def classify(text: str) -> Dict[str, Any]:
         amount = _extract_water_amount(text_lower)
         if amount:
             result["amount"] = amount
-        return result
-
-    # ----- 4. Покупки -----
-    if any(re.search(kw, text_lower) for kw in INTENT_KEYWORDS["shopping"]):
-        result["intent"] = "shopping"
-        cleaned = _remove_keywords(text_lower, INTENT_KEYWORDS["shopping"])
-        result["cleaned_text"] = cleaned
-        return result
-
-    # ----- 5. Напоминания -----
-    if any(re.search(kw, text_lower) for kw in INTENT_KEYWORDS["reminder"]):
-        result["intent"] = "reminder"
-        title = _extract_reminder_title(text_lower)
-        time = _extract_time(text_lower)
-        if title:
-            result["reminder_title"] = title
-        if time:
-            result["reminder_time"] = time
         return result
 
     # ----- 6. Погода -----
@@ -334,13 +308,6 @@ def _extract_water_amount(text: str) -> Optional[int]:
                 # Если числа нет, возможно подразумевается 1
                 return ml
     return None
-
-def _extract_reminder_title(text: str) -> Optional[str]:
-    """Извлекает заголовок напоминания."""
-    cleaned = re.sub(r'\bнапомни\b|\bне забудь\b', '', text, flags=re.IGNORECASE)
-    cleaned = re.sub(r'\bв\s*\d{1,2}[:.]\d{2}\b', '', cleaned)
-    cleaned = cleaned.strip()
-    return cleaned if cleaned else None
 
 def _extract_time(text: str) -> Optional[str]:
     """Извлекает время в формате ЧЧ:ММ."""

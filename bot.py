@@ -180,7 +180,6 @@ async def main():
     storage = MemoryStorage()
     
     global dp
-    dp = Dispatcher(storage=storage)
     dp = Dispatcher(storage=storage, fsm_strategy=FSMStrategy.GLOBAL_USER)
     
     # Подключение роутеров (ПОРЯДОК ВАЖЕН!)

@@ -9,8 +9,7 @@ from aiogram.fsm.context import FSMContext
 
 from keyboards.reply import get_main_keyboard
 from keyboards.inline import (
-    get_food_menu, get_water_activity_menu, get_progress_menu,
-    get_lists_menu, get_profile_menu
+    get_food_menu, get_water_activity_menu, get_progress_menu, get_profile_menu
 )
 from handlers.profile import cmd_profile, display_profile
 from handlers.food import cmd_log_food

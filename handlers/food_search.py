@@ -2,7 +2,7 @@ from aiogram import Router, F
 from aiogram.types import Message
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
-from utils.parsers import parse_shopping_items
+from utils.parsers import parse_food_items
 from handlers.media_handlers import process_food_items
 
 router = Router()
@@ -23,7 +23,7 @@ async def cmd_search(message: Message, state: FSMContext):
         return
 
     query = args[1].strip()
-    parsed = parse_shopping_items(query)
+    parsed = parse_food_items(query)
     if not parsed:
         await message.answer("❌ Не удалось распознать продукт.")
         return

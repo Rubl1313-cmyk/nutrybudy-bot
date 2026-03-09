@@ -769,11 +769,13 @@ async def confirm_dish_callback(callback: CallbackQuery, state: FSMContext):
     await callback.message.edit_text(f"⏳ Загружаю {len(expanded_items)} продуктов...")
 
     await state.update_data(selected_foods=[])
+    # ИСПРАВЛЕНИЕ: добавляем skip_dish_check=True, чтобы не заменять на готовые блюда
     await process_food_items(
         callback.message,
         state,
         expanded_items,
-        meal_type=dish_data.get('meal_type', 'snack')
+        meal_type=dish_data.get('meal_type', 'snack'),
+        skip_dish_check=True
     )
 
 @router.callback_query(F.data == "confirm_dish_db")
@@ -808,6 +810,7 @@ async def confirm_dish_from_db_callback(callback: CallbackQuery, state: FSMConte
     logger.info(f"🍔 food_items для готового блюда: {food_items}")
 
     await state.update_data(selected_foods=[])
+    # Здесь skip_dish_check не нужен, так как мы уже раскладываем готовое блюдо
     await process_food_items(
         callback.message,
         state,
@@ -858,11 +861,13 @@ async def use_ingredients_callback(callback: CallbackQuery, state: FSMContext):
     await callback.message.edit_text("⏳ Загружаю данные продуктов...")
 
     await state.update_data(selected_foods=[])
+    # ИСПРАВЛЕНИЕ: добавляем skip_dish_check=True
     await process_food_items(
         callback.message,
         state,
         food_items,
-        meal_type=dish_data.get('meal_type', 'snack')
+        meal_type=dish_data.get('meal_type', 'snack'),
+        skip_dish_check=True
     )
 
     await state.update_data(

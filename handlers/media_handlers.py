@@ -348,8 +348,39 @@ async def process_food_items(
             return
 
     # Ищем ингредиенты
-    food_data = await _get_food_data_cached(product_name, return_variants=False)  # получим словарь с базовыми значениями
-
+    food_data = await _get_food_data_cached(product_name, return_variants=True)  # получим словарь с базовыми значениями
+        if isinstance(food_data, list) and len(food_data) > 1:
+            # Показываем пользователю список вариантов
+            total_pages = (len(food_data) + VARIANTS_PER_PAGE - 1) // VARIANTS_PER_PAGE
+            await _show_variants_page(
+                message, state, food_data, current_item, meal_type,
+                current_index, page=0, total_pages=total_pages
+            )
+            return   # ждём выбора
+        elif isinstance(food_data, dict):
+            # Единственный вариант – используем его
+            selected_food = {
+                'name': food_data['name'],
+                'weight': current_item.get('weight', 100),
+                'base_calories': food_data.get('base_calories', 0),
+                'base_protein': food_data.get('base_protein', 0),
+                'base_fat': food_data.get('base_fat', 0),
+                'base_carbs': food_data.get('base_carbs', 0),
+                'source': food_data.get('source', 'unknown'),
+                'ai_confidence': current_item.get('ai_confidence', 0.5)
+            }
+        else:
+            # Не найдено – заглушка
+            selected_food = {
+                'name': product_name,
+                'weight': current_item.get('weight', 100),
+                'base_calories': 0,
+                'base_protein': 0,
+                'base_fat': 0,
+                'base_carbs': 0,
+                'source': 'unknown',
+                'ai_confidence': current_item.get('ai_confidence', 0.5)
+            }
     selected_food = {
         'name': food_data['name'],
         'weight': current_item.get('weight', 100),

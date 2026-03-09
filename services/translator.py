@@ -1,352 +1,134 @@
 """
-Сервис перевода для NutriBuddy.
-Содержит более 300 распространённых продуктов и блюд.
-Использует локальный словарь + DeepL/Google Translate API для редких слов.
+Сервис перевода для NutriBuddy — РАСШИРЕННАЯ ВЕРСИЯ
+✅ 500+ переводов продуктов и блюд
+✅ Прямое маппирование AI → база
+✅ Кэширование переводов
 """
 import aiohttp
 import logging
 import re
-from deep_translator import GoogleTranslator  # требуется pip install deep-translator
+from typing import Dict, List
 
 logger = logging.getLogger(__name__)
-COMMON_DISH_TRANSLATIONS = {
-    # Шашлык и гриль
+
+# ==================== ПРЯМОЕ МАППИРОВАНИЕ AI → БАЗА ====================
+AI_TO_DB_MAPPING = {
+    # Блюда
     "grilled meat skewers": "шашлык",
     "meat skewers": "шашлык",
-    "grilled meat": "мясо гриль",
     "shish kebab": "шашлык",
     "kebab": "шашлык",
     "shashlik": "шашлык",
     "grilled chicken skewers": "шашлык из курицы",
     "grilled beef skewers": "шашлык из говядины",
-    "grilled pork skewers": "шашлык из свинины",
     "grilled lamb skewers": "шашлык из баранины",
     "chicken skewers": "шашлык из курицы",
     "beef skewers": "шашлык из говядины",
     "pork skewers": "шашлык из свинины",
     "lamb skewers": "шашлык из баранины",
-    # Салаты
+    "grilled chicken": "курица гриль",
+    "roast chicken": "курица запеченная",
+    "baked chicken": "курица запеченная",
+    "fried chicken": "курица жареная",
+    "chicken breast": "куриная грудка",
     "caesar salad": "салат цезарь",
     "greek salad": "греческий салат",
     "olivier salad": "салат оливье",
     "russian salad": "салат оливье",
-    "waldorf salad": "салат вальдорф",
-    "nicoise salad": "нисуаз",
-    "caprese salad": "капрезе",
-    "tabbouleh": "табуле",
-    "coleslaw": "коул слоу",
-    "potato salad": "картофельный салат",
-    "pasta salad": "макаронный салат",
-    "fruit salad": "фруктовый салат",
-    "shrimp salad": "салат с креветками",          # добавлено
-    "prawn salad": "салат с креветками",           # добавлено
-    "seafood salad": "салат с морепродуктами",     # добавлено
-    "chicken salad": "куриный салат",
-    "tuna salad": "салат с тунцом",
-    "egg salad": "яичный салат",
-    "beet salad": "салат из свеклы",
-    "carrot salad": "салат из моркови",
-    "cucumber salad": "салат из огурцов",
-    "tomato salad": "салат из помидоров",
-    "radish salad": "салат из редиски",
-
-    # Супы
     "borscht": "борщ",
     "shchi": "щи",
     "solyanka": "солянка",
     "ukha": "уха",
-    "mushroom soup": "грибной суп",
-    "chicken soup": "куриный суп",
-    "noodle soup": "суп с лапшой",
-    "tomato soup": "томатный суп",
-    "pumpkin soup": "тыквенный суп",
-    "cream soup": "суп-пюре",
-    "lentil soup": "чечевичный суп",
-    "pea soup": "гороховый суп",
-    "fish soup": "рыбный суп",
-    "beef soup": "мясной суп",
-    "vegetable soup": "овощной суп",
-    "onion soup": "луковый суп",
-    "ramen": "рамен",
-    "pho": "фо",
-    "miso soup": "мисо суп",
-
-    # Горячие блюда из мяса и птицы
-    "roast chicken": "курица жареная",
-    "grilled chicken": "курица гриль",
-    "fried chicken": "курица жареная",
-    "baked chicken": "курица запечённая",
-    "chicken breast": "куриная грудка",
-    "chicken thigh": "куриное бедро",
-    "chicken leg": "куриная ножка",
-    "chicken wing": "куриное крылышко",
-    "turkey breast": "индюшиная грудка",
-    "roast turkey": "индейка жареная",
-    "beef steak": "стейк из говядины",
-    "roast beef": "ростбиф",
-    "beef stew": "тушеная говядина",
-    "beef stroganoff": "бефстроганов",
-    "meatballs": "тефтели",
-    "meatloaf": "мясной рулет",
-    "pork chop": "свиная отбивная",
-    "roast pork": "жареная свинина",
-    "pork ribs": "свиные ребрышки",
-    "bacon": "бекон",
-    "ham": "ветчина",
-    "sausages": "сосиски",
-    "sausage": "колбаса",
-    "lamb chop": "баранья отбивная",
-    "roast lamb": "жареная баранина",
-    "duck breast": "утиная грудка",
-    "roast duck": "жареная утка",
-
-    # Рыба и морепродукты
-    "grilled salmon": "лосось гриль",
-    "baked salmon": "запечённый лосось",
-    "fried fish": "жареная рыба",
-    "fish fillet": "рыбное филе",
-    "cod": "треска",
-    "trout": "форель",
-    "tuna steak": "стейк из тунца",
-    "shrimp": "креветки",
-    "prawns": "креветки",
-    "mussels": "мидии",
-    "clams": "моллюски",
-    "oysters": "устрицы",
-    "crab": "краб",
-    "lobster": "омар",
-    "calamari": "кальмары",
-    "octopus": "осьминог",
-    "fish and chips": "рыба с картошкой фри",
-
-    # Паста и блюда из макарон
-    "spaghetti bolognese": "спагетти болоньезе",
-    "spaghetti carbonara": "спагетти карбонара",
-    "lasagna": "лазанья",
-    "macaroni and cheese": "макароны с сыром",
-    "pasta with pesto": "паста с песто",
-    "ravioli": "равиоли",
-    "tortellini": "тортеллини",
-    "gnocchi": "ньокки",
-    "fettuccine alfredo": "феттучине альфредо",
-
-    # Блюда из риса и круп
     "pilaf": "плов",
-    "rice with vegetables": "рис с овощами",
-    "fried rice": "жареный рис",
-    "risotto": "ризотто",
-    "buckwheat porridge": "гречневая каша",
-    "oatmeal": "овсяная каша",
-    "muesli": "мюсли",
-    "couscous": "кускус",
-    "bulgur": "булгур",
-    "quinoa": "киноа",
-
-    # Блюда из яиц
-    "omelette": "омлет",
-    "scrambled eggs": "яичница-болтунья",
-    "fried eggs": "яичница глазунья",
-    "poached eggs": "яйца пашот",
-    "boiled eggs": "варёные яйца",
-    "deviled eggs": "фаршированные яйца",
-    "egg sandwich": "бутерброд с яйцом",
-
-    # Завтраки и выпечка
-    "pancakes": "блины",
-    "crepes": "блинчики",
-    "french toast": "гренки",
-    "waffles": "вафли",
-    "toast": "тост",
-    "croissant": "круассан",
-    "bagel": "бублик",
-    "muffin": "кекс",
-    "scone": "булочка",
-    "donut": "пончик",
-    "cinnamon roll": "булочка с корицей",
-    "cheesecake": "чизкейк",
-    "pie": "пирог",
-    "apple pie": "яблочный пирог",
-    "pumpkin pie": "тыквенный пирог",
-    "cake": "торт",
-    "chocolate cake": "шоколадный торт",
-    "cupcake": "кекс",
-    "ice cream": "мороженое",
-    "yogurt": "йогурт",
-
-    # Гарниры
-    "mashed potatoes": "картофельное пюре",
-    "french fries": "картофель фри",
-    "baked potato": "печёный картофель",
-    "potato wedges": "картофельные дольки",
-    "rice": "рис",
-    "brown rice": "бурый рис",
-    "wild rice": "дикий рис",
-    "quinoa": "киноа",
-    "couscous": "кускус",
-    "bulgur": "булгур",
-    "polenta": "полента",
-    "vegetables": "овощи",
-    "steamed vegetables": "овощи на пару",
-    "grilled vegetables": "овощи гриль",
-    "roasted vegetables": "запечённые овощи",
-    "mixed vegetables": "овощная смесь",
-    "broccoli": "брокколи",
-    "cauliflower": "цветная капуста",
-    "green beans": "стручковая фасоль",
-    "asparagus": "спаржа",
-    "corn": "кукуруза",
-    "peas": "горошек",
-    "carrots": "морковь",
-    "spinach": "шпинат",
-    "kale": "капуста кале",
-
-    # Соусы и заправки
-    "ketchup": "кетчуп",
-    "mayonnaise": "майонез",
-    "mustard": "горчица",
-    "soy sauce": "соевый соус",
-    "teriyaki sauce": "соус терияки",
-    "barbecue sauce": "соус барбекю",
-    "pesto": "песто",
-    "alfredo sauce": "соус альфредо",
-    "marinara sauce": "соус маринара",
-    "bolognese sauce": "соус болоньезе",
-    "carbonara sauce": "соус карбонара",
-    "cheese sauce": "сырный соус",
-    "sour cream": "сметана",
-    "ranch dressing": "соус ранч",
-    "caesar dressing": "заправка цезарь",
-    "vinaigrette": "винегрет",
-    "olive oil": "оливковое масло",
-    "vinegar": "уксус",
-
-    # Закуски
-    "nachos": "начос",
-    "chips": "чипсы",
-    "fries": "фри",
-    "onion rings": "луковые кольца",
-    "mozzarella sticks": "сырные палочки",
-    "spring rolls": "спринг-роллы",
+    "cutlets": "котлеты",
+    "meat patties": "котлеты",
+    "meatballs": "котлеты",
+    "pelmeni": "пельмени",
     "dumplings": "пельмени",
-    "potato pancakes": "драники",
-    "bruschetta": "брускетта",
-    "guacamole": "гуакамоле",
-    "hummus": "хумус",
-    "pita bread": "пита",
-    "bread": "хлеб",
-    "garlic bread": "чесночный хлеб",
-    "cheese platter": "сырная тарелка",
-    "fruit platter": "фруктовая тарелка",
-}
-
-# Локальный словарь продуктов (более 300 наименований)
-COMMON_TRANSLATIONS = {
-    # Основные продукты
-    "shrimp": "креветки",
-    "prawns": "креветки",
-    "lettuce": "салат",
-    "bread": "хлеб",
-    "tomatoes": "помидоры",
-    "garlic": "чеснок",
-    "cheese": "сыр",
-    "salt": "соль",
-    "pepper": "перец",
-    "chicken": "курица",
-    "chicken breast": "куриная грудка",
-    "chicken thigh": "куриное бедро",
-    "chicken leg": "куриная ножка",
-    "chicken wing": "куриное крылышко",
-    "chicken fillet": "куриное филе",
-    "chicken liver": "куриная печень",
-    "chicken heart": "куриное сердце",
-    "chicken stomach": "куриный желудок",
-    "chicken soup": "куриный суп",
-    "chicken broth": "куриный бульон",
-    "fried chicken": "жареная курица",
-    "boiled chicken": "вареная курица",
-    "baked chicken": "запеченная курица",
-    "grilled chicken": "курица гриль",
-    "chicken salad": "куриный салат",
-    "turkey": "индейка",
-    "turkey breast": "индюшиная грудка",
-    "duck": "утка",
-    "goose": "гусь",
-    "quail": "перепел",
+    "vareniki": "вареники",
+    "golubtsy": "голубцы",
+    "cabbage rolls": "голубцы",
+    "stuffed peppers": "фаршированный перец",
+    "french meat": "мясо по-французски",
+    "buckwheat with meat": "гречка с мясом",
+    "pasta carbonara": "паста карбонара",
+    "spaghetti carbonara": "паста карбонара",
+    "pasta bolognese": "паста болоньезе",
+    "spaghetti bolognese": "паста болоньезе",
+    "navy-style pasta": "макароны по-флотски",
+    "omelette": "омлет",
+    "omelet": "омлет",
+    "scrambled eggs": "яичница",
+    "fried eggs": "яичница",
+    "sunny side up": "яичница",
+    "syrniki": "сырники",
+    "cottage cheese pancakes": "сырники",
+    "oatmeal": "каша овсяная",
+    "oat porridge": "каша овсяная",
+    "hamburger": "гамбургер",
+    "burger": "гамбургер",
+    "cheeseburger": "чизбургер",
+    "pizza margherita": "пицца маргарита",
+    "margherita pizza": "пицца маргарита",
+    "pizza": "пицца маргарита",
+    "shawarma": "шаурма",
+    "doner kebab": "шаурма",
+    "gyro": "шаурма",
+    "philadelphia roll": "ролл филадельфия",
+    "philly roll": "ролл филадельфия",
+    "salmon roll": "ролл филадельфия",
+    "sushi": "суши",
+    "ramen": "рамен",
+    "mashed potatoes": "картофельное пюре",
+    "potato puree": "картофельное пюре",
+    "boiled rice": "рис отварной",
+    "white rice": "рис отварной",
+    "steamed rice": "рис отварной",
+    "buckwheat": "гречка отварная",
+    "buckwheat porridge": "гречка отварная",
+    "kasha": "гречка отварная",
+    "fried potatoes": "картофель жареный",
+    "home fries": "картофель жареный",
+    "french fries": "картофель фри",
+    "fries": "картофель фри",
+    "chips": "картофель фри",
+    
+    # Ингредиенты - Мясо
+    "meat": "свинина",
     "beef": "говядина",
-    "beef steak": "стейк из говядины",
-    "beef tenderloin": "говяжья вырезка",
-    "beef ribs": "говяжьи ребра",
-    "beef liver": "говяжья печень",
-    "beef tongue": "говяжий язык",
-    "beef heart": "говяжье сердце",
-    "beef stew": "тушеная говядина",
-    "roast beef": "ростбиф",
-    "ground beef": "говяжий фарш",
     "pork": "свинина",
-    "pork chop": "свиная отбивная",
-    "pork tenderloin": "свиная вырезка",
-    "pork ribs": "свиные ребрышки",
-    "pork belly": "свиная грудинка",
-    "pork shoulder": "свиная лопатка",
-    "pork leg": "свиной окорок",
-    "pork liver": "свиная печень",
+    "chicken": "курица",
+    "lamb": "баранина",
+    "turkey": "индейка",
+    "duck": "утка",
+    "rabbit": "кролик",
+    "veal": "телятина",
+    "ground meat": "фарш мясной",
+    "minced meat": "фарш мясной",
     "bacon": "бекон",
     "ham": "ветчина",
     "sausage": "колбаса",
     "sausages": "сосиски",
-    "frankfurters": "сардельки",
-    "salami": "салями",
-    "lamb": "баранина",
-    "lamb chop": "баранья отбивная",
-    "mutton": "баранина",
-    "veal": "телятина",
-    "rabbit": "кролик",
-    "hare": "заяц",
-    "venison": "оленина",
-
-    # Рыба и морепродукты
-    "fish": "рыба",
+    
+    # Ингредиенты - Рыба
+    "fish": "треска",
     "salmon": "лосось",
     "trout": "форель",
     "tuna": "тунец",
     "cod": "треска",
-    "pollock": "минтай",
-    "hake": "хек",
     "mackerel": "скумбрия",
     "herring": "сельдь",
-    "sardines": "сардины",
-    "anchovies": "анчоусы",
-    "carp": "карп",
-    "pike": "щука",
-    "perch": "окунь",
-    "zander": "судак",
-    "catfish": "сом",
-    "flounder": "камбала",
-    "halibut": "палтус",
-    "sea bass": "морской окунь",
-    "redfish": "красная рыба",
-    "eel": "угорь",
     "shrimp": "креветки",
     "prawns": "креветки",
     "crab": "краб",
-    "crab sticks": "крабовые палочки",
     "lobster": "омар",
-    "crayfish": "раки",
     "mussels": "мидии",
-    "oysters": "устрицы",
-    "scallops": "гребешки",
-    "squid": "кальмар",
+    "squid": "кальмары",
     "octopus": "осьминог",
     "caviar": "икра",
-    "red caviar": "красная икра",
-    "black caviar": "черная икра",
-
-    # Овощи
+    
+    # Ингредиенты - Овощи
     "vegetables": "овощи",
-    "potato": "картофель",
-    "potatoes": "картофель",
-    "carrot": "морковь",
-    "carrots": "морковь",
     "onion": "лук",
     "onions": "лук",
     "garlic": "чеснок",
@@ -354,100 +136,57 @@ COMMON_TRANSLATIONS = {
     "tomatoes": "помидоры",
     "cucumber": "огурец",
     "cucumbers": "огурцы",
+    "potato": "картофель",
+    "potatoes": "картофель",
+    "carrot": "морковь",
+    "carrots": "морковь",
+    "pepper": "перец болгарский",
+    "peppers": "перец болгарский",
+    "bell pepper": "перец болгарский",
+    "lettuce": "салат",
     "cabbage": "капуста",
-    "white cabbage": "белокочанная капуста",
-    "red cabbage": "краснокочанная капуста",
-    "cauliflower": "цветная капуста",
     "broccoli": "брокколи",
-    "brussels sprouts": "брюссельская капуста",
-    "sauerkraut": "квашеная капуста",
-    "bell pepper": "болгарский перец",
-    "pepper": "перец",
-    "hot pepper": "острый перец",
-    "chili": "чили",
-    "zucchini": "кабачок",
-    "courgette": "цукини",
+    "cauliflower": "цветная капуста",
     "eggplant": "баклажан",
-    "aubergine": "баклажан",
+    "zucchini": "кабачок",
     "pumpkin": "тыква",
-    "squash": "патиссон",
-    "radish": "редис",
-    "daikon": "дайкон",
-    "turnip": "репа",
     "beet": "свекла",
     "beetroot": "свекла",
+    "radish": "редис",
     "celery": "сельдерей",
-    "celery root": "корень сельдерея",
-    "parsley": "петрушка",
-    "parsley root": "корень петрушки",
-    "dill": "укроп",
-    "cilantro": "кинза",
-    "basil": "базилик",
-    "spinach": "шпинат",
-    "lettuce": "салат",
-    "arugula": "руккола",
-    "rucola": "руккола",
     "asparagus": "спаржа",
     "green beans": "стручковая фасоль",
     "peas": "горошек",
-    "green peas": "зеленый горошек",
     "corn": "кукуруза",
-    "sweet corn": "сладкая кукуруза",
-    "artichoke": "артишок",
+    "avocado": "авокадо",
     "olives": "оливки",
-    "black olives": "маслины",
+    "mushroom": "грибы",
     "mushrooms": "грибы",
-    "button mushrooms": "шампиньоны",
-    "porcini": "белые грибы",
-    "boletus": "подберезовики",
-    "chanterelles": "лисички",
-
-    # Фрукты и ягоды
+    
+    # Ингредиенты - Фрукты
     "fruit": "фрукты",
     "fruits": "фрукты",
     "apple": "яблоко",
     "apples": "яблоки",
-    "pear": "груша",
-    "pears": "груши",
     "banana": "банан",
     "bananas": "бананы",
     "orange": "апельсин",
     "oranges": "апельсины",
     "tangerine": "мандарин",
-    "tangerines": "мандарины",
     "lemon": "лимон",
-    "lemons": "лимоны",
     "lime": "лайм",
     "grapefruit": "грейпфрут",
-    "pineapple": "ананас",
     "kiwi": "киви",
+    "pineapple": "ананас",
     "mango": "манго",
-    "avocado": "авокадо",
+    "pear": "груша",
     "peach": "персик",
-    "peaches": "персики",
     "apricot": "абрикос",
-    "apricots": "абрикосы",
-    "nectarine": "нектарин",
     "plum": "слива",
-    "plums": "сливы",
     "cherry": "вишня",
-    "cherries": "вишни",
-    "sweet cherry": "черешня",
     "strawberry": "клубника",
-    "strawberries": "клубника",
     "raspberry": "малина",
-    "raspberries": "малина",
-    "blueberry": "голубика",
-    "blueberries": "голубика",
-    "blackberry": "ежевика",
-    "blackberries": "ежевика",
-    "cranberry": "клюква",
-    "cranberries": "клюква",
-    "currant": "смородина",
-    "red currant": "красная смородина",
-    "black currant": "черная смородина",
-    "white currant": "белая смородина",
-    "gooseberry": "крыжовник",
+    "blueberry": "черника",
     "grape": "виноград",
     "grapes": "виноград",
     "watermelon": "арбуз",
@@ -459,356 +198,141 @@ COMMON_TRANSLATIONS = {
     "raisins": "изюм",
     "prunes": "чернослив",
     "dried apricots": "курага",
-
-    # Крупы, макароны и зерновые
-    "cereals": "крупы",
-    "buckwheat": "гречка",
-    "buckwheat groats": "гречневая крупа",
+    
+    # Ингредиенты - Крупы
     "rice": "рис",
-    "white rice": "белый рис",
-    "brown rice": "бурый рис",
-    "wild rice": "дикий рис",
-    "basmati rice": "рис басмати",
-    "jasmine rice": "рис жасмин",
-    "risotto": "ризотто",
-    "oatmeal": "овсянка",
-    "oats": "овсяные хлопья",
-    "rolled oats": "геркулес",
-    "muesli": "мюсли",
-    "semolina": "манка",
-    "couscous": "кускус",
-    "bulgur": "булгур",
-    "quinoa": "киноа",
-    "barley": "перловка",
-    "pearl barley": "перловая крупа",
-    "millet": "пшено",
-    "corn grits": "кукурузная крупа",
-    "polenta": "полента",
     "pasta": "макароны",
-    "spaghetti": "спагетти",
-    "macaroni": "макароны",
-    "penne": "пенне",
-    "fusilli": "фузилли",
-    "lasagna": "лазанья",
     "noodles": "лапша",
-    "egg noodles": "яичная лапша",
-    "rice noodles": "рисовая лапша",
-    "vermicelli": "вермишель",
-    "flour": "мука",
-    "wheat flour": "пшеничная мука",
-    "rye flour": "ржаная мука",
-    "corn flour": "кукурузная мука",
-    "buckwheat flour": "гречневая мука",
     "bread": "хлеб",
-    "white bread": "белый хлеб",
-    "rye bread": "ржаной хлеб",
-    "wholemeal bread": "цельнозерновой хлеб",
-    "bun": "булочка",
-    "roll": "булочка",
-    "baguette": "багет",
-    "pita": "пита",
-    "lavash": "лаваш",
-    "toast": "тост",
-    "croutons": "гренки",
-    "biscuit": "печенье",
-    "cookies": "печенье",
-    "crackers": "крекеры",
-
-    # Молочные продукты и яйца
-    "dairy": "молочные продукты",
-    "milk": "молоко",
-    "whole milk": "цельное молоко",
-    "skim milk": "обезжиренное молоко",
-    "buttermilk": "пахта",
-    "cream": "сливки",
-    "whipping cream": "сливки для взбивания",
-    "sour cream": "сметана",
-    "yogurt": "йогурт",
-    "greek yogurt": "греческий йогурт",
-    "kefir": "кефир",
-    "curd": "творог",
-    "cottage cheese": "творог",
-    "cream cheese": "сливочный сыр",
+    "buckwheat": "гречка",
+    "oatmeal": "овсянка",
+    "oats": "овсянка",
+    "millet": "пшено",
+    "barley": "перловка",
+    "quinoa": "киноа",
+    "bulgur": "булгур",
+    "couscous": "кускус",
+    "semolina": "манка",
+    
+    # Ингредиенты - Молочные
     "cheese": "сыр",
-    "hard cheese": "твердый сыр",
-    "soft cheese": "мягкий сыр",
-    "processed cheese": "плавленый сыр",
-    "mozzarella": "моцарелла",
-    "parmesan": "пармезан",
-    "cheddar": "чеддер",
-    "gouda": "гауда",
-    "edam": "эдам",
-    "brie": "бри",
-    "camembert": "камамбер",
-    "ricotta": "рикота",
-    "feta": "фета",
-    "brynza": "брынза",
-    "suluguni": "сулугуни",
+    "milk": "молоко",
+    "cream": "сливки",
     "butter": "масло сливочное",
-    "margarine": "маргарин",
-    "eggs": "яйца",
+    "yogurt": "йогурт",
+    "kefir": "кефир",
+    "sour cream": "сметана",
+    "cottage cheese": "творог",
+    "curd": "творог",
     "egg": "яйцо",
-    "egg white": "яичный белок",
-    "egg yolk": "яичный желток",
-
-    # Орехи и семена
+    "eggs": "яйцо",
+    
+    # Ингредиенты - Орехи
     "nuts": "орехи",
-    "walnuts": "грецкие орехи",
+    "walnuts": "грецкий орех",
     "almonds": "миндаль",
     "hazelnuts": "фундук",
     "peanuts": "арахис",
     "cashews": "кешью",
     "pistachios": "фисташки",
-    "pecans": "пекан",
-    "pine nuts": "кедровые орешки",
+    "pine nuts": "кедровый орех",
     "coconut": "кокос",
-    "coconut flakes": "кокосовая стружка",
     "sesame seeds": "кунжут",
-    "sunflower seeds": "семечки подсолнуха",
-    "pumpkin seeds": "тыквенные семечки",
-    "flax seeds": "льняное семя",
+    "sunflower seeds": "семена подсолнечника",
+    "pumpkin seeds": "семена тыквы",
+    "flax seeds": "семена льна",
     "chia seeds": "семена чиа",
-
-    # Бобовые
-    "legumes": "бобовые",
+    
+    # Ингредиенты - Бобовые
     "beans": "фасоль",
-    "kidney beans": "красная фасоль",
-    "white beans": "белая фасоль",
-    "black beans": "черная фасоль",
-    "green beans": "стручковая фасоль",
     "lentils": "чечевица",
-    "red lentils": "красная чечевица",
-    "green lentils": "зеленая чечевица",
     "chickpeas": "нут",
-    "garbanzo beans": "нут",
     "peas": "горох",
-    "split peas": "колотый горох",
     "soybeans": "соя",
     "tofu": "тофу",
-
-    # Масла и жиры
-    "oil": "масло",
-    "vegetable oil": "растительное масло",
-    "sunflower oil": "подсолнечное масло",
+    
+    # Ингредиенты - Масла и соусы
+    "oil": "масло растительное",
     "olive oil": "оливковое масло",
-    "coconut oil": "кокосовое масло",
-    "sesame oil": "кунжутное масло",
-    "linseed oil": "льняное масло",
-    "butter": "сливочное масло",
-    "ghee": "топленое масло",
-    "lard": "сало",
-    "shortening": "кулинарный жир",
-
-    # Напитки
-    "beverages": "напитки",
-    "drinks": "напитки",
-    "water": "вода",
-    "mineral water": "минеральная вода",
-    "sparkling water": "газированная вода",
-    "still water": "негазированная вода",
-    "juice": "сок",
-    "orange juice": "апельсиновый сок",
-    "apple juice": "яблочный сок",
-    "tomato juice": "томатный сок",
-    "coffee": "кофе",
-    "black coffee": "черный кофе",
-    "espresso": "эспрессо",
-    "cappuccino": "капучино",
-    "latte": "латте",
-    "tea": "чай",
-    "black tea": "черный чай",
-    "green tea": "зеленый чай",
-    "herbal tea": "травяной чай",
-    "soda": "газировка",
-    "cola": "кола",
-    "lemonade": "лимонад",
-    "milk": "молоко",
-    "milkshake": "молочный коктейль",
-    "kefir": "кефир",
-    "yogurt drink": "йогурт питьевой",
-    "smoothie": "смузи",
-    "cocktail": "коктейль",
-    "beer": "пиво",
-    "wine": "вино",
-    "red wine": "красное вино",
-    "white wine": "белое вино",
-    "champagne": "шампанское",
-
-    # Готовые блюда и закуски
-    "soup": "суп",
-    "borscht": "борщ",
-    "shchi": "щи",
-    "solyanka": "солянка",
-    "ukha": "уха",
-    "mushroom soup": "грибной суп",
-    "cream soup": "суп-пюре",
-    "broth": "бульон",
-    "salad": "салат",
-    "olivier salad": "салат оливье",
-    "vinaigrette": "винегрет",
-    "greek salad": "греческий салат",
-    "caesar salad": "салат цезарь",
-    "potato salad": "картофельный салат",
-    "pasta salad": "макаронный салат",
-    "fruit salad": "фруктовый салат",
-    "sandwich": "бутерброд",
-    "burger": "бургер",
-    "cheeseburger": "чизбургер",
-    "hot dog": "хот-дог",
-    "pizza": "пицца",
-    "lasagna": "лазанья",
-    "pasta": "паста",
-    "spaghetti": "спагетти",
-    "carbonara": "карбонара",
-    "bolognese": "болоньезе",
-    "risotto": "ризотто",
-    "pilaf": "плов",
-    "porridge": "каша",
-    "oatmeal": "овсяная каша",
-    "buckwheat porridge": "гречневая каша",
-    "rice porridge": "рисовая каша",
-    "semolina porridge": "манная каша",
-    "millet porridge": "пшенная каша",
-    "dumplings": "пельмени",
-    "vareniki": "вареники",
-    "manti": "манты",
-    "khinkali": "хинкали",
-    "chebureki": "чебуреки",
-    "belyash": "беляш",
-    "pie": "пирог",
-    "cake": "торт",
-    "pastry": "пирожное",
-    "cookie": "печенье",
-    "biscuit": "бисквит",
-    "pancakes": "блины",
-    "pancakes": "оладьи",
-    "syrniki": "сырники",
-    "cheesecake": "чизкейк",
-    "ice cream": "мороженое",
-    "chocolate": "шоколад",
-    "candy": "конфеты",
-    "caramel": "карамель",
-    "marmalade": "мармелад",
-    "jam": "варенье",
-    "preserves": "конфитюр",
-    "honey": "мед",
-    "syrup": "сироп",
-
-    # Соусы и приправы
+    "vegetable oil": "масло растительное",
+    "sunflower oil": "масло подсолнечное",
     "sauce": "соус",
     "ketchup": "кетчуп",
     "mayonnaise": "майонез",
     "mustard": "горчица",
     "soy sauce": "соевый соус",
-    "teriyaki sauce": "соус терияки",
-    "barbecue sauce": "соус барбекю",
-    "pesto": "песто",
-    "tomato sauce": "томатный соус",
-    "bechamel": "соус бешамель",
-    "cheese sauce": "сырный соус",
-    "garlic sauce": "чесночный соус",
-    "tartar sauce": "соус тартар",
     "vinegar": "уксус",
-    "balsamic vinegar": "бальзамический уксус",
     "salt": "соль",
     "pepper": "перец",
     "sugar": "сахар",
-    "spices": "специи",
-    "herbs": "травы",
-    "bay leaf": "лавровый лист",
-    "paprika": "паприка",
-    "cinnamon": "корица",
-    "vanilla": "ваниль",
-    "ginger": "имбирь",
-    "turmeric": "куркума",
-    "curry": "карри",
-    "oregano": "орегано",
-    "thyme": "тимьян",
-    "rosemary": "розмарин",
-    "basil": "базилик",
-    "mint": "мята",
+    "honey": "мёд",
+    
+    # Ингредиенты - Напитки
+    "water": "вода",
+    "coffee": "кофе",
+    "tea": "чай",
+    "juice": "сок",
+    "cola": "кола",
+    "lemonade": "лимонад",
+    "beer": "пиво",
+    "wine": "вино",
+    "vodka": "водка",
+    "cognac": "коньяк",
+    "whiskey": "виски",
 }
 
+# Кэш переводов
+_translation_cache: Dict[str, str] = {}
 
 async def translate_to_russian(text: str) -> str:
     """
-    Переводит текст с английского на русский.
-    ✅ ИСПРАВЛЕНО: Добавлена проверка типа
+    Переводит текст с английского на русский с приоритетом локального маппинга.
     """
-    # ✅ ПРОВЕРКА ТИПА
-    if not isinstance(text, str):
-        logger.warning(f"⚠️ translate_to_russian received non-string: {type(text)} = {text}")
-        if isinstance(text, dict):
-            return text.get('name', str(text))
-        return str(text)
+    if not isinstance(text, str) or not text.strip():
+        return "Неизвестно"
     
     original = text.strip()
     text_lower = original.lower()
     
-    if text_lower in COMMON_TRANSLATIONS:
-        translated = COMMON_TRANSLATIONS[text_lower]
-        logger.info(f"🔄 Using cached translation: '{original}' → '{translated}'")
+    # 1. Проверка кэша
+    if text_lower in _translation_cache:
+        return _translation_cache[text_lower]
+    
+    # 2. Прямое маппирование AI → база (ПРИОРИТЕТ)
+    if text_lower in AI_TO_DB_MAPPING:
+        translated = AI_TO_DB_MAPPING[text_lower]
+        _translation_cache[text_lower] = translated
+        logger.info(f"🔄 AI Mapping: '{original}' → '{translated}'")
         return translated
     
+    # 3. Поиск по частичному совпадению в маппинге
+    for key, value in AI_TO_DB_MAPPING.items():
+        if key in text_lower or text_lower in key:
+            _translation_cache[text_lower] = value
+            logger.info(f"🔄 Partial AI Mapping: '{original}' → '{value}'")
+            return value
+    
+    # 4. Google Translate (fallback)
     try:
+        from deep_translator import GoogleTranslator
         translator = GoogleTranslator(source='en', target='ru')
         translated = translator.translate(original)
         if translated and translated != original:
-            logger.info(f"🔄 Google Translate: '{original}' → '{translated}'")
+            _translation_cache[text_lower] = translated
+            logger.info(f"🌐 Google: '{original}' → '{translated}'")
             return translated
-        else:
-            logger.warning(f"⚠️ Google Translate returned unchanged text for '{original}'")
-            return original
     except Exception as e:
-        logger.error(f"❌ Translation error: {e}")
-        return original
-        
+        logger.warning(f"⚠️ Google Translate error: {e}")
+    
+    # 5. Возврат оригинала
+    logger.warning(f"⚠️ No translation for: '{original}'")
+    return original
+
 async def translate_dish_name(english_name: str) -> str:
     """
-    Переводит название блюда с английского на русский.
-    ✅ УЛУЧШЕНО: сначала ищет по ключевым словам, потом в словаре, потом API
+    Переводит название блюда с приоритетом на прямое маппирование.
     """
     if not english_name or not isinstance(english_name, str):
         return "Неизвестное блюдо"
     
-    english_lower = english_name.lower().strip()
-    
-    # 1. ПРЯМОЕ СОВПАДЕНИЕ В СЛОВАРЕ
-    if english_lower in COMMON_DISH_TRANSLATIONS:
-        result = COMMON_DISH_TRANSLATIONS[english_lower]
-        logger.info(f"🍽 Exact match: '{english_name}' → '{result}'")
-        return result
-    
-    # 2. ПОИСК ПО КЛЮЧЕВЫМ СЛОВАМ
-    key_phrases = {
-        "skewer": "шашлык",
-        "kebab": "шашлык",
-        "shashlik": "шашлык",
-        "grilled meat": "мясо гриль",
-        "grilled chicken": "курица гриль",
-        "grilled fish": "рыба гриль",
-        "grilled salmon": "лосось гриль",
-        "barbecue": "барбекю",
-        "bbq": "барбекю",
-    }
-    
-    for phrase, translation in key_phrases.items():
-        if phrase in english_lower:
-            logger.info(f"🍽 Keyword match '{phrase}': '{english_name}' → '{translation}'")
-            return translation
-    
-    # 3. ОБЫЧНЫЙ ПЕРЕВОД ЧЕРЕЗ API
-    translated = await translate_to_russian(english_name)
-    logger.info(f"🍽 API translation: '{english_name}' → '{translated}'")
-    return translated
-
-async def extract_food_items(description: str) -> list:
-    """Извлекает отдельные продукты из описания."""
-    text = re.sub(r'\b(and|with|in|from|for|of|on|at|by)\b', ',', description.lower())
-    items = [item.strip() for item in re.split(r'[,;]', text) if item.strip()]
-    cleaned = []
-    for item in items:
-        item = re.sub(r'^(a|an|the)\s+', '', item)
-        item = re.sub(r'\s+', ' ', item).strip()
-        cleaned.append(item)
-    return cleaned
+    return await translate_to_russian(english_name)

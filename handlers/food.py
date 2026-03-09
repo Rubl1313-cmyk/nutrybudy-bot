@@ -13,7 +13,7 @@ from database.models import User
 from keyboards.inline import get_meal_type_keyboard
 from keyboards.reply import get_main_keyboard
 from utils.states import FoodStates
-from utils.parsers import parse_shopping_items
+from utils.parsers import parse_food_items
 
 router = Router()
 
@@ -66,7 +66,7 @@ async def process_food_search(message: Message, state: FSMContext):
         return
 
     # Разбираем текст на названия продуктов (используем парсер из shopping)
-    parsed = parse_shopping_items(text)  # возвращает список (name, qty, unit)
+    parsed = parse_food_items(text)  # возвращает список (name, qty, unit)
     if not parsed:
         await message.answer("❌ Не удалось распознать продукты.")
         return

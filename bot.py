@@ -16,7 +16,6 @@ from handlers import (
     reminders, activity, progress, media_handlers, ai_assistant,
     universal_text_handler, meal_plan, weight  # universal_text_handler теперь импортируется
 )
-from scheduler.jobs import setup_scheduler
 from handlers.universal_text_handler import universal_router
 from handlers import meal_plan
 from sqlalchemy import text
@@ -43,7 +42,6 @@ PORT = int(os.environ.get("PORT", 8080))
 ADMIN_ID = os.getenv("ADMIN_ID")
 
 dp = None
-scheduler = None
 
 async def set_bot_commands(bot: Bot):
     """Установка команд бота"""
@@ -56,8 +54,6 @@ async def set_bot_commands(bot: Bot):
         BotCommand(command="fitness", description="🏋️ Активность"),
         BotCommand(command="progress", description="📊 Прогресс"),
         BotCommand(command="ask", description="💬 AI Помощник"),
-        BotCommand(command="shopping", description="📋 Покупки"),
-        BotCommand(command="reminders", description="🔔 Напоминания"),
         BotCommand(command="cancel", description="❌ Отмена")
     ]
     await bot.set_my_commands(commands)
@@ -147,13 +143,6 @@ async def on_startup(app):
 
         await set_bot_commands(bot)
         
-        # Запуск планировщика
-        global scheduler
-        scheduler = setup_scheduler(bot)
-        scheduler.start()
-        logger.info("⏰ Scheduler started")
-        
-        await send_startup_notification(bot)
         
     except Exception as e:
         logger.error(f"❌ Startup error: {e}", exc_info=True)
@@ -163,8 +152,6 @@ async def on_shutdown(app):
     """Остановка бота"""
     try:
         bot = app['bot']
-        if scheduler:
-            scheduler.shutdown(wait=False)
         await bot.delete_webhook(drop_pending_updates=True)
         await close_db()
         await bot.session.close()

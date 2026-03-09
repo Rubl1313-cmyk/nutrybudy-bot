@@ -64,7 +64,7 @@ INTENT_KEYWORDS = {
     ],
     "activity": [
         r'\bтренировка\b', r'\bспорт\b', r'\bзанятие\b', r'\bпробежка\b',
-        r'\bактивность\b', r'\bупражнения\b', r'\bфитнес\b'
+        r'\bактивность\b', r'\bупражнения\b', r'\bфитнес\b', r'\bпозанималась\b', r'\bпрошла\b', r'\bпрошел\b', r'\bпозанимался\b'
     ],
   
     "food": [
@@ -124,13 +124,7 @@ def classify(text: str) -> Dict[str, Any]:
                 result["activity_type"] = act_en
                 return result
 
-    # ----- 3. Вода (с проверкой на покупку) -----
-    if any(re.search(kw, text_lower) for kw in INTENT_KEYWORDS["shopping"]):
-        if re.search(r'\bвода\b|\bводы\b|\bводой\b', text_lower):
-            result["intent"] = "shopping"
-            result["items"] = ["вода"]
-            result["items_with_quantity"] = [("вода", 1, "шт")]
-            return result
+    # ----- 3. Вода -----
 
     if any(re.search(kw, text_lower) for kw in INTENT_KEYWORDS["water"]):
         result["intent"] = "water"

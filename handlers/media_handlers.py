@@ -4,8 +4,7 @@
 ✅ Сохранение весов от AI
 ✅ Подробное логирование
 ✅ Пагинация при большом количестве вариантов (кнопка "Еще")
-✅ Исправлена проблема с выбором готового блюда – используется индекс вместо ключа
-✅ Добавлена возможность пропустить проверку на готовое блюдо (кнопка "Нет, это ингредиент")
+✅ Гарантированное отображение КБЖУ (всегда берётся из базы)
 """
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
@@ -32,7 +31,6 @@ from database.db import get_session
 from database.models import Meal, FoodItem, User
 from sqlalchemy import select
 import sys
-from utils.normalizer import normalize_product_name
 
 router = Router()
 
@@ -57,9 +55,24 @@ def _prepare_image(image_bytes: bytes) -> bytes:
         logger.warning(f"⚠️ Image prep error: {e}")
         return image_bytes
 
+def _get_product_nutrition(product_key: str) -> Dict[str, float]:
+    """Возвращает базовые КБЖУ продукта по его ключу из LOCAL_FOOD_DB."""
+    product = LOCAL_FOOD_DB.get(product_key, {})
+    return {
+        'base_calories': product.get('calories', 0),
+        'base_protein': product.get('protein', 0),
+        'base_fat': product.get('fat', 0),
+        'base_carbs': product.get('carbs', 0)
+    }
+
 async def _get_food_data_cached(name: str, return_variants: bool = False) -> Union[Dict, List[Dict]]:
+    """
+    Получает данные продукта из локальной базы ингредиентов.
+    Если return_variants=True и есть несколько вариантов, возвращает список.
+    Каждый вариант содержит ключ 'key' для доступа к LOCAL_FOOD_DB.
+    """
+    from utils.normalizer import normalize_product_name
     name_lower = name.lower().strip()
-    # Нормализуем имя
     normalized_name = normalize_product_name(name_lower)
     logger.info(f"🔍 _get_food_data_cached: исходное '{name_lower}', нормализованное '{normalized_name}', return_variants={return_variants}")
 
@@ -75,21 +88,14 @@ async def _get_food_data_cached(name: str, return_variants: bool = False) -> Uni
         logger.info(f"🔍 Возвращаем лучший вариант: {best['name']} (cal: {best.get('calories')})")
         return {
             'name': best['name'],
-            'base_calories': best.get('calories', 0),
-            'base_protein': best.get('protein', 0),
-            'base_fat': best.get('fat', 0),
-            'base_carbs': best.get('carbs', 0),
-            'source': 'local',
-            'key': best.get('key', name_lower)
+            'key': best.get('key'),  # сохраняем ключ для доступа к базе
+            'source': 'local'
         }
 
     logger.warning(f"🔍 Варианты не найдены, возвращаем заглушку для '{name}'")
     return {
         'name': name,
-        'base_calories': 0,
-        'base_protein': 0,
-        'base_fat': 0,
-        'base_carbs': 0,
+        'key': None,  # нет ключа, значит, продукт не в базе
         'source': 'unknown'
     }
 
@@ -153,20 +159,19 @@ async def _send_progress_update(
     except Exception as e:
         logger.warning(f"⚠️ Progress update failed: {e}")
 
-def _calculate_nutrients(base: Dict, weight: float) -> Dict:
-    """Рассчитывает КБЖУ для заданного веса."""
+def _calculate_nutrients(nutrition: Dict, weight: float) -> Dict:
+    """
+    Рассчитывает КБЖУ для заданного веса на основе базовых значений.
+    nutrition должен содержать ключи: base_calories, base_protein, base_fat, base_carbs.
+    """
     if weight <= 0:
         return {'calories': 0, 'protein': 0, 'fat': 0, 'carbs': 0}
     multiplier = weight / 100.0
-    base_calories = float(base.get('base_calories', 0) or 0)
-    base_protein = float(base.get('base_protein', 0) or 0)
-    base_fat = float(base.get('base_fat', 0) or 0)
-    base_carbs = float(base.get('base_carbs', 0) or 0)
     return {
-        'calories': round(base_calories * multiplier, 1),
-        'protein': round(base_protein * multiplier, 1),
-        'fat': round(base_fat * multiplier, 1),
-        'carbs': round(base_carbs * multiplier, 1)
+        'calories': round(nutrition.get('base_calories', 0) * multiplier, 1),
+        'protein': round(nutrition.get('base_protein', 0) * multiplier, 1),
+        'fat': round(nutrition.get('base_fat', 0) * multiplier, 1),
+        'carbs': round(nutrition.get('base_carbs', 0) * multiplier, 1)
     }
 
 async def _send_product_card(
@@ -176,10 +181,29 @@ async def _send_product_card(
     food: Dict,
     totals_msg_id: int
 ) -> int:
-    """Отправляет карточку продукта с кнопками управления весом."""
+    """
+    Отправляет карточку продукта с кнопками управления весом.
+    food должен содержать 'name', 'weight' и, если есть, 'product_key'.
+    Если product_key есть, базовые КБЖУ берутся из базы, иначе используются поля base_* из food.
+    """
     weight = food.get('weight', 0) or 0
     weight_str = f"{weight} г" if weight else "0 г"
-    nutrients = _calculate_nutrients(food, weight)
+    
+    # Получаем базовые КБЖУ
+    if food.get('product_key'):
+        nutrition = _get_product_nutrition(food['product_key'])
+        logger.info(f"📦 Для {food['name']} использован ключ {food['product_key']}, nutrition={nutrition}")
+    else:
+        # Для продуктов не из базы (заглушки) используем сохранённые базовые значения (они могут быть 0)
+        nutrition = {
+            'base_calories': food.get('base_calories', 0),
+            'base_protein': food.get('base_protein', 0),
+            'base_fat': food.get('base_fat', 0),
+            'base_carbs': food.get('base_carbs', 0)
+        }
+    
+    nutrients = _calculate_nutrients(nutrition, weight)
+    logger.info(f"📦 Рассчитано для {food['name']}: вес={weight}, ккал={nutrients['calories']}")
 
     text = (
         f"<b>{index+1}. {food['name']}</b>\n"
@@ -204,10 +228,27 @@ async def _show_final_interface(
     meal_type: str
 ):
     """Показывает итоговый интерфейс с карточками продуктов."""
-    total_cal = sum(f['calories'] for f in selected_foods)
-    total_prot = sum(f['protein'] for f in selected_foods)
-    total_fat = sum(f['fat'] for f in selected_foods)
-    total_carbs = sum(f['carbs'] for f in selected_foods)
+    # Вычисляем итоги, используя актуальные КБЖУ из базы
+    total_cal = 0
+    total_prot = 0
+    total_fat = 0
+    total_carbs = 0
+    
+    for food in selected_foods:
+        if food.get('product_key'):
+            nutrition = _get_product_nutrition(food['product_key'])
+        else:
+            nutrition = {
+                'base_calories': food.get('base_calories', 0),
+                'base_protein': food.get('base_protein', 0),
+                'base_fat': food.get('base_fat', 0),
+                'base_carbs': food.get('base_carbs', 0)
+            }
+        nutrients = _calculate_nutrients(nutrition, food.get('weight', 0))
+        total_cal += nutrients['calories']
+        total_prot += nutrients['protein']
+        total_fat += nutrients['fat']
+        total_carbs += nutrients['carbs']
 
     totals_text = (
         f"🍽️ <b>Приём пищи ({meal_type}):</b>\n"
@@ -303,11 +344,12 @@ async def process_food_items(
     food_items: List[Dict],
     meal_type: str,
     start_index: int = 0,
-    skip_dish_check: bool = False   # новый параметр
+    skip_dish_check: bool = False
 ):
     """
     Обрабатывает список food_items последовательно.
-    Если skip_dish_check=True, пропускает проверку на готовое блюдо для текущего элемента.
+    Сохраняет в selected_foods только name, weight и product_key (если есть).
+    Базовые КБЖУ всегда берутся из LOCAL_FOOD_DB при отображении.
     """
     data = await state.get_data()
     selected_foods = data.get('selected_foods', [])
@@ -321,14 +363,11 @@ async def process_food_items(
     product_name = current_item['name']
     logger.info(f"🔄 Обрабатываем продукт {start_index+1}/{len(food_items)}: {current_item}")
 
-    # Если skip_dish_check=True, сразу переходим к ингредиентам
     if not skip_dish_check:
-        # 1. Ищем готовые блюда по названию продукта
         from services.dish_db import find_matching_dishes
         matches = find_matching_dishes(product_name, threshold=0.5)
 
         if matches:
-            # Найдены готовые блюда – показываем список для выбора
             await state.update_data(
                 pending_food_items=food_items,
                 pending_index=start_index,
@@ -339,78 +378,39 @@ async def process_food_items(
             await _show_dish_selection_for_product(message, state, matches, current_item, meal_type)
             return
 
-    # 2. Если готовых блюд нет или мы пропустили проверку – ищем ингредиенты
+    # Ищем ингредиенты
     variants = await _get_food_data_cached(product_name, return_variants=True)
 
-    # Если вариантов нет или один – обрабатываем как единичный продукт
     if not isinstance(variants, list) or len(variants) == 0:
-        # Fallback: если список пуст, создаём заглушку
-        food_data = {
-            'name': product_name,
-            'base_calories': 0,
-            'base_protein': 0,
-            'base_fat': 0,
-            'base_carbs': 0,
-            'source': 'unknown'
-        }
-        weight = current_item.get('weight', 100)
-        nutrients = _calculate_nutrients(food_data, weight)
-
+        # Продукт не найден в базе – создаём запись без ключа (нулевое КБЖУ)
         selected_food = {
-            'name': food_data['name'],
-            'base_calories': food_data['base_calories'],
-            'base_protein': food_data['base_protein'],
-            'base_fat': food_data['base_fat'],
-            'base_carbs': food_data['base_carbs'],
-            'weight': weight,
-            'calories': nutrients['calories'],
-            'protein': nutrients['protein'],
-            'fat': nutrients['fat'],
-            'carbs': nutrients['carbs'],
+            'name': product_name,
+            'weight': current_item.get('weight', 100),
+            'product_key': None,
             'source': 'unknown',
             'ai_confidence': current_item.get('ai_confidence', 0.5)
         }
-
         selected_foods.append(selected_food)
         await state.update_data(selected_foods=selected_foods)
         await process_food_items(message, state, food_items, meal_type, start_index + 1)
         return
 
     if len(variants) == 1:
-        # Единственный вариант – сразу добавляем
+        # Единственный вариант – сохраняем с ключом
         variant = variants[0]
-        food_data = {
-            'name': variant['name'],
-            'base_calories': variant.get('calories', 0),
-            'base_protein': variant.get('protein', 0),
-            'base_fat': variant.get('fat', 0),
-            'base_carbs': variant.get('carbs', 0),
-            'source': 'local'
-        }
-        weight = current_item.get('weight', 100)
-        nutrients = _calculate_nutrients(food_data, weight)
-
         selected_food = {
-            'name': food_data['name'],
-            'base_calories': food_data['base_calories'],
-            'base_protein': food_data['base_protein'],
-            'base_fat': food_data['base_fat'],
-            'base_carbs': food_data['base_carbs'],
-            'weight': weight,
-            'calories': nutrients['calories'],
-            'protein': nutrients['protein'],
-            'fat': nutrients['fat'],
-            'carbs': nutrients['carbs'],
+            'name': variant['name'],
+            'weight': current_item.get('weight', 100),
+            'product_key': variant.get('key'),
             'source': 'local',
             'ai_confidence': current_item.get('ai_confidence', 0.8)
         }
-
         selected_foods.append(selected_food)
         await state.update_data(selected_foods=selected_foods)
         await process_food_items(message, state, food_items, meal_type, start_index + 1)
         return
 
-    # Несколько вариантов – нужен выбор с пагинацией
+    # Несколько вариантов – нужен выбор
     total_pages = math.ceil(len(variants) / VARIANTS_PER_PAGE)
 
     await state.update_data(
@@ -435,14 +435,11 @@ async def _show_dish_selection_for_product(
 ):
     logger.info(f"🔍 Показываем выбор готового блюда для '{current_item['name']}', найдено совпадений: {len(matches)}")
     
-    """Показывает список готовых блюд для текущего продукта."""
     text = f"🍽 <b>«{current_item['name']}» может быть готовым блюдом</b>\n"
     text += "Найдены похожие блюда в базе:\n"
     
-    # Сохраняем matches в состоянии для доступа по индексу
     await state.update_data(dish_matches=matches)
     
-    # Строим клавиатуру вручную
     keyboard = []
     for idx, match in enumerate(matches):
         btn_text = f"{match['name']} (совпадение {match['score']*100:.0f}%)"
@@ -458,10 +455,8 @@ async def _show_dish_selection_for_product(
 
 @router.callback_query(F.data.startswith("variants_page_"))
 async def variants_page_callback(callback: CallbackQuery, state: FSMContext):
-    """Обработчик переключения страниц при выборе вариантов."""
     page = int(callback.data.split("_")[2])
     data = await state.get_data()
-
     variants = data.get('all_variants')
     current_item = data.get('current_item')
     meal_type = data.get('meal_type')
@@ -484,7 +479,6 @@ async def variants_page_callback(callback: CallbackQuery, state: FSMContext):
 
 @router.callback_query(F.data.startswith("select_variant_"))
 async def select_variant_callback(callback: CallbackQuery, state: FSMContext):
-    """Обработчик выбора варианта продукта."""
     parts = callback.data.split("_")
     if len(parts) < 3:
         await callback.answer("❌ Ошибка", show_alert=True)
@@ -503,27 +497,10 @@ async def select_variant_callback(callback: CallbackQuery, state: FSMContext):
     food_items = data.get('pending_food_items', [])
     current_index = data.get('pending_index', 0)
 
-    food_data = {
-        'name': product['name'],
-        'base_calories': product.get('calories', 0),
-        'base_protein': product.get('protein', 0),
-        'base_fat': product.get('fat', 0),
-        'base_carbs': product.get('carbs', 0),
-        'source': 'local'
-    }
-    nutrients = _calculate_nutrients(food_data, weight)
-
     selected_food = {
-        'name': food_data['name'],
-        'base_calories': food_data['base_calories'],
-        'base_protein': food_data['base_protein'],
-        'base_fat': food_data['base_fat'],
-        'base_carbs': food_data['base_carbs'],
+        'name': product['name'],
         'weight': weight,
-        'calories': nutrients['calories'],
-        'protein': nutrients['protein'],
-        'fat': nutrients['fat'],
-        'carbs': nutrients['carbs'],
+        'product_key': product_key,
         'source': 'local',
         'ai_confidence': 0.8
     }
@@ -546,9 +523,7 @@ async def select_variant_callback(callback: CallbackQuery, state: FSMContext):
 
 @router.message(F.photo)
 async def handle_photo(message: Message, state: FSMContext):
-    """Обработка фото: каскадное распознавание с прогресс-баром."""
     data = await state.get_data()
-
     if data.get('last_photo_id') == message.message_id:
         logger.info(f"📸 Duplicate photo ignored: {message.message_id}")
         return
@@ -737,7 +712,6 @@ async def _show_dish_selection(
     dish_data: Dict,
     model_used: str
 ):
-    """Показывает пользователю список похожих готовых блюд."""
     text = f"🍽 <b>Распознано ({model_used}): {dish_data.get('dish_name', 'Блюдо')}</b>\n"
     text += f"🎯 Уверенность: {dish_data.get('confidence', 0.5):.0%}\n\n"
     text += "Найдены похожие готовые блюда в базе:\n"
@@ -765,7 +739,6 @@ async def _show_dish_confirmation(
     dish_data: Dict,
     model_used: str
 ):
-    """Показывает распознанное блюдо с возможностью редактирования."""
     dish_name = dish_data.get('dish_name', 'Блюдо')
     confidence = dish_data.get('confidence', 0.5)
     ingredients = dish_data.get('ingredients', [])
@@ -790,7 +763,6 @@ async def _show_dish_confirmation(
     await state.update_data(recognized_dish=dish_data, mode="photo_recognition")
 
 async def _handle_recognition_failure(message: Message, state: FSMContext):
-    """Обработка случая, когда распознавание не удалось."""
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="✏️ Ввести продукты вручную", callback_data="food_manual")],
         [InlineKeyboardButton(text="🔄 Попробовать ещё раз", callback_data="retry_photo")],
@@ -811,7 +783,6 @@ async def _handle_recognition_failure(message: Message, state: FSMContext):
 
 @router.callback_query(F.data == "confirm_dish_as_is")
 async def confirm_dish_callback(callback: CallbackQuery, state: FSMContext):
-    """Использует ингредиенты, распознанные AI, с сохранением весов."""
     await callback.answer("⏳ Загружаю данные...")
 
     data = await state.get_data()
@@ -864,7 +835,6 @@ async def confirm_dish_callback(callback: CallbackQuery, state: FSMContext):
 
 @router.callback_query(F.data == "confirm_dish_db")
 async def confirm_dish_from_db_callback(callback: CallbackQuery, state: FSMContext):
-    """Использует ингредиенты из базы готовых блюд с весами."""
     data = await state.get_data()
     dish_data = data.get('recognized_dish', {})
     dish_name = dish_data.get('dish_name', 'Блюдо')
@@ -910,7 +880,6 @@ async def confirm_dish_from_db_callback(callback: CallbackQuery, state: FSMConte
 
 @router.callback_query(F.data == "use_ingredients_instead")
 async def use_ingredients_callback(callback: CallbackQuery, state: FSMContext):
-    """Использует ингредиенты, полученные от AI, без разворачивания составных блюд."""
     data = await state.get_data()
     dish_data = data.get('recognized_dish', {})
     ai_ingredients = dish_data.get('ingredients', [])
@@ -964,9 +933,7 @@ async def select_dish_by_index_callback(callback: CallbackQuery, state: FSMConte
     logger.info(f"🔥 Вызван select_dish_by_index_callback с data: {callback.data}")
     try:
         parts = callback.data.split("_")
-        logger.info(f"🔥 Распарсено: {parts}")
         idx = int(parts[3])
-        logger.info(f"🔥 Индекс: {idx}")
     except (IndexError, ValueError) as e:
         logger.error(f"🔥 Ошибка парсинга индекса: {e}")
         await callback.answer("❌ Неверный индекс", show_alert=True)
@@ -1002,7 +969,7 @@ async def select_dish_by_index_callback(callback: CallbackQuery, state: FSMConte
                 break
         
         if not found_key:
-            logger.error(f"❌ Ключ '{normalized_key}' не найден в COMPOSITE_DISHES. Доступные ключи: {list(COMPOSITE_DISHES.keys())[:10]}...")
+            logger.error(f"❌ Ключ '{normalized_key}' не найден в COMPOSITE_DISHES.")
             await callback.answer("❌ Блюдо не найдено в базе", show_alert=True)
             return
         
@@ -1019,18 +986,16 @@ async def select_dish_by_index_callback(callback: CallbackQuery, state: FSMConte
     
     nutrition_per_100 = dish_info.get('nutrition_per_100')
     if nutrition_per_100:
+        # Если есть готовые КБЖУ, создаём запись с ключом блюда (не ингредиента)
         multiplier = pending_weight / 100.0
         selected_food = {
             'name': dish_info['name'],
+            'weight': pending_weight,
+            'product_key': None,  # у блюда нет ключа в LOCAL_FOOD_DB
             'base_calories': nutrition_per_100.get('calories', 0),
             'base_protein': nutrition_per_100.get('protein', 0),
             'base_fat': nutrition_per_100.get('fat', 0),
             'base_carbs': nutrition_per_100.get('carbs', 0),
-            'weight': pending_weight,
-            'calories': nutrition_per_100.get('calories', 0) * multiplier,
-            'protein': nutrition_per_100.get('protein', 0) * multiplier,
-            'fat': nutrition_per_100.get('fat', 0) * multiplier,
-            'carbs': nutrition_per_100.get('carbs', 0) * multiplier,
             'source': 'composite_dish',
             'dish_key': dish_key
         }
@@ -1049,6 +1014,7 @@ async def select_dish_by_index_callback(callback: CallbackQuery, state: FSMConte
         await callback.answer()
         return
     
+    # Разбиваем на ингредиенты
     default_weight = dish_info.get('default_weight', 300)
     total_weight = pending_weight if 50 < pending_weight < 1500 else default_weight
     ingredients_with_weights = get_dish_ingredients(dish_key, total_weight=total_weight)
@@ -1073,10 +1039,8 @@ async def select_dish_by_index_callback(callback: CallbackQuery, state: FSMConte
     
 @router.callback_query(F.data == "continue_ingredient")
 async def continue_as_ingredient_callback(callback: CallbackQuery, state: FSMContext):
-    """Пользователь решил, что это не готовое блюдо, а ингредиент."""
     data = await state.get_data()
     pending_index = data.get('pending_index', 0)
-    # Вызываем process_food_items с тем же индексом, но с флагом skip_dish_check=True
     await callback.message.delete()
     await process_food_items(
         callback.message,
@@ -1084,7 +1048,7 @@ async def continue_as_ingredient_callback(callback: CallbackQuery, state: FSMCon
         data.get('pending_food_items'),
         data.get('pending_meal_type'),
         pending_index,
-        skip_dish_check=True   # пропускаем повторную проверку на готовое блюдо
+        skip_dish_check=True
     )
     await callback.answer()
 
@@ -1092,7 +1056,6 @@ async def continue_as_ingredient_callback(callback: CallbackQuery, state: FSMCon
 
 @router.callback_query(F.data.startswith("weight_"))
 async def weight_callback(callback: CallbackQuery, state: FSMContext):
-    """Обработка изменения веса продукта."""
     data = await state.get_data()
     selected_foods = data.get('selected_foods', [])
     totals_msg_id = data.get('totals_msg_id')
@@ -1162,39 +1125,25 @@ async def weight_callback(callback: CallbackQuery, state: FSMContext):
         return
 
     food['weight'] = new_weight
-
-    base_data = {
-        'base_calories': food.get('base_calories', food.get('calories', 0)),
-        'base_protein': food.get('base_protein', food.get('protein', 0)),
-        'base_fat': food.get('base_fat', food.get('fat', 0)),
-        'base_carbs': food.get('base_carbs', food.get('carbs', 0))
-    }
-
-    if current_weight > 0 and base_data['base_calories'] == 0:
-        multiplier = 100.0 / current_weight
-        base_data['base_calories'] = food.get('calories', 0) * multiplier
-        base_data['base_protein'] = food.get('protein', 0) * multiplier
-        base_data['base_fat'] = food.get('fat', 0) * multiplier
-        base_data['base_carbs'] = food.get('carbs', 0) * multiplier
-
-    nutrients = _calculate_nutrients(base_data, new_weight)
-
-    food.update({
-        'weight': new_weight,
-        'calories': nutrients['calories'],
-        'protein': nutrients['protein'],
-        'fat': nutrients['fat'],
-        'carbs': nutrients['carbs'],
-        'base_calories': base_data['base_calories'],
-        'base_protein': base_data['base_protein'],
-        'base_fat': base_data['base_fat'],
-        'base_carbs': base_data['base_carbs']
-    })
-
     selected_foods[idx] = food
     await state.update_data(selected_foods=selected_foods)
 
+    # Обновляем карточку продукта
     weight_str = f"{new_weight} г" if new_weight else "0 г"
+    
+    # Получаем базовые КБЖУ
+    if food.get('product_key'):
+        nutrition = _get_product_nutrition(food['product_key'])
+    else:
+        nutrition = {
+            'base_calories': food.get('base_calories', 0),
+            'base_protein': food.get('base_protein', 0),
+            'base_fat': food.get('base_fat', 0),
+            'base_carbs': food.get('base_carbs', 0)
+        }
+    
+    nutrients = _calculate_nutrients(nutrition, new_weight)
+    
     text = (
         f"<b>{idx+1}. {food['name']}</b>\n"
         f"⚖️ Вес: {weight_str}\n"
@@ -1231,10 +1180,26 @@ async def _update_totals_message(
     meal_type: str = "snack"
 ):
     """Обновляет сообщение с итогами КБЖУ."""
-    total_cal = sum(f.get('calories', 0) for f in selected_foods)
-    total_prot = sum(f.get('protein', 0) for f in selected_foods)
-    total_fat = sum(f.get('fat', 0) for f in selected_foods)
-    total_carbs = sum(f.get('carbs', 0) for f in selected_foods)
+    total_cal = 0
+    total_prot = 0
+    total_fat = 0
+    total_carbs = 0
+    
+    for food in selected_foods:
+        if food.get('product_key'):
+            nutrition = _get_product_nutrition(food['product_key'])
+        else:
+            nutrition = {
+                'base_calories': food.get('base_calories', 0),
+                'base_protein': food.get('base_protein', 0),
+                'base_fat': food.get('base_fat', 0),
+                'base_carbs': food.get('base_carbs', 0)
+            }
+        nutrients = _calculate_nutrients(nutrition, food.get('weight', 0))
+        total_cal += nutrients['calories']
+        total_prot += nutrients['protein']
+        total_fat += nutrients['fat']
+        total_carbs += nutrients['carbs']
 
     text = (
         f"🍽️ <b>Приём пищи ({meal_type}):</b>\n"
@@ -1253,7 +1218,6 @@ async def _update_totals_message(
 
 @router.callback_query(F.data == "add_food")
 async def add_food_callback(callback: CallbackQuery, state: FSMContext):
-    """Начало добавления нового продукта."""
     await callback.answer()
     await callback.message.edit_text(
         "➕ <b>Добавление продукта</b>\nВведите название:",
@@ -1263,7 +1227,6 @@ async def add_food_callback(callback: CallbackQuery, state: FSMContext):
 
 @router.message(FoodStates.adding_name, F.text)
 async def process_add_name(message: Message, state: FSMContext):
-    """Обработка названия нового продукта."""
     name = message.text.strip()
     if not name:
         await message.answer("❌ Название не может быть пустым.")
@@ -1278,7 +1241,6 @@ async def process_add_name(message: Message, state: FSMContext):
 
 @router.message(FoodStates.adding_weight, F.text)
 async def process_add_weight(message: Message, state: FSMContext):
-    """Обработка веса нового продукта."""
     data = await state.get_data()
     name = data.get('new_food_name')
     text = message.text.strip().lower()
@@ -1295,27 +1257,38 @@ async def process_add_weight(message: Message, state: FSMContext):
             await message.answer("❌ Введите число от 1 до 10000")
             return
 
-    food_data = await _get_food_data_cached(name)
-    nutrients = _calculate_nutrients(food_data, weight)
-
-    new_food = {
-        **food_data,
-        'weight': weight,
-        **nutrients
-    }
+    # Пытаемся найти продукт в базе
+    variants = await _get_food_data_cached(name, return_variants=True)
+    if isinstance(variants, list) and len(variants) > 0:
+        # Берём первый вариант
+        variant = variants[0]
+        selected_food = {
+            'name': variant['name'],
+            'weight': weight,
+            'product_key': variant.get('key'),
+            'source': 'local'
+        }
+    else:
+        # Не найден – создаём запись без ключа
+        selected_food = {
+            'name': name,
+            'weight': weight,
+            'product_key': None,
+            'source': 'unknown'
+        }
 
     selected_foods = data.get('selected_foods', [])
     product_msg_ids = data.get('product_msg_ids', [])
     totals_msg_id = data.get('totals_msg_id')
 
     idx = len(selected_foods)
-    selected_foods.append(new_food)
+    selected_foods.append(selected_food)
 
     new_msg_id = await _send_product_card(
         message.chat.id,
         message.bot,
         idx,
-        new_food,
+        selected_food,
         totals_msg_id
     )
     product_msg_ids.append(new_msg_id)
@@ -1338,7 +1311,6 @@ async def process_add_weight(message: Message, state: FSMContext):
 # ========== ПОДТВЕРЖДЕНИЕ И СОХРАНЕНИЕ ==========
 
 async def _safe_answer(callback: CallbackQuery):
-    """Безопасный ответ на callback."""
     try:
         await callback.answer()
     except TelegramBadRequest:
@@ -1346,7 +1318,6 @@ async def _safe_answer(callback: CallbackQuery):
 
 @router.callback_query(F.data == "confirm_meal")
 async def confirm_meal_callback(callback: CallbackQuery, state: FSMContext):
-    """Подтверждение и сохранение приёма пищи."""
     logger.info(f"✅ confirm_meal_callback: user={callback.from_user.id}")
 
     data = await state.get_data()
@@ -1370,10 +1341,27 @@ async def confirm_meal_callback(callback: CallbackQuery, state: FSMContext):
             await state.clear()
             return
 
-        total_cal = sum(f.get('calories', 0) for f in selected_foods)
-        total_prot = sum(f.get('protein', 0) for f in selected_foods)
-        total_fat = sum(f.get('fat', 0) for f in selected_foods)
-        total_carbs = sum(f.get('carbs', 0) for f in selected_foods)
+        # Вычисляем итоговые КБЖУ для сохранения
+        total_cal = 0
+        total_prot = 0
+        total_fat = 0
+        total_carbs = 0
+        
+        for food in selected_foods:
+            if food.get('product_key'):
+                nutrition = _get_product_nutrition(food['product_key'])
+            else:
+                nutrition = {
+                    'base_calories': food.get('base_calories', 0),
+                    'base_protein': food.get('base_protein', 0),
+                    'base_fat': food.get('base_fat', 0),
+                    'base_carbs': food.get('base_carbs', 0)
+                }
+            nutrients = _calculate_nutrients(nutrition, food.get('weight', 0))
+            total_cal += nutrients['calories']
+            total_prot += nutrients['protein']
+            total_fat += nutrients['fat']
+            total_carbs += nutrients['carbs']
 
         meal = Meal(
             user_id=user.id,
@@ -1390,14 +1378,26 @@ async def confirm_meal_callback(callback: CallbackQuery, state: FSMContext):
 
         for f in selected_foods:
             if f.get('weight', 0) > 0:
+                # Для сохранения также вычисляем КБЖУ по тому же принципу
+                if f.get('product_key'):
+                    nutrition = _get_product_nutrition(f['product_key'])
+                else:
+                    nutrition = {
+                        'base_calories': f.get('base_calories', 0),
+                        'base_protein': f.get('base_protein', 0),
+                        'base_fat': f.get('base_fat', 0),
+                        'base_carbs': f.get('base_carbs', 0)
+                    }
+                nutrients = _calculate_nutrients(nutrition, f['weight'])
+                
                 item = FoodItem(
                     meal_id=meal.id,
                     name=f['name'],
                     weight=f['weight'],
-                    calories=f.get('calories', 0),
-                    protein=f.get('protein', 0),
-                    fat=f.get('fat', 0),
-                    carbs=f.get('carbs', 0)
+                    calories=nutrients['calories'],
+                    protein=nutrients['protein'],
+                    fat=nutrients['fat'],
+                    carbs=nutrients['carbs']
                 )
                 session.add(item)
 
@@ -1418,7 +1418,7 @@ async def confirm_meal_callback(callback: CallbackQuery, state: FSMContext):
         lines = [f"🍽️ <b>Записан приём пищи ({meal_type}):</b>"]
         for f in selected_foods:
             if f.get('weight', 0) > 0:
-                lines.append(f"• {f['name']}: {f['weight']}г — {f.get('calories', 0):.0f} ккал")
+                lines.append(f"• {f['name']}: {f['weight']}г")
 
         lines.append(f"\n🔥 Всего: {total_cal:.0f} ккал")
         lines.append(f"🥩 {total_prot:.1f}г | 🥑 {total_fat:.1f}г | 🍚 {total_carbs:.1f}г")
@@ -1429,7 +1429,6 @@ async def confirm_meal_callback(callback: CallbackQuery, state: FSMContext):
 
 @router.callback_query(F.data == "cancel_meal")
 async def cancel_meal_callback(callback: CallbackQuery, state: FSMContext):
-    """Отмена ввода."""
     logger.info(f"❌ cancel_meal_callback: user={callback.from_user.id}")
 
     data = await state.get_data()
@@ -1453,7 +1452,6 @@ async def cancel_meal_callback(callback: CallbackQuery, state: FSMContext):
 
 @router.callback_query(F.data == "action_cancel")
 async def action_cancel_callback(callback: CallbackQuery, state: FSMContext):
-    """Отмена действия."""
     await state.clear()
     try:
         await callback.message.delete()
@@ -1464,7 +1462,6 @@ async def action_cancel_callback(callback: CallbackQuery, state: FSMContext):
 
 @router.callback_query(F.data == "food_manual")
 async def food_manual_callback(callback: CallbackQuery, state: FSMContext):
-    """Переход к ручному вводу."""
     await state.clear()
     from handlers.food import cmd_log_food
     await cmd_log_food(callback.message, state, user_id=callback.from_user.id)
@@ -1474,7 +1471,6 @@ async def food_manual_callback(callback: CallbackQuery, state: FSMContext):
 
 @router.message(F.voice)
 async def handle_voice(message: Message, state: FSMContext):
-    """Обработка голосовых сообщений."""
     logger.info(f"🎤 Voice received from user {message.from_user.id}")
 
     try:

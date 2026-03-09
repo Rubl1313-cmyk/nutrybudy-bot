@@ -19,8 +19,7 @@ from utils.states import ActivityStates
 from database.db import get_session
 from database.models import User, Activity
 from services.activity import CALORIES_PER_MINUTE
-from services.weather import get_temperature as get_weather
-# Новый импорт
+from services.weather import get_temperature as get_weather  # ✅ используем правильный модуль
 from handlers.media_handlers import process_food_items
 
 logger = logging.getLogger(__name__)
@@ -45,14 +44,15 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
     intent = intent_data.get("intent")
     text_lower = text.lower()
 
-    # ----- ВОДА -----
+    # ----- ВОДА (убрана ветка с покупкой) -----
     if intent == "water":
         amount = parse_water_amount(text)
-        elif "выпил" in text_lower or "попил" in text_lower or "попила" in text_lower or "выпила" in text_lower:
-            if amount:
-                await add_water_quick(message.from_user.id, amount)
-                await message.answer(f"✅ Записано {amount} мл воды.")
-            return
+        if amount:
+            await add_water_quick(message.from_user.id, amount)
+            await message.answer(f"✅ Записано {amount} мл воды.")
+        else:
+            await cmd_water(message, state)
+        return
 
     # ----- АКТИВНОСТЬ -----
     if intent == "activity":
@@ -151,18 +151,15 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
         await cmd_fitness(message, state)
         return
 
-    # ----- ПРИЁМ ПИЩИ (НОВЫЙ УНИВЕРСАЛЬНЫЙ МЕХАНИЗМ) -----
+    # ----- ПРИЁМ ПИЩИ -----
     if intent == "food":
         meal_type = intent_data.get("meal_type", "snack")
-        # Если классификатор выделил отдельные продукты, используем их
         items = intent_data.get("items")
         if items:
             food_items = [{'name': item, 'weight': 100} for item in items]
         else:
-            # Иначе разбираем исходный текст через парсер
             parsed = parse_food_items(text)
             if not parsed:
-                # Если не удалось распознать, показываем клавиатуру выбора (старое поведение)
                 await show_unknown_keyboard(message, state, text)
                 return
             food_items = [{'name': name, 'weight': 100} for name, _, _ in parsed]
@@ -186,7 +183,7 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
                 else:
                     city = "Москва"
                     await message.answer("ℹ️ Город не указан в профиле, используется Москва.")
-        weather_info = await get_weather(city)
+        weather_info = await get_weather(city)  # ✅ теперь корректно
         await message.answer(weather_info)
         return
 
@@ -210,14 +207,13 @@ async def choose_food_callback(callback: CallbackQuery, state: FSMContext):
     """Обработка выбора «Записать как приём пищи» для неопределённого текста."""
     data = await state.get_data()
     text = data.get('pending_text', '')
-    parsed = parse_food_items(text)
+    parsed = parse_food_items(text)  # ✅ исправлено
     if not parsed:
         await callback.answer("❌ Не удалось распознать продукты.", show_alert=True)
         return
     food_items = [{'name': name, 'weight': 100} for name, _, _ in parsed]
     await state.update_data(selected_foods=[], meal_type='snack')
     await process_food_items(callback.message, state, food_items, meal_type='snack')
-    # ✅ УДАЛЕНО: await callback.message.delete()
     await callback.answer()
 
 @universal_router.callback_query(lambda c: c.data == "choose_ai")
@@ -228,20 +224,6 @@ async def choose_ai_callback(callback: CallbackQuery, state: FSMContext):
     await process_single_ai_query(callback.message, text)
     await callback.message.delete()
     await callback.answer()
-
-# ----- ОБРАБОТЧИКИ КНОПОК ДЛЯ ВОДЫ -----
-@universal_router.callback_query(lambda c: c.data == "water_drink")
-async def water_drink_callback(callback: CallbackQuery, state: FSMContext):
-    data = await state.get_data()
-    amount = data.get('water_amount')
-    if amount:
-        await add_water_quick(callback.from_user.id, amount)
-        await callback.message.answer(f"✅ Записано {amount} мл воды.")
-    else:
-        await cmd_water(callback.message, state)
-    await callback.message.delete()
-    await callback.answer()
-
 
 @universal_router.callback_query(lambda c: c.data == "action_cancel")
 async def action_cancel_callback(callback: CallbackQuery, state: FSMContext):

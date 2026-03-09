@@ -75,90 +75,6 @@ def get_confirmation_keyboard(action: str = ""):
     builder.adjust(2)
     return builder.as_markup()
 
-def get_shopping_lists_keyboard(lists):
-    builder = InlineKeyboardBuilder()
-    for lst in lists:
-        builder.button(
-            text=f"📋 {lst.name}",
-            callback_data=f"shopping_list_{lst.id}"
-        )
-    builder.button(text="➕ Новый список", callback_data="new_shopping_list")
-    builder.adjust(1)
-    return builder.as_markup()
-
-def get_shopping_items_keyboard(items, list_id):
-    """
-    Клавиатура для отображения товаров в списке покупок с кнопками управления.
-    """
-    builder = InlineKeyboardBuilder()
-    for item in items[:10]:
-        status = "✅" if item.is_checked else "⬜"
-        # Кнопка с названием товара (для информации)
-        builder.row(
-            InlineKeyboardButton(
-                text=f"{status} {item.name} — {item.quantity} {item.unit}",
-                callback_data=f"item_info_{item.id}"
-            )
-        )
-        # Ряд с кнопками управления
-        builder.row(
-            InlineKeyboardButton(text="➖", callback_data=f"item_decr_{item.id}"),
-            InlineKeyboardButton(text="➕", callback_data=f"item_incr_{item.id}"),
-            InlineKeyboardButton(
-                text="✅" if not item.is_checked else "↩️",
-                callback_data=f"toggle_item_{item.id}"
-            ),
-            InlineKeyboardButton(text="🗑️", callback_data=f"delete_item_{item.id}"),
-            width=4
-        )
-    builder.row(
-        InlineKeyboardButton(text="➕ Добавить товар", callback_data=f"add_item_{list_id}"),
-        InlineKeyboardButton(text="🗑️ Удалить список", callback_data=f"delete_list_{list_id}"),
-        InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_lists"),
-        width=2
-    )
-    return builder.as_markup()
-
-def get_days_keyboard():
-    builder = InlineKeyboardBuilder()
-    builder.button(text="Пн", callback_data="day_mon")
-    builder.button(text="Вт", callback_data="day_tue")
-    builder.button(text="Ср", callback_data="day_wed")
-    builder.button(text="Чт", callback_data="day_thu")
-    builder.button(text="Пт", callback_data="day_fri")
-    builder.button(text="Сб", callback_data="day_sat")
-    builder.button(text="Вс", callback_data="day_sun")
-    builder.button(text="Ежедневно", callback_data="day_daily")
-    builder.adjust(4)
-    return builder.as_markup()
-
-def get_reminder_type_keyboard():
-    builder = InlineKeyboardBuilder()
-    builder.button(text="🍽️ Приём пищи", callback_data="reminder_meal")
-    builder.button(text="💧 Вода", callback_data="reminder_water")
-    builder.button(text="⚖️ Взвешивание", callback_data="reminder_weight")
-    builder.button(text="📝 Своё", callback_data="reminder_custom")
-    builder.adjust(2)
-    return builder.as_markup()
-
-def get_reminders_list_keyboard(reminders):
-    """
-    Создаёт inline-клавиатуру для списка напоминаний.
-    Каждое напоминание отображается в виде строки с названием, временем и кнопкой удаления.
-    """
-    builder = InlineKeyboardBuilder()
-    for rem in reminders:
-        # Кнопка с информацией о напоминании (название и время)
-        info_text = f"{rem.title} — {rem.time}"
-        builder.row(
-            InlineKeyboardButton(text=info_text, callback_data=f"reminder_info_{rem.id}"),
-            InlineKeyboardButton(text="❌", callback_data=f"delete_reminder_{rem.id}"),
-            width=2
-        )
-    # Кнопка для создания нового напоминания
-    builder.row(InlineKeyboardButton(text="➕ Создать напоминание", callback_data="new_reminder"))
-    return builder.as_markup()
-
 def get_progress_options_keyboard():
     builder = InlineKeyboardBuilder()
     builder.button(text="📅 Сегодня", callback_data="progress_day")
@@ -214,14 +130,6 @@ def get_progress_menu() -> InlineKeyboardMarkup:
     ]
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
-def get_lists_menu() -> InlineKeyboardMarkup:
-    """Подменю «Списки и напоминания»."""
-    buttons = [
-        [InlineKeyboardButton(text="📋 Список покупок", callback_data="menu_shopping")],
-        [InlineKeyboardButton(text="🔔 Напоминания", callback_data="menu_reminders")],
-        [InlineKeyboardButton(text="🔙 Назад", callback_data="menu_back")]
-    ]
-    return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 def get_profile_menu() -> InlineKeyboardMarkup:
     """Подменю «Профиль»."""

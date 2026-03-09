@@ -14,7 +14,7 @@ from services.intent_classifier import classify
 from utils.water_parser import parse_water_amount
 from handlers.water import add_water_quick, cmd_water
 from handlers.activity import cmd_fitness
-from utils.parsers import parse_shopping_items
+from utils.parsers import parse_food_items
 from utils.states import ActivityStates
 from database.db import get_session
 from database.models import User, Activity
@@ -180,7 +180,7 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
             food_items = [{'name': item, 'weight': 100} for item in items]
         else:
             # Иначе разбираем исходный текст через парсер
-            parsed = parse_shopping_items(text)
+            parsed = parse_food_items(text)
             if not parsed:
                 # Если не удалось распознать, показываем клавиатуру выбора (старое поведение)
                 await show_unknown_keyboard(message, state, text)
@@ -333,7 +333,6 @@ async def show_unknown_keyboard(message: Message, state: FSMContext, text: str):
     """Показывает клавиатуру для неопределённого текста."""
     await state.update_data(pending_text=text)
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📋 В список покупок", callback_data="choose_shopping")],
         [InlineKeyboardButton(text="🍽️ Записать как приём пищи", callback_data="choose_food")],
         [InlineKeyboardButton(text="🤖 Спросить AI", callback_data="choose_ai")],
         [InlineKeyboardButton(text="❌ Отмена", callback_data="action_cancel")]

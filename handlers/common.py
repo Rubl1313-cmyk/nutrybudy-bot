@@ -16,8 +16,6 @@ from handlers.profile import cmd_profile, display_profile
 from handlers.food import cmd_log_food
 from handlers.water import cmd_water
 from handlers.progress import cmd_progress
-from handlers.shopping import cmd_shopping
-from handlers.reminders import cmd_reminders
 from handlers.activity import cmd_fitness
 from handlers.ai_assistant import cmd_ask
 from handlers.meal_plan import cmd_meal_plan
@@ -62,7 +60,6 @@ async def show_help_menu(event: Message | CallbackQuery):
         [InlineKeyboardButton(text="🍽️ Питание", callback_data="help_food_category")],
         [InlineKeyboardButton(text="💧 Вода и активность", callback_data="help_water_category")],
         [InlineKeyboardButton(text="📊 Прогресс", callback_data="help_progress_category")],
-        [InlineKeyboardButton(text="📋 Списки и напоминания", callback_data="help_lists_category")],
         [InlineKeyboardButton(text="👤 Профиль", callback_data="help_profile_category")],
         [InlineKeyboardButton(text="🤖 AI Помощник", callback_data="help_ai_category")],
         [InlineKeyboardButton(text="❌ Закрыть", callback_data="help_close")]
@@ -104,14 +101,6 @@ async def help_callbacks(callback: CallbackQuery):
             "📈 <b>Статистика</b> – просмотр потреблённых калорий, воды, веса и активности.\n"
             "📅 <b>Периоды</b> – можно посмотреть статистику за день, неделю или месяц.\n"
             "📉 <b>Графики</b> – наглядная динамика изменений веса и потребления."
-        )
-    elif data == "help_lists_category":
-        text = (
-            "📋 <b>Списки и напоминания</b>\n\n"
-            "📝 <b>Список покупок</b> – добавляй товары, меняй количество, отмечай купленное.\n"
-            "   <i>Пример: «купить 2 яйца, молоко»</i>\n\n"
-            "🔔 <b>Напоминания</b> – создавай напоминания о приёме пищи, воде или других делах.\n"
-            "   <i>Пример: «напомни выпить воду в 15:00»</i>"
         )
     elif data == "help_profile_category":
         text = (
@@ -201,15 +190,6 @@ async def show_progress_category(message: Message, state: FSMContext):
         parse_mode="HTML"
     )
 
-@router.message(F.text == "📋 Списки и напоминания")
-async def show_lists_category(message: Message, state: FSMContext):
-    await message.answer(
-        "📋 <b>Списки и напоминания</b>\n\n"
-        "Выберите действие:",
-        reply_markup=get_lists_menu(),
-        parse_mode="HTML"
-    )
-
 @router.message(F.text == "👤 Профиль и настройки")
 async def show_profile_category(message: Message, state: FSMContext):
     await message.answer(
@@ -279,16 +259,6 @@ async def menu_activity(callback: CallbackQuery, state: FSMContext):
 async def menu_steps(callback: CallbackQuery, state: FSMContext):
     await state.set_state(StepsStates.waiting_for_steps)
     await callback.message.answer("👟 Введите количество шагов (только число):")
-    await callback.answer()
-
-@router.callback_query(F.data == "menu_shopping")
-async def menu_shopping(callback: CallbackQuery, state: FSMContext):
-    await cmd_shopping(callback.message, state, user_id=callback.from_user.id)
-    await callback.answer()
-
-@router.callback_query(F.data == "menu_reminders")
-async def menu_reminders(callback: CallbackQuery, state: FSMContext):
-    await cmd_reminders(callback.message, state, user_id=callback.from_user.id)
     await callback.answer()
 
 @router.callback_query(F.data == "menu_profile_view")

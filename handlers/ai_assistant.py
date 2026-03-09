@@ -16,7 +16,7 @@ from services.deepseek_client import ask_worker_ai, DEFAULT_SYSTEM_PROMPT
 from keyboards.reply import get_main_keyboard
 from services.cloudflare_ai import transcribe_audio
 from services.intent_classifier import classify
-from utils.ai_tools import get_weather
+from services.weather import get_temperature as get_weather
 from utils.helpers import normalize_exit_command
 from database.db import get_session
 from database.models import User

@@ -19,7 +19,7 @@ from utils.states import ActivityStates
 from database.db import get_session
 from database.models import User, Activity
 from services.activity import CALORIES_PER_MINUTE
-from utils.ai_tools import get_weather
+from services.weather import get_temperature as get_weather
 # Новый импорт
 from handlers.media_handlers import process_food_items
 
@@ -48,30 +48,10 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
     # ----- ВОДА -----
     if intent == "water":
         amount = parse_water_amount(text)
-        if "купить" in text_lower or "покупки" in text_lower:
-            item_text = f"вода {amount} мл" if amount else "вода"
-            await add_to_shopping_list(message, item_text)
-            await message.answer("✅ Добавлено в список покупок.")
-            return
-        elif "выпил" in text_lower or "попил" in text_lower:
+        elif "выпил" in text_lower or "попил" in text_lower or "попила" in text_lower or "выпила" in text_lower:
             if amount:
                 await add_water_quick(message.from_user.id, amount)
                 await message.answer(f"✅ Записано {amount} мл воды.")
-            else:
-                await cmd_water(message, state)
-            return
-        else:
-            await state.update_data(water_amount=amount)
-            keyboard = InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="💧 Выпить воду", callback_data="water_drink")],
-                [InlineKeyboardButton(text="📋 Купить воду", callback_data="water_buy")],
-                [InlineKeyboardButton(text="❌ Отмена", callback_data="action_cancel")]
-            ])
-            amount_text = f" ({amount} мл)" if amount else ""
-            await message.answer(
-                f"📝 Вы написали о воде{amount_text}.\nВы хотите выпить воду или купить её?",
-                reply_markup=keyboard
-            )
             return
 
     # ----- АКТИВНОСТЬ -----

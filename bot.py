@@ -12,8 +12,7 @@ from aiogram.types import Update, BotCommand
 from aiohttp import web
 from database.db import init_db, close_db, engine
 from handlers import (
-    common, profile, food, water, shopping,
-    reminders, activity, progress, media_handlers, ai_assistant,
+    common, profile, food, water, activity, progress, media_handlers, ai_assistant,
     universal_text_handler, meal_plan, weight  # universal_text_handler теперь импортируется
 )
 from handlers.universal_text_handler import universal_router
@@ -189,8 +188,6 @@ async def main():
     dp.include_router(profile.router)
     dp.include_router(food.router)
     dp.include_router(water.router)
-    dp.include_router(shopping.router)
-    dp.include_router(reminders.router)
     dp.include_router(activity.router)
     dp.include_router(progress.router)
     dp.include_router(weight.router)     

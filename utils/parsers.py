@@ -62,7 +62,7 @@ def _find_longest_product(tokens: List[str], start_idx: int) -> int:
             max_len = length
     return max_len if max_len > 0 else 1
 
-def parse_shopping_items(text: str) -> List[Tuple[str, int, str]]:
+def parse_food_items(text: str) -> List[Tuple[str, int, str]]:
     """
     Преобразует текст в список кортежей (название, количество, единица).
     """

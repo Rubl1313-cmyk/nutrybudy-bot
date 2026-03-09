@@ -32,6 +32,7 @@ from database.db import get_session
 from database.models import Meal, FoodItem, User
 from sqlalchemy import select
 import sys
+from utils.normalizer import normalize_product_name
 
 router = Router()
 
@@ -57,14 +58,12 @@ def _prepare_image(image_bytes: bytes) -> bytes:
         return image_bytes
 
 async def _get_food_data_cached(name: str, return_variants: bool = False) -> Union[Dict, List[Dict]]:
-    """
-    Получает данные продукта из локальной базы ингредиентов.
-    Если return_variants=True и есть несколько вариантов, возвращает список.
-    """
     name_lower = name.lower().strip()
-    logger.info(f"🔍 _get_food_data_cached: ищем '{name_lower}', return_variants={return_variants}")
+    # Нормализуем имя
+    normalized_name = normalize_product_name(name_lower)
+    logger.info(f"🔍 _get_food_data_cached: исходное '{name_lower}', нормализованное '{normalized_name}', return_variants={return_variants}")
 
-    variants = get_product_variants(name_lower)
+    variants = get_product_variants(normalized_name)
     logger.info(f"🔍 Найдено вариантов: {len(variants)}")
 
     if return_variants and len(variants) > 1:

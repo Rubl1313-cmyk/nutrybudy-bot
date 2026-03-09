@@ -230,7 +230,7 @@ async def choose_food_callback(callback: CallbackQuery, state: FSMContext):
     """Обработка выбора «Записать как приём пищи» для неопределённого текста."""
     data = await state.get_data()
     text = data.get('pending_text', '')
-    parsed = parse_shopping_items(text)
+    parsed = parse_food_items(text)
     if not parsed:
         await callback.answer("❌ Не удалось распознать продукты.", show_alert=True)
         return

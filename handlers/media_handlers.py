@@ -1,10 +1,8 @@
 """
 Обработчики мультимедиа: фото (распознавание еды) и голос.
 ✅ Полная обработка множественных ингредиентов с выбором вариантов
-✅ Сохранение весов от AI
-✅ Подробное логирование
-✅ Пагинация при большом количестве вариантов (кнопка "Еще")
-✅ Гарантированное отображение КБЖУ (всегда берётся из базы)
+✅ Сохранение весов от AI и базовых КБЖУ в состоянии
+✅ Гарантированное отображение КБЖУ (всегда рассчитывается из сохранённых базовых значений)
 """
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
@@ -55,21 +53,12 @@ def _prepare_image(image_bytes: bytes) -> bytes:
         logger.warning(f"⚠️ Image prep error: {e}")
         return image_bytes
 
-def _get_product_nutrition(product_key: str) -> Dict[str, float]:
-    """Возвращает базовые КБЖУ продукта по его ключу из LOCAL_FOOD_DB."""
-    product = LOCAL_FOOD_DB.get(product_key, {})
-    return {
-        'base_calories': product.get('calories', 0),
-        'base_protein': product.get('protein', 0),
-        'base_fat': product.get('fat', 0),
-        'base_carbs': product.get('carbs', 0)
-    }
-
 async def _get_food_data_cached(name: str, return_variants: bool = False) -> Union[Dict, List[Dict]]:
     """
     Получает данные продукта из локальной базы ингредиентов.
     Если return_variants=True и есть несколько вариантов, возвращает список.
-    Каждый вариант содержит ключ 'key' для доступа к LOCAL_FOOD_DB.
+    Каждый вариант содержит name, key, и КБЖУ на 100 г.
+    Если вариантов нет или один, возвращает словарь с name, key, base_*.
     """
     from utils.normalizer import normalize_product_name
     name_lower = name.lower().strip()
@@ -88,14 +77,22 @@ async def _get_food_data_cached(name: str, return_variants: bool = False) -> Uni
         logger.info(f"🔍 Возвращаем лучший вариант: {best['name']} (cal: {best.get('calories')})")
         return {
             'name': best['name'],
-            'key': best.get('key'),  # сохраняем ключ для доступа к базе
+            'key': best.get('key'),
+            'base_calories': best.get('calories', 0),
+            'base_protein': best.get('protein', 0),
+            'base_fat': best.get('fat', 0),
+            'base_carbs': best.get('carbs', 0),
             'source': 'local'
         }
 
     logger.warning(f"🔍 Варианты не найдены, возвращаем заглушку для '{name}'")
     return {
         'name': name,
-        'key': None,  # нет ключа, значит, продукт не в базе
+        'key': None,
+        'base_calories': 0,
+        'base_protein': 0,
+        'base_fat': 0,
+        'base_carbs': 0,
         'source': 'unknown'
     }
 
@@ -159,19 +156,19 @@ async def _send_progress_update(
     except Exception as e:
         logger.warning(f"⚠️ Progress update failed: {e}")
 
-def _calculate_nutrients(nutrition: Dict, weight: float) -> Dict:
+def _calculate_nutrients(base: Dict, weight: float) -> Dict:
     """
     Рассчитывает КБЖУ для заданного веса на основе базовых значений.
-    nutrition должен содержать ключи: base_calories, base_protein, base_fat, base_carbs.
+    base должен содержать ключи: base_calories, base_protein, base_fat, base_carbs.
     """
     if weight <= 0:
         return {'calories': 0, 'protein': 0, 'fat': 0, 'carbs': 0}
     multiplier = weight / 100.0
     return {
-        'calories': round(nutrition.get('base_calories', 0) * multiplier, 1),
-        'protein': round(nutrition.get('base_protein', 0) * multiplier, 1),
-        'fat': round(nutrition.get('base_fat', 0) * multiplier, 1),
-        'carbs': round(nutrition.get('base_carbs', 0) * multiplier, 1)
+        'calories': round(base.get('base_calories', 0) * multiplier, 1),
+        'protein': round(base.get('base_protein', 0) * multiplier, 1),
+        'fat': round(base.get('base_fat', 0) * multiplier, 1),
+        'carbs': round(base.get('base_carbs', 0) * multiplier, 1)
     }
 
 async def _send_product_card(
@@ -183,26 +180,12 @@ async def _send_product_card(
 ) -> int:
     """
     Отправляет карточку продукта с кнопками управления весом.
-    food должен содержать 'name', 'weight' и, если есть, 'product_key'.
-    Если product_key есть, базовые КБЖУ берутся из базы, иначе используются поля base_* из food.
+    food должен содержать 'name', 'weight' и базовые значения base_*.
     """
     weight = food.get('weight', 0) or 0
     weight_str = f"{weight} г" if weight else "0 г"
     
-    # Получаем базовые КБЖУ
-    if food.get('product_key'):
-        nutrition = _get_product_nutrition(food['product_key'])
-        logger.info(f"📦 Для {food['name']} использован ключ {food['product_key']}, nutrition={nutrition}")
-    else:
-        # Для продуктов не из базы (заглушки) используем сохранённые базовые значения (они могут быть 0)
-        nutrition = {
-            'base_calories': food.get('base_calories', 0),
-            'base_protein': food.get('base_protein', 0),
-            'base_fat': food.get('base_fat', 0),
-            'base_carbs': food.get('base_carbs', 0)
-        }
-    
-    nutrients = _calculate_nutrients(nutrition, weight)
+    nutrients = _calculate_nutrients(food, weight)
     logger.info(f"📦 Рассчитано для {food['name']}: вес={weight}, ккал={nutrients['calories']}")
 
     text = (
@@ -228,23 +211,13 @@ async def _show_final_interface(
     meal_type: str
 ):
     """Показывает итоговый интерфейс с карточками продуктов."""
-    # Вычисляем итоги, используя актуальные КБЖУ из базы
     total_cal = 0
     total_prot = 0
     total_fat = 0
     total_carbs = 0
     
     for food in selected_foods:
-        if food.get('product_key'):
-            nutrition = _get_product_nutrition(food['product_key'])
-        else:
-            nutrition = {
-                'base_calories': food.get('base_calories', 0),
-                'base_protein': food.get('base_protein', 0),
-                'base_fat': food.get('base_fat', 0),
-                'base_carbs': food.get('base_carbs', 0)
-            }
-        nutrients = _calculate_nutrients(nutrition, food.get('weight', 0))
+        nutrients = _calculate_nutrients(food, food.get('weight', 0))
         total_cal += nutrients['calories']
         total_prot += nutrients['protein']
         total_fat += nutrients['fat']
@@ -301,13 +274,11 @@ async def _show_variants_page(
     end = min(start + VARIANTS_PER_PAGE, len(variants))
     page_variants = variants[start:end]
 
-    # Формируем клавиатуру
     keyboard = []
     for variant in page_variants:
         btn_text = f"{variant['name']} ({variant['calories']} ккал)"
         keyboard.append([InlineKeyboardButton(text=btn_text, callback_data=f"select_variant_{variant['key']}")])
 
-    # Навигационные кнопки
     nav_buttons = []
     if page > 0:
         nav_buttons.append(InlineKeyboardButton(text="⬅️ Назад", callback_data=f"variants_page_{page-1}"))
@@ -327,7 +298,6 @@ async def _show_variants_page(
 
     await message.answer(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard))
 
-    # Сохраняем состояние для навигации
     await state.update_data(
         all_variants=variants,
         current_item=current_item,
@@ -348,8 +318,7 @@ async def process_food_items(
 ):
     """
     Обрабатывает список food_items последовательно.
-    Сохраняет в selected_foods только name, weight и product_key (если есть).
-    Базовые КБЖУ всегда берутся из LOCAL_FOOD_DB при отображении.
+    Сохраняет в selected_foods: name, weight и базовые КБЖУ на 100 г.
     """
     data = await state.get_data()
     selected_foods = data.get('selected_foods', [])
@@ -379,52 +348,22 @@ async def process_food_items(
             return
 
     # Ищем ингредиенты
-    variants = await _get_food_data_cached(product_name, return_variants=True)
+    food_data = await _get_food_data_cached(product_name, return_variants=False)  # получим словарь с базовыми значениями
 
-    if not isinstance(variants, list) or len(variants) == 0:
-        # Продукт не найден в базе – создаём запись без ключа (нулевое КБЖУ)
-        selected_food = {
-            'name': product_name,
-            'weight': current_item.get('weight', 100),
-            'product_key': None,
-            'source': 'unknown',
-            'ai_confidence': current_item.get('ai_confidence', 0.5)
-        }
-        selected_foods.append(selected_food)
-        await state.update_data(selected_foods=selected_foods)
-        await process_food_items(message, state, food_items, meal_type, start_index + 1)
-        return
+    selected_food = {
+        'name': food_data['name'],
+        'weight': current_item.get('weight', 100),
+        'base_calories': food_data.get('base_calories', 0),
+        'base_protein': food_data.get('base_protein', 0),
+        'base_fat': food_data.get('base_fat', 0),
+        'base_carbs': food_data.get('base_carbs', 0),
+        'source': food_data.get('source', 'unknown'),
+        'ai_confidence': current_item.get('ai_confidence', 0.5)
+    }
 
-    if len(variants) == 1:
-        # Единственный вариант – сохраняем с ключом
-        variant = variants[0]
-        selected_food = {
-            'name': variant['name'],
-            'weight': current_item.get('weight', 100),
-            'product_key': variant.get('key'),
-            'source': 'local',
-            'ai_confidence': current_item.get('ai_confidence', 0.8)
-        }
-        selected_foods.append(selected_food)
-        await state.update_data(selected_foods=selected_foods)
-        await process_food_items(message, state, food_items, meal_type, start_index + 1)
-        return
-
-    # Несколько вариантов – нужен выбор
-    total_pages = math.ceil(len(variants) / VARIANTS_PER_PAGE)
-
-    await state.update_data(
-        pending_food_items=food_items,
-        pending_index=start_index,
-        pending_meal_type=meal_type,
-        pending_weight=current_item.get('weight', 100),
-        selected_foods=selected_foods
-    )
-
-    await _show_variants_page(
-        message, state, variants, current_item, meal_type,
-        current_index=start_index, page=0, total_pages=total_pages
-    )
+    selected_foods.append(selected_food)
+    await state.update_data(selected_foods=selected_foods)
+    await process_food_items(message, state, food_items, meal_type, start_index + 1, skip_dish_check)
 
 async def _show_dish_selection_for_product(
     message: Message,
@@ -500,7 +439,10 @@ async def select_variant_callback(callback: CallbackQuery, state: FSMContext):
     selected_food = {
         'name': product['name'],
         'weight': weight,
-        'product_key': product_key,
+        'base_calories': product.get('calories', 0),
+        'base_protein': product.get('protein', 0),
+        'base_fat': product.get('fat', 0),
+        'base_carbs': product.get('carbs', 0),
         'source': 'local',
         'ai_confidence': 0.8
     }
@@ -809,6 +751,7 @@ async def confirm_dish_callback(callback: CallbackQuery, state: FSMContext):
                 'ai_confidence': confidence
             })
 
+    # Разворачиваем составные блюда
     expanded_items = []
     for item in food_items:
         name_lower = item['name'].lower()
@@ -986,12 +929,11 @@ async def select_dish_by_index_callback(callback: CallbackQuery, state: FSMConte
     
     nutrition_per_100 = dish_info.get('nutrition_per_100')
     if nutrition_per_100:
-        # Если есть готовые КБЖУ, создаём запись с ключом блюда (не ингредиента)
+        # Готовое блюдо с собственными КБЖУ
         multiplier = pending_weight / 100.0
         selected_food = {
             'name': dish_info['name'],
             'weight': pending_weight,
-            'product_key': None,  # у блюда нет ключа в LOCAL_FOOD_DB
             'base_calories': nutrition_per_100.get('calories', 0),
             'base_protein': nutrition_per_100.get('protein', 0),
             'base_fat': nutrition_per_100.get('fat', 0),
@@ -1130,19 +1072,7 @@ async def weight_callback(callback: CallbackQuery, state: FSMContext):
 
     # Обновляем карточку продукта
     weight_str = f"{new_weight} г" if new_weight else "0 г"
-    
-    # Получаем базовые КБЖУ
-    if food.get('product_key'):
-        nutrition = _get_product_nutrition(food['product_key'])
-    else:
-        nutrition = {
-            'base_calories': food.get('base_calories', 0),
-            'base_protein': food.get('base_protein', 0),
-            'base_fat': food.get('base_fat', 0),
-            'base_carbs': food.get('base_carbs', 0)
-        }
-    
-    nutrients = _calculate_nutrients(nutrition, new_weight)
+    nutrients = _calculate_nutrients(food, new_weight)
     
     text = (
         f"<b>{idx+1}. {food['name']}</b>\n"
@@ -1186,16 +1116,7 @@ async def _update_totals_message(
     total_carbs = 0
     
     for food in selected_foods:
-        if food.get('product_key'):
-            nutrition = _get_product_nutrition(food['product_key'])
-        else:
-            nutrition = {
-                'base_calories': food.get('base_calories', 0),
-                'base_protein': food.get('base_protein', 0),
-                'base_fat': food.get('base_fat', 0),
-                'base_carbs': food.get('base_carbs', 0)
-            }
-        nutrients = _calculate_nutrients(nutrition, food.get('weight', 0))
+        nutrients = _calculate_nutrients(food, food.get('weight', 0))
         total_cal += nutrients['calories']
         total_prot += nutrients['protein']
         total_fat += nutrients['fat']
@@ -1257,25 +1178,17 @@ async def process_add_weight(message: Message, state: FSMContext):
             await message.answer("❌ Введите число от 1 до 10000")
             return
 
-    # Пытаемся найти продукт в базе
-    variants = await _get_food_data_cached(name, return_variants=True)
-    if isinstance(variants, list) and len(variants) > 0:
-        # Берём первый вариант
-        variant = variants[0]
-        selected_food = {
-            'name': variant['name'],
-            'weight': weight,
-            'product_key': variant.get('key'),
-            'source': 'local'
-        }
-    else:
-        # Не найден – создаём запись без ключа
-        selected_food = {
-            'name': name,
-            'weight': weight,
-            'product_key': None,
-            'source': 'unknown'
-        }
+    food_data = await _get_food_data_cached(name, return_variants=False)
+
+    selected_food = {
+        'name': food_data['name'],
+        'weight': weight,
+        'base_calories': food_data.get('base_calories', 0),
+        'base_protein': food_data.get('base_protein', 0),
+        'base_fat': food_data.get('base_fat', 0),
+        'base_carbs': food_data.get('base_carbs', 0),
+        'source': food_data.get('source', 'unknown')
+    }
 
     selected_foods = data.get('selected_foods', [])
     product_msg_ids = data.get('product_msg_ids', [])
@@ -1348,16 +1261,7 @@ async def confirm_meal_callback(callback: CallbackQuery, state: FSMContext):
         total_carbs = 0
         
         for food in selected_foods:
-            if food.get('product_key'):
-                nutrition = _get_product_nutrition(food['product_key'])
-            else:
-                nutrition = {
-                    'base_calories': food.get('base_calories', 0),
-                    'base_protein': food.get('base_protein', 0),
-                    'base_fat': food.get('base_fat', 0),
-                    'base_carbs': food.get('base_carbs', 0)
-                }
-            nutrients = _calculate_nutrients(nutrition, food.get('weight', 0))
+            nutrients = _calculate_nutrients(food, food.get('weight', 0))
             total_cal += nutrients['calories']
             total_prot += nutrients['protein']
             total_fat += nutrients['fat']
@@ -1378,18 +1282,7 @@ async def confirm_meal_callback(callback: CallbackQuery, state: FSMContext):
 
         for f in selected_foods:
             if f.get('weight', 0) > 0:
-                # Для сохранения также вычисляем КБЖУ по тому же принципу
-                if f.get('product_key'):
-                    nutrition = _get_product_nutrition(f['product_key'])
-                else:
-                    nutrition = {
-                        'base_calories': f.get('base_calories', 0),
-                        'base_protein': f.get('base_protein', 0),
-                        'base_fat': f.get('base_fat', 0),
-                        'base_carbs': f.get('base_carbs', 0)
-                    }
-                nutrients = _calculate_nutrients(nutrition, f['weight'])
-                
+                nutrients = _calculate_nutrients(f, f['weight'])
                 item = FoodItem(
                     meal_id=meal.id,
                     name=f['name'],

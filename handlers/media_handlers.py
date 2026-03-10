@@ -38,7 +38,7 @@ from keyboards.improved_keyboards import (
     get_food_recognition_result_keyboard,
     get_daily_goals_keyboard,
     get_time_period_keyboard
-
+)
 router = Router()
 logger = logging.getLogger(__name__)
 

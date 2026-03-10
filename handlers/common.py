@@ -241,6 +241,103 @@ async def debug_all_callbacks(callback: CallbackQuery, state: FSMContext):
         await period_callback_internal(callback, state)
         return
     
+    # Media handlers callbacks
+    if callback.data == "use_ingredients_instead":
+        logger.info(f"🔍 DEBUG: Это use_ingredients_instead callback, перенаправляем...")
+        from handlers.media_handlers import use_ingredients_callback
+        await use_ingredients_callback(callback, state)
+        return
+    
+    if callback.data == "confirm_dish_as_is":
+        logger.info(f"🔍 DEBUG: Это confirm_dish_as_is callback, перенаправляем...")
+        from handlers.media_handlers import confirm_dish_callback
+        await confirm_dish_callback(callback, state)
+        return
+    
+    if callback.data == "continue_ingredient":
+        logger.info(f"🔍 DEBUG: Это continue_ingredient callback, перенаправляем...")
+        from handlers.media_handlers import continue_as_ingredient_callback
+        await continue_as_ingredient_callback(callback, state)
+        return
+    
+    if callback.data.startswith("select_dish_idx_"):
+        logger.info(f"🔍 DEBUG: Это select_dish_idx_ callback, перенаправляем...")
+        from handlers.media_handlers import select_dish_by_index_callback
+        await select_dish_by_index_callback(callback, state)
+        return
+    
+    if callback.data.startswith("variants_page_"):
+        logger.info(f"🔍 DEBUG: Это variants_page_ callback, перенаправляем...")
+        from handlers.media_handlers import variants_page_callback
+        await variants_page_callback(callback, state)
+        return
+    
+    if callback.data.startswith("select_variant_"):
+        logger.info(f"🔍 DEBUG: Это select_variant_ callback, перенаправляем...")
+        from handlers.media_handlers import select_variant_callback
+        await select_variant_callback(callback, state)
+        return
+    
+    if callback.data.startswith("weight_"):
+        logger.info(f"🔍 DEBUG: Это weight_ callback, перенаправляем...")
+        from handlers.media_handlers import weight_callback
+        await weight_callback(callback, state)
+        return
+    
+    if callback.data == "add_food":
+        logger.info(f"🔍 DEBUG: Это add_food callback, перенаправляем...")
+        from handlers.media_handlers import add_food_callback
+        await add_food_callback(callback, state)
+        return
+    
+    if callback.data == "confirm_meal":
+        logger.info(f"🔍 DEBUG: Это confirm_meal callback, перенаправляем...")
+        from handlers.media_handlers import confirm_meal_callback
+        await confirm_meal_callback(callback, state)
+        return
+    
+    if callback.data == "cancel_meal":
+        logger.info(f"🔍 DEBUG: Это cancel_meal callback, перенаправляем...")
+        from handlers.media_handlers import cancel_meal_callback
+        await cancel_meal_callback(callback, state)
+        return
+    
+    if callback.data == "action_cancel":
+        logger.info(f"🔍 DEBUG: Это action_cancel callback, перенаправляем...")
+        from handlers.media_handlers import action_cancel_callback
+        await action_cancel_callback(callback, state)
+        return
+    
+    if callback.data == "food_manual":
+        logger.info(f"🔍 DEBUG: Это food_manual callback, перенаправляем...")
+        from handlers.media_handlers import food_manual_callback
+        await food_manual_callback(callback, state)
+        return
+    
+    if callback.data == "show_nutrition_details":
+        logger.info(f"🔍 DEBUG: Это show_nutrition_details callback, перенаправляем...")
+        from handlers.media_handlers import show_nutrition_details_callback
+        await show_nutrition_details_callback(callback, state)
+        return
+    
+    if callback.data == "retry_photo":
+        logger.info(f"🔍 DEBUG: Это retry_photo callback, перенаправляем...")
+        from handlers.media_handlers import retry_photo_callback
+        await retry_photo_callback(callback, state)
+        return
+    
+    if callback.data == "manual_food":
+        logger.info(f"🔍 DEBUG: Это manual_food callback, перенаправляем...")
+        from handlers.media_handlers import manual_food_callback
+        await manual_food_callback(callback, state)
+        return
+    
+    if callback.data == "manual_food_entry":
+        logger.info(f"🔍 DEBUG: Это manual_food_entry callback, перенаправляем...")
+        from handlers.media_handlers import manual_food_entry_callback
+        await manual_food_entry_callback(callback, state)
+        return
+    
     # Другие callback...
     logger.info(f"🔍 DEBUG: Неизвестный callback, игнорируем")
 

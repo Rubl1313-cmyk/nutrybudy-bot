@@ -30,6 +30,16 @@ from database.db import get_session
 from database.models import Meal, FoodItem, User
 from sqlalchemy import select
 import sys
+from utils.ui_templates import (
+    ProgressBar, NutritionCard, MealCard, 
+    WaterTracker, ActivityCard, StreakCard, StatisticsCard
+)
+from utils.message_templates import MessageTemplates
+from keyboards.improved_keyboards import (
+    get_food_recognition_result_keyboard,
+    get_daily_goals_keyboard,
+    get_time_period_keyboard
+)
 
 router = Router()
 
@@ -247,6 +257,66 @@ async def _show_final_interface(
     product_msg_ids = []
     for i, food in enumerate(selected_foods):
         logger.info(f"📦 Creating product card for {food['name']} with weight {food.get('weight')}")
+        msg_id = await _send_product_card(
+            message.chat.id,
+            message.bot,
+            i,
+            food,
+            totals_msg.message_id
+        )
+        product_msg_ids.append(msg_id)
+
+    await state.update_data(
+        selected_foods=selected_foods,
+        totals_msg_id=totals_msg.message_id,
+        product_msg_ids=product_msg_ids,
+        meal_type=meal_type
+    )
+async def _show_final_interface_improved(
+    message: Message,
+    state: FSMContext,
+    selected_foods: List[Dict],
+    meal_type: str
+):
+    """✨ УЛУЧШЕННАЯ визуализация финального интерфейса"""
+    
+    total_cal = 0
+    total_prot = 0
+    total_fat = 0
+    total_carbs = 0
+    
+    for food in selected_foods:
+        nutrients = _calculate_nutrients(food, food.get('weight', 0))
+        total_cal += nutrients['calories']
+        total_prot += nutrients['protein']
+        total_fat += nutrients['fat']
+        total_carbs += nutrients['carbs']
+
+    # ✨ Используем красивую карточку приёма пищи
+    meal_summary = MealCard.create_meal_summary(
+        meal_type, selected_foods, total_cal, total_prot, total_fat, total_carbs
+    )
+    
+    # ✨ Добавляем диаграмму макронутриентов
+    macros_chart = NutritionCard.create_macros_pie_chart(total_prot, total_fat, total_carbs)
+
+    totals_text = (
+        f"{meal_summary}\n\n"
+        f"{macros_chart}"
+    )
+
+    totals_keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="➕ Добавить продукт", callback_data="add_food")],
+        [
+            InlineKeyboardButton(text="✅ Подтвердить", callback_data="confirm_meal"),
+            InlineKeyboardButton(text="❌ Отмена", callback_data="cancel_meal")
+        ]
+    ])
+
+    totals_msg = await message.answer(totals_text, reply_markup=totals_keyboard, parse_mode="HTML")
+
+    product_msg_ids = []
+    for i, food in enumerate(selected_foods):
         msg_id = await _send_product_card(
             message.chat.id,
             message.bot,
@@ -727,19 +797,27 @@ async def _show_dish_confirmation(
     dish_data: Dict,
     model_used: str
 ):
+    """✨ УЛУЧШЕННАЯ визуализация результатов распознавания"""
+    
     dish_name = dish_data.get('dish_name', 'Блюдо')
     confidence = dish_data.get('confidence', 0.5)
     ingredients = dish_data.get('ingredients', [])
 
-    text = f"🍽 <b>Распознано ({model_used}): {dish_name}</b>\n"
-    text += f"🎯 Уверенность: {confidence:.0%}\n"
+    # ✨ Красивый заголовок с уверенностью
+    confidence_msg = MessageTemplates.recognition_confidence(confidence, dish_name)
+    
+    text = f"🍽 <b>Распознано ({model_used})</b>\n"
+    text += f"{'═' * 35}\n"
+    text += f"{confidence_msg}\n\n"
 
     if ingredients:
         text += "<b>Ингредиенты:</b>\n"
-        for i, ing in enumerate(ingredients):
+        for i, ing in enumerate(ingredients, 1):
             name = ing.get('name', 'Неизвестно')
             weight = ing.get('estimated_weight_grams', 100)
-            text += f"• {i+1}. {name}: ~{weight}г\n"
+            text += f"{i}. {name}: ~{weight}г\n"
+
+    text += f"{'═' * 35}"
 
     builder = InlineKeyboardBuilder()
     builder.button(text="✅ Использовать ингредиенты", callback_data="confirm_dish_as_is")
@@ -749,23 +827,6 @@ async def _show_dish_confirmation(
 
     await message.answer(text, reply_markup=builder.as_markup(), parse_mode="HTML")
     await state.update_data(recognized_dish=dish_data, mode="photo_recognition")
-
-async def _handle_recognition_failure(message: Message, state: FSMContext):
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="✏️ Ввести продукты вручную", callback_data="food_manual")],
-        [InlineKeyboardButton(text="🔄 Попробовать ещё раз", callback_data="retry_photo")],
-        [InlineKeyboardButton(text="❌ Отмена", callback_data="action_cancel")]
-    ])
-    await message.answer(
-        "❌ Не удалось распознать блюдо.\n"
-        "Возможные причины:\n"
-        "• Фото слишком тёмное/размытое\n"
-        "• Блюдо нестандартное или сложное\n"
-        "• На фото несколько блюд одновременно\n"
-        "Что делать:",
-        reply_markup=keyboard
-    )
-    await state.update_data(last_photo_id=message.message_id)
 
 # ========== ✅ НОВЫЙ ОБРАБОТЧИК: retry_photo ==========
 @router.callback_query(F.data == "retry_photo")
@@ -1322,7 +1383,9 @@ async def _safe_answer(callback: CallbackQuery):
         pass
 
 @router.callback_query(F.data == "confirm_meal")
-async def confirm_meal_callback(callback: CallbackQuery, state: FSMContext):
+async def confirm_meal_callback_improved(callback: CallbackQuery, state: FSMContext):
+    """✨ УЛУЧШЕННОЕ сообщение об успешной записи"""
+    
     logger.info(f"✅ confirm_meal_callback: user={callback.from_user.id}")
 
     data = await state.get_data()
@@ -1334,7 +1397,7 @@ async def confirm_meal_callback(callback: CallbackQuery, state: FSMContext):
 
     user_id = callback.from_user.id
     meal_type = data.get('meal_type', 'snack')
-
+    
     async with get_session() as session:
         user_result = await session.execute(
             select(User).where(User.telegram_id == user_id)

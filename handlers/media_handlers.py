@@ -49,15 +49,51 @@ VARIANTS_PER_PAGE = 5
 # ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
 
 def _prepare_image(image_bytes: bytes) -> bytes:
-    """Оптимизация изображения для Cloudflare AI."""
+    """
+    Улучшенная оптимизация изображения для Cloudflare AI.
+    ✅ Добавлено: улучшение контрастности, резкости, оптимизация размера
+    """
     try:
         img = Image.open(io.BytesIO(image_bytes))
+        
+        # Конвертируем в RGB если нужно
         if img.mode in ('RGBA', 'LA', 'P'):
             img = img.convert('RGB')
-        img.thumbnail((1024, 1024), Image.Resampling.LANCZOS)
+        
+        # Улучшаем качество изображения
+        from PIL import ImageEnhance
+        
+        # Увеличиваем резкость для лучшего распознавания
+        enhancer = ImageEnhance.Sharpness(img)
+        img = enhancer.enhance(1.2)
+        
+        # Увеличиваем контрастность
+        enhancer = ImageEnhance.Contrast(img)
+        img = enhancer.enhance(1.1)
+        
+        # Легкая коррекция яркости
+        enhancer = ImageEnhance.Brightness(img)
+        img = enhancer.enhance(1.05)
+        
+        # Оптимизируем размер
+        original_width, original_height = img.size
+        
+        # Если изображение слишком маленькое, увеличиваем его
+        if max(original_width, original_height) < 512:
+            scale_factor = 512 / max(original_width, original_height)
+            new_width = int(original_width * scale_factor)
+            new_height = int(original_height * scale_factor)
+            img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
+        
+        # Если слишком большое, уменьшаем
+        elif max(original_width, original_height) > 1024:
+            img.thumbnail((1024, 1024), Image.Resampling.LANCZOS)
+        
+        # Сохраняем с оптимальным качеством
         output = io.BytesIO()
-        img.save(output, format='JPEG', quality=90, optimize=True)
+        img.save(output, format='JPEG', quality=95, optimize=True)
         return output.getvalue()
+        
     except Exception as e:
         logger.warning(f"⚠️ Image prep error: {e}")
         return image_bytes
@@ -193,7 +229,7 @@ async def _send_product_card(
     totals_msg_id: int
 ) -> int:
     """
-    Отправляет карточку продукта с кнопками управления весом.
+    Улучшенная карточка продукта с лучшей визуализацией и управлением весом.
     """
     weight = food.get('weight') or 0
     weight = float(weight) if weight else 0
@@ -202,20 +238,65 @@ async def _send_product_card(
     nutrients = _calculate_nutrients(food, weight)
     logger.info(f"📦 Рассчитано для {food['name']}: вес={weight}, ккал={nutrients['calories']}")
 
+    # Определяем эмодзи для типа продукта
+    food_name_lower = food['name'].lower()
+    if any(word in food_name_lower for word in ['курица', 'мясо', 'рыба', 'говядина', 'свинина', 'индейка']):
+        emoji = "🥩"
+    elif any(word in food_name_lower for word in ['рис', 'макароны', 'картофель', 'хлеб', 'гречка']):
+        emoji = "🍚"
+    elif any(word in food_name_lower for word in ['салат', 'овощ', 'помидор', 'огурец', 'капуста', 'морковь']):
+        emoji = "🥬"
+    elif any(word in food_name_lower for word in ['масло', 'сыр', 'авокадо', 'орех', 'майонез']):
+        emoji = "🥑"
+    else:
+        emoji = "🍽️"
+
+    # Цветовая индикация калорийности
+    calories = nutrients['calories']
+    if calories <= 50:
+        cal_emoji = "🟢"  # Низкая калорийность
+    elif calories <= 150:
+        cal_emoji = "🟡"  # Средняя калорийность
+    else:
+        cal_emoji = "🔴"  # Высокая калорийность
+
     text = (
-        f"<b>{index+1}. {food['name']}</b>\n"
-        f"⚖️ Вес: {weight_str}\n"
-        f"🔥 {nutrients['calories']:.0f} ккал | 🥩 {nutrients['protein']:.1f}г | 🥑 {nutrients['fat']:.1f}г | 🍚 {nutrients['carbs']:.1f}г"
+        f"{emoji} <b>{index+1}. {food['name']}</b>\n"
+        f"⚖️ <b>Вес:</b> {weight_str}\n"
+        f"{cal_emoji} <b>КБЖУ:</b> {nutrients['calories']:.0f}ккал | "
+        f"🥩{nutrients['protein']:.1f}г | 🥑{nutrients['fat']:.1f}г | 🍚{nutrients['carbs']:.1f}г"
     )
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[[
-        InlineKeyboardButton(text="➖10", callback_data=f"weight_dec_{index}_10_{totals_msg_id}"),
-        InlineKeyboardButton(text="➕10", callback_data=f"weight_inc_{index}_10_{totals_msg_id}"),
-        InlineKeyboardButton(text="50", callback_data=f"weight_set_{index}_50_{totals_msg_id}"),
-        InlineKeyboardButton(text="100", callback_data=f"weight_set_{index}_100_{totals_msg_id}"),
-        InlineKeyboardButton(text="200", callback_data=f"weight_set_{index}_200_{totals_msg_id}"),
-        InlineKeyboardButton(text="❌", callback_data=f"weight_del_{index}_{totals_msg_id}")
-    ]])
-    msg = await bot.send_message(chat_id, text, reply_markup=keyboard, parse_mode="HTML")
+    
+    # Улучшенные кнопки управления весом
+    keyboard = []
+    
+    # Основные кнопки веса
+    weight_buttons = []
+    if weight >= 10:
+        weight_buttons.append(InlineKeyboardButton(text="➖10г", callback_data=f"weight_dec_{index}_10_{totals_msg_id}"))
+    if weight >= 50:
+        weight_buttons.append(InlineKeyboardButton(text="➖50г", callback_data=f"weight_dec_{index}_50_{totals_msg_id}"))
+    
+    weight_buttons.append(InlineKeyboardButton(text="➕10г", callback_data=f"weight_inc_{index}_10_{totals_msg_id}"))
+    weight_buttons.append(InlineKeyboardButton(text="➕50г", callback_data=f"weight_inc_{index}_50_{totals_msg_id}"))
+    
+    if weight_buttons:
+        keyboard.append(weight_buttons)
+    
+    # Быстрые пресеты веса
+    preset_buttons = []
+    common_weights = [50, 100, 150, 200, 250]
+    for w in common_weights:
+        if abs(weight - w) > 5:  # Показываем только если текущий вес сильно отличается
+            preset_buttons.append(InlineKeyboardButton(text=f"{w}г", callback_data=f"weight_set_{index}_{w}_{totals_msg_id}"))
+    
+    if preset_buttons:
+        keyboard.append(preset_buttons[:4])  # Максимум 4 пресета
+    
+    # Кнопка удаления
+    keyboard.append([InlineKeyboardButton(text="❌ Удалить", callback_data=f"weight_del_{index}_{totals_msg_id}")])
+    
+    msg = await bot.send_message(chat_id, text, reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard), parse_mode="HTML")
     return msg.message_id
 
 async def _show_final_interface(
@@ -224,11 +305,14 @@ async def _show_final_interface(
     selected_foods: List[Dict],
     meal_type: str
 ):
-    """Показывает итоговый интерфейс с карточками продуктов."""
+    """
+    Улучшенный финальный интерфейс с детальной информацией о приеме пищи.
+    """
     total_cal = 0
     total_prot = 0
     total_fat = 0
     total_carbs = 0
+    total_weight = 0
     
     for food in selected_foods:
         nutrients = _calculate_nutrients(food, food.get('weight', 0))
@@ -236,21 +320,69 @@ async def _show_final_interface(
         total_prot += nutrients['protein']
         total_fat += nutrients['fat']
         total_carbs += nutrients['carbs']
+        total_weight += food.get('weight', 0)
+
+    # Эмодзи для типа приема пищи
+    meal_emojis = {
+        'breakfast': '🌅',
+        'lunch': '☀️', 
+        'dinner': '🌙',
+        'snack': '🍎',
+        'meal': '🍽️'
+    }
+    meal_emoji = meal_emojis.get(meal_type.lower(), '🍽️')
+    
+    # Анализ питательности
+    nutrition_analysis = ""
+    if total_cal <= 200:
+        nutrition_analysis = "💚 Легкий прием пищи"
+    elif total_cal <= 500:
+        nutrition_analysis = "💛 Умеренный прием пищи" 
+    elif total_cal <= 800:
+        nutrition_analysis = "🧡 Сытный прием пищи"
+    else:
+        nutrition_analysis = "❤️ Очень сытный прием пищи"
+
+    # Соотношение БЖУ
+    total_macros = total_prot + total_fat + total_carbs
+    if total_macros > 0:
+        prot_percent = (total_prot / total_macros) * 100
+        fat_percent = (total_fat / total_macros) * 100
+        carbs_percent = (total_carbs / total_macros) * 100
+    else:
+        prot_percent = fat_percent = carbs_percent = 0
 
     totals_text = (
-        f"🍽️ <b>Приём пищи ({meal_type}):</b>\n"
-        f"🔥 {total_cal:.0f} ккал | 🥩 {total_prot:.1f}г | 🥑 {total_fat:.1f}г | 🍚 {total_carbs:.1f}г"
+        f"{meal_emoji} <b>Приём пищи ({meal_type.title()})</b>\n"
+        f"{'═' * 40}\n"
+        f"🔥 <b>Калории:</b> {total_cal:.0f} ккал\n"
+        f"🥩 <b>Белки:</b> {total_prot:.1f}г ({prot_percent:.0f}%)\n"
+        f"🥑 <b>Жиры:</b> {total_fat:.1f}г ({fat_percent:.0f}%)\n"
+        f"🍚 <b>Углеводы:</b> {total_carbs:.1f}г ({carbs_percent:.0f}%)\n"
+        f"⚖️ <b>Общий вес:</b> {total_weight:.0f}г\n"
+        f"{'═' * 40}\n"
+        f"{nutrition_analysis}\n"
+        f"📦 <b>Продуктов:</b> {len(selected_foods)}"
     )
 
-    totals_keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="➕ Добавить продукт", callback_data="add_food")],
-        [
-            InlineKeyboardButton(text="✅ Подтвердить", callback_data="confirm_meal"),
-            InlineKeyboardButton(text="❌ Отмена", callback_data="cancel_meal")
-        ]
-    ])
+    # Улучшенные кнопки управления
+    totals_keyboard = []
+    
+    # Основные действия
+    action_buttons = [
+        InlineKeyboardButton(text="➕ Добавить продукт", callback_data="add_food"),
+        InlineKeyboardButton(text="📊 Детали КБЖУ", callback_data="show_nutrition_details")
+    ]
+    totals_keyboard.append(action_buttons)
+    
+    # Финальные действия
+    final_buttons = [
+        InlineKeyboardButton(text="✅ Подтвердить и сохранить", callback_data="confirm_meal"),
+        InlineKeyboardButton(text="❌ Отменить", callback_data="cancel_meal")
+    ]
+    totals_keyboard.append(final_buttons)
 
-    totals_msg = await message.answer(totals_text, reply_markup=totals_keyboard, parse_mode="HTML")
+    totals_msg = await message.answer(totals_text, reply_markup=InlineKeyboardMarkup(inline_keyboard=totals_keyboard), parse_mode="HTML")
 
     product_msg_ids = []
     for i, food in enumerate(selected_foods):
@@ -268,7 +400,11 @@ async def _show_final_interface(
         selected_foods=selected_foods,
         totals_msg_id=totals_msg.message_id,
         product_msg_ids=product_msg_ids,
-        meal_type=meal_type
+        meal_type=meal_type,
+        total_calories=total_cal,
+        total_protein=total_prot,
+        total_fat=total_fat,
+        total_carbs=total_carbs
     )
 
 async def _show_variants_page(
@@ -453,39 +589,81 @@ async def _show_ingredients_from_ai(
     model_used: str
 ):
     """
-    ✅ Показываем ингредиенты когда готовое блюдо не найдено
-    (правильное использование ингредиентов - они используются как ингредиенты, не как блюдо!)
+    ✅ Улучшенное отображение ингредиентов когда готовое блюдо не найдено
     """
     
     logger.info(f"🥗 Showing ingredients for '{dish_name}' (not found in DB)")
     
-    # Красивая визуализация уверенности
+    # Улучшенная визуализация уверенности
     filled = int(confidence * 10)
     confidence_bar = "🟩" * filled + "⬜" * (10 - filled)
+    confidence_emoji = "🎯" if confidence >= 0.8 else "👁️" if confidence >= 0.6 else "🔍"
+    
+    # Группируем ингредиенты по типам для лучшего отображения
+    ingredients_by_type = {}
+    for ing in ingredients:
+        ing_type = ing.get('type', 'other')
+        if ing_type not in ingredients_by_type:
+            ingredients_by_type[ing_type] = []
+        ingredients_by_type[ing_type].append(ing)
+    
+    # Эмодзи для типов ингредиентов
+    type_emojis = {
+        'protein': '🥩',
+        'vegetable': '🥬', 
+        'carb': '🍚',
+        'fat': '🥑',
+        'sauce': '🫙',
+        'garnish': '🌿',
+        'other': '📦'
+    }
+    
+    # Названия типов на русском
+    type_names = {
+        'protein': 'Белки',
+        'vegetable': 'Овощи',
+        'carb': 'Углеводы', 
+        'fat': 'Жиры',
+        'sauce': 'Соусы',
+        'garnish': 'Гарниры',
+        'other': 'Прочее'
+    }
     
     text = (
-        f"🍽 <b>Распознано ({model_used})</b>\n"
-        f"{'═' * 35}\n"
+        f"{confidence_emoji} <b>Распознано ({model_used})</b>\n"
+        f"{'═' * 40}\n"
         f"<b>{dish_name}</b>\n"
         f"{confidence_bar} {confidence*100:.0f}% уверенности\n\n"
-        f"❗ Это блюдо не в нашей базе готовых блюд.\n"
-        f"Но я определил ингредиенты:\n\n"
-        f"<b>Компоненты ({len(ingredients)}):</b>\n"
+        f"❗ <i>Это блюдо не найдено в нашей базе готовых блюд.</i>\n"
+        f"💡 <i>Но я определил ингредиенты и могу рассчитать калории!</i>\n\n"
+        f"<b>🧂 Компоненты ({len(ingredients)}):</b>\n"
     )
     
-    for i, ing in enumerate(ingredients, 1):
-        name = ing.get('name', 'Неизвестно')
-        weight = ing.get('estimated_weight_grams', 100)
-        ing_confidence = ing.get('confidence', 0.8)
+    # Показываем ингредиенты сгруппированные по типам
+    for ing_type, ing_list in ingredients_by_type.items():
+        emoji = type_emojis.get(ing_type, '📦')
+        name = type_names.get(ing_type, ing_type.title())
         
-        # Показываем уверенность для каждого ингредиента
-        confidence_emoji = "✅" if ing_confidence >= 0.8 else "⚠️" if ing_confidence >= 0.6 else "❓"
-        text += f"{confidence_emoji} {i}. {name}: ~{weight}г\n"
+        text += f"\n{emoji} <b>{name} ({len(ing_list)}):</b>\n"
+        for i, ing in enumerate(ing_list, 1):
+            ing_name = ing.get('name', 'Неизвестно')
+            weight = ing.get('estimated_weight_grams', 100)
+            ing_confidence = ing.get('confidence', 0.8)
+            
+            # Индикатор уверенности для каждого ингредиента
+            conf_emoji = "✅" if ing_confidence >= 0.8 else "⚠️" if ing_confidence >= 0.6 else "❓"
+            text += f"  {conf_emoji} {ing_name}: ~{weight}г\n"
+    
+    # Общий вес
+    total_weight = sum(ing.get('estimated_weight_grams', 0) for ing in ingredients)
+    text += f"\n📏 <b>Общий вес:</b> ~{total_weight}г\n"
     
     text += (
-        f"{'═' * 35}\n"
-        f"\n💡 Я разберу это блюдо на компоненты и\n"
-        f"найду калории для каждого."
+        f"{'═' * 40}\n"
+        f"\n💡 <b>Что будет дальше:</b>\n"
+        f"• Я найду калории для каждого компонента\n"
+        f"• Рассчитаю общую питательную ценность\n"
+        f"• Вы сможете скорректировать веса\n"
     )
     
     builder = InlineKeyboardBuilder()
@@ -504,33 +682,78 @@ async def _show_dish_selection(
     model_used: str = None
 ):
     """
-    ✅ Показываем найденные готовые блюда
-    (правильное использование готовых блюд - ищем по dish_name, не по ингредиентам)
+    ✅ Улучшенное отображение найденных готовых блюд с детальной информацией
     """
     
     dish_name = dish_data.get('dish_name', 'Блюдо')
     confidence = dish_data.get('confidence', 0.5)
+    ingredients = dish_data.get('ingredients', [])
+    meal_type = dish_data.get('meal_type', 'meal')
+    cooking_method = dish_data.get('cooking_method', 'cooked')
+    portion_size = dish_data.get('portion_size', 'medium')
     
     logger.info(f"🍽️ Found {len(matches)} matching dishes for '{dish_name}'")
     
-    # Красивая визуализация уверенности
+    # Улучшенная визуализация уверенности с цветами
     filled = int(confidence * 10)
     confidence_bar = "🟩" * filled + "⬜" * (10 - filled)
+    confidence_emoji = "🎯" if confidence >= 0.8 else "👁️" if confidence >= 0.6 else "🔍"
+    
+    # Эмодзи для типа приема пищи
+    meal_emoji = {
+        'breakfast': '🌅',
+        'lunch': '☀️',
+        'dinner': '🌙',
+        'snack': '🍎'
+    }.get(meal_type, '🍽️')
+    
+    # Эмодзи для способа приготовления
+    cooking_emoji = {
+        'grilled': '🔥',
+        'fried': '🍳',
+        'boiled': '🫕',
+        'steamed': '💨',
+        'baked': '👨‍🍳',
+        'raw': '🥗',
+        'roasted': '🍖'
+    }.get(cooking_method, '🍽️')
     
     text = (
-        f"🍽 <b>Распознано: {dish_name}</b>\n"
-        f"{confidence_bar} {confidence*100:.0f}% уверенности\n\n"
-        f"✅ <b>Найдены совпадения в базе готовых блюд:</b>\n"
+        f"{confidence_emoji} <b>Распознано: {dish_name}</b>\n"
+        f"{'═' * 40}\n"
+        f"{confidence_bar} {confidence*100:.0f}% уверенности\n"
+        f"{meal_emoji} Тип: {meal_type.title()} | {cooking_emoji} {cooking_method.title()}\n"
+        f"📏 Порция: {portion_size.title()}\n\n"
+        f"✅ <b>Найдены совпадения в базе готовых блюд:</b>\n\n"
     )
+    
+    # Показываем ингредиенты которые определил AI
+    if ingredients:
+        text += f"<i>🧂 Определенные ингредиенты:</i>\n"
+        for i, ing in enumerate(ingredients[:3], 1):  # Показываем первые 3
+            ing_name = ing.get('name', 'Неизвестно')
+            ing_weight = ing.get('estimated_weight_grams', 0)
+            text += f"  • {ing_name} (~{ing_weight}г)\n"
+        if len(ingredients) > 3:
+            text += f"  • ... и еще {len(ingredients)-3} компонент(ов)\n"
+        text += "\n"
     
     await state.update_data(dish_matches=matches)
     
     builder = InlineKeyboardBuilder()
+    
+    # Добавляем информативные кнопки для блюд
     for i, match in enumerate(matches):
-        btn_text = f"{match['name']} ({match['score']*100:.0f}%)"
+        match_score = match['score'] * 100
+        # Эмодзи для оценки точности
+        accuracy_emoji = "🎯" if match_score >= 80 else "👁️" if match_score >= 60 else "🔍"
+        
+        btn_text = f"{accuracy_emoji} {match['name']} ({match_score:.0f}%)"
         builder.button(text=btn_text, callback_data=f"select_dish_idx_{i}")
     
     builder.adjust(1)
+    
+    # Дополнительные действия
     builder.row(
         InlineKeyboardButton(text="🔍 Разобрать на ингредиенты", callback_data="use_ingredients_instead"),
         InlineKeyboardButton(text="📝 Ввести вручную", callback_data="manual_food_entry")
@@ -549,7 +772,7 @@ async def handle_photo(message: Message, state: FSMContext):
     1. Получаем результат AI
     2. ИСПОЛЬЗУЕМ dish_name для поиска готового блюда
     3. Если не найдено - разбираем на ингредиенты
-    4. НИКОГДА не используем ингредиенты как название блюд��
+    4. НИКОГДА не используем ингредиенты как название блюд  
     """
     
     data = await state.get_data()
@@ -1109,7 +1332,7 @@ async def weight_callback(callback: CallbackQuery, state: FSMContext):
     food = selected_foods[idx]
 
     if action == "del":
-        # ✅ ИСПРАВЛЕНО: правильный порядок удаления э��ементов
+        # ✅ ИСПРАВЛЕНО: правильный порядок удаления э  ементов
         if idx < len(product_msg_ids):
             try:
                 await callback.bot.delete_message(callback.message.chat.id, product_msg_ids[idx])
@@ -1320,7 +1543,7 @@ async def _safe_answer(callback: CallbackQuery):
 @router.callback_query(F.data == "confirm_meal")
 async def confirm_meal_callback(callback: CallbackQuery, state: FSMContext):
     """
-    ✅ ОБНОВЛЕННАЯ версия с красивым интерфейсом
+    ✅ УЛУЧШЕННАЯ версия сохранения в базу данных с детальной информацией
     """
     logger.info(f"✅ confirm_meal_callback: user={callback.from_user.id}")
 
@@ -1333,90 +1556,156 @@ async def confirm_meal_callback(callback: CallbackQuery, state: FSMContext):
 
     user_id = callback.from_user.id
     meal_type = data.get('meal_type', 'snack')
+    recognized_dish = data.get('recognized_dish', {})
 
     async with get_session() as session:
-        user_result = await session.execute(
-            select(User).where(User.telegram_id == user_id)
-        )
-        user = user_result.scalar_one_or_none()
+        try:
+            user_result = await session.execute(
+                select(User).where(User.telegram_id == user_id)
+            )
+            user = user_result.scalar_one_or_none()
 
-        if not user:
-            await callback.message.answer("❌ Сначала настройте профиль (/set_profile)")
-            await state.clear()
+            if not user:
+                await callback.message.answer("❌ Сначала настройте профиль (/set_profile)")
+                await state.clear()
+                return
+
+            # Вычисляем итоговые КБЖУ для сохранения
+            total_cal = 0
+            total_prot = 0
+            total_fat = 0
+            total_carbs = 0
+            total_weight = 0
+            
+            for food in selected_foods:
+                weight = food.get('weight', 0)
+                nutrients = _calculate_nutrients(food, weight)
+                total_cal += nutrients['calories']
+                total_prot += nutrients['protein']
+                total_fat += nutrients['fat']
+                total_carbs += nutrients['carbs']
+                total_weight += weight
+
+            # Создаем улучшенную запись о приеме пищи
+            meal = Meal(
+                user_id=user.id,
+                meal_type=meal_type,
+                datetime=datetime.now(),
+                total_calories=total_cal,
+                total_protein=total_prot,
+                total_fat=total_fat,
+                total_carbs=total_carbs,
+                ai_description=_create_ai_description(recognized_dish, selected_foods),
+                photo_url=None  # Можно добавить сохранение фото в будущем
+            )
+            session.add(meal)
+            await session.flush()
+
+            # Сохраняем каждый продукт с детальной информацией
+            valid_items_count = 0
+            for f in selected_foods:
+                weight = f.get('weight') or 0
+                weight = float(weight) if weight else 0
+                
+                if weight > 0:
+                    nutrients = _calculate_nutrients(f, weight)
+                    item = FoodItem(
+                        meal_id=meal.id,
+                        name=f['name'],
+                        weight=float(weight),
+                        calories=nutrients['calories'],
+                        protein=nutrients['protein'],
+                        fat=nutrients['fat'],
+                        carbs=nutrients['carbs'],
+                        barcode=f.get('barcode')  # Для будущих сканеров штрих-кодов
+                    )
+                    session.add(item)
+                    valid_items_count += 1
+
+            await session.commit()
+            
+            logger.info(
+                f"💾 Meal saved successfully: user_id={user.id}, "
+                f"meal_type={meal_type}, total_cal={total_cal:.0f}, "
+                f"items_count={valid_items_count}, total_weight={total_weight:.0f}g"
+            )
+
+            # Очистка интерфейса
+            chat_id = callback.message.chat.id
+            for msg_id in data.get('product_msg_ids', []):
+                try:
+                    await callback.bot.delete_message(chat_id, msg_id)
+                except Exception as e:
+                    logger.warning(f"Could not delete message {msg_id}: {e}")
+
+            try:
+                await callback.bot.delete_message(chat_id, data.get('totals_msg_id'))
+            except Exception as e:
+                logger.warning(f"Could not delete totals message: {e}")
+
+            # ✅ УЛУЧШЕННОЕ СООБЩЕНИЕ ОБ УСПЕХЕ
+            success_message = _create_success_message(meal_type, total_cal, total_prot, total_fat, total_carbs, valid_items_count)
+            await callback.message.answer(success_message, parse_mode="HTML")
+            
+            # ========== ✅ ДНЕВНОЙ ПРОГРЕСС ==========
+            await _show_daily_progress(callback, session, user, meal)
+            
+        except Exception as e:
+            logger.error(f"❌ Error saving meal: {e}", exc_info=True)
+            await session.rollback()
+            await callback.message.answer("❌ Ошибка при сохранении. Попробуйте еще раз.")
             return
 
-        # Вычисляем итоговые КБЖУ для сохранения
-        total_cal = 0
-        total_prot = 0
-        total_fat = 0
-        total_carbs = 0
+def _create_ai_description(recognized_dish: Dict, selected_foods: List[Dict]) -> str:
+    """Создает детальное описание AI для сохранения в базу"""
+    description_parts = []
+    
+    if recognized_dish:
+        dish_name = recognized_dish.get('dish_name', '')
+        confidence = recognized_dish.get('confidence', 0)
+        model = recognized_dish.get('model', 'unknown')
         
-        for food in selected_foods:
-            nutrients = _calculate_nutrients(food, food.get('weight', 0))
-            total_cal += nutrients['calories']
-            total_prot += nutrients['protein']
-            total_fat += nutrients['fat']
-            total_carbs += nutrients['carbs']
-
-        meal = Meal(
-            user_id=user.id,
-            meal_type=meal_type,
-            datetime=datetime.now(),
-            total_calories=total_cal,
-            total_protein=total_prot,
-            total_fat=total_fat,
-            total_carbs=total_carbs,
-            ai_description=data.get('ai_description', '')
-        )
-        session.add(meal)
-        await session.flush()
-
-        for f in selected_foods:
-            weight = f.get('weight') or 0
-            weight = float(weight) if weight else 0
-            
-            if weight > 0:
-                nutrients = _calculate_nutrients(f, weight)
-                item = FoodItem(
-                    meal_id=meal.id,
-                    name=f['name'],
-                    weight=float(weight),
-                    calories=nutrients['calories'],
-                    protein=nutrients['protein'],
-                    fat=nutrients['fat'],
-                    carbs=nutrients['carbs']
-                )
-                session.add(item)
-
-        await session.commit()
+        description_parts.append(f"Распознано: {dish_name}")
+        description_parts.append(f"Уверенность: {confidence:.0%}")
+        description_parts.append(f"Модель: {model}")
         
-        logger.info(
-            f"💾 Meal saved successfully: user_id={user.id}, "
-            f"meal_type={meal_type}, total_cal={total_cal:.0f}, "
-            f"items_count={len(selected_foods)}"
-        )
+        ingredients = recognized_dish.get('ingredients', [])
+        if ingredients:
+            ing_names = [ing.get('name', '') for ing in ingredients[:5]]
+            description_parts.append(f"Ингредиенты: {', '.join(ing_names)}")
+    
+    description_parts.append(f"Продукты: {', '.join([f['name'] for f in selected_foods])}")
+    
+    return ' | '.join(description_parts)
 
-        chat_id = callback.message.chat.id
-        for msg_id in data.get('product_msg_ids', []):
-            try:
-                await callback.bot.delete_message(chat_id, msg_id)
-            except Exception as e:
-                logger.warning(f"Could not delete message {msg_id}: {e}")
+def _create_success_message(meal_type: str, total_cal: float, total_prot: float, 
+                           total_fat: float, total_carbs: float, items_count: int) -> str:
+    """Создает красивое сообщение об успехе"""
+    
+    meal_emojis = {
+        'breakfast': '🌅',
+        'lunch': '☀️',
+        'dinner': '🌙', 
+        'snack': '🍎',
+        'meal': '🍽️'
+    }
+    emoji = meal_emojis.get(meal_type.lower(), '🍽️')
+    
+    return (
+        f"{emoji} <b>Приём пищи сохранён!</b>\n"
+        f"{'═' * 35}\n"
+        f"📊 <b>Питательность:</b>\n"
+        f"🔥 {total_cal:.0f} ккал\n"
+        f"🥩 {total_prot:.1f}г белков\n"
+        f"🥑 {total_fat:.1f}г жиров\n"
+        f"🍚 {total_carbs:.1f}г углеводов\n\n"
+        f"📦 Сохранено продуктов: {items_count}\n"
+        f"✅ Данные добавлены в дневник"
+    )
 
-        try:
-            await callback.bot.delete_message(chat_id, data.get('totals_msg_id'))
-        except Exception as e:
-            logger.warning(f"Could not delete totals message: {e}")
-
-        # ✅ КРАСИВОЕ СООБЩЕНИЕ ОБ УСПЕХЕ
-        success_message = MessageTemplates.meal_recorded_success(
-            meal_type, total_cal, total_prot, total_fat, total_carbs
-        )
-        
-        await callback.message.answer(success_message, parse_mode="HTML")
-        
-        # ========== ✅ ДНЕВНОЙ ПРОГРЕСС ==========
-        
+async def _show_daily_progress(callback: CallbackQuery, session, user, meal):
+    """Показывает дневной прогресс после сохранения"""
+    try:
         # Получаем все приёмы пищи за сегодня
         today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
         today_end = datetime.now().replace(hour=23, minute=59, second=59, microsecond=999999)
@@ -1452,40 +1741,22 @@ async def confirm_meal_callback(callback: CallbackQuery, state: FSMContext):
         
         await callback.message.answer(daily_progress, parse_mode="HTML")
         
-        # ========== ✅ МОТИВАЦ��ОННОЕ СООБЩЕНИЕ ==========
-        
-        # Определяем, достигнута ли цель
+        # ========== ✅ МОТИВАЦИОННОЕ СООБЩЕНИЕ ==========
         cal_percentage = (daily_total_cal / goal_cal * 100) if goal_cal > 0 else 0
         
         if cal_percentage >= 90 and cal_percentage <= 110:
             motivation = "🎯 <b>Отличный результат!</b> Вы прямо на цели! Продолжайте так!"
         elif cal_percentage > 110:
-            motivation = "⚠️ <b>Чуть больше, чем нужно.</b> Завтра будет лучше!"
-        elif cal_percentage < 50:
-            motivation = "💪 <b>Не забывайте питаться!</b> Вы недостаточно едите."
-        elif cal_percentage < 80:
-            motivation = "👍 <b>Хороший день!</b> Дополните обед или ужин."
+            motivation = "⚠️ <b>Превысили дневную норму!</b> Но это лучше, чем недоедать."
         else:
-            motivation = "✨ <b>Отличная работа!</b> Продолжайте в том же духе!"
+            remaining_cal = goal_cal - daily_total_cal
+            motivation = f"💪 <b>Хорошая работа!</b> Осталось еще {remaining_cal:.0f} ккал до цели."
         
         await callback.message.answer(motivation, parse_mode="HTML")
         
-        # ========== ✅ МАКРОНУТРИЕНТНАЯ ДИАГРАММА ==========
-        
-        macros_chart = NutritionCard.create_macros_pie_chart(
-            daily_total_prot, daily_total_fat, daily_total_carbs
-        )
-        
-        macros_message = (
-            f"📊 <b>Распределение макросов за день:</b>\n\n"
-            f"{macros_chart}"
-        )
-        
-        await callback.message.answer(macros_message, parse_mode="HTML")
-        
-        # 🎉 Очищаем состояние
-        await state.clear()
-        await _safe_answer(callback)
+    except Exception as e:
+        logger.error(f"❌ Error showing daily progress: {e}")
+        # Не прерываем процесс если прогресс не показался
 
 @router.message(Command("today"))
 async def cmd_today_summary(message: Message):
@@ -1604,6 +1875,83 @@ async def food_manual_callback(callback: CallbackQuery, state: FSMContext):
 
 # ========== ✅ НОВЫЕ ОБРАБОТЧИКИ ==========
 
+@router.callback_query(F.data == "show_nutrition_details")
+async def show_nutrition_details_callback(callback: CallbackQuery, state: FSMContext):
+    """Обработчик для показа детальной информации о КБЖУ"""
+    await callback.answer()
+    
+    data = await state.get_data()
+    selected_foods = data.get('selected_foods', [])
+    total_calories = data.get('total_calories', 0)
+    total_protein = data.get('total_protein', 0)
+    total_fat = data.get('total_fat', 0)
+    total_carbs = data.get('total_carbs', 0)
+    meal_type = data.get('meal_type', 'meal')
+    
+    if not selected_foods:
+        await callback.message.answer("❌ Нет данных для анализа")
+        return
+    
+    # Детальный анализ КБЖУ
+    text = f"📊 <b>Детальный анализ КБЖУ</b>\n"
+    text += f"{'═' * 40}\n\n"
+    
+    # Общая информация
+    text += f"🍽️ <b>Общие показатели:</b>\n"
+    text += f"🔥 Калории: {total_calories:.0f} ккал\n"
+    text += f"🥩 Белки: {total_protein:.1f}г\n"
+    text += f"🥑 Жиры: {total_fat:.1f}г\n"
+    text += f"🍚 Углеводы: {total_carbs:.1f}г\n\n"
+    
+    # Анализ по продуктам
+    text += f"📦 <b>Детализация по продуктам:</b>\n\n"
+    
+    for i, food in enumerate(selected_foods, 1):
+        weight = food.get('weight', 0)
+        nutrients = _calculate_nutrients(food, weight)
+        
+        # Процент от общего
+        if total_calories > 0:
+            cal_percent = (nutrients['calories'] / total_calories) * 100
+        else:
+            cal_percent = 0
+            
+        text += f"{i}. <b>{food['name']}</b> ({weight}г)\n"
+        text += f"   🔥 {nutrients['calories']:.0f} ккал ({cal_percent:.1f}%)\n"
+        text += f"   🥩 {nutrients['protein']:.1f}г | 🥑 {nutrients['fat']:.1f}г | 🍚 {nutrients['carbs']:.1f}г\n\n"
+    
+    # Рекомендации по балансу
+    total_macros = total_protein + total_fat + total_carbs
+    if total_macros > 0:
+        prot_percent = (total_protein / total_macros) * 100
+        fat_percent = (total_fat / total_macros) * 100
+        carbs_percent = (total_carbs / total_macros) * 100
+        
+        text += f"💡 <b>Анализ баланса БЖУ:</b>\n"
+        text += f"🥩 Белки: {prot_percent:.1f}% (рекомендуется 20-30%)\n"
+        text += f"🥑 Жиры: {fat_percent:.1f}% (рекомендуется 20-35%)\n"
+        text += f"🍚 Углеводы: {carbs_percent:.1f}% (рекомендуется 45-65%)\n\n"
+        
+        # Рекомендации
+        if prot_percent < 20:
+            text += "⚠️ Мало белков - добавьте белковые продукты\n"
+        if fat_percent < 20:
+            text += "⚠️ Мало жиров - добавьте полезные жиры\n"
+        if carbs_percent < 45:
+            text += "⚠️ Мало углеводов - добавьте сложные углеводы\n"
+    
+    # Калорийность по типам
+    text += f"\n🔥 <b>Распределение калорий:</b>\n"
+    for food in selected_foods:
+        weight = food.get('weight', 0)
+        nutrients = _calculate_nutrients(food, weight)
+        calories_per_100g = (nutrients['calories'] / weight) * 100 if weight > 0 else 0
+        
+        density = "Низкая" if calories_per_100g <= 100 else "Средняя" if calories_per_100g <= 200 else "Высокая"
+        text += f"• {food['name']}: {calories_per_100g:.0f} ккал/100г ({density})\n"
+    
+    await callback.message.answer(text, parse_mode="HTML")
+
 @router.callback_query(F.data == "retry_photo")
 async def retry_photo_callback(callback: CallbackQuery, state: FSMContext):
     """✅ Обработчик для повторного распознавания"""
@@ -1675,3 +2023,4 @@ async def _handle_recognition_failure(message: Message, state: FSMContext):
         reply_markup=keyboard
     )
     await state.update_data(last_photo_id=message.message_id)
+

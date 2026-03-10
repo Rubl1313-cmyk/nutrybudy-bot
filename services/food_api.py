@@ -3184,6 +3184,17 @@ def get_product_variants(base_name: str) -> List[Dict]:
     variants = []
     seen_keys = set()
 
+    # ✅ УЛУЧШЕНИЕ: Очистка кэша для базовых продуктов
+    base_products = ['курица', 'говядина', 'свинина', 'индейка', 'телятина', 'баранина', 
+                     'рыба', 'лосось', 'треска', 'сельдь', 'картофель', 'морковь', 'лук', 'капуста']
+    
+    if base_name_lower in base_products:
+        # Очищаем кэш для базовых продуктов чтобы получить актуальные результаты
+        cache_keys_to_delete = [k for k in _SEARCH_CACHE.keys() if base_name_lower in k.lower()]
+        for key in cache_keys_to_delete:
+            del _SEARCH_CACHE[key]
+        logger.info(f"🧹 Очищен кэш для базового продукта: {base_name_lower}")
+
     # Точное совпадение ключа
     if base_name_lower in LOCAL_FOOD_DB:
         item = LOCAL_FOOD_DB[base_name_lower].copy()
@@ -3213,11 +3224,8 @@ def get_product_variants(base_name: str) -> List[Dict]:
                 break
 
     # ✅ УЛУЧШЕНИЕ: Если базовый продукт (курица, говядина и т.д.), ищем все варианты
-    # Список базовых продуктов для расширенного поиска
-    base_products = ['курица', 'говядина', 'свинина', 'индейка', 'телятина', 'баранина', 
-                     'рыба', 'лосось', 'треска', 'сельдь', 'картофель', 'морковь', 'лук', 'капуста']
-    
     if base_name_lower in base_products and len(variants) < 10:
+        logger.info(f"🔍 Расширенный поиск для базового продукта: {base_name_lower}")
         # Ищем все продукты, содержащие базовое название
         for key, item in LOCAL_FOOD_DB.items():
             if key in seen_keys:
@@ -3245,6 +3253,7 @@ def get_product_variants(base_name: str) -> List[Dict]:
                 if len(variants) >= 10:
                     break
 
+    logger.info(f"🔍 get_product_variants для '{base_name_lower}': найдено {len(variants)} вариантов")
     return variants
 
 async def search_food(query: str, limit: int = 10) -> List[Dict]:

@@ -226,6 +226,24 @@ async def show_progress_main_callback(callback: CallbackQuery, state: FSMContext
     from handlers.progress import cmd_progress
     await cmd_progress(callback.message, state, user_id=callback.from_user.id)
 
+@router.callback_query(F.data.startswith("period_"))
+async def period_callback(callback: CallbackQuery, state: FSMContext):
+    """🎨 Обработчик выбора периода из главного меню"""
+    await callback.answer(f"📊 Загружаю статистику...")
+    
+    # Импортируем и вызываем обработчик прогресса
+    from handlers.progress import process_progress_period
+    
+    # Создаем объект callback с нужными данными
+    class MockCallback:
+        def __init__(self, original_callback, data):
+            self.message = original_callback.message
+            self.from_user = original_callback.from_user
+            self.data = data
+    
+    mock_callback = MockCallback(callback, callback.data)
+    await process_progress_period(mock_callback, state)
+
 @router.callback_query(F.data == "log_water")
 async def log_water_main_callback(callback: CallbackQuery, state: FSMContext):
     """🎨 Обработчик для воды из главного меню"""

@@ -23,7 +23,7 @@ import io
 
 from services.cloudflare_ai import identify_food_cascade
 from services.food_api import LOCAL_FOOD_DB, get_product_variants
-from services.translator import translate_dish_name, translate_to_russian
+from services.translator import translate_smart_dish_name, translate_to_russian
 from services.dish_db import COMPOSITE_DISHES, get_dish_ingredients, find_matching_dishes
 from utils.states import FoodStates
 from database.db import get_session
@@ -896,10 +896,10 @@ async def handle_photo(message: Message, state: FSMContext):
             logger.info(f"   Confidence: {confidence:.0%}")
             logger.info(f"   Ingredients count: {len(ingredients_from_ai)}")
             
-            # ✅ ИСПРАВЛЕНИЕ 3: Переводим dish_name, а не первый ингредиент!
-            dish_name_ru = await translate_dish_name(dish_name_from_ai) if dish_name_from_ai else "Неизвестное блюдо"
+            # ✅ ИСПРАВЛЕНИЕ 3: Используем умный перевод для dish_name!
+            dish_name_ru = await translate_smart_dish_name(dish_name_from_ai) if dish_name_from_ai else "Неизвестное блюдо"
             
-            logger.info(f"✅ Translated dish name: '{dish_name_from_ai}' → '{dish_name_ru}'")
+            logger.info(f"✅ Smart translated dish name: '{dish_name_from_ai}' → '{dish_name_ru}'")
             
             # ✅ ИСПРАВЛЕНИЕ 4: Переводим ингредиенты (но они НЕ станут названием блюда!)
             ingredients_ru = []

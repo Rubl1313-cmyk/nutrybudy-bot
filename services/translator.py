@@ -13,7 +13,39 @@ logger = logging.getLogger(__name__)
 
 # ==================== ПРЯМОЕ МАППИРОВАНИЕ AI → БАЗА ====================
 AI_TO_DB_MAPPING = {
-    # Блюда
+    # Блюда - Итальянская кухня
+    "spaghetti": "спагетти",
+    "spaghetti pasta": "спагетти",
+    "pasta spaghetti": "спагетти",
+    "spaghetti with tomato sauce": "спагетти с томатным соусом",
+    "spaghetti with meat sauce": "спагетти с мясным соусом",
+    "spaghetti bolognese": "спагетти болоньезе",
+    "pasta": "паста",
+    "macaroni": "макарон",
+    "penne": "пенне",
+    "fusilli": "фузилли",
+    "rigatoni": "ригатони",
+    "lasagna": "лазанья",
+    "ravioli": "равиоли",
+    "gnocchi": "ньокки",
+    "carbonara": "карбонара",
+    "alfredo": "альфредо",
+    "pesto": "песто",
+    
+    # Соусы
+    "tomato sauce": "томатный соус",
+    "marinara sauce": "маринара",
+    "bolognese sauce": "болоньезе",
+    "alfredo sauce": "соус альфредо",
+    "pesto sauce": "соус песто",
+    "cream sauce": "сливочный соус",
+    "garlic sauce": "чесночный соус",
+    "bbq sauce": "соус bbq",
+    "soy sauce": "соевый соус",
+    "sweet and sour sauce": "кисло-сладкий соус",
+    "hot sauce": "острый соус",
+    
+    # Блюда - Основные
     "grilled meat skewers": "шашлык",
     "meat skewers": "шашлык",
     "shish kebab": "шашлык",
@@ -286,7 +318,7 @@ _translation_cache: Dict[str, str] = {}
 
 async def translate_to_russian(text: str) -> str:
     """
-    Переводит текст с английского на русский с приоритетом локального маппинга.
+    Переводит текст с английского на русский с приоритетом локального маппирования.
     """
     if not isinstance(text, str) or not text.strip():
         return "Неизвестно"
@@ -305,14 +337,14 @@ async def translate_to_russian(text: str) -> str:
         logger.info(f"🔄 AI Mapping: '{original}' → '{translated}'")
         return translated
     
-    # 3. Поиск по частичному совпадению в маппинге
+    # 3. Поиск по полному совпадению в маппинге (более строгий)
     for key, value in AI_TO_DB_MAPPING.items():
-        if key in text_lower or text_lower in key:
+        if key == text_lower:  # Только полное совпадение
             _translation_cache[text_lower] = value
-            logger.info(f"🔄 Partial AI Mapping: '{original}' → '{value}'")
+            logger.info(f"🔄 Exact AI Mapping: '{original}' → '{value}'")
             return value
     
-    # 4. Google Translate (fallback)
+    # 4. Google Translate (fallback) - только если нет полного совпадения
     try:
         from deep_translator import GoogleTranslator
         translator = GoogleTranslator(source='en', target='ru')
@@ -336,3 +368,43 @@ async def translate_dish_name(english_name: str) -> str:
         return "Неизвестное блюдо"
     
     return await translate_to_russian(english_name)
+
+async def translate_smart_dish_name(english_name: str) -> str:
+    """
+    Умный перевод названия блюда:
+    1. Сначала пробуем прямое маппирование
+    2. Если нет - используем Google Translate для сложных названий
+    """
+    if not english_name or not isinstance(english_name, str):
+        return "Неизвестное блюдо"
+    
+    original = english_name.strip()
+    text_lower = original.lower()
+    
+    # 1. Проверка кэша
+    if text_lower in _translation_cache:
+        return _translation_cache[text_lower]
+    
+    # 2. Прямое маппирование AI → база (ПРИОРИТЕТ)
+    if text_lower in AI_TO_DB_MAPPING:
+        translated = AI_TO_DB_MAPPING[text_lower]
+        _translation_cache[text_lower] = translated
+        logger.info(f"🔄 Dish AI Mapping: '{original}' → '{translated}'")
+        return translated
+    
+    # 3. Для сложных названий блюд используем Google Translate
+    if len(original.split()) > 2:  # Если название состоит из 3+ слов
+        try:
+            from deep_translator import GoogleTranslator
+            translator = GoogleTranslator(source='en', target='ru')
+            translated = translator.translate(original)
+            if translated and translated != original:
+                _translation_cache[text_lower] = translated
+                logger.info(f"🌐 Google Dish: '{original}' → '{translated}'")
+                return translated
+        except Exception as e:
+            logger.warning(f"⚠️ Google Translate error for dish: {e}")
+    
+    # 4. Возврат оригинала
+    logger.warning(f"⚠️ No translation for dish: '{original}'")
+    return original

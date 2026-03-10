@@ -39,6 +39,7 @@ from keyboards.improved_keyboards import (
     get_daily_goals_keyboard,
     get_time_period_keyboard
 )
+from aiogram.filters import Command
 router = Router()
 logger = logging.getLogger(__name__)
 

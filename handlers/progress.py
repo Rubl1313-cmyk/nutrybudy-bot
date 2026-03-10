@@ -56,60 +56,9 @@ async def cmd_progress(message: Message, state: FSMContext, user_id: int = None)
     
     await message.answer(welcome_text, reply_markup=keyboard, parse_mode="HTML")
 
-@router.callback_query(F.data.startswith("period_"))
-async def process_progress_period(callback: CallbackQuery, state: FSMContext):
-    """🎨 Обработка выбора периода с современным дизайном"""
-    period = callback.data.split("_")[1]  # today / week / month / all
-    user_id = callback.from_user.id
-
-    await callback.answer(f"📊 Загружаю статистику...")
-    await callback.message.delete()
-    await state.clear()
-
-    async with get_session() as session:
-        # Получаем пользователя
-        result = await session.execute(
-            select(User).where(User.telegram_id == user_id)
-        )
-        user = result.scalar_one_or_none()
-        if not user:
-            await callback.message.answer(
-                "❌ Пользователь не найден.",
-                reply_markup=get_main_keyboard()
-            )
-            return
-
-        # Определяем диапазон дат
-        today = datetime.now().date()
-        if period == "today":
-            start_date = today
-            period_name = "сегодня"
-        elif period == "week":
-            start_date = today - timedelta(days=7)
-            period_name = "за неделю"
-        elif period == "month":
-            start_date = today - timedelta(days=30)
-            period_name = "за месяц"
-        else:  # all
-            start_date = today - timedelta(days=365)  # За последний год
-            period_name = "за всё время"
-
-        # 📊 Получаем статистику за период
-        stats = await _get_period_stats(user.id, session, start_date)
-        
-        # 🎨 Создаем современное сообщение с прогрессом
-        progress_message = await _create_modern_progress_message(
-            user, stats, period_name, period
-        )
-        
-        await callback.message.answer(
-            progress_message, 
-            reply_markup=get_main_keyboard(), 
-            parse_mode="HTML"
-        )
-
-        # 📊 Генерируем графики
-        await _send_progress_charts(callback, user, session, period, period_name)
+# Убираем дублирующий обработчик, так как он есть в common.py
+# @router.callback_query(F.data.startswith("period_"))
+# async def process_progress_period(callback: CallbackQuery, state: FSMContext):
 
 async def _get_period_stats(user_id: int, session, start_date) -> dict:
     """📊 Получение статистики за период"""

@@ -90,35 +90,45 @@ async def init_db():
             await conn.run_sync(Base.metadata.create_all)
             logger.info("✅ Tables created via create_all()")
 
-            # Явная проверка и добавление колонки unit через SQL
+            # Проверяем и добавляем недостающие колонки
             if "postgresql" in DATABASE_URL:
-                # Проверяем существование колонки unit
+                # Колонка unit в shopping_items
                 result = await conn.execute(text(
                     "SELECT column_name FROM information_schema.columns "
                     "WHERE table_name='shopping_items' AND column_name='unit'"
                 ))
-                exists = result.first() is not None
-                if not exists:
-                    await conn.execute(text(
-                        "ALTER TABLE shopping_items ADD COLUMN unit VARCHAR(20) DEFAULT 'шт'"
-                    ))
-                    logger.info("✅ Column 'unit' added to shopping_items")
+                if not result.first():
+                    logger.info("➕ Adding column shopping_items.unit...")
+                    await conn.execute(text("ALTER TABLE shopping_items ADD COLUMN unit VARCHAR(20);"))
+                    logger.info("✅ shopping_items.unit added")
                 else:
                     logger.info("ℹ️ Column 'unit' already exists")
 
-                # Миграция на BIGINT
-                await _ensure_bigint_columns(conn)
-
-                # Проверяем список таблиц для отладки (только для PostgreSQL)
+                # Колонка daily_steps_goal в users
                 result = await conn.execute(text(
-                    "SELECT table_name FROM information_schema.tables WHERE table_schema='public'"
+                    "SELECT column_name FROM information_schema.columns "
+                    "WHERE table_name='users' AND column_name='daily_steps_goal'"
                 ))
-                tables = [row[0] for row in result]
-                logger.info(f"✅ Tables in DB: {tables}")
-            else:
-                logger.info("ℹ️ Skipping PostgreSQL-specific migrations for SQLite")
+                if not result.first():
+                    logger.info("➕ Adding column users.daily_steps_goal...")
+                    await conn.execute(text("ALTER TABLE users ADD COLUMN daily_steps_goal INTEGER DEFAULT 10000;"))
+                    logger.info("✅ users.daily_steps_goal added")
+                else:
+                    logger.info("ℹ️ Column 'daily_steps_goal' already exists")
 
+            # Миграция BIGINT
+            await migrate_to_bigint(conn)
+
+            # Проверяем список таблиц для отладки (только для PostgreSQL)
+            result = await conn.execute(text(
+                "SELECT table_name FROM information_schema.tables WHERE table_schema='public'"
+            ))
+            tables = [row[0] for row in result]
+            logger.info(f"✅ Tables in DB: {tables}")
+            
         logger.info("✅ Database initialized successfully")
+        await engine.dispose()
+        logger.info("💾 Database ready")
         return True
 
     except Exception as e:

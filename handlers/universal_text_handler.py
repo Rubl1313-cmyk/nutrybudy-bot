@@ -77,11 +77,27 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
                 food_items = [{'name': name, 'weight': 100} for name, _, _ in parsed]
             else:
                 cleaned_text = text.strip()
-                if len(cleaned_text.split()) <= 3:
+                # Для сложных запросов типа "курица борщ" тоже обрабатываем как еду
+                if len(cleaned_text.split()) <= 5:
                     food_items = [{'name': cleaned_text, 'weight': 100}]
     
     if food_items:
         all_intents.append(("food", food_items))
+
+    # Если intent = "unknown" но есть продукты в тексте - тоже обрабатываем как еду
+    if intent == "unknown" and not food_items:
+        # Проверяем есть ли известные продукты в тексте
+        parsed = parse_food_items(text)
+        if parsed:
+            food_items = [{'name': name, 'weight': 100} for name, _, _ in parsed]
+            all_intents.append(("food", food_items))
+        else:
+            # Проверяем по ключевым словам еды
+            text_lower = text.lower()
+            food_keywords = ['курица', 'борщ', 'суп', 'салат', 'мясо', 'рыба', 'гречка', 'картошка', 'макароны', 'рис', 'хлеб', 'яйцо', 'сыр', 'молоко', 'кефир', 'творог']
+            if any(keyword in text_lower for keyword in food_keywords):
+                food_items = [{'name': text.strip(), 'weight': 100}]
+                all_intents.append(("food", food_items))
 
     # Если нашли несколько намерений, обрабатываем все
     if len(all_intents) > 1:

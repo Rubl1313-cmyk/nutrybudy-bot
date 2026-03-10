@@ -34,24 +34,26 @@ async def cmd_start(message: Message, state: FSMContext):
     # Получаем данные пользователя для персонализации
     user_name = message.from_user.first_name or message.from_user.username or "Пользователь"
     
-    # Создаем современное приветствие
-    from utils.message_templates import MessageTemplates
-    welcome_text = MessageTemplates.modern_welcome_message(user_name)
-    
-    # Современная клавиатура
-    from keyboards.improved_keyboards import get_modern_main_menu
-    keyboard = get_modern_main_menu()
-    
-    # Добавляем информацию о профиле
-    profile_text = (
-        "\n\n" + "⚠️ <b>Важно:</b>\n" +
-        "👤 Перед началом работы создайте профиль командой /set_profile\n" +
-        "📊 Это поможет рассчитать ваши персональные нормы КБЖУ"
+    # Создаем приветствие
+    welcome_text = (
+        f"👋 Привет, {user_name}!\n\n"
+        "Добро пожаловать в **NutriBuddy** - твой умный помощник в питании и фитнесе! 🥗🏃‍♂️\n\n"
+        "🤖 Я помогу тебе:\n"
+        "• 📊 Отслеживать питание и калории\n"
+        "• 💧 Контролировать водный баланс\n"
+        "• 🏃 Записывать активность и шаги\n"
+        "• 📈 Вести статистику прогресса\n"
+        "• 🤖 Давать персональные рекомендации\n\n"
+        "⚠️ **Важно:** Сначала создай профиль командой /set_profile\n"
+        "Это поможет рассчитать твои персональные нормы КБЖУ\n\n"
+        "Выбери действие ниже 👇"
     )
     
-    welcome_text += profile_text
+    # Стандартная клавиатура
+    from keyboards.reply import get_main_keyboard
+    keyboard = get_main_keyboard()
     
-    await message.answer(welcome_text, reply_markup=keyboard, parse_mode="HTML")
+    await message.answer(welcome_text, reply_markup=keyboard, parse_mode="Markdown")
 
 @router.message(Command("help"))
 async def cmd_help(message: Message, state: FSMContext):

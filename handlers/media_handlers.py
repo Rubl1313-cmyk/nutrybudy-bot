@@ -1164,9 +1164,14 @@ async def select_dish_by_index_callback(callback: CallbackQuery, state: FSMConte
     ingredients_with_weights = get_dish_ingredients(dish_key, total_weight=total_weight)
     food_items = [{'name': ing['name'], 'weight': ing['estimated_weight_grams']} for ing in ingredients_with_weights]
     
-    pending_food_items.pop(pending_index)
-    for i, item in enumerate(food_items):
-        pending_food_items.insert(pending_index + i, item)
+    # Безопасная работа со списком
+    if pending_food_items is not None and len(pending_food_items) > pending_index:
+        pending_food_items.pop(pending_index)
+        for i, item in enumerate(food_items):
+            pending_food_items.insert(pending_index + i, item)
+    else:
+        # Если pending_food_items не существует, создаем новый список
+        pending_food_items = food_items
     
     await state.update_data(pending_food_items=pending_food_items)
     
@@ -1286,12 +1291,18 @@ async def use_ingredients_callback(callback: CallbackQuery, state: FSMContext):
 async def continue_as_ingredient_callback(callback: CallbackQuery, state: FSMContext):
     data = await state.get_data()
     pending_index = data.get('pending_index', 0)
+    pending_food_items = data.get('pending_food_items', [])
+    
+    # Безопасность: проверяем что pending_food_items это список
+    if not isinstance(pending_food_items, list):
+        pending_food_items = []
+    
     await callback.message.delete()
     await process_food_items(
         callback.message,
         state,
-        data.get('pending_food_items'),
-        data.get('pending_meal_type'),
+        pending_food_items,
+        data.get('pending_meal_type', 'snack'),
         pending_index,
         skip_dish_check=True
     )
@@ -1966,6 +1977,16 @@ async def retry_photo_callback(callback: CallbackQuery, state: FSMContext):
             InlineKeyboardButton(text="❌ Отмена", callback_data="action_cancel")
         ]])
     )
+
+@router.callback_query(F.data == "manual_food")
+async def manual_food_callback(callback: CallbackQuery, state: FSMContext):
+    """🎨 Обработчик для добавления приема пищи из главного меню"""
+    await callback.answer()
+    await callback.message.delete()
+    
+    await state.clear()
+    from handlers.food import cmd_log_food
+    await cmd_log_food(callback.message, state, user_id=callback.from_user.id)
 
 @router.callback_query(F.data == "manual_food_entry")
 async def manual_food_entry_callback(callback: CallbackQuery, state: FSMContext):

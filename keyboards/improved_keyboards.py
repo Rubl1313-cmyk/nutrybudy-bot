@@ -15,7 +15,7 @@ def get_modern_main_menu() -> InlineKeyboardMarkup:
     
     # Основные функции
     builder.row(
-        InlineKeyboardButton(text="📸 Распознать еду", callback_data="photo_recognition"),
+        InlineKeyboardButton(text="🍽️ Добавить прием пищи", callback_data="manual_food"),
         InlineKeyboardButton(text="📊 Прогресс", callback_data="show_progress")
     )
     

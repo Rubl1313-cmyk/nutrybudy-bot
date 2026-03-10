@@ -39,6 +39,15 @@ async def cmd_start(message: Message, state: FSMContext):
     from keyboards.improved_keyboards import get_modern_main_menu
     keyboard = get_modern_main_menu()
     
+    # Добавляем информацию о профиле
+    profile_text = (
+        "\n\n" + "⚠️ <b>Важно:</b>\n" +
+        "👤 Перед началом работы создайте профиль командой /set_profile\n" +
+        "📊 Это поможет рассчитать ваши персональные нормы КБЖУ"
+    )
+    
+    welcome_text += profile_text
+    
     await message.answer(welcome_text, reply_markup=keyboard, parse_mode="HTML")
 
 @router.message(Command("help"))

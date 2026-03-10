@@ -183,8 +183,10 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
                 else:
                     city = "Москва"
                     await message.answer("ℹ️ Город не указан в профиле, используется Москва.")
-        weather_info = await get_weather(city)  # ✅ теперь корректно
-        await message.answer(weather_info)
+        temperature = await get_weather(city)  # возвращает float
+        # Формируем текстовый ответ
+        weather_text = f"🌡️ Погода в {city}: {temperature}°C"
+        await message.answer(weather_text)
         return
 
     # ----- НЕОПРЕДЕЛЁННОЕ -----

@@ -3224,6 +3224,8 @@ def get_product_variants(base_name: str) -> List[Dict]:
                 break
 
     # ✅ УЛУЧШЕНИЕ: Если базовый продукт (курица, говядина и т.д.), ищем все варианты
+    logger.info(f"🔍 Проверка расширенного поиска: base_name_lower={base_name_lower}, in_base_products={base_name_lower in base_products}, variants_count={len(variants)}")
+    
     if base_name_lower in base_products and len(variants) < 10:
         logger.info(f"🔍 Расширенный поиск для базового продукта: {base_name_lower}")
         # Ищем все продукты, содержащие базовое название
@@ -3237,10 +3239,13 @@ def get_product_variants(base_name: str) -> List[Dict]:
             
             # Проверяем наличие базового продукта в названии
             if (base_name_lower in item_name_lower or base_name_lower in key_lower):
+                logger.info(f"✅ Найден вариант: {item['name']} (ключ: {key})")
                 variants.append({**item, 'key': key})
                 seen_keys.add(key)
                 if len(variants) >= 15:  # Увеличим лимит для базовых продуктов
                     break
+    else:
+        logger.info(f"❌ Расширенный поиск не выполнен. Условия: base_product={base_name_lower in base_products}, variants<10={len(variants) < 10}")
 
     # Если мало вариантов, добавим частичные совпадения ключа
     if len(variants) < 3:

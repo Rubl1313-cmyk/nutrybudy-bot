@@ -84,7 +84,50 @@ async def _get_food_data_cached(name: str, return_variants: bool = False) -> Uni
             'base_carbs': best.get('carbs', 0),
             'source': 'local'
         }
-
+        if food_data is None:
+            # Ничего не найдено
+            selected_food = {
+                'name': product_name,
+                'weight': current_item.get('weight', 100),
+                'base_calories': 0,
+                'base_protein': 0,
+                'base_fat': 0,
+                'base_carbs': 0,
+                'source': 'unknown',
+                'ai_confidence': current_item.get('ai_confidence', 0.5)
+            }
+        elif isinstance(food_data, list) and len(food_data) > 1:
+            # Показываем пользователю список вариантов
+            total_pages = (len(food_data) + VARIANTS_PER_PAGE - 1) // VARIANTS_PER_PAGE
+            await _show_variants_page(
+                message, state, food_data, current_item, meal_type,
+                current_index, page=0, total_pages=total_pages
+            )
+            return   # ждём выбора
+        elif isinstance(food_data, dict):
+            # Единственный вариант – используем его
+            selected_food = {
+                'name': food_data['name'],
+                'weight': current_item.get('weight', 100),
+                'base_calories': food_data.get('base_calories', 0),
+                'base_protein': food_data.get('base_protein', 0),
+                'base_fat': food_data.get('base_fat', 0),
+                'base_carbs': food_data.get('base_carbs', 0),
+                'source': food_data.get('source', 'unknown'),
+                'ai_confidence': current_item.get('ai_confidence', 0.5)
+            }
+        else:
+            # Неожиданный результат (пустой список, не список и не словарь)
+            selected_food = {
+                'name': product_name,
+                'weight': current_item.get('weight', 100),
+                'base_calories': 0,
+                'base_protein': 0,
+                'base_fat': 0,
+                'base_carbs': 0,
+                'source': 'unknown',
+                'ai_confidence': current_item.get('ai_confidence', 0.5)
+            }
     logger.warning(f"🔍 Варианты не найдены, возвращаем заглушку для '{name}'")
     return {
         'name': name,
@@ -95,6 +138,7 @@ async def _get_food_data_cached(name: str, return_variants: bool = False) -> Uni
         'base_carbs': 0,
         'source': 'unknown'
     }
+    
 
 async def _safe_edit_message(bot, chat_id: int, message_id: int, text: str, reply_markup=None, parse_mode="HTML"):
     """Безопасное редактирование сообщения с обработкой ошибок."""

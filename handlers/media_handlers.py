@@ -44,7 +44,7 @@ router = Router()
 logger = logging.getLogger(__name__)
 
 # Количество вариантов на одной странице
-VARIANTS_PER_PAGE = 5
+VARIANTS_PER_PAGE = 8
 
 # ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
 

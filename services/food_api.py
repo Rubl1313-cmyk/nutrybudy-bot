@@ -3212,6 +3212,28 @@ def get_product_variants(base_name: str) -> List[Dict]:
             if len(variants) >= 10:
                 break
 
+    # ✅ УЛУЧШЕНИЕ: Если базовый продукт (курица, говядина и т.д.), ищем все варианты
+    # Список базовых продуктов для расширенного поиска
+    base_products = ['курица', 'говядина', 'свинина', 'индейка', 'телятина', 'баранина', 
+                     'рыба', 'лосось', 'треска', 'сельдь', 'картофель', 'морковь', 'лук', 'капуста']
+    
+    if base_name_lower in base_products and len(variants) < 10:
+        # Ищем все продукты, содержащие базовое название
+        for key, item in LOCAL_FOOD_DB.items():
+            if key in seen_keys:
+                continue
+                
+            # Расширенный поиск по базовому продукту
+            item_name_lower = item['name'].lower()
+            key_lower = key.lower()
+            
+            # Проверяем наличие базового продукта в названии
+            if (base_name_lower in item_name_lower or base_name_lower in key_lower):
+                variants.append({**item, 'key': key})
+                seen_keys.add(key)
+                if len(variants) >= 15:  # Увеличим лимит для базовых продуктов
+                    break
+
     # Если мало вариантов, добавим частичные совпадения ключа
     if len(variants) < 3:
         for key, item in LOCAL_FOOD_DB.items():

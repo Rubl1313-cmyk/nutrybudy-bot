@@ -32,6 +32,14 @@ AI_TO_DB_MAPPING = {
     "alfredo": "альфредо",
     "pesto": "песто",
     
+    # Овощи
+    "tomatoes": "помидоры",
+    "tomato": "помидор",
+    "fresh tomatoes": "свежие помидоры",
+    "cherry tomatoes": "помидоры черри",
+    "plum tomatoes": "помидоры сливка",
+    "beef tomatoes": "помидоры говяжьи",
+    
     # Соусы
     "tomato sauce": "томатный соус",
     "marinara sauce": "маринара",

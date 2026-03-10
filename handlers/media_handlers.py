@@ -504,8 +504,38 @@ async def process_food_items(
     # food_data может быть списком или словарем
     if isinstance(food_data, dict) and food_data.get('source') == 'unknown':
         logger.warning(f"⚠️ Product '{product_name}' not found in database")
+        # Создаем заглушку и переходим к следующему продукту
+        selected_food = {
+            'name': product_name,
+            'weight': current_item.get('weight', 100),
+            'base_calories': 0,
+            'base_protein': 0,
+            'base_fat': 0,
+            'base_carbs': 0,
+            'source': 'unknown',
+            'ai_confidence': current_item.get('ai_confidence', 0.5)
+        }
+        selected_foods.append(selected_food)
+        await state.update_data(selected_foods=selected_foods)
+        await process_food_items(message, state, food_items, meal_type, start_index + 1, skip_dish_check)
+        return
     elif isinstance(food_data, list) and len(food_data) == 1 and food_data[0].get('source') == 'unknown':
         logger.warning(f"⚠️ Product '{product_name}' not found in database")
+        # Создаем заглушку и переходим к следующему продукту
+        selected_food = {
+            'name': product_name,
+            'weight': current_item.get('weight', 100),
+            'base_calories': 0,
+            'base_protein': 0,
+            'base_fat': 0,
+            'base_carbs': 0,
+            'source': 'unknown',
+            'ai_confidence': current_item.get('ai_confidence', 0.5)
+        }
+        selected_foods.append(selected_food)
+        await state.update_data(selected_foods=selected_foods)
+        await process_food_items(message, state, food_items, meal_type, start_index + 1, skip_dish_check)
+        return
 
     # Несколько вариантов – показываем выбор
     if isinstance(food_data, list) and len(food_data) > 1:
@@ -539,8 +569,21 @@ async def process_food_items(
             'source': food_data.get('source', 'unknown'),
             'ai_confidence': current_item.get('ai_confidence', 0.5)
         }
+    elif isinstance(food_data, list) and len(food_data) == 0:
+        # Если это пустой список – заглушка и переходим к следующему
+        logger.warning(f"⚠️ Варианты не найдены для '{product_name}', возвращаем заглушку")
+        selected_food = {
+            'name': product_name,
+            'weight': current_item.get('weight', 100),
+            'base_calories': 0,
+            'base_protein': 0,
+            'base_fat': 0,
+            'base_carbs': 0,
+            'source': 'unknown',
+            'ai_confidence': current_item.get('ai_confidence', 0.5)
+        }
     else:
-        # Если это пустой список или другой тип – заглушка
+        # Если это другой тип – заглушка
         selected_food = {
             'name': product_name,
             'weight': current_item.get('weight', 100),
@@ -1313,12 +1356,14 @@ async def continue_as_ingredient_callback(callback: CallbackQuery, state: FSMCon
         pending_food_items = []
     
     await callback.message.delete()
+    
+    # Увеличиваем индекс на 1, чтобы перейти к следующему продукту
     await process_food_items(
         callback.message,
         state,
         pending_food_items,
         data.get('pending_meal_type', 'snack'),
-        pending_index,
+        pending_index + 1,  # Переходим к следующему продукту
         skip_dish_check=True
     )
     await callback.answer()

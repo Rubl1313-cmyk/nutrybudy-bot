@@ -1384,7 +1384,7 @@ async def _safe_answer(callback: CallbackQuery):
 
 @router.callback_query(F.data == "confirm_meal")
 async def confirm_meal_callback_improved(callback: CallbackQuery, state: FSMContext):
-    """✨ УЛУЧШЕННОЕ сообщение об успешной записи"""
+    """✨ УЛУЧШЕННОЕ сообщение об успешной записи приёма пищи"""
     
     logger.info(f"✅ confirm_meal_callback: user={callback.from_user.id}")
 
@@ -1397,7 +1397,7 @@ async def confirm_meal_callback_improved(callback: CallbackQuery, state: FSMCont
 
     user_id = callback.from_user.id
     meal_type = data.get('meal_type', 'snack')
-    
+
     async with get_session() as session:
         user_result = await session.execute(
             select(User).where(User.telegram_id == user_id)
@@ -1409,7 +1409,7 @@ async def confirm_meal_callback_improved(callback: CallbackQuery, state: FSMCont
             await state.clear()
             return
 
-        # Вычисляем итоговые КБЖУ для сохранения
+        # ✅ Вычисляем итоговые КБЖУ для сохранения
         total_cal = 0
         total_prot = 0
         total_fat = 0
@@ -1422,6 +1422,7 @@ async def confirm_meal_callback_improved(callback: CallbackQuery, state: FSMCont
             total_fat += nutrients['fat']
             total_carbs += nutrients['carbs']
 
+        # 💾 Создаём запись приёма пищи в БД
         meal = Meal(
             user_id=user.id,
             meal_type=meal_type,
@@ -1435,6 +1436,7 @@ async def confirm_meal_callback_improved(callback: CallbackQuery, state: FSMCont
         session.add(meal)
         await session.flush()
 
+        # 📝 Добавляем каждый продукт в БД
         for f in selected_foods:
             # ✅ ИСПРАВЛЕНО: правильная валидация веса
             weight = f.get('weight') or 0
@@ -1455,37 +1457,76 @@ async def confirm_meal_callback_improved(callback: CallbackQuery, state: FSMCont
 
         await session.commit()
         
-        # ✅ УЛУЧШЕНИЕ: логирование успешного сохранения
+        # ✨ УЛУЧШЕНО: логирование успешного сохранения
         logger.info(
             f"💾 Meal saved successfully: user_id={user.id}, "
             f"meal_type={meal_type}, total_cal={total_cal:.0f}, "
             f"items_count={len(selected_foods)}"
         )
 
+        # 🧹 Удаляем старые сообщения с продуктами
         chat_id = callback.message.chat.id
+        
         for msg_id in data.get('product_msg_ids', []):
             try:
                 await callback.bot.delete_message(chat_id, msg_id)
             except Exception as e:
-                logger.warning(f"Could not delete message {msg_id}: {e}")
+                logger.warning(f"⚠️ Could not delete product message {msg_id}: {e}")
 
         try:
             await callback.bot.delete_message(chat_id, data.get('totals_msg_id'))
         except Exception as e:
-            logger.warning(f"Could not delete totals message: {e}")
+            logger.warning(f"⚠️ Could not delete totals message: {e}")
 
-        lines = [f"🍽️ <b>Записан приём пищи ({meal_type}):</b>"]
-        for f in selected_foods:
-            if f.get('weight', 0) > 0:
-                lines.append(f"• {f['name']}: {f['weight']}г")
-
-        lines.append(f"\n🔥 Всего: {total_cal:.0f} ккал")
-        lines.append(f"🥩 {total_prot:.1f}г | 🥑 {total_fat:.1f}г | 🍚 {total_carbs:.1f}г")
-
-        await callback.message.answer("\n".join(lines), parse_mode="HTML")
+        # ✨ УЛУЧШЕНО: красивое сообщение об успехе с шаблоном
+        success_message = MessageTemplates.meal_recorded_success(
+            meal_type, total_cal, total_prot, total_fat, total_carbs
+        )
+        
+        await callback.message.answer(success_message, parse_mode="HTML")
+        
+        # 📊 ДОПОЛНИТЕЛЬНО: показываем общие цели за день
+        # Получаем все приёмы пищи за сегодня
+        today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        today_end = datetime.now().replace(hour=23, minute=59, second=59, microsecond=999999)
+        
+        today_result = await session.execute(
+            select(Meal).where(
+                (Meal.user_id == user.id) &
+                (Meal.datetime >= today_start) &
+                (Meal.datetime <= today_end)
+            )
+        )
+        today_meals = today_result.scalars().all()
+        
+        # Вычисляем дневные итоги
+        daily_total_cal = sum(meal.total_calories for meal in today_meals)
+        daily_total_prot = sum(meal.total_protein for meal in today_meals)
+        daily_total_fat = sum(meal.total_fat for meal in today_meals)
+        daily_total_carbs = sum(meal.total_carbs for meal in today_meals)
+        
+        # Получаем цели пользователя
+        goal_cal = user.daily_goal_calories or 2000
+        goal_prot = user.daily_goal_protein or 150
+        goal_fat = user.daily_goal_fat or 65
+        goal_carbs = user.daily_goal_carbs or 250
+        
+        # ✨ Показываем красивую карточку прогресса дня
+        daily_progress = NutritionCard.create_daily_goal_card(
+            daily_total_cal, goal_cal,
+            daily_total_prot, goal_prot,
+            daily_total_fat, goal_fat,
+            daily_total_carbs, goal_carbs
+        )
+        
+        await callback.message.answer(daily_progress, parse_mode="HTML")
+        
+        # 🔥 Получаем информацию о серии (если есть такая функция)
+        # Здесь можно добавить логику для серий дней подряд
+        
+        # 🎉 Очищаем состояние
         await state.clear()
         await _safe_answer(callback)
-
 @router.callback_query(F.data == "cancel_meal")
 async def cancel_meal_callback(callback: CallbackQuery, state: FSMContext):
     logger.info(f"❌ cancel_meal_callback: user={callback.from_user.id}")

@@ -25,23 +25,21 @@ router = Router()
 
 @router.message(CommandStart())
 async def cmd_start(message: Message, state: FSMContext):
-    """Приветственное сообщение — лаконичное и современное."""
+    """🎨 Современное приветствие с персонализацией"""
     await state.clear()
-    welcome_text = (
-        "🚀 <b>Добро пожаловать в NutriBuddy!</b>\n\n"
-        "Твой умный помощник для здорового питания и активного образа жизни.\n\n"
-        "⚡️ <b>Быстрый старт:</b>\n"
-        "1. Настрой профиль → /set_profile или кнопка 👤 Профиль\n"
-        "2. Начинай записывать еду, воду и тренировки\n"
-        "3. Следи за прогрессом и получай рекомендации\n\n"
-        "✨ <b>Возможности:</b>\n"
-        "• Распознавание еды по фото\n"
-        "• AI-ассистент с поддержкой диалога\n"
-        "• Планировщик питания\n"
-        "• Графики прогресса\n\n"
-        "👇 Выбери раздел в меню или просто напиши вопрос."
-    )
-    await message.answer(welcome_text, reply_markup=get_main_keyboard(), parse_mode="HTML")
+    
+    # Получаем данные пользователя для персонализации
+    user_name = message.from_user.first_name or message.from_user.username or "Пользователь"
+    
+    # Создаем современное приветствие
+    from utils.message_templates import MessageTemplates
+    welcome_text = MessageTemplates.modern_welcome_message(user_name)
+    
+    # Современная клавиатура
+    from keyboards.improved_keyboards import get_modern_main_menu
+    keyboard = get_modern_main_menu()
+    
+    await message.answer(welcome_text, reply_markup=keyboard, parse_mode="HTML")
 
 @router.message(Command("help"))
 async def cmd_help(message: Message, state: FSMContext):

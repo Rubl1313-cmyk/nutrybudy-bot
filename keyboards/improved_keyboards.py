@@ -1,58 +1,110 @@
 """
-Улучшенные интерактивные клавиатуры с лучшей визуализацией
+🎨 Современные клавиатуры для NutriBuddy Bot
+✨ Стиль как в современных фитнес-приложениях
+🚀 Умные эмодзи и интуитивная навигация
 """
 
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-def get_food_recognition_result_keyboard(
-    has_matches: bool = True,
-    can_use_ai_ingredients: bool = True
-) -> InlineKeyboardMarkup:
+def get_modern_main_menu() -> InlineKeyboardMarkup:
     """
-    Красивая клавиатура для результатов распознавания
-    С иконками и эмодзи
+    🏠 Современное главное меню с категориями
     """
     builder = InlineKeyboardBuilder()
     
-    if has_matches:
-        builder.button(
-            text="🍽️ Выбрать из базы",
-            callback_data="select_from_db"
-        )
-    
-    if can_use_ai_ingredients:
-        builder.button(
-            text="🔍 Разобрать на ингредиенты",
-            callback_data="use_ingredients_instead"
-        )
-    
-    builder.button(
-        text="✏️ Ввести вручную",
-        callback_data="manual_food_entry"
+    # Основные функции
+    builder.row(
+        InlineKeyboardButton(text="📸 Распознать еду", callback_data="photo_recognition"),
+        InlineKeyboardButton(text="📊 Прогресс", callback_data="show_progress")
     )
     
-    builder.button(
-        text="🔄 Пересканировать",
-        callback_data="retry_photo"
+    builder.row(
+        InlineKeyboardButton(text="� Вода", callback_data="log_water"),
+        InlineKeyboardButton(text="🏋️ Активность", callback_data="log_activity")
     )
     
-    builder.button(
-        text="❌ Отмена",
-        callback_data="action_cancel"
+    # Дополнительные функции
+    builder.row(
+        InlineKeyboardButton(text="👤 Профиль", callback_data="show_profile"),
+        InlineKeyboardButton(text="🤖 AI Помощник", callback_data="ai_assistant")
     )
     
-    builder.adjust(1)
+    # Инструменты
+    builder.row(
+        InlineKeyboardButton(text="� Статистика", callback_data="show_statistics"),
+        InlineKeyboardButton(text="⚙️ Настройки", callback_data="settings")
+    )
+    
     return builder.as_markup()
 
-def get_macro_adjustment_keyboard(food_index: int, totals_msg_id: int) -> InlineKeyboardMarkup:
+def get_modern_food_keyboard() -> InlineKeyboardMarkup:
     """
-    Клавиатура для быстрого редактирования макронутриентов
-    Со стрелками и предустановками
+    🍽️ Современная клавиатура для работы с едой
     """
     builder = InlineKeyboardBuilder()
     
-    # Быстрые пресеты белков
+    # Основные действия
+    builder.row(
+        InlineKeyboardButton(text="📸 Распознать по фото", callback_data="photo_food"),
+        InlineKeyboardButton(text="✍️ Ввести вручную", callback_data="manual_food")
+    )
+    
+    # Быстрые опции
+    builder.row(
+        InlineKeyboardButton(text="🥐 Завтрак", callback_data="quick_breakfast"),
+        InlineKeyboardButton(text="🥗 Обед", callback_data="quick_lunch")
+    )
+    
+    builder.row(
+        InlineKeyboardButton(text="🍲 Ужин", callback_data="quick_dinner"),
+        InlineKeyboardButton(text="🍎 Перекус", callback_data="quick_snack")
+    )
+    
+    # История и статистика
+    builder.row(
+        InlineKeyboardButton(text="📜 Сегодня", callback_data="today_summary"),
+        InlineKeyboardButton(text="📊 Статистика", callback_data="food_stats")
+    )
+    
+    return builder.as_markup()
+
+def get_modern_water_keyboard(current_ml: int, goal_ml: int = 2000) -> InlineKeyboardMarkup:
+    """
+    💧 Современная клавиатура для отслеживания воды
+    """
+    builder = InlineKeyboardBuilder()
+    
+    # Быстрые добавки
+    builder.row(
+        InlineKeyboardButton(text="💧 +100мл", callback_data="water_add_100"),
+        InlineKeyboardButton(text="💧 +200мл", callback_data="water_add_200"),
+        InlineKeyboardButton(text="💧 +250мл", callback_data="water_add_250")
+    )
+    
+    builder.row(
+        InlineKeyboardButton(text="🥤 +500мл", callback_data="water_add_500"),
+        InlineKeyboardButton(text="🫙 +1000мл", callback_data="water_add_1000")
+    )
+    
+    # Прогресс
+    percentage = min((current_ml / goal_ml) * 100, 100)
+    progress_emoji = "🎯" if percentage >= 100 else "👍" if percentage >= 75 else "💪" if percentage >= 50 else "💧"
+    
+    builder.row(
+        InlineKeyboardButton(
+            text=f"{progress_emoji} {current_ml}/{goal_ml}мл ({percentage:.0f}%)", 
+            callback_data="water_progress"
+        )
+    )
+    
+    # Управление
+    builder.row(
+        InlineKeyboardButton(text="📊 График", callback_data="water_chart"),
+        InlineKeyboardButton(text="⚙️ Цель", callback_data="water_goal")
+    )
+    
+    return builder.as_markup()
     builder.button(text="🥩 -5g", callback_data=f"macro_protein_{food_index}_-5")
     builder.button(text="🥩 +5g", callback_data=f"macro_protein_{food_index}_+5")
     

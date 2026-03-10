@@ -1,37 +1,77 @@
 """
-Шаблоны для красивой визуализации UI в Telegram
-✨ Реплицирует стиль современных приложений
+🎨 Современные UI шаблоны для NutriBuddy Bot
+✨ Стиль как в современных фитнес-приложениях
+🚀 Минималистичный дизайн с умными эмодзи
 """
 
 class ProgressBar:
-    """Красивые прогресс-бары с emoji"""
+    """🎯 Современные прогресс-бары с градиентами и анимацией"""
+    
+    # Градиентные эмодзи для разных уровней
+    GRADIENTS = {
+        'low': ['🔴', '🟠', '🟡'],      # 0-33%
+        'medium': ['🟡', '🟢', '🔵'],    # 34-66%
+        'high': ['🔵', '🟣', '🔷'],     # 67-100%
+        'complete': ['🟢', '✨', '🎆']   # 100%
+    }
+    
+    # Анимационные кадры
+    ANIMATION_FRAMES = ['⚡', '✨', '🌟', '💫', '⭐']
     
     @staticmethod
-    def create_bar(current: float, total: float, length: int = 10, show_percentage: bool = True) -> str:
+    def create_modern_bar(current: float, total: float, length: int = 12, 
+                         style: str = 'gradient', show_text: bool = True) -> str:
         """
-        Создаёт красивый прогресс-бар
+        Создает современный прогресс-бар с градиентами
         
         Args:
             current: текущее значение
-            total: максимальное значение
-            length: длина бара в символах (1-20)
-            show_percentage: показывать процент
-        
-        Returns:
-            красивый бар с emoji
+            total: максимальное значение  
+            length: длина бара
+            style: 'gradient', 'minimal', 'neon'
+            show_text: показывать текст
         """
         if total <= 0:
             percentage = 0
         else:
-            percentage = (current / total) * 100
+            percentage = min((current / total) * 100, 100)
         
-        filled = int(length * current / total) if total > 0 else 0
+        filled = int(length * percentage / 100)
         empty = length - filled
         
-        bar = "🟩" * filled + "⬜" * empty
+        if style == 'gradient':
+            # Градиентный стиль
+            if percentage >= 100:
+                bar = '🟢' * filled + '⬜' * empty
+            elif percentage >= 75:
+                bar = '🔵' * filled + '⬜' * empty
+            elif percentage >= 50:
+                bar = '🟡' * filled + '⬜' * empty
+            elif percentage >= 25:
+                bar = '🟠' * filled + '⬜' * empty
+            else:
+                bar = '🔴' * filled + '⬜' * empty
+        elif style == 'neon':
+            # Неоновый стиль
+            neon_chars = ['🟦', '🟩', '🟨', '🟧']
+            bar = ''
+            for i in range(length):
+                if i < filled:
+                    bar += neon_chars[i % len(neon_chars)]
+                else:
+                    bar += '⬛'
+        else:
+            # Минималистичный стиль
+            bar = '▓' * filled + '░' * empty
         
-        if show_percentage:
-            return f"{bar} {percentage:.0f}%"
+        if show_text:
+            if percentage >= 100:
+                return f"{bar} ✅ {percentage:.0f}%"
+            elif percentage >= 75:
+                return f"{bar} 🔥 {percentage:.0f}%"
+            else:
+                return f"{bar} {percentage:.0f}%"
+        
         return bar
 
     @staticmethod
@@ -48,30 +88,64 @@ class ProgressBar:
         return bars[min(int(percentage / 12.5), 7)]
 
 class NutritionCard:
-    """Красивые карточки питания"""
+    """🎨 Современные карточки питания в стиле фитнес-приложений"""
+    
+    # Современные эмодзи для категорий
+    MODERN_EMOJIS = {
+        'protein': ['💪', '🥩', '🍗', '🦴'],
+        'carbs': ['🍞', '🍚', '🥔', '🌾'],
+        'fat': ['🥑', '🧈', '🫒', '🥛'],
+        'vitamins': ['🥬', '🥕', '🍊', '🍓']
+    }
     
     @staticmethod
-    def create_macro_card(protein: float, fat: float, carbs: float) -> str:
+    def create_modern_macro_card(protein: float, fat: float, carbs: float, 
+                                calories: float = 0, style: str = 'compact') -> str:
         """
-        Красивая карточка макронутриентов
+        Создает современную карточку макронутриентов
         
-        Returns:
-            отформатированная строка с данными
+        Args:
+            style: 'compact', 'detailed', 'minimal'
         """
         total_macros = protein + fat + carbs
         if total_macros == 0:
-            return "📊 Нет данных"
+            return "📊 Нет данных о питательности"
         
         protein_pct = (protein / total_macros) * 100
         fat_pct = (fat / total_macros) * 100
         carbs_pct = (carbs / total_macros) * 100
         
-        text = (
-            "📊 <b>Макронутриенты</b>\n"
-            f"🥩 Белки:   {protein:.0f}г ({protein_pct:.0f}%)\n"
-            f"🥑 Жиры:    {fat:.0f}г ({fat_pct:.0f}%)\n"
-            f"🍚 Углеводы: {carbs:.0f}г ({carbs_pct:.0f}%)"
-        )
+        if style == 'compact':
+            # Компактный стиль
+            text = (
+                f"🎯 <b>КБЖУ</b>\n"
+                f"💪 {protein:.0f}г ({protein_pct:.0f}%) | "
+                f"🥑 {fat:.0f}г ({fat_pct:.0f}%) | "
+                f"🍚 {carbs:.0f}г ({carbs_pct:.0f}%)"
+            )
+            if calories > 0:
+                text += f"\n🔥 {calories:.0f} ккал"
+        elif style == 'detailed':
+            # Детальный стиль с прогресс-барами
+            protein_bar = ProgressBar.create_modern_bar(protein, total_macros, 8, 'gradient', False)
+            fat_bar = ProgressBar.create_modern_bar(fat, total_macros, 8, 'gradient', False)
+            carbs_bar = ProgressBar.create_modern_bar(carbs, total_macros, 8, 'gradient', False)
+            
+            text = (
+                f"📊 <b>Анализ питательности</b>\n"
+                f"{'═' * 35}\n\n"
+                f"💪 <b>Белки</b>\n{protein_bar} {protein:.1f}г ({protein_pct:.0f}%)\n\n"
+                f"🥑 <b>Жиры</b>\n{fat_bar} {fat:.1f}г ({fat_pct:.0f}%)\n\n"
+                f"🍚 <b>Углеводы</b>\n{carbs_bar} {carbs:.1f}г ({carbs_pct:.0f}%)"
+            )
+            if calories > 0:
+                text += f"\n\n{'═' * 35}\n🔥 <b>Калории</b>: {calories:.0f} ккал"
+        else:
+            # Минималистичный стиль
+            text = f"💪{protein:.0f}g 🥑{fat:.0f}g 🍚{carbs:.0f}g"
+            if calories > 0:
+                text += f" 🔥{calories:.0f}"
+        
         return text
 
     @staticmethod
@@ -100,33 +174,80 @@ class NutritionCard:
         )
 
     @staticmethod
-    def create_daily_goal_card(current_cal: float, goal_cal: float, 
-                               current_protein: float, goal_protein: float,
-                               current_fat: float, goal_fat: float,
-                               current_carbs: float, goal_carbs: float) -> str:
-        """Прогресс к дневной цели"""
+    def create_modern_daily_goal_card(current_cal: float, goal_cal: float, 
+                                     current_protein: float, goal_protein: float,
+                                     current_fat: float, goal_fat: float,
+                                     current_carbs: float, goal_carbs: float,
+                                     style: str = 'modern') -> str:
+        """
+        Создает современную карточку дневных целей с анимацией
         
-        cal_bar = ProgressBar.create_bar(current_cal, goal_cal, 12, False)
-        protein_bar = ProgressBar.create_bar(current_protein, goal_protein, 12, False)
-        fat_bar = ProgressBar.create_bar(current_fat, goal_fat, 12, False)
-        carbs_bar = ProgressBar.create_bar(current_carbs, goal_carbs, 12, False)
+        Args:
+            style: 'modern', 'compact', 'detailed'
+        """
         
-        cal_pct = (current_cal / goal_cal * 100) if goal_cal > 0 else 0
-        protein_pct = (current_protein / goal_protein * 100) if goal_protein > 0 else 0
-        fat_pct = (current_fat / goal_fat * 100) if goal_fat > 0 else 0
-        carbs_pct = (current_carbs / goal_carbs * 100) if goal_carbs > 0 else 0
+        # Рассчитываем проценты
+        cal_pct = min((current_cal / goal_cal * 100) if goal_cal > 0 else 0, 150)
+        protein_pct = min((current_protein / goal_protein * 100) if goal_protein > 0 else 0, 150)
+        fat_pct = min((current_fat / goal_fat * 100) if goal_fat > 0 else 0, 150)
+        carbs_pct = min((current_carbs / goal_carbs * 100) if goal_carbs > 0 else 0, 150)
         
-        text = (
-            "📈 <b>Прогресс дня</b>\n\n"
-            f"🔥 Калории\n"
-            f"{cal_bar} {current_cal:.0f}/{goal_cal:.0f} ({cal_pct:.0f}%)\n\n"
-            f"🥩 Белки\n"
-            f"{protein_bar} {current_protein:.0f}г/{goal_protein:.0f}г ({protein_pct:.0f}%)\n\n"
-            f"🥑 Жиры\n"
-            f"{fat_bar} {current_fat:.0f}г/{goal_fat:.0f}г ({fat_pct:.0f}%)\n\n"
-            f"🍚 Углеводы\n"
-            f"{carbs_bar} {current_carbs:.0f}г/{goal_carbs:.0f}г ({carbs_pct:.0f}%)"
-        )
+        if style == 'modern':
+            # Современный стиль с градиентами
+            cal_bar = ProgressBar.create_modern_bar(current_cal, goal_cal, 12, 'gradient')
+            protein_bar = ProgressBar.create_modern_bar(current_protein, goal_protein, 10, 'gradient')
+            fat_bar = ProgressBar.create_modern_bar(current_fat, goal_fat, 10, 'gradient')
+            carbs_bar = ProgressBar.create_modern_bar(current_carbs, goal_carbs, 10, 'gradient')
+            
+            # Определяем статус дня
+            if 90 <= cal_pct <= 110:
+                status_emoji = "🎯"
+                status_text = "Идеально!"
+            elif cal_pct > 110:
+                status_emoji = "⚡"
+                status_text = "Сверхцель!"
+            elif cal_pct >= 75:
+                status_emoji = "👍"
+                status_text = "Хорошо!"
+            else:
+                status_emoji = "💪"
+                status_text = "Нужно больше!"
+            
+            text = (
+                f"{status_emoji} <b>Прогресс дня</b>\n"
+                f"{'═' * 40}\n"
+                f"🔥 <b>Калории</b>\n{cal_bar}\n"
+                f"{current_cal:.0f}/{goal_cal:.0f} ккал\n\n"
+                f"💪 <b>Белки</b>\n{protein_bar}\n"
+                f"{current_protein:.0f}/{goal_protein:.0f}г\n\n"
+                f"🥑 <b>Жиры</b>\n{fat_bar}\n"
+                f"{current_fat:.0f}/{goal_fat:.0f}г\n\n"
+                f"🍚 <b>Углеводы</b>\n{carbs_bar}\n"
+                f"{current_carbs:.0f}/{goal_carbs:.0f}g\n\n"
+                f"{'═' * 40}\n"
+                f"{status_emoji} <b>{status_text}</b>"
+            )
+            
+        elif style == 'compact':
+            # Компактный стиль
+            text = (
+                f"� <b>День</b>\n"
+                f"🔥 {current_cal:.0f}/{goal_cal:.0f} ({cal_pct:.0f}%)\n"
+                f"� {current_protein:.0f}/{goal_protein:.0f}г ({protein_pct:.0f}%)\n"
+                f"🥑 {current_fat:.0f}/{goal_fat:.0f}г ({fat_pct:.0f}%)\n"
+                f"🍚 {current_carbs:.0f}/{goal_carbs:.0f}г ({carbs_pct:.0f}%)"
+            )
+        else:
+            # Детальный стиль
+            text = (
+                f"📈 <b>Детальный прогресс дня</b>\n"
+                f"{'═' * 45}\n\n"
+                f"🔥 КАЛОРИИ: {current_cal:.0f} из {goal_cal:.0f} ({cal_pct:.1f}%)\n"
+                f"💪 БЕЛКИ: {current_protein:.1f}г из {goal_protein:.0f}г ({protein_pct:.1f}%)\n"
+                f"🥑 ЖИРЫ: {current_fat:.1f}г из {goal_fat:.0f}г ({fat_pct:.1f}%)\n"
+                f"🍚 УГЛЕВОДЫ: {current_carbs:.1f}г из {goal_carbs:.0f}г ({carbs_pct:.1f}%)"
+            )
+        
         return text
 
 class MealCard:

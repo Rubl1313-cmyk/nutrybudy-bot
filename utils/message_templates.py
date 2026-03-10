@@ -1,47 +1,99 @@
 """
-Красивые шаблоны сообщений
+🎨 Современные шаблоны сообщений для NutriBuddy Bot
+✨ Стиль как в современных фитнес-приложениях
+🚀 Мотивирующие и красивые сообщения
 """
 
 class MessageTemplates:
     
     @staticmethod
-    def welcome_message(user_name: str = "Пользователь") -> str:
-        """Красивое приветствие"""
-        return (
-            f"👋 <b>Добро пожаловать, {user_name}!</b>\n\n"
-            f"Я <b>NutriBuddy</b> — ваш персональный помощник по питанию.\n\n"
-            f"<b>Что я могу делать:</b>\n"
-            f"📸 <code>Распознавать</code> блюда по фото\n"
-            f"🧮 <code>Считать</code> калории и макросы\n"
-            f"📊 <code>Отслеживать</code> ваш прогресс\n"
-            f"💪 <code>Мотивировать</code> вас к целям\n\n"
-            f"<i>Начните с отправки фото блюда! 📸</i>"
+    def modern_welcome_message(user_name: str = "Пользователь", 
+                               days_active: int = 0, 
+                               current_streak: int = 0) -> str:
+        """
+        🎨 Современное приветствие с персонализацией
+        """
+        # Персонализированное приветствие
+        greeting_emoji = "🌟" if days_active == 0 else "🎯" if current_streak >= 7 else "👋"
+        
+        # Статусы активности
+        if current_streak >= 30:
+            status = "🏆 Легенда NutriBuddy!"
+        elif current_streak >= 14:
+            status = "🔥 На пути к цели!"
+        elif current_streak >= 7:
+            status = "💪 Отличная мотивация!"
+        elif days_active > 0:
+            status = "� Продолжайте двигаться!"
+        else:
+            status = "🌱 Начните свой путь!"
+        
+        text = (
+            f"{greeting_emoji} <b>Добро пожаловать, {user_name}!</b>\n\n"
+            f"🎨 <b>NutriBuddy</b> — ваш умный помощник по питанию\n\n"
+            f"{status}\n\n"
+            f"⚡ <b>Что я умею:</b>\n"
+            f"📸 <b>AI-распознавание</b> еды по фото\n"
+            f"📊 <b>Умный анализ</b> КБЖУ и прогресса\n"
+            f"🤖 <b>AI-помощник</b> с диалогом\n"
+            f"� <b>Детальная статистика</b> и графики\n"
+            f"� <b>Отслеживание</b> воды и активности\n\n"
+            f"✨ <b>Начните прямо сейчас!</b>\n"
+            f"📸 Отправьте фото блюда или выберите действие �"
         )
+        
+        return text
 
     @staticmethod
-    def meal_recorded_success(meal_type: str, calories: float, 
-                             protein: float, fat: float, carbs: float) -> str:
-        """Сообщение об успешной записи приёма"""
-        
-        meal_emoji = {
-            'breakfast': '🥐',
-            'lunch': '🥗',
-            'dinner': '🍲',
-            'snack': '🍎'
+    def modern_meal_success(meal_type: str, calories: float, 
+                          protein: float, fat: float, carbs: float,
+                          daily_progress: float = 0) -> str:
+        """
+        🎨 Современное сообщение об успешном приеме пищи
+        """
+        # Современные эмодзи для приемов пищи
+        meal_emojis = {
+            'breakfast': '🌅',
+            'lunch': '☀️',
+            'dinner': '�',
+            'snack': '🍎',
+            'meal': '🍽️'
         }
         
-        emoji = meal_emoji.get(meal_type, '🍽️')
+        meal_names = {
+            'breakfast': 'Завтрак',
+            'lunch': 'Обед',
+            'dinner': 'Ужин',
+            'snack': 'Перекус',
+            'meal': 'Прием пищи'
+        }
         
-        return (
-            f"{emoji} <b>Приём пищи записан!</b>\n"
-            f"{'─' * 35}\n"
-            f"🔥 Калории: {calories:.0f} ккал\n"
-            f"🥩 Белки: {protein:.1f}г\n"
-            f"🥑 Жиры: {fat:.1f}г\n"
-            f"🍚 Углеводы: {carbs:.1f}г\n"
-            f"{'─' * 35}\n"
-            f"✅ <i>Отличная работа! Продолжайте так!</i>"
+        emoji = meal_emojis.get(meal_type, '🍽️')
+        name = meal_names.get(meal_type, meal_type)
+        
+        # Мотивационный статус
+        if calories <= 200:
+            motivation = "💚 Легкий и полезный прием!"
+        elif calories <= 500:
+            motivation = "💛 Отличный баланс!"
+        elif calories <= 800:
+            motivation = "🧡 Сытно и питательно!"
+        else:
+            motivation = "❤️ Энергетический заряд!"
+        
+        text = (
+            f"{emoji} <b>{name} записан!</b>\n"
+            f"{'═' * 40}\n\n"
+            f"� <b>Питательность:</b>\n"
+            f"🔥 {calories:.0f} ккал\n"
+            f"💪 {protein:.1f}г белков\n"
+            f"🥑 {fat:.1f}г жиров\n"
+            f"🍚 {carbs:.1f}г углеводов\n\n"
+            f"{motivation}\n\n"
+            f"✅ <i>Отличная работа! Продолжайте в том же духе! 💪</i>"
         )
+        
+        return text
 
     @staticmethod
     def daily_summary(date: str, total_cal: float, goal_cal: float,

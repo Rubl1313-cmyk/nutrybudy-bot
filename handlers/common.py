@@ -243,6 +243,12 @@ async def debug_all_callbacks(callback: CallbackQuery, state: FSMContext):
         await period_callback_internal(callback, state)
         return
     
+    # Если это menu_ - обрабатываем основные кнопки меню
+    if callback.data.startswith("menu_"):
+        logger.info(f"🔍 DEBUG: Это menu_ callback, обрабатываем...")
+        await handle_menu_callbacks(callback, state)
+        return
+    
     # Media handlers callbacks
     if callback.data == "use_ingredients_instead":
         logger.info(f"🔍 DEBUG: Это use_ingredients_instead callback, перенаправляем...")
@@ -342,6 +348,69 @@ async def debug_all_callbacks(callback: CallbackQuery, state: FSMContext):
     
     # Другие callback...
     logger.info(f"🔍 DEBUG: Неизвестный callback, игнорируем")
+
+async def handle_menu_callbacks(callback: CallbackQuery, state: FSMContext):
+    """Обработка menu_* callback'ов"""
+    from handlers.food import cmd_log_food
+    from handlers.water import cmd_water
+    from handlers.activity import cmd_fitness
+    from handlers.meal_plan import cmd_meal_plan
+    from handlers.ai_assistant import cmd_ask
+    from handlers.steps import cmd_log_steps
+    from utils.states import StepsStates
+    
+    if callback.data == "menu_food_photo":
+        await callback.message.answer("📸 Отправьте фото еды")
+        await callback.answer()
+    
+    elif callback.data == "menu_food_manual":
+        await cmd_log_food(callback.message, state, user_id=callback.from_user.id)
+        await callback.answer()
+    
+    elif callback.data == "menu_meal_plan":
+        await cmd_meal_plan(callback.message, state, user_id=callback.from_user.id)
+        await callback.answer()
+    
+    elif callback.data == "menu_ai":
+        await cmd_ask(callback.message, state, user_id=callback.from_user.id)
+        await callback.answer()
+    
+    elif callback.data == "menu_water":
+        await cmd_water(callback.message, state, user_id=callback.from_user.id)
+        await callback.answer()
+    
+    elif callback.data == "menu_activity":
+        await cmd_fitness(callback.message, state, user_id=callback.from_user.id)
+        await callback.answer()
+    
+    elif callback.data == "menu_steps":
+        await state.set_state(StepsStates.waiting_for_steps)
+        await callback.message.answer("👟 Введите количество шагов (только число):")
+        await callback.answer()
+    
+    elif callback.data == "menu_profile_view":
+        await display_profile(callback, callback.from_user.id, state)
+        await callback.answer()
+    
+    elif callback.data == "menu_profile_edit":
+        await edit_profile(callback.message, state, user_id=callback.from_user.id)
+        await callback.answer()
+    
+    elif callback.data == "menu_log_weight":
+        await cmd_log_weight(callback.message, state)
+        await callback.answer()
+    
+    elif callback.data == "menu_back":
+        await callback.message.delete()
+        await callback.message.answer(
+            "🏠 Главное меню",
+            reply_markup=get_main_keyboard()
+        )
+        await callback.answer()
+    
+    else:
+        logger.info(f"🔍 DEBUG: Неизвестный menu callback: {callback.data}")
+        await callback.answer()
 
 async def period_callback_internal(callback: CallbackQuery, state: FSMContext):
     """🎨 Внутренний обработчик выбора периода"""
@@ -725,59 +794,4 @@ async def menu_ai_assistant(message: Message, state: FSMContext):
     from handlers.ai_assistant import cmd_ask
     await cmd_ask(message, state)
 
-# ========== Обработчики навигационных callback'ов ==========
-
-@router.callback_query(F.data == "menu_back")
-async def menu_back_callback(callback: CallbackQuery, state: FSMContext):
-    await callback.message.delete()
-    await callback.message.answer(
-        "🏠 Главное меню",
-        reply_markup=get_main_keyboard()
-    )
-    await callback.answer()
-
-@router.callback_query(F.data == "menu_food_photo")
-async def menu_food_photo(callback: CallbackQuery, state: FSMContext):
-    await callback.message.answer("📸 Отправьте фото еды")
-    await callback.answer()
-
-@router.callback_query(F.data == "menu_food_manual")
-async def menu_food_manual(callback: CallbackQuery, state: FSMContext):
-    await cmd_log_food(callback.message, state, user_id=callback.from_user.id)
-    await callback.answer()
-
-@router.callback_query(F.data == "menu_meal_plan")
-async def menu_meal_plan(callback: CallbackQuery, state: FSMContext):
-    await cmd_meal_plan(callback.message, state, user_id=callback.from_user.id)
-    await callback.answer()
-
-@router.callback_query(F.data == "menu_ai")
-async def menu_ai(callback: CallbackQuery, state: FSMContext):
-    await cmd_ask(callback.message, state, user_id=callback.from_user.id)
-    await callback.answer()
-
-@router.callback_query(F.data == "menu_water")
-async def menu_water(callback: CallbackQuery, state: FSMContext):
-    await cmd_water(callback.message, state, user_id=callback.from_user.id)
-    await callback.answer()
-
-@router.callback_query(F.data == "menu_activity")
-async def menu_activity(callback: CallbackQuery, state: FSMContext):
-    await cmd_fitness(callback.message, state, user_id=callback.from_user.id)
-    await callback.answer()
-
-@router.callback_query(F.data == "menu_steps")
-async def menu_steps(callback: CallbackQuery, state: FSMContext):
-    await state.set_state(StepsStates.waiting_for_steps)
-    await callback.message.answer("👟 Введите количество шагов (только число):")
-    await callback.answer()
-
-@router.callback_query(F.data == "menu_profile_view")
-async def menu_profile_view(callback: CallbackQuery, state: FSMContext):
-    await display_profile(callback, callback.from_user.id, state)
-    await callback.answer()
-
-@router.callback_query(F.data == "menu_profile_edit")
-async def menu_profile_edit(callback: CallbackQuery, state: FSMContext):
-    await edit_profile(callback.message, state, user_id=callback.from_user.id)
-    await callback.answer()
+# ========== Конец файла ==========

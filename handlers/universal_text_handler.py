@@ -28,8 +28,12 @@ universal_router = Router()
 @universal_router.message(F.text, ~F.text.startswith("/"))
 async def universal_message_handler(message: Message, state: FSMContext):
     """Точка входа для всех текстовых сообщений, не начинающихся с '/'."""
+    logger.info(f"🔍 UNIVERSAL HANDLER: Получено сообщение: {message.text}")
     current_state = await state.get_state()
+    logger.info(f"🔍 UNIVERSAL HANDLER: Current state: {current_state}")
+    
     if current_state and current_state.startswith("FoodStates"):
+        logger.info(f"🔍 UNIVERSAL HANDLER: Пропускаем, состояние FoodStates")
         return
     await handle_universal_text(message, state)
 

@@ -434,6 +434,7 @@ async def _create_modern_progress_message(user, stats: dict, period_name: str, p
     
     # Импортируем UI компоненты
     from utils.ui_templates import ProgressBar, NutritionCard
+    from utils.message_templates import MessageTemplates
     
     # 🎯 Определяем статусы и мотивацию
     calorie_status = "🎯" if stats['avg_cal_consumed'] <= user.daily_calorie_goal else "⚠️"

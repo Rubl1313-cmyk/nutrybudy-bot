@@ -27,7 +27,7 @@ from services.translator import translate_smart_dish_name, translate_to_russian
 from services.dish_db import COMPOSITE_DISHES, get_dish_ingredients, find_matching_dishes
 from utils.states import FoodStates
 from database.db import get_session
-from database.models import Meal, FoodItem, User
+from database.models import Meal, FoodItem, User, WaterEntry, StepsEntry
 from sqlalchemy import select
 from utils.ui_templates import (
     ProgressBar, NutritionCard, MealCard, 
@@ -1781,6 +1781,7 @@ async def _show_daily_progress(callback: CallbackQuery, session, user, meal):
         today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
         today_end = datetime.now().replace(hour=23, minute=59, second=59, microsecond=999999)
         
+        # Получаем приемы пищи
         today_result = await session.execute(
             select(Meal).where(
                 (Meal.user_id == user.id) &
@@ -1790,20 +1791,44 @@ async def _show_daily_progress(callback: CallbackQuery, session, user, meal):
         )
         today_meals = today_result.scalars().all()
         
+        # Получаем записи о воде за сегодня
+        water_result = await session.execute(
+            select(WaterEntry).where(
+                (WaterEntry.user_id == user.id) &
+                (WaterEntry.datetime >= today_start) &
+                (WaterEntry.datetime <= today_end)
+            )
+        )
+        today_water = water_result.scalars().all()
+        
+        # Получаем записи о шагах за сегодня
+        steps_result = await session.execute(
+            select(StepsEntry).where(
+                (StepsEntry.user_id == user.id) &
+                (StepsEntry.datetime >= today_start) &
+                (StepsEntry.datetime <= today_end)
+            )
+        )
+        today_steps = steps_result.scalars().all()
+        
         # Вычисляем дневные итоги
         daily_total_cal = sum(meal.total_calories for meal in today_meals)
         daily_total_prot = sum(meal.total_protein for meal in today_meals)
         daily_total_fat = sum(meal.total_fat for meal in today_meals)
         daily_total_carbs = sum(meal.total_carbs for meal in today_meals)
+        daily_total_water = sum(water.amount for water in today_water)
+        daily_total_steps = sum(steps.steps_count for steps in today_steps)
         
         # Получаем цели пользователя
         goal_cal = user.daily_calorie_goal or 2000
         goal_prot = user.daily_protein_goal or 150
         goal_fat = user.daily_fat_goal or 65
         goal_carbs = user.daily_carbs_goal or 250
+        goal_water = user.daily_water_goal or 2000
+        goal_steps = user.daily_steps_goal or 10000
         
         # ✅ Красивая карточка прогресса дня
-        daily_progress = NutritionCard.create_daily_goal_card(
+        daily_progress = NutritionCard.create_modern_daily_goal_card(
             daily_total_cal, goal_cal,
             daily_total_prot, goal_prot,
             daily_total_fat, goal_fat,
@@ -1812,16 +1837,63 @@ async def _show_daily_progress(callback: CallbackQuery, session, user, meal):
         
         await callback.message.answer(daily_progress, parse_mode="HTML")
         
+        # ========== 💪 ПРОГРЕСС ПО ВОДЕ ==========
+        water_bar = ProgressBar.create_modern_bar(daily_total_water, goal_water, 12, 'neon')
+        water_percentage = (daily_total_water / goal_water * 100) if goal_water > 0 else 0
+        
+        water_progress = (
+            f"💧 <b>Водный баланс</b>\n"
+            f"{'═' * 35}\n"
+            f"💧 Выпито: {daily_total_water:.0f}мл из {goal_water:.0f}мл\n"
+            f"{water_bar} {water_percentage:.0f}%\n"
+        )
+        
+        await callback.message.answer(water_progress, parse_mode="HTML")
+        
+        # ========== 👞 ПРОГРЕСС ПО ШАГАМ ==========
+        steps_bar = ProgressBar.create_modern_bar(daily_total_steps, goal_steps, 12, 'gradient')
+        steps_percentage = (daily_total_steps / goal_steps * 100) if goal_steps > 0 else 0
+        
+        steps_progress = (
+            f"👞 <b>Активность</b>\n"
+            f"{'═' * 35}\n"
+            f"👶 Шаги: {daily_total_steps:,} из {goal_steps:,}\n"
+            f"{steps_bar} {steps_percentage:.0f}%\n"
+        )
+        
+        await callback.message.answer(steps_progress, parse_mode="HTML")
+        
         # ========== ✅ МОТИВАЦИОННОЕ СООБЩЕНИЕ ==========
         cal_percentage = (daily_total_cal / goal_cal * 100) if goal_cal > 0 else 0
+        water_percentage = (daily_total_water / goal_water * 100) if goal_water > 0 else 0
+        steps_percentage = (daily_total_steps / goal_steps * 100) if goal_steps > 0 else 0
         
+        # Умное мотивационное сообщение с учетом воды и шагов
         if cal_percentage >= 90 and cal_percentage <= 110:
-            motivation = "🎯 <b>Отличный результат!</b> Вы прямо на цели! Продолжайте так!"
+            motivation = "🎯 <b>Отличный результат!</b> Вы прямо на цели по калориям!"
         elif cal_percentage > 110:
             motivation = "⚠️ <b>Превысили дневную норму!</b> Но это лучше, чем недоедать."
         else:
             remaining_cal = goal_cal - daily_total_cal
             motivation = f"💪 <b>Хорошая работа!</b> Осталось еще {remaining_cal:.0f} ккал до цели."
+        
+        # Добавляем информацию о воде
+        if water_percentage < 50:
+            motivation += f"\n💧 <b>Не забывайте пить воду!</b> Выпито {daily_total_water:.0f}мл из {goal_water:.0f}мл."
+        elif water_percentage >= 100:
+            motivation += f"\n💧 <b>Отличная гидратация!</b> Цель по воде выполнена!"
+        else:
+            remaining_water = goal_water - daily_total_water
+            motivation += f"\n💧 <b>Хорошо!</b> Осталось выпить {remaining_water:.0f}мл воды."
+        
+        # Добавляем информацию о шагах
+        if steps_percentage < 30:
+            motivation += f"\n👞 <b>Время двигаться!</b> Пройдено {daily_total_steps:,} из {goal_steps:,} шагов."
+        elif steps_percentage >= 100:
+            motivation += f"\n👞 <b>Супер!</b> Цель по шагам достигнута!"
+        else:
+            remaining_steps = goal_steps - daily_total_steps
+            motivation += f"\n👞 <b>Хорошо!</b> Осталось пройти {remaining_steps:,} шагов."
         
         await callback.message.answer(motivation, parse_mode="HTML")
         
@@ -1860,31 +1932,55 @@ async def cmd_today_summary(message: Message):
         )
         today_meals = meals_result.scalars().all()
         
+        # Получаем записи о воде за сегодня
+        water_result = await session.execute(
+            select(WaterEntry).where(
+                (WaterEntry.user_id == user.id) &
+                (WaterEntry.datetime >= today_start) &
+                (WaterEntry.datetime <= today_end)
+            )
+        )
+        today_water = water_result.scalars().all()
+        
+        # Получаем записи о шагах за сегодня
+        steps_result = await session.execute(
+            select(StepsEntry).where(
+                (StepsEntry.user_id == user.id) &
+                (StepsEntry.datetime >= today_start) &
+                (StepsEntry.datetime <= today_end)
+            )
+        )
+        today_steps = steps_result.scalars().all()
+        
         # Вычисляем итоги
         daily_total_cal = sum(meal.total_calories for meal in today_meals)
         daily_total_prot = sum(meal.total_protein for meal in today_meals)
         daily_total_fat = sum(meal.total_fat for meal in today_meals)
         daily_total_carbs = sum(meal.total_carbs for meal in today_meals)
+        daily_total_water = sum(water.amount for water in today_water)
+        daily_total_steps = sum(steps.steps_count for steps in today_steps)
         
         goal_cal = user.daily_calorie_goal or 2000
         goal_prot = user.daily_protein_goal or 150
         goal_fat = user.daily_fat_goal or 65
         goal_carbs = user.daily_carbs_goal or 250
+        goal_water = user.daily_water_goal or 2000
+        goal_steps = user.daily_steps_goal or 10000
         
         # ✅ Красивая дневная сводка
         daily_summary = MessageTemplates.daily_summary(
             datetime.now().strftime("%d.%m.%Y"),
             daily_total_cal, goal_cal,
             daily_total_prot, daily_total_fat, daily_total_carbs,
-            0,  # вода - получить из БД если нужно
-            2000,  # цель воды
+            daily_total_water,  # вода из БД
+            goal_water,  # цель воды
             0  # серия дней
         )
         
         await message.answer(daily_summary, parse_mode="HTML")
         
         # ✅ Прогресс-карточка
-        daily_progress = NutritionCard.create_daily_goal_card(
+        daily_progress = NutritionCard.create_modern_daily_goal_card(
             daily_total_cal, goal_cal,
             daily_total_prot, goal_prot,
             daily_total_fat, goal_fat,
@@ -1892,6 +1988,32 @@ async def cmd_today_summary(message: Message):
         )
         
         await message.answer(daily_progress, parse_mode="HTML")
+        
+        # ========== 💪 ПРОГРЕСС ПО ВОДЕ ==========
+        water_bar = ProgressBar.create_modern_bar(daily_total_water, goal_water, 12, 'neon')
+        water_percentage = (daily_total_water / goal_water * 100) if goal_water > 0 else 0
+        
+        water_progress = (
+            f"💧 <b>Водный баланс</b>\n"
+            f"{'═' * 35}\n"
+            f"💧 Выпито: {daily_total_water:.0f}мл из {goal_water:.0f}мл\n"
+            f"{water_bar} {water_percentage:.0f}%\n"
+        )
+        
+        await message.answer(water_progress, parse_mode="HTML")
+        
+        # ========== 👞 ПРОГРЕСС ПО ШАГАМ ==========
+        steps_bar = ProgressBar.create_modern_bar(daily_total_steps, goal_steps, 12, 'gradient')
+        steps_percentage = (daily_total_steps / goal_steps * 100) if goal_steps > 0 else 0
+        
+        steps_progress = (
+            f"👞 <b>Активность</b>\n"
+            f"{'═' * 35}\n"
+            f"👶 Шаги: {daily_total_steps:,} из {goal_steps:,}\n"
+            f"{steps_bar} {steps_percentage:.0f}%\n"
+        )
+        
+        await message.answer(steps_progress, parse_mode="HTML")
         
         # ✅ Макросы
         macros_chart = NutritionCard.create_macros_pie_chart(

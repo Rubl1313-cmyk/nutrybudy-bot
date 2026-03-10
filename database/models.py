@@ -28,6 +28,7 @@ class User(Base):
     daily_protein_goal = Column(Float)
     daily_fat_goal = Column(Float)
     daily_carbs_goal = Column(Float)
+    daily_steps_goal = Column(Integer, default=10000)  # Цель по шагам по умолчанию
     reminder_enabled = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -36,6 +37,7 @@ class User(Base):
     water_entries = relationship("WaterEntry", back_populates="user", cascade="all, delete-orphan")
     weight_entries = relationship("WeightEntry", back_populates="user", cascade="all, delete-orphan")
     activities = relationship("Activity", back_populates="user", cascade="all, delete-orphan")
+    steps_entries = relationship("StepsEntry", back_populates="user", cascade="all, delete-orphan")
 
 class Meal(Base):
     __tablename__ = 'meals'
@@ -103,3 +105,16 @@ class Activity(Base):
     source = Column(String(20), default='manual')
 
     user = relationship("User", back_populates="activities")
+
+class StepsEntry(Base):
+    """👞 Записи о шагах пользователя"""
+    __tablename__ = 'steps_entries'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey('users.id', ondelete="CASCADE"), nullable=False, index=True)
+    steps_count = Column(Integer, nullable=False)
+    datetime = Column(DateTime, default=datetime.utcnow, index=True)
+    source = Column(String(20), default='manual')  # manual, fitness_tracker, etc.
+    notes = Column(String(255))  # Примечания пользователя
+
+    user = relationship("User", back_populates="steps_entries")

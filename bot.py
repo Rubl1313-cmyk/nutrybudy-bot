@@ -13,7 +13,7 @@ from aiohttp import web
 from database.db import init_db, close_db, engine
 from handlers import (
     common, profile, food, water, activity, progress, media_handlers, ai_assistant,
-    universal_text_handler, meal_plan, weight  # universal_text_handler теперь импортируется
+    universal_text_handler, meal_plan, weight, steps  # Добавили steps
 )
 from handlers.universal_text_handler import universal_router
 from handlers import meal_plan
@@ -50,6 +50,7 @@ async def set_bot_commands(bot: Bot):
         BotCommand(command="set_profile", description="👤 Профиль"),
         BotCommand(command="log_food", description="🍽️ Еда"),
         BotCommand(command="log_water", description="💧 Вода"),
+        BotCommand(command="steps", description="👞 Шаги"),
         BotCommand(command="fitness", description="🏋️ Активность"),
         BotCommand(command="progress", description="📊 Прогресс"),
         BotCommand(command="ask", description="💬 AI Помощник"),
@@ -188,6 +189,7 @@ async def main():
     dp.include_router(food.router)
     dp.include_router(water.router)
     dp.include_router(activity.router)
+    dp.include_router(steps.router)  # Добавили трекер шагов
     # dp.include_router(progress.router)  # УБРАЛИ - логика перенесена в common.py
     dp.include_router(weight.router)     
     dp.include_router(media_handlers.router)

@@ -17,7 +17,7 @@ from handlers.activity import cmd_fitness
 from utils.parsers import parse_food_items
 from utils.states import ActivityStates
 from database.db import get_session
-from database.models import User, Activity
+from database.models import User, Activity, StepsEntry
 from services.activity import CALORIES_PER_MINUTE
 from services.weather import get_temperature as get_weather  # ✅ используем правильный модуль
 from handlers.media_handlers import process_food_items
@@ -62,29 +62,37 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
         steps = intent_data.get("steps")
 
         if steps:
-            user_id = message.from_user.id
-            calories = round(steps * 0.04, 1)
+            # Используем новую систему StepsEntry вместо Activity
             async with get_session() as session:
                 user_result = await session.execute(
-                    select(User).where(User.telegram_id == user_id)
+                    select(User).where(User.telegram_id == message.from_user.id)
                 )
                 user = user_result.scalar_one_or_none()
                 if not user:
                     await message.answer("❌ Сначала настройте профиль через /set_profile.")
                     return
-                activity = Activity(
+                
+                # Сохраняем в StepsEntry
+                steps_entry = StepsEntry(
                     user_id=user.id,
-                    activity_type="walking",
-                    duration=0,
-                    distance=steps * 0.00075,
-                    calories_burned=calories,
-                    steps=steps,
-                    datetime=datetime.now(),
-                    source="text"
+                    steps_count=steps,
+                    source='text_input'
                 )
-                session.add(activity)
+                session.add(steps_entry)
                 await session.commit()
-            await message.answer(f"✅ Записано {steps} шагов (сожжено ~{calories} ккал).")
+                
+                # Получаем цель для мотивации
+                goal_steps = user.daily_steps_goal or 10000
+                percentage = (steps / goal_steps * 100) if goal_steps > 0 else 0
+                
+                if percentage >= 100:
+                    motivation = "🏆 Отлично! Цель по шагам достигнута!"
+                elif percentage >= 50:
+                    motivation = "💪 Хорошая работа!"
+                else:
+                    motivation = "🚶 Хорошее начало!"
+                
+                await message.answer(f"✅ Записано {steps:,} шагов! {motivation}")
             return
 
         if distance_km and not duration:

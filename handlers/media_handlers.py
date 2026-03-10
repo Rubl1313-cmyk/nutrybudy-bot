@@ -501,7 +501,10 @@ async def process_food_items(
     food_data = await _get_food_data_cached(product_name, return_variants=True)
 
     # ✅ ИСПРАВЛЕНО: правильная проверка на неизвестный продукт
-    if food_data.get('source') == 'unknown':
+    # food_data может быть списком или словарем
+    if isinstance(food_data, dict) and food_data.get('source') == 'unknown':
+        logger.warning(f"⚠️ Product '{product_name}' not found in database")
+    elif isinstance(food_data, list) and len(food_data) == 1 and food_data[0].get('source') == 'unknown':
         logger.warning(f"⚠️ Product '{product_name}' not found in database")
 
     # Несколько вариантов – показываем выбор

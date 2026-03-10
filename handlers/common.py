@@ -204,6 +204,81 @@ async def show_profile_category(message: Message, state: FSMContext):
         reply_markup=get_profile_menu(),
         parse_mode="HTML"
     )
+
+# ========== ОБРАБОТЧИКИ ДЛЯ ГЛАВНОГО МЕНЮ ==========
+
+@router.callback_query(F.data == "manual_food")
+async def manual_food_main_callback(callback: CallbackQuery, state: FSMContext):
+    """🎨 Обработчик для добавления приема пищи из главного меню"""
+    await callback.answer()
+    await callback.message.delete()
+    
+    await state.clear()
+    from handlers.food import cmd_log_food
+    await cmd_log_food(callback.message, state, user_id=callback.from_user.id)
+
+@router.callback_query(F.data == "show_progress")
+async def show_progress_main_callback(callback: CallbackQuery, state: FSMContext):
+    """🎨 Обработчик для прогресса из главного меню"""
+    await callback.answer()
+    await callback.message.delete()
+    
+    from handlers.progress import cmd_progress
+    await cmd_progress(callback.message, state, user_id=callback.from_user.id)
+
+@router.callback_query(F.data == "log_water")
+async def log_water_main_callback(callback: CallbackQuery, state: FSMContext):
+    """🎨 Обработчик для воды из главного меню"""
+    await callback.answer()
+    await callback.message.delete()
+    
+    from handlers.water import cmd_water
+    await cmd_water(callback.message, state, user_id=callback.from_user.id)
+
+@router.callback_query(F.data == "log_activity")
+async def log_activity_main_callback(callback: CallbackQuery, state: FSMContext):
+    """🎨 Обработчик для активности из главного меню"""
+    await callback.answer()
+    await callback.message.delete()
+    
+    from handlers.activity import cmd_fitness
+    await cmd_fitness(callback.message, state, user_id=callback.from_user.id)
+
+@router.callback_query(F.data == "show_profile")
+async def show_profile_main_callback(callback: CallbackQuery, state: FSMContext):
+    """🎨 Обработчик для профиля из главного меню"""
+    await callback.answer()
+    await callback.message.delete()
+    
+    from handlers.profile import cmd_profile
+    await cmd_profile(callback.message, state, user_id=callback.from_user.id)
+
+@router.callback_query(F.data == "ai_assistant")
+async def ai_assistant_main_callback(callback: CallbackQuery, state: FSMContext):
+    """🎨 Обработчик для AI помощника из главного меню"""
+    await callback.answer()
+    await callback.message.delete()
+    
+    from handlers.ai_assistant import cmd_ask
+    await cmd_ask(callback.message, state, user_id=callback.from_user.id)
+
+@router.callback_query(F.data == "show_statistics")
+async def show_statistics_main_callback(callback: CallbackQuery, state: FSMContext):
+    """🎨 Обработчик для статистики из главного меню"""
+    await callback.answer()
+    await callback.message.delete()
+    
+    from handlers.progress import cmd_progress
+    await cmd_progress(callback.message, state, user_id=callback.from_user.id)
+
+@router.callback_query(F.data == "settings")
+async def settings_main_callback(callback: CallbackQuery, state: FSMContext):
+    """🎨 Обработчик для настроек из главного меню"""
+    await callback.answer()
+    await callback.message.delete()
+    
+    from handlers.profile import cmd_profile
+    await cmd_profile(callback.message, state, user_id=callback.from_user.id)
 @router.callback_query(F.data == "menu_log_weight")
 async def menu_log_weight_callback(callback: CallbackQuery, state: FSMContext):
     """Обработка нажатия на кнопку записи веса в меню профиля."""

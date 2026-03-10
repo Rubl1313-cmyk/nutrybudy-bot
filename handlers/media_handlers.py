@@ -1797,10 +1797,10 @@ async def _show_daily_progress(callback: CallbackQuery, session, user, meal):
         daily_total_carbs = sum(meal.total_carbs for meal in today_meals)
         
         # Получаем цели пользователя
-        goal_cal = user.daily_goal_calories or 2000
-        goal_prot = user.daily_goal_protein or 150
-        goal_fat = user.daily_goal_fat or 65
-        goal_carbs = user.daily_goal_carbs or 250
+        goal_cal = user.daily_calorie_goal or 2000
+        goal_prot = user.daily_protein_goal or 150
+        goal_fat = user.daily_fat_goal or 65
+        goal_carbs = user.daily_carbs_goal or 250
         
         # ✅ Красивая карточка прогресса дня
         daily_progress = NutritionCard.create_daily_goal_card(
@@ -1866,10 +1866,10 @@ async def cmd_today_summary(message: Message):
         daily_total_fat = sum(meal.total_fat for meal in today_meals)
         daily_total_carbs = sum(meal.total_carbs for meal in today_meals)
         
-        goal_cal = user.daily_goal_calories or 2000
-        goal_prot = user.daily_goal_protein or 150
-        goal_fat = user.daily_goal_fat or 65
-        goal_carbs = user.daily_goal_carbs or 250
+        goal_cal = user.daily_calorie_goal or 2000
+        goal_prot = user.daily_protein_goal or 150
+        goal_fat = user.daily_fat_goal or 65
+        goal_carbs = user.daily_carbs_goal or 250
         
         # ✅ Красивая дневная сводка
         daily_summary = MessageTemplates.daily_summary(

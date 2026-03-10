@@ -188,7 +188,7 @@ async def main():
     dp.include_router(food.router)
     dp.include_router(water.router)
     dp.include_router(activity.router)
-    dp.include_router(progress.router)
+    # dp.include_router(progress.router)  # УБРАЛИ - логика перенесена в common.py
     dp.include_router(weight.router)     
     dp.include_router(media_handlers.router)
     dp.include_router(meal_plan.router)

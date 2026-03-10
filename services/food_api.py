@@ -3223,11 +3223,16 @@ def get_product_variants(base_name: str) -> List[Dict]:
             if len(variants) >= 10:
                 break
 
-    # ✅ УЛУЧШЕНИЕ: Если базовый продукт (курица, говядина и т.д.), ищем все варианты
+    # ✅ УЛУЧШЕНИЕ: Умный поиск с морфологическими вариациями
     logger.info(f"🔍 Проверка расширенного поиска: base_name_lower={base_name_lower}, in_base_products={base_name_lower in base_products}, variants_count={len(variants)}")
     
     if base_name_lower in base_products and len(variants) < 10:
         logger.info(f"🔍 Расширенный поиск для базового продукта: {base_name_lower}")
+        
+        # ✅ Генерируем морфологические вариации для каждого базового продукта
+        morph_variations = get_morphological_variations(base_name_lower)
+        logger.info(f"🔍 Сгенерированы вариации: {morph_variations}")
+        
         # Ищем все продукты, содержащие базовое название
         for key, item in LOCAL_FOOD_DB.items():
             if key in seen_keys:
@@ -3237,8 +3242,10 @@ def get_product_variants(base_name: str) -> List[Dict]:
             item_name_lower = item['name'].lower()
             key_lower = key.lower()
             
-            # Проверяем наличие базового продукта в названии
-            if (base_name_lower in item_name_lower or base_name_lower in key_lower):
+            # Проверяем наличие любой морфологической формы
+            found = any(term in item_name_lower or term in key_lower for term in morph_variations)
+            
+            if found:
                 logger.info(f"✅ Найден вариант: {item['name']} (ключ: {key})")
                 variants.append({**item, 'key': key})
                 seen_keys.add(key)
@@ -3260,6 +3267,30 @@ def get_product_variants(base_name: str) -> List[Dict]:
 
     logger.info(f"🔍 get_product_variants для '{base_name_lower}': найдено {len(variants)} вариантов")
     return variants
+
+def get_morphological_variations(base_name: str) -> List[str]:
+    """
+    Генерирует морфологические вариации для базового продукта.
+    """
+    variations = {
+        'курица': ['курица', 'курин', 'куриц', 'кур'],
+        'говядина': ['говядина', 'говяж', 'говядин'],
+        'свинина': ['свинина', 'свин', 'свинин'],
+        'индейка': ['индейка', 'индеек', 'индееч', 'инд'],
+        'телятина': ['телятина', 'телят', 'теляч'],
+        'баранина': ['баранина', 'баран', 'баранин'],
+        'рыба': ['рыба', 'рыб', 'рыбн'],
+        'лосось': ['лосось', 'лосос', 'лососев'],
+        'треска': ['треска', 'трес', 'тресоч'],
+        'сельдь': ['сельдь', 'сельд', 'селед'],
+        'картофель': ['картофель', 'картош', 'картофел'],
+        'морковь': ['морковь', 'морков', 'морковн'],
+        'лук': ['лук', 'луков', 'лук'],
+        'капуста': ['капуста', 'капуст', 'капустн']
+    }
+    
+    # Возвращаем вариации для продукта или базовый вариант
+    return variations.get(base_name, [base_name])
 
 async def search_food(query: str, limit: int = 10) -> List[Dict]:
     """Поиск продуктов в локальной базе."""

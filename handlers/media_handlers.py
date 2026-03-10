@@ -1031,19 +1031,31 @@ async def variants_page_callback(callback: CallbackQuery, state: FSMContext):
 
 @router.callback_query(F.data.startswith("select_variant_"))
 async def select_variant_callback(callback: CallbackQuery, state: FSMContext):
-    parts = callback.data.split("_")
+    parts = callback.data.split("_", 2)  # Разделяем только на 3 части
     if len(parts) < 3:
         await callback.answer("❌ Ошибка", show_alert=True)
         return
 
-    product_key = parts[2]
+    product_key_or_name = parts[2]  # Может быть ключ или название
     data = await state.get_data()
 
-    if product_key not in LOCAL_FOOD_DB:
+    # Сначала ищем по ключу
+    product = None
+    if product_key_or_name in LOCAL_FOOD_DB:
+        product = LOCAL_FOOD_DB[product_key_or_name]
+    else:
+        # Если не нашли по ключу, ищем по названию
+        for key, value in LOCAL_FOOD_DB.items():
+            if value['name'].lower() == product_key_or_name.lower():
+                product = value
+                product_key_or_name = key  # Сохраняем правильный ключ
+                break
+    
+    if not product:
+        logger.error(f"❌ Продукт не найден: {product_key_or_name}")
         await callback.answer("❌ Продукт не найден", show_alert=True)
         return
 
-    product = LOCAL_FOOD_DB[product_key]
     weight = data.get('pending_weight', 100)
     meal_type = data.get('pending_meal_type', 'snack')
     food_items = data.get('pending_food_items', [])

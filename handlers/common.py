@@ -226,12 +226,27 @@ async def show_progress_main_callback(callback: CallbackQuery, state: FSMContext
     from handlers.progress import cmd_progress
     await cmd_progress(callback.message, state, user_id=callback.from_user.id)
 
+@router.callback_query()
+async def debug_all_callbacks(callback: CallbackQuery, state: FSMContext):
+    """🔍 Ловим ВСЕ callback для отладки"""
+    logger.info(f"🔍 DEBUG: ПОЛУЧЕН CALLBACK: {callback.data}")
+    logger.info(f"🔍 DEBUG: ОТ ПОЛЬЗОВАТЕЛЯ: {callback.from_user.id}")
+    
+    # Если это period_ - обрабатываем
+    if callback.data.startswith("period_"):
+        logger.info(f"🔍 DEBUG: Это period_ callback, перенаправляем...")
+        await period_callback_internal(callback, state)
+        return
+    
+    # Другие callback...
+    logger.info(f"🔍 DEBUG: Неизвестный callback, игнорируем")
+
 @router.callback_query(F.data.startswith("period_"))
-async def period_callback(callback: CallbackQuery, state: FSMContext):
-    """🎨 Обработчик выбора периода из главного меню"""
+async def period_callback_internal(callback: CallbackQuery, state: FSMContext):
+    """🎨 Внутренний обработчик выбора периода"""
     try:
         # 📊 Логирование для отладки
-        logger.info(f"🔍 DEBUG: Получен callback: {callback.data}")
+        logger.info(f"🔍 DEBUG: Внутренний обработчик: {callback.data}")
         logger.info(f"🔍 DEBUG: От пользователя: {callback.from_user.id}")
         
         period = callback.data.split("_")[1]  # today / week / month / all

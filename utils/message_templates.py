@@ -203,6 +203,50 @@ class MessageTemplates:
         )
 
     @staticmethod
+    def get_progress_welcome(user_name: str) -> str:
+        """
+        🎨 Современное приветствие раздела прогресса
+        """
+        return (
+            f"📊 <b>Анализ прогресса, {user_name}!</b>\n\n"
+            f"🎯 Выберите период для детальной статистики:\n"
+            f"📈 Сегодняшние достижения\n"
+            f"📆 Недельные тренды\n"
+            f"📊 Месячные результаты\n"
+            f"🌟 Общая картина\n\n"
+            f"✨ <i>Каждый день - это шаг к цели!</i>"
+        )
+
+    @staticmethod
+    def get_progress_motivation(stats: dict, user) -> str:
+        """
+        🎨 Мотивирующее сообщение на основе прогресса
+        """
+        motivations = []
+        
+        # Мотивация по калориям
+        if stats['avg_cal_consumed'] <= user.daily_calorie_goal:
+            motivations.append("🎯 Отличная работа с калориями!")
+        else:
+            motivations.append("💪 Сосредоточьтесь на калорийности завтра!")
+        
+        # Мотивация по воде
+        if stats['avg_water'] >= user.daily_water_goal:
+            motivations.append("💧 Идеальная гидратация!")
+        else:
+            motivations.append("💦 Не забывайте пить воду!")
+        
+        # Мотивация по активности
+        if stats['activities_count'] > 0:
+            motivations.append("🏃 Продолжайте в том же духе!")
+        
+        # Общая мотивация
+        if len(motivations) >= 2:
+            motivations.append("🌟 Вы на правильном пути!")
+        
+        return "\n".join(motivations) if motivations else "🚀 Продолжайте двигаться к своим целям!"
+
+    @staticmethod
     def error_friendly(error_type: str) -> str:
         """Дружелюбные сообщения об ошибках"""
         

@@ -229,90 +229,102 @@ async def show_progress_main_callback(callback: CallbackQuery, state: FSMContext
 @router.callback_query(F.data.startswith("period_"))
 async def period_callback(callback: CallbackQuery, state: FSMContext):
     """🎨 Обработчик выбора периода из главного меню"""
-    # 📊 Логирование для отладки
-    logger.info(f"🔍 DEBUG: Получен callback: {callback.data}")
-    logger.info(f"🔍 DEBUG: От пользователя: {callback.from_user.id}")
-    
-    period = callback.data.split("_")[1]  # today / week / month / all
-    user_id = callback.from_user.id
+    try:
+        # 📊 Логирование для отладки
+        logger.info(f"🔍 DEBUG: Получен callback: {callback.data}")
+        logger.info(f"🔍 DEBUG: От пользователя: {callback.from_user.id}")
+        
+        period = callback.data.split("_")[1]  # today / week / month / all
+        user_id = callback.from_user.id
 
-    await callback.answer(f"📊 Загружаю статистику...")
-    
-    # 📊 Логирование периода
-    logger.info(f"🔍 DEBUG: Период: {period}")
-    
-    await callback.message.delete()
-    await state.clear()
+        await callback.answer(f"📊 Загружаю статистику...")
+        
+        # 📊 Логирование периода
+        logger.info(f"🔍 DEBUG: Период: {period}")
+        
+        await callback.message.delete()
+        await state.clear()
 
-    from database.db import get_session
-    from database.models import User, Meal, Activity, WaterEntry, WeightEntry
-    from services.plots import generate_weight_plot, generate_water_plot, generate_calorie_plot, generate_activity_plot
-    from utils.ui_templates import ProgressBar, NutritionCard
-    from utils.message_templates import MessageTemplates
-    from sqlalchemy import select, func
-    from datetime import datetime, timedelta
-    from aiogram.types import BufferedInputFile
+        from database.db import get_session
+        from database.models import User, Meal, Activity, WaterEntry, WeightEntry
+        from services.plots import generate_weight_plot, generate_water_plot, generate_calorie_plot, generate_activity_plot
+        from utils.ui_templates import ProgressBar, NutritionCard
+        from utils.message_templates import MessageTemplates
+        from sqlalchemy import select, func
+        from datetime import datetime, timedelta
+        from aiogram.types import BufferedInputFile
 
-    async with get_session() as session:
-        # Получаем пользователя
-        result = await session.execute(
-            select(User).where(User.telegram_id == user_id)
-        )
-        user = result.scalar_one_or_none()
-        if not user:
-            logger.error(f"🔍 DEBUG: Пользователь не найден!")
-            await callback.message.answer(
-                "❌ Пользователь не найден.",
-                reply_markup=get_main_keyboard()
+        async with get_session() as session:
+            # Получаем пользователя
+            result = await session.execute(
+                select(User).where(User.telegram_id == user_id)
             )
-            return
+            user = result.scalar_one_or_none()
+            if not user:
+                logger.error(f"🔍 DEBUG: Пользователь не найден!")
+                await callback.message.answer(
+                    "❌ Пользователь не найден.",
+                    reply_markup=get_main_keyboard()
+                )
+                return
 
-        # 📊 Логирование пользователя
-        logger.info(f"🔍 DEBUG: Пользователь найден: {user.first_name}")
+            # 📊 Логирование пользователя
+            logger.info(f"🔍 DEBUG: Пользователь найден: {user.first_name}")
 
-        # Определяем диапазон дат
-        today = datetime.now().date()
-        if period == "today":
-            start_date = today
-            period_name = "сегодня"
-        elif period == "week":
-            start_date = today - timedelta(days=7)
-            period_name = "за неделю"
-        elif period == "month":
-            start_date = today - timedelta(days=30)
-            period_name = "за месяц"
-        else:  # all
-            start_date = today - timedelta(days=365)  # За последний год
-            period_name = "за всё время"
+            # Определяем диапазон дат
+            today = datetime.now().date()
+            if period == "today":
+                start_date = today
+                period_name = "сегодня"
+            elif period == "week":
+                start_date = today - timedelta(days=7)
+                period_name = "за неделю"
+            elif period == "month":
+                start_date = today - timedelta(days=30)
+                period_name = "за месяц"
+            else:  # all
+                start_date = today - timedelta(days=365)  # За последний год
+                period_name = "за всё время"
 
-        # 📊 Логирование дат
-        logger.info(f"🔍 DEBUG: Период {period_name}, стартовая дата: {start_date}")
+            # 📊 Логирование дат
+            logger.info(f"🔍 DEBUG: Период {period_name}, стартовая дата: {start_date}")
 
-        # 📊 Получаем статистику за период
-        stats = await _get_period_stats(user.id, session, start_date)
-        
-        # 📊 Логирование статистики
-        logger.info(f"🔍 DEBUG: Статистика получена: {len(stats)} полей")
-        
-        # 🎨 Создаем современное сообщение с прогрессом
-        progress_message = await _create_modern_progress_message(
-            user, stats, period_name, period
-        )
-        
-        # 📊 Логирование сообщения
-        logger.info(f"🔍 DEBUG: Сообщение создано, длина: {len(progress_message)}")
+            # 📊 Получаем статистику за период
+            stats = await _get_period_stats(user.id, session, start_date)
+            
+            # 📊 Логирование статистики
+            logger.info(f"🔍 DEBUG: Статистика получена: {len(stats)} полей")
+            
+            # 🎨 Создаем современное сообщение с прогрессом
+            progress_message = await _create_modern_progress_message(
+                user, stats, period_name, period
+            )
+            
+            # 📊 Логирование сообщения
+            logger.info(f"🔍 DEBUG: Сообщение создано, длина: {len(progress_message)}")
+            
+            await callback.message.answer(
+                progress_message, 
+                reply_markup=get_main_keyboard(), 
+                parse_mode="HTML"
+            )
+
+            # 📊 Генерируем графики
+            await _send_progress_charts(callback, user, session, period, period_name)
+            
+            # 📊 Логирование завершения
+            logger.info(f"🔍 DEBUG: Обработчик завершен успешно")
+            
+    except Exception as e:
+        logger.error(f"🔍 DEBUG: Ошибка в обработчике периода: {e}")
+        logger.error(f"🔍 DEBUG: Тип ошибки: {type(e)}")
+        import traceback
+        logger.error(f"🔍 DEBUG: Traceback: {traceback.format_exc()}")
         
         await callback.message.answer(
-            progress_message, 
-            reply_markup=get_main_keyboard(), 
-            parse_mode="HTML"
+            "❌ Произошла ошибка при загрузке статистики. Попробуйте еще раз.",
+            reply_markup=get_main_keyboard()
         )
-
-        # 📊 Генерируем графики
-        await _send_progress_charts(callback, user, session, period, period_name)
-        
-        # 📊 Логирование завершения
-        logger.info(f"🔍 DEBUG: Обработчик завершен успешно")
 
 async def _get_period_stats(user_id: int, session, start_date) -> dict:
     """📊 Получение статистики за период"""

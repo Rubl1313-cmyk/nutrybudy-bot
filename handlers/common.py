@@ -2,10 +2,13 @@
 Общие команды: /start, /help, /cancel, и интерактивное меню помощи.
 Добавлена навигация по категориям и AI помощник.
 """
+import logging
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.filters import CommandStart, Command
 from aiogram.fsm.context import FSMContext
+
+logger = logging.getLogger(__name__)
 
 from keyboards.reply import get_main_keyboard
 from keyboards.inline import (

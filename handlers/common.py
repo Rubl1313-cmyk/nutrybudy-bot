@@ -235,16 +235,15 @@ async def debug_all_callbacks(callback: CallbackQuery, state: FSMContext):
     logger.info(f"🔍 DEBUG: ПОЛУЧЕН CALLBACK: {callback.data}")
     logger.info(f"🔍 DEBUG: ОТ ПОЛЬЗОВАТЕЛЯ: {callback.from_user.id}")
     
-    # Если это period_ - обрабатываем
-    if callback.data.startswith("period_"):
-        logger.info(f"🔍 DEBUG: Это period_ callback, перенаправляем...")
+    # Если это progress_ - обрабатываем
+    if callback.data.startswith("progress_"):
+        logger.info(f"🔍 DEBUG: Это progress_ callback, обрабатываем...")
         await period_callback_internal(callback, state)
         return
     
     # Другие callback...
     logger.info(f"🔍 DEBUG: Неизвестный callback, игнорируем")
 
-@router.callback_query(F.data.startswith("period_"))
 async def period_callback_internal(callback: CallbackQuery, state: FSMContext):
     """🎨 Внутренний обработчик выбора периода"""
     try:
@@ -252,7 +251,7 @@ async def period_callback_internal(callback: CallbackQuery, state: FSMContext):
         logger.info(f"🔍 DEBUG: Внутренний обработчик: {callback.data}")
         logger.info(f"🔍 DEBUG: От пользователя: {callback.from_user.id}")
         
-        period = callback.data.split("_")[1]  # today / week / month / all
+        period = callback.data.split("_")[1]  # day / week / month / all
         user_id = callback.from_user.id
 
         await callback.answer(f"📊 Загружаю статистику...")
@@ -291,7 +290,7 @@ async def period_callback_internal(callback: CallbackQuery, state: FSMContext):
 
             # Определяем диапазон дат
             today = datetime.now().date()
-            if period == "today":
+            if period == "day":
                 start_date = today
                 period_name = "сегодня"
             elif period == "week":

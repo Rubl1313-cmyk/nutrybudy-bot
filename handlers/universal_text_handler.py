@@ -10,7 +10,7 @@ import logging
 from sqlalchemy import select
 from datetime import datetime
 
-from services.intent_classifier import classify
+from services.smart_intent_classifier import classify
 from utils.water_parser import parse_water_amount
 from handlers.water import add_water_quick, cmd_water
 from handlers.activity import cmd_fitness
@@ -18,7 +18,7 @@ from utils.parsers import parse_food_items
 from utils.states import ActivityStates
 from database.db import get_session
 from database.models import User, Activity, StepsEntry
-from services.activity import CALORIES_PER_MINUTE
+from services.activity import calculate_activity_calories
 from services.weather import get_temperature as get_weather  # ✅ используем правильный модуль
 from handlers.media_handlers import process_food_items
 
@@ -42,11 +42,98 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
 
     intent_data = classify(text)
     intent = intent_data.get("intent")
+    confidence = intent_data.get("confidence", 0)
+    reasoning = intent_data.get("reasoning", "")
+    
+    logger.info(f"🧠 Классификация: {intent} (уверенность: {confidence:.2f}) - {reasoning}")
+
     text_lower = text.lower()
+
+    # ----- СМЕШАННЫЕ ЗАПРОСЫ -----
+    # Проверяем, есть ли в тексте несколько типов намерений
+    all_intents = []
+    
+    # Вода
+    water_amount = intent_data.get("amount")
+    if not water_amount:
+        water_amount = parse_water_amount(text)
+    if water_amount:
+        all_intents.append(("water", water_amount))
+    
+    # Шаги
+    steps = intent_data.get("steps")
+    if steps:
+        all_intents.append(("steps", steps))
+    
+    # Еда
+    food_items = []
+    if intent == "food":
+        items = intent_data.get("items")
+        if items:
+            food_items = [{'name': item, 'weight': 100} for item in items]
+        else:
+            parsed = parse_food_items(text)
+            if parsed:
+                food_items = [{'name': name, 'weight': 100} for name, _, _ in parsed]
+            else:
+                cleaned_text = text.strip()
+                if len(cleaned_text.split()) <= 3:
+                    food_items = [{'name': cleaned_text, 'weight': 100}]
+    
+    if food_items:
+        all_intents.append(("food", food_items))
+
+    # Если нашли несколько намерений, обрабатываем все
+    if len(all_intents) > 1:
+        logger.info(f"🔄 Найден смешанный запрос: {[intent_type for intent_type, _ in all_intents]}")
+        
+        for intent_type, data in all_intents:
+            if intent_type == "water":
+                await add_water_quick(message.from_user.id, data)
+                await message.answer(f"✅ Записано {data} мл воды.")
+            elif intent_type == "steps":
+                # Записываем шаги
+                async with get_session() as session:
+                    user_result = await session.execute(
+                        select(User).where(User.telegram_id == message.from_user.id)
+                    )
+                    user = user_result.scalar_one_or_none()
+                    if user:
+                        steps_entry = StepsEntry(
+                            user_id=user.id,
+                            steps_count=data,
+                            source='text_input'
+                        )
+                        session.add(steps_entry)
+                        await session.commit()
+                        
+                        goal_steps = user.daily_steps_goal or 10000
+                        percentage = (data / goal_steps * 100) if goal_steps > 0 else 0
+                        
+                        if percentage >= 100:
+                            motivation = "🏆 Отлично! Цель по шагам достигнута!"
+                        elif percentage >= 50:
+                            motivation = "💪 Хорошая работа!"
+                        else:
+                            motivation = "🚶 Хорошее начало!"
+                        
+                        await message.answer(f"✅ Записано {data:,} шагов! {motivation}")
+            elif intent_type == "food":
+                meal_type = intent_data.get("meal_type", "snack")
+                await state.update_data(selected_foods=[], meal_type=meal_type)
+                await process_food_items(message, state, data, meal_type)
+        return
+
+    # Если уверенность низкая, предлагаем выбор
+    if confidence < 0.3:
+        await show_unknown_keyboard(message, state, text)
+        return
 
     # ----- ВОДА (убрана ветка с покупкой) -----
     if intent == "water":
-        amount = parse_water_amount(text)
+        amount = intent_data.get("amount")
+        if not amount:
+            amount = parse_water_amount(text)
         if amount:
             await add_water_quick(message.from_user.id, amount)
             await message.answer(f"✅ Записано {amount} мл воды.")
@@ -54,13 +141,9 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
             await cmd_water(message, state)
         return
 
-    # ----- АКТИВНОСТЬ -----
-    if intent == "activity":
-        act_type = intent_data.get("activity_type")
-        duration = intent_data.get("duration")
-        distance_km = intent_data.get("distance_km")
+    # ----- ШАГИ -----
+    if intent == "steps":
         steps = intent_data.get("steps")
-
         if steps:
             # Используем новую систему StepsEntry вместо Activity
             async with get_session() as session:
@@ -95,12 +178,18 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
                 await message.answer(f"✅ Записано {steps:,} шагов! {motivation}")
             return
 
+    # ----- АКТИВНОСТЬ -----
+    if intent == "activity":
+        act_type = intent_data.get("activity_type")
+        duration = intent_data.get("duration")
+        distance_km = intent_data.get("distance_km")
+
         if distance_km and not duration:
-            if act_type == "running":
+            if act_type == "бег":
                 pace = 6.0
-            elif act_type == "walking":
+            elif act_type == "ходьба":
                 pace = 12.0
-            elif act_type == "cycling":
+            elif act_type == "велосипед":
                 pace = 4.0
             else:
                 pace = 8.0
@@ -128,9 +217,16 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
                     if not user:
                         await message.answer("❌ Сначала настройте профиль через /set_profile.")
                         return
-                    weight = user.weight or 70
-                    met = CALORIES_PER_MINUTE.get(act_type, 5)
-                    calories = met * weight * (duration / 60)
+                    
+                    # Используем новую функцию с учетом пола и возраста
+                    calories = calculate_activity_calories(
+                        activity_type=act_type,
+                        duration_minutes=duration,
+                        weight_kg=user.weight or 70,
+                        gender=user.gender,
+                        age=user.age,
+                        intensity="moderate"
+                    )
                     activity = Activity(
                         user_id=user.id,
                         activity_type=act_type,
@@ -168,9 +264,16 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
         else:
             parsed = parse_food_items(text)
             if not parsed:
-                await show_unknown_keyboard(message, state, text)
-                return
-            food_items = [{'name': name, 'weight': 100} for name, _, _ in parsed]
+                # Если парсер не нашел продукты, пробуем простой подход
+                # Очищаем текст и используем его как название продукта
+                cleaned_text = text.strip()
+                if len(cleaned_text.split()) <= 3:  # Не больше 3 слов
+                    food_items = [{'name': cleaned_text, 'weight': 100}]
+                else:
+                    await show_unknown_keyboard(message, state, text)
+                    return
+            else:
+                food_items = [{'name': name, 'weight': 100} for name, _, _ in parsed]
 
         await state.update_data(selected_foods=[], meal_type=meal_type)
         await process_food_items(message, state, food_items, meal_type)
@@ -197,17 +300,14 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
         await message.answer(weather_text)
         return
 
+    # ----- AI ЗАПРОСЫ -----
+    if intent == "ai":
+        from handlers.ai_assistant import process_single_ai_query
+        await process_single_ai_query(message, text)
+        return
+
     # ----- НЕОПРЕДЕЛЁННОЕ -----
-    await state.update_data(pending_text=text)
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🍽️ Записать как приём пищи", callback_data="choose_food")],
-        [InlineKeyboardButton(text="🤖 Спросить AI", callback_data="choose_ai")],
-        [InlineKeyboardButton(text="❌ Отмена", callback_data="action_cancel")]
-    ])
-    await message.answer(
-        f"📝 Вы написали:\n«{text}»\nКуда это добавить?",
-        reply_markup=keyboard
-    )
+    await show_unknown_keyboard(message, state, text)
     return
 
 # ----- ОБРАБОТЧИКИ КНОПОК ДЛЯ НЕОПРЕДЕЛЁННЫХ ТЕКСТОВ -----

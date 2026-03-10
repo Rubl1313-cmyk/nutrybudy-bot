@@ -432,6 +432,9 @@ async def _get_period_stats(user_id: int, session, start_date) -> dict:
 async def _create_modern_progress_message(user, stats: dict, period_name: str, period: str) -> str:
     """🎨 Создание современного сообщения с прогрессом"""
     
+    # Импортируем UI компоненты
+    from utils.ui_templates import ProgressBar, NutritionCard
+    
     # 🎯 Определяем статусы и мотивацию
     calorie_status = "🎯" if stats['avg_cal_consumed'] <= user.daily_calorie_goal else "⚠️"
     water_status = "💧" if stats['avg_water'] >= user.daily_water_goal else "💦"

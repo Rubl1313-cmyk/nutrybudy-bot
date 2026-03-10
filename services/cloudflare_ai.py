@@ -524,3 +524,4 @@ async def analyze_food_image(image_bytes: bytes, prompt: str = None) -> Optional
     if ingredients:
         return ", ".join(ingredients)
     return None
+

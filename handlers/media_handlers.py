@@ -772,7 +772,7 @@ async def handle_photo(message: Message, state: FSMContext):
     1. Получаем результат AI
     2. ИСПОЛЬЗУЕМ dish_name для поиска готового блюда
     3. Если не найдено - разбираем на ингредиенты
-    4. НИКОГДА не используем ингредиенты как название блюд��
+    4. НИКОГДА не используем ингредиенты как название блюд  
     """
     
     data = await state.get_data()
@@ -1332,7 +1332,7 @@ async def weight_callback(callback: CallbackQuery, state: FSMContext):
     food = selected_foods[idx]
 
     if action == "del":
-        # ✅ ИСПРАВЛЕНО: правильный порядок удаления э��ементов
+        # ✅ ИСПРАВЛЕНО: правильный порядок удаления э  ементов
         if idx < len(product_msg_ids):
             try:
                 await callback.bot.delete_message(callback.message.chat.id, product_msg_ids[idx])
@@ -2023,3 +2023,4 @@ async def _handle_recognition_failure(message: Message, state: FSMContext):
         reply_markup=keyboard
     )
     await state.update_data(last_photo_id=message.message_id)
+

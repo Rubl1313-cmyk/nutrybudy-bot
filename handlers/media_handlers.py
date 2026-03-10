@@ -29,6 +29,15 @@ from utils.states import FoodStates
 from database.db import get_session
 from database.models import Meal, FoodItem, User
 from sqlalchemy import select
+from utils.ui_templates import (
+    ProgressBar, NutritionCard, MealCard, 
+    WaterTracker, ActivityCard, StreakCard, StatisticsCard
+)
+from utils.message_templates import MessageTemplates
+from keyboards.improved_keyboards import (
+    get_food_recognition_result_keyboard,
+    get_daily_goals_keyboard,
+    get_time_period_keyboard
 
 router = Router()
 logger = logging.getLogger(__name__)
@@ -1309,6 +1318,9 @@ async def _safe_answer(callback: CallbackQuery):
 
 @router.callback_query(F.data == "confirm_meal")
 async def confirm_meal_callback(callback: CallbackQuery, state: FSMContext):
+    """
+    ✅ ОБНОВЛЕННАЯ версия с красивым интерфейсом
+    """
     logger.info(f"✅ confirm_meal_callback: user={callback.from_user.id}")
 
     data = await state.get_data()
@@ -1359,7 +1371,6 @@ async def confirm_meal_callback(callback: CallbackQuery, state: FSMContext):
         await session.flush()
 
         for f in selected_foods:
-            # ✅ ИСПРАВЛЕНО: правильная валидация веса
             weight = f.get('weight') or 0
             weight = float(weight) if weight else 0
             
@@ -1378,7 +1389,6 @@ async def confirm_meal_callback(callback: CallbackQuery, state: FSMContext):
 
         await session.commit()
         
-        # ✅ УЛУЧШЕНИЕ: логирование успешного сохранения
         logger.info(
             f"💾 Meal saved successfully: user_id={user.id}, "
             f"meal_type={meal_type}, total_cal={total_cal:.0f}, "
@@ -1397,17 +1407,159 @@ async def confirm_meal_callback(callback: CallbackQuery, state: FSMContext):
         except Exception as e:
             logger.warning(f"Could not delete totals message: {e}")
 
-        lines = [f"🍽️ <b>Записан приём пищи ({meal_type}):</b>"]
-        for f in selected_foods:
-            if f.get('weight', 0) > 0:
-                lines.append(f"• {f['name']}: {f['weight']}г")
-
-        lines.append(f"\n🔥 Всего: {total_cal:.0f} ккал")
-        lines.append(f"🥩 {total_prot:.1f}г | 🥑 {total_fat:.1f}г | 🍚 {total_carbs:.1f}г")
-
-        await callback.message.answer("\n".join(lines), parse_mode="HTML")
+        # ✅ КРАСИВОЕ СООБЩЕНИЕ ОБ УСПЕХЕ
+        success_message = MessageTemplates.meal_recorded_success(
+            meal_type, total_cal, total_prot, total_fat, total_carbs
+        )
+        
+        await callback.message.answer(success_message, parse_mode="HTML")
+        
+        # ========== ✅ ДНЕВНОЙ ПРОГРЕСС ==========
+        
+        # Получаем все приёмы пищи за сегодня
+        today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        today_end = datetime.now().replace(hour=23, minute=59, second=59, microsecond=999999)
+        
+        today_result = await session.execute(
+            select(Meal).where(
+                (Meal.user_id == user.id) &
+                (Meal.datetime >= today_start) &
+                (Meal.datetime <= today_end)
+            )
+        )
+        today_meals = today_result.scalars().all()
+        
+        # Вычисляем дневные итоги
+        daily_total_cal = sum(meal.total_calories for meal in today_meals)
+        daily_total_prot = sum(meal.total_protein for meal in today_meals)
+        daily_total_fat = sum(meal.total_fat for meal in today_meals)
+        daily_total_carbs = sum(meal.total_carbs for meal in today_meals)
+        
+        # Получаем цели пользователя
+        goal_cal = user.daily_goal_calories or 2000
+        goal_prot = user.daily_goal_protein or 150
+        goal_fat = user.daily_goal_fat or 65
+        goal_carbs = user.daily_goal_carbs or 250
+        
+        # ✅ Красивая карточка прогресса дня
+        daily_progress = NutritionCard.create_daily_goal_card(
+            daily_total_cal, goal_cal,
+            daily_total_prot, goal_prot,
+            daily_total_fat, goal_fat,
+            daily_total_carbs, goal_carbs
+        )
+        
+        await callback.message.answer(daily_progress, parse_mode="HTML")
+        
+        # ========== ✅ МОТИВАЦ��ОННОЕ СООБЩЕНИЕ ==========
+        
+        # Определяем, достигнута ли цель
+        cal_percentage = (daily_total_cal / goal_cal * 100) if goal_cal > 0 else 0
+        
+        if cal_percentage >= 90 and cal_percentage <= 110:
+            motivation = "🎯 <b>Отличный результат!</b> Вы прямо на цели! Продолжайте так!"
+        elif cal_percentage > 110:
+            motivation = "⚠️ <b>Чуть больше, чем нужно.</b> Завтра будет лучше!"
+        elif cal_percentage < 50:
+            motivation = "💪 <b>Не забывайте питаться!</b> Вы недостаточно едите."
+        elif cal_percentage < 80:
+            motivation = "👍 <b>Хороший день!</b> Дополните обед или ужин."
+        else:
+            motivation = "✨ <b>Отличная работа!</b> Продолжайте в том же духе!"
+        
+        await callback.message.answer(motivation, parse_mode="HTML")
+        
+        # ========== ✅ МАКРОНУТРИЕНТНАЯ ДИАГРАММА ==========
+        
+        macros_chart = NutritionCard.create_macros_pie_chart(
+            daily_total_prot, daily_total_fat, daily_total_carbs
+        )
+        
+        macros_message = (
+            f"📊 <b>Распределение макросов за день:</b>\n\n"
+            f"{macros_chart}"
+        )
+        
+        await callback.message.answer(macros_message, parse_mode="HTML")
+        
+        # 🎉 Очищаем состояние
         await state.clear()
         await _safe_answer(callback)
+
+@router.message(Command("today"))
+async def cmd_today_summary(message: Message):
+    """
+    ✨ Команда для просмотра дневной сводки
+    /today - показывает прогресс дня
+    """
+    user_id = message.from_user.id
+    
+    async with get_session() as session:
+        user_result = await session.execute(
+            select(User).where(User.telegram_id == user_id)
+        )
+        user = user_result.scalar_one_or_none()
+        
+        if not user:
+            await message.answer("❌ Сначала настройте профиль (/set_profile)")
+            return
+        
+        # Получаем приёмы пищи за сегодня
+        today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        today_end = datetime.now().replace(hour=23, minute=59, second=59, microsecond=999999)
+        
+        meals_result = await session.execute(
+            select(Meal).where(
+                (Meal.user_id == user.id) &
+                (Meal.datetime >= today_start) &
+                (Meal.datetime <= today_end)
+            ).order_by(Meal.datetime)
+        )
+        today_meals = meals_result.scalars().all()
+        
+        # Вычисляем итоги
+        daily_total_cal = sum(meal.total_calories for meal in today_meals)
+        daily_total_prot = sum(meal.total_protein for meal in today_meals)
+        daily_total_fat = sum(meal.total_fat for meal in today_meals)
+        daily_total_carbs = sum(meal.total_carbs for meal in today_meals)
+        
+        goal_cal = user.daily_goal_calories or 2000
+        goal_prot = user.daily_goal_protein or 150
+        goal_fat = user.daily_goal_fat or 65
+        goal_carbs = user.daily_goal_carbs or 250
+        
+        # ✅ Красивая дневная сводка
+        daily_summary = MessageTemplates.daily_summary(
+            datetime.now().strftime("%d.%m.%Y"),
+            daily_total_cal, goal_cal,
+            daily_total_prot, daily_total_fat, daily_total_carbs,
+            0,  # вода - получить из БД если нужно
+            2000,  # цель воды
+            0  # серия дней
+        )
+        
+        await message.answer(daily_summary, parse_mode="HTML")
+        
+        # ✅ Прогресс-карточка
+        daily_progress = NutritionCard.create_daily_goal_card(
+            daily_total_cal, goal_cal,
+            daily_total_prot, goal_prot,
+            daily_total_fat, goal_fat,
+            daily_total_carbs, goal_carbs
+        )
+        
+        await message.answer(daily_progress, parse_mode="HTML")
+        
+        # ✅ Макросы
+        macros_chart = NutritionCard.create_macros_pie_chart(
+            daily_total_prot, daily_total_fat, daily_total_carbs
+        )
+        
+        await message.answer(
+            f"📊 <b>Распределение макросов:</b>\n\n{macros_chart}",
+            parse_mode="HTML"
+        )
+
 
 @router.callback_query(F.data == "cancel_meal")
 async def cancel_meal_callback(callback: CallbackQuery, state: FSMContext):

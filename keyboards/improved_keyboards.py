@@ -20,7 +20,7 @@ def get_modern_main_menu() -> InlineKeyboardMarkup:
     )
     
     builder.row(
-        InlineKeyboardButton(text="� Вода", callback_data="log_water"),
+        InlineKeyboardButton(text="💧 Вода", callback_data="log_water"),
         InlineKeyboardButton(text="🏋️ Активность", callback_data="log_activity")
     )
     
@@ -32,7 +32,7 @@ def get_modern_main_menu() -> InlineKeyboardMarkup:
     
     # Инструменты
     builder.row(
-        InlineKeyboardButton(text="� Статистика", callback_data="show_statistics"),
+        InlineKeyboardButton(text="📈 Статистика", callback_data="show_statistics"),
         InlineKeyboardButton(text="⚙️ Настройки", callback_data="settings")
     )
     
@@ -105,98 +105,119 @@ def get_modern_water_keyboard(current_ml: int, goal_ml: int = 2000) -> InlineKey
     )
     
     return builder.as_markup()
-    builder.button(text="🥩 -5g", callback_data=f"macro_protein_{food_index}_-5")
-    builder.button(text="🥩 +5g", callback_data=f"macro_protein_{food_index}_+5")
+
+def get_food_recognition_result_keyboard(
+    has_matches: bool = True,
+    can_use_ai_ingredients: bool = True
+) -> InlineKeyboardMarkup:
+    """
+    🎨 Современная клавиатура для результатов распознавания еды
+    """
+    builder = InlineKeyboardBuilder()
     
-    # Быстрые пресеты жиров
-    builder.button(text="🥑 -5g", callback_data=f"macro_fat_{food_index}_-5")
-    builder.button(text="🥑 +5g", callback_data=f"macro_fat_{food_index}_+5")
+    if has_matches:
+        builder.button(
+            text="🍽️ Выбрать из базы",
+            callback_data="select_from_db"
+        )
     
-    # Быстрые пресеты углеводов
-    builder.button(text="🍚 -10g", callback_data=f"macro_carbs_{food_index}_-10")
-    builder.button(text="🍚 +10g", callback_data=f"macro_carbs_{food_index}_+10")
+    if can_use_ai_ingredients:
+        builder.button(
+            text="🔍 Разобрать на ингредиенты",
+            callback_data="use_ingredients_instead"
+        )
     
-    builder.adjust(2)
+    builder.button(
+        text="✍️ Ввести вручную",
+        callback_data="manual_food_entry"
+    )
     
-    builder.row(InlineKeyboardButton(text="✅ Готово", callback_data="close_macro_edit"))
+    builder.button(
+        text="🔄 Перераспознать",
+        callback_data="retry_photo"
+    )
     
+    builder.button(
+        text="❌ Отмена",
+        callback_data="action_cancel"
+    )
+    
+    builder.adjust(1)
     return builder.as_markup()
 
 def get_daily_goals_keyboard() -> InlineKeyboardMarkup:
     """
-    Красивая клавиатура для просмотра целей
-    С прогресс-барами в названиях кнопок
+    🎯 Клавиатура для дневных целей
     """
     builder = InlineKeyboardBuilder()
     
-    builder.button(
-        text="🔥 Калории",
-        callback_data="view_goal_calories"
+    builder.row(
+        InlineKeyboardButton(text="📊 Изменить цели", callback_data="edit_goals"),
+        InlineKeyboardButton(text="📈 Статистика", callback_data="show_stats")
     )
     
-    builder.button(
-        text="🥩 Белки",
-        callback_data="view_goal_protein"
+    builder.row(
+        InlineKeyboardButton(text="💧 Цель воды", callback_data="water_goal"),
+        InlineKeyboardButton(text="🏋️ Цель калорий", callback_data="calorie_goal")
     )
     
-    builder.button(
-        text="🥑 Жиры",
-        callback_data="view_goal_fat"
+    builder.row(
+        InlineKeyboardButton(text="⚙️ Настройки", callback_data="settings"),
+        InlineKeyboardButton(text="❌ Закрыть", callback_data="close")
     )
     
-    builder.button(
-        text="🍚 Углеводы",
-        callback_data="view_goal_carbs"
-    )
-    
-    builder.row(InlineKeyboardButton(text="⚙️ Настроить цели", callback_data="edit_goals"))
-    builder.row(InlineKeyboardButton(text="🔙 Назад", callback_data="menu_back"))
-    
-    builder.adjust(2)
     return builder.as_markup()
 
 def get_time_period_keyboard() -> InlineKeyboardMarkup:
     """
-    Выбор временного периода для статистики
-    С интуитивными иконками
+    ⏰ Клавиатура выбора периода
     """
     builder = InlineKeyboardBuilder()
     
-    builder.button(text="📅 Сегодня", callback_data="stats_today")
-    builder.button(text="📆 Неделя", callback_data="stats_week")
-    builder.button(text="📊 Месяц", callback_data="stats_month")
-    builder.button(text="📈 Год", callback_data="stats_year")
+    builder.row(
+        InlineKeyboardButton(text="📅 Сегодня", callback_data="period_today"),
+        InlineKeyboardButton(text="📆 Неделя", callback_data="period_week")
+    )
     
-    builder.adjust(2)
-    builder.row(InlineKeyboardButton(text="🔙 Назад", callback_data="menu_back"))
+    builder.row(
+        InlineKeyboardButton(text="📊 Месяц", callback_data="period_month"),
+        InlineKeyboardButton(text="📈 Всё время", callback_data="period_all")
+    )
+    
+    builder.row(
+        InlineKeyboardButton(text="❌ Закрыть", callback_data="close")
+    )
     
     return builder.as_markup()
 
-def get_meal_quick_actions_keyboard() -> InlineKeyboardMarkup:
+def get_macro_adjustment_keyboard(food_index: int, totals_msg_id: int) -> InlineKeyboardMarkup:
     """
-    Быстрые действия для приёма пищи
-    """
-    builder = InlineKeyboardBuilder()
-    
-    builder.button(text="📸 Фото", callback_data="meal_photo")
-    builder.button(text="📝 Текст", callback_data="meal_text")
-    builder.button(text="🎤 Голос", callback_data="meal_voice")
-    
-    builder.row(InlineKeyboardButton(text="📜 История", callback_data="meal_history"))
-    builder.row(InlineKeyboardButton(text="❌ Отмена", callback_data="action_cancel"))
-    
-    builder.adjust(3)
-    return builder.as_markup()
-
-def get_streak_actions_keyboard() -> InlineKeyboardMarkup:
-    """
-    Действия со сериями достижений
+    Клавиатура для быстрого редактирования макронутриентов
     """
     builder = InlineKeyboardBuilder()
     
-    builder.button(text="🔥 Моя серия", callback_data="view_streak")
-    builder.button(text="📊 Статистика", callback_data="view_statistics")
-    builder.button(text="🏆 Достижения", callback_data="view_achievements")
+    # Быстрые пресеты веса
+    builder.row(
+        InlineKeyboardButton(text="➖10г", callback_data=f"weight_dec_{food_index}_10_{totals_msg_id}"),
+        InlineKeyboardButton(text="➖50г", callback_data=f"weight_dec_{food_index}_50_{totals_msg_id}")
+    )
     
-    builder.adjust(1)
+    builder.row(
+        InlineKeyboardButton(text="➕10г", callback_data=f"weight_inc_{food_index}_10_{totals_msg_id}"),
+        InlineKeyboardButton(text="➕50г", callback_data=f"weight_inc_{food_index}_50_{totals_msg_id}")
+    )
+    
+    # Быстрые пресеты
+    builder.row(
+        InlineKeyboardButton(text="100г", callback_data=f"weight_set_{food_index}_100_{totals_msg_id}"),
+        InlineKeyboardButton(text="150г", callback_data=f"weight_set_{food_index}_150_{totals_msg_id}"),
+        InlineKeyboardButton(text="200г", callback_data=f"weight_set_{food_index}_200_{totals_msg_id}")
+    )
+    
+    # Управление
+    builder.row(
+        InlineKeyboardButton(text="❌ Удалить", callback_data=f"weight_del_{food_index}_{totals_msg_id}"),
+        InlineKeyboardButton(text="✅ Готово", callback_data="close_macro_edit")
+    )
+    
     return builder.as_markup()

@@ -37,34 +37,43 @@ _RECOGNITION_CACHE: Dict[str, Tuple[Dict, datetime]] = {}
 _CACHE_TTL = 3600  # 1 час
 
 # ========== УЛУЧШЕННЫЕ ПРОМПТЫ ==========
-FOOD_RECOGNITION_PROMPT = """You are an expert food nutritionist. Analyze this food image and return ONLY valid JSON.
+FOOD_RECOGNITION_PROMPT = """You are an expert food nutritionist with 10+ years of experience. Analyze this food image carefully and return ONLY valid JSON.
 
-CRITICAL: Return pure JSON without markdown, without backslashes before underscores, without any formatting.
+CRITICAL REQUIREMENTS:
+1. Return pure JSON without markdown, without backslashes before underscores, without any formatting
+2. Be SPECIFIC about dishes - use exact names like "grilled chicken breast" not just "chicken"
+3. Estimate weights realistically based on portion size
+4. Consider cooking methods visible in the image
 
-REQUIRED JSON:
+REQUIRED JSON FORMAT:
 {
   "dish_name": "Specific dish name in English",
   "ingredients": [
-    {"name": "ingredient", "type": "protein|vegetable|carb|fat|other", "estimated_weight_grams": 100, "confidence": 0.9}
+    {"name": "ingredient", "type": "protein|vegetable|carb|fat|sauce|garnish|other", "estimated_weight_grams": 100, "confidence": 0.9}
   ],
   "confidence": 0.85,
   "meal_type": "breakfast|lunch|dinner|snack",
-  "cooking_method": "grilled|fried|boiled|steamed|baked|raw",
-  "portion_size": "small|medium|large"
+  "cooking_method": "grilled|fried|boiled|steamed|baked|raw|roasted",
+  "portion_size": "small|medium|large",
+  "complexity": "simple|moderate|complex"
 }
 
 RULES:
-1. Use ONLY double quotes "not single quotes"
+1. Use ONLY double quotes, never single quotes
 2. NO backslashes before underscores (use "dish_name" NOT "dish\_name")
-3. NO markdown code blocks
+3. NO markdown code blocks ```json```
 4. NO trailing commas
-5. All numbers unquoted
-6. Be specific: "grilled chicken skewers" NOT just "meat"
+5. All numbers must be unquoted
+6. Be as specific as possible about dishes and ingredients
+7. Consider visual cues for cooking methods
+8. Estimate portion sizes realistically
 
-EXAMPLE:
-{"dish_name":"Grilled chicken skewers","ingredients":[{"name":"chicken breast","type":"protein","estimated_weight_grams":200,"confidence":0.95}],"confidence":0.9,"meal_type":"lunch","cooking_method":"grilled","portion_size":"medium"}
+EXAMPLES:
+{"dish_name":"grilled chicken breast with vegetables","ingredients":[{"name":"chicken breast","type":"protein","estimated_weight_grams":150,"confidence":0.95},{"name":"broccoli","type":"vegetable","estimated_weight_grams":100,"confidence":0.9}],"confidence":0.9,"meal_type":"lunch","cooking_method":"grilled","portion_size":"medium","complexity":"simple"}
 
-Now analyze and return JSON:"""
+{"dish_name":"spaghetti carbonara","ingredients":[{"name":"spaghetti pasta","type":"carb","estimated_weight_grams":80,"confidence":0.9},{"name":"bacon","type":"protein","estimated_weight_grams":60,"confidence":0.85},{"name":"eggs","type":"protein","estimated_weight_grams":50,"confidence":0.8}],"confidence":0.85,"meal_type":"dinner","cooking_method":"boiled","portion_size":"medium","complexity":"moderate"}
+
+Now analyze the image and return JSON:"""
 
 # ========== КЭШИРОВАНИЕ ==========
 def _get_image_hash(image_bytes: bytes) -> str:
@@ -515,3 +524,4 @@ async def analyze_food_image(image_bytes: bytes, prompt: str = None) -> Optional
     if ingredients:
         return ", ".join(ingredients)
     return None
+

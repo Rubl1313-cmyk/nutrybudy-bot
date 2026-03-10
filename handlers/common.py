@@ -230,8 +230,8 @@ async def show_progress_main_callback(callback: CallbackQuery, state: FSMContext
 async def period_callback(callback: CallbackQuery, state: FSMContext):
     """🎨 Обработчик выбора периода из главного меню"""
     # 📊 Логирование для отладки
-    print(f"🔍 DEBUG: Получен callback: {callback.data}")
-    print(f"🔍 DEBUG: От пользователя: {callback.from_user.id}")
+    logger.info(f"🔍 DEBUG: Получен callback: {callback.data}")
+    logger.info(f"🔍 DEBUG: От пользователя: {callback.from_user.id}")
     
     period = callback.data.split("_")[1]  # today / week / month / all
     user_id = callback.from_user.id
@@ -239,7 +239,7 @@ async def period_callback(callback: CallbackQuery, state: FSMContext):
     await callback.answer(f"📊 Загружаю статистику...")
     
     # 📊 Логирование периода
-    print(f"🔍 DEBUG: Период: {period}")
+    logger.info(f"🔍 DEBUG: Период: {period}")
     
     await callback.message.delete()
     await state.clear()
@@ -260,7 +260,7 @@ async def period_callback(callback: CallbackQuery, state: FSMContext):
         )
         user = result.scalar_one_or_none()
         if not user:
-            print(f"🔍 DEBUG: Пользователь не найден!")
+            logger.error(f"🔍 DEBUG: Пользователь не найден!")
             await callback.message.answer(
                 "❌ Пользователь не найден.",
                 reply_markup=get_main_keyboard()
@@ -268,7 +268,7 @@ async def period_callback(callback: CallbackQuery, state: FSMContext):
             return
 
         # 📊 Логирование пользователя
-        print(f"🔍 DEBUG: Пользователь найден: {user.first_name}")
+        logger.info(f"🔍 DEBUG: Пользователь найден: {user.first_name}")
 
         # Определяем диапазон дат
         today = datetime.now().date()
@@ -286,13 +286,13 @@ async def period_callback(callback: CallbackQuery, state: FSMContext):
             period_name = "за всё время"
 
         # 📊 Логирование дат
-        print(f"🔍 DEBUG: Период {period_name}, стартовая дата: {start_date}")
+        logger.info(f"🔍 DEBUG: Период {period_name}, стартовая дата: {start_date}")
 
         # 📊 Получаем статистику за период
         stats = await _get_period_stats(user.id, session, start_date)
         
         # 📊 Логирование статистики
-        print(f"🔍 DEBUG: Статистика получена: {len(stats)} полей")
+        logger.info(f"🔍 DEBUG: Статистика получена: {len(stats)} полей")
         
         # 🎨 Создаем современное сообщение с прогрессом
         progress_message = await _create_modern_progress_message(
@@ -300,7 +300,7 @@ async def period_callback(callback: CallbackQuery, state: FSMContext):
         )
         
         # 📊 Логирование сообщения
-        print(f"🔍 DEBUG: Сообщение создано, длина: {len(progress_message)}")
+        logger.info(f"🔍 DEBUG: Сообщение создано, длина: {len(progress_message)}")
         
         await callback.message.answer(
             progress_message, 
@@ -312,7 +312,7 @@ async def period_callback(callback: CallbackQuery, state: FSMContext):
         await _send_progress_charts(callback, user, session, period, period_name)
         
         # 📊 Логирование завершения
-        print(f"🔍 DEBUG: Обработчик завершен успешно")
+        logger.info(f"🔍 DEBUG: Обработчик завершен успешно")
 
 async def _get_period_stats(user_id: int, session, start_date) -> dict:
     """📊 Получение статистики за период"""

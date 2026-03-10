@@ -117,7 +117,7 @@ async def init_db():
                     logger.info("ℹ️ Column 'daily_steps_goal' already exists")
 
             # Миграция BIGINT
-            await migrate_to_bigint(conn)
+            await _ensure_bigint_columns(conn)
 
             # Проверяем список таблиц для отладки (только для PostgreSQL)
             result = await conn.execute(text(

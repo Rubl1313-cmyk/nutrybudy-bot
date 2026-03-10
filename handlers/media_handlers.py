@@ -84,50 +84,60 @@ async def _get_food_data_cached(name: str, return_variants: bool = False) -> Uni
             'base_carbs': best.get('carbs', 0),
             'source': 'local'
         }
-        if food_data is None:
-            # Ничего не найдено
-            selected_food = {
-                'name': product_name,
-                'weight': current_item.get('weight', 100),
-                'base_calories': 0,
-                'base_protein': 0,
-                'base_fat': 0,
-                'base_carbs': 0,
-                'source': 'unknown',
-                'ai_confidence': current_item.get('ai_confidence', 0.5)
-            }
-        elif isinstance(food_data, list) and len(food_data) > 1:
-            # Показываем пользователю список вариантов
-            total_pages = (len(food_data) + VARIANTS_PER_PAGE - 1) // VARIANTS_PER_PAGE
-            await _show_variants_page(
-                message, state, food_data, current_item, meal_type,
-                current_index, page=0, total_pages=total_pages
-            )
-            return   # ждём выбора
-        elif isinstance(food_data, dict):
-            # Единственный вариант – используем его
-            selected_food = {
-                'name': food_data['name'],
-                'weight': current_item.get('weight', 100),
-                'base_calories': food_data.get('base_calories', 0),
-                'base_protein': food_data.get('base_protein', 0),
-                'base_fat': food_data.get('base_fat', 0),
-                'base_carbs': food_data.get('base_carbs', 0),
-                'source': food_data.get('source', 'unknown'),
-                'ai_confidence': current_item.get('ai_confidence', 0.5)
-            }
-        else:
-            # Неожиданный результат (пустой список, не список и не словарь)
-            selected_food = {
-                'name': product_name,
-                'weight': current_item.get('weight', 100),
-                'base_calories': 0,
-                'base_protein': 0,
-                'base_fat': 0,
-                'base_carbs': 0,
-                'source': 'unknown',
-                'ai_confidence': current_item.get('ai_confidence', 0.5)
-            }
+if food_data is None:
+        selected_food = {
+            'name': product_name,
+            'weight': current_item.get('weight', 100),
+            'base_calories': 0,
+            'base_protein': 0,
+            'base_fat': 0,
+            'base_carbs': 0,
+            'source': 'unknown',
+            'ai_confidence': current_item.get('ai_confidence', 0.5)
+        }
+        selected_foods.append(selected_food)
+        await state.update_data(selected_foods=selected_foods)
+        await process_food_items(message, state, food_items, meal_type, start_index + 1, skip_dish_check)
+        return
+
+    # Несколько вариантов – показываем выбор
+    if isinstance(food_data, list) and len(food_data) > 1:
+        total_pages = (len(food_data) + VARIANTS_PER_PAGE - 1) // VARIANTS_PER_PAGE
+        await _show_variants_page(
+            message, state, food_data, current_item, meal_type,
+            start_index, page=0, total_pages=total_pages
+        )
+        return
+
+    # Единственный вариант (словарь)
+    if isinstance(food_data, dict):
+        selected_food = {
+            'name': food_data['name'],
+            'weight': current_item.get('weight', 100),
+            'base_calories': food_data.get('base_calories', 0),
+            'base_protein': food_data.get('base_protein', 0),
+            'base_fat': food_data.get('base_fat', 0),
+            'base_carbs': food_data.get('base_carbs', 0),
+            'source': food_data.get('source', 'unknown'),
+            'ai_confidence': current_item.get('ai_confidence', 0.5)
+        }
+    else:
+        # Если это пустой список или другой тип – заглушка
+        selected_food = {
+            'name': product_name,
+            'weight': current_item.get('weight', 100),
+            'base_calories': 0,
+            'base_protein': 0,
+            'base_fat': 0,
+            'base_carbs': 0,
+            'source': 'unknown',
+            'ai_confidence': current_item.get('ai_confidence', 0.5)
+        }
+
+    selected_foods.append(selected_food)
+    await state.update_data(selected_foods=selected_foods)
+    await process_food_items(message, state, food_items, meal_type, start_index + 1, skip_dish_check)
+
     logger.warning(f"🔍 Варианты не найдены, возвращаем заглушку для '{name}'")
     return {
         'name': name,

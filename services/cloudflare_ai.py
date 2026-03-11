@@ -44,6 +44,8 @@ CRITICAL RULES:
 2. NEVER confuse soups with main dishes - soups are LIQUID dishes
 3. Identify SPECIFIC types, not generic categories
 4. Recognize COMPLETE dishes, not just components
+5. SKEWERER/KEBAB IDENTIFICATION IS CRITICAL - NEVER identify meat skewers as fish!
+6. Meat on skewers has distinct texture and structure - recognize this pattern!
 
 FOOD CATEGORIES (MUTUALLY EXCLUSIVE):
 
@@ -54,9 +56,12 @@ FOOD CATEGORIES (MUTUALLY EXCLUSIVE):
 - NEVER call fish "meat" - it's "fish" or "seafood"
 
  MEAT (МЯСО):
-- Beef/говядина, pork/свинина, lamb/баранина, veal/телятина
-- Chicken/курица, turkey/индейка, duck/утка
-- ONLY solid meat dishes, NOT fish
+- Beef/говядина, pork/свинина, chicken/курица, lamb/ягнятина, turkey/индейка
+- Sausages/колбасы, hot dogs/сосиски
+- Steak/стейк, cutlets/отбивные
+- Ground meat/фарш, minced meat/фарш
+- CRITICAL: Meat on skewers (шашлик/кебаб) is ALWAYS meat, NEVER fish!
+- Look for: cylindrical shape, grill marks, wooden/metal sticks, meat pieces threaded on sticks
 
  SOUPS (СУПЫ - ЖИДКИЕ БЛЮДА):
 - Borscht/борщ (beet soup with meat and vegetables)
@@ -155,11 +160,16 @@ Image: Chicken breast with buckwheat
   {"dish_name": "buckwheat", "category": "grains", ...}
 ]
 
+Image: Meat pieces on wooden/metal skewers (шашлик)
+ CORRECT: {"dish_name": "meat skewers", "category": "meat", "cooking_method": "grilled", ...}
+ WRONG: {"dish_name": "salmon with bread", ...}  # CRITICAL ERROR!
+
 CRITICAL DISTINCTIONS:
 - FISH ≠ MEAT (рыба ≠ мясо)
 - SOUP ≠ MAIN DISH (суп ≠ второе блюдо)
 - SALAD ≠ SIDE DISH (салат ≠ гарнир)
 - Be SPECIFIC: "salmon" NOT "fish", "borscht" NOT "soup"
+- SKEWERS = MEAT, NEVER FISH! (шампуры = мясо, никогда рыба!)
 
 Now analyze image with MAXIMUM precision and return ONLY valid JSON."""
 
@@ -1110,6 +1120,31 @@ def _fix_common_recognition_errors(data: Dict) -> Dict:
         data['preparation_style'] = 'baked'
         logger.info("🔧 Fixed: Identified as baked fish")
     
+    # ========== КРИТИЧЕСКОЕ: ШАМПУРЫ/ШАШЛИК ==========
+    
+    # Шашлик/кебаб - КРИТИЧЕСКИ ВАЖНОЕ ПРАВИЛО!
+    skewer_keywords = ['skewer', 'kebab', 'shashlik', 'шашлик', 'шампур', 'шпажка', 'stick']
+    meat_keywords = ['beef', 'pork', 'chicken', 'lamb', 'meat', 'говядина', 'свинина', 'курица', 'баранина', 'мясо']
+    
+    if (any(skewer in dish_name for skewer in skewer_keywords) or 
+        any(skewer in ' '.join(ingredient_names) for skewer in skewer_keywords)) and \
+       any(meat in ingredient_names for meat in meat_keywords):
+        data['dish_name'] = 'шашлик'
+        data['category'] = 'meat'
+        data['preparation_style'] = 'grilled'
+        logger.info("🔧 CRITICAL FIX: Identified as meat skewers (шашлик) - NOT fish!")
+    
+    # ЗАЩИТА от ошибки "лосось с хлебом" вместо шашлика
+    if ('salmon' in dish_name or 'лосось' in dish_name) and \
+       ('bread' in dish_name or 'хлеб' in dish_name):
+        # Проверяем, возможно это шашлик
+        if any(skewer in ' '.join(ingredient_names) for skewer in skewer_keywords) or \
+           'grilled' in dish_name or 'grill' in dish_name:
+            data['dish_name'] = 'шашлик'
+            data['category'] = 'meat'
+            data['preparation_style'] = 'grilled'
+            logger.info("🔧 CRITICAL FIX: Corrected 'salmon with bread' to meat skewers!")
+    
     # ========== ОВощеві БЛЮДА ==========
     
     # Тушені овочі
@@ -1127,6 +1162,18 @@ def _fix_common_recognition_errors(data: Dict) -> Dict:
         if 'meat' in dish_name:
             data['dish_name'] = dish_name.replace('meat', 'fish')
             logger.info("🔧 Fixed: Changed 'meat' to 'fish'")
+    
+    # КРИТИЧЕСКАЯ ЗАЩИТА: шашлик НЕ МОЖЕТ БЫТЬ рыбой!
+    if ('salmon' in dish_name or 'лосось' in dish_name) and \
+       ('bread' in dish_name or 'хлеб' in dish_name):
+        # Это почти наверняка шашлик, а не лосось с хлебом
+        skewer_indicators = ['grilled', 'stick', 'skewer', 'kebab', 'шампур', 'шашлик']
+        if any(indicator in dish_name for indicator in skewer_indicators) or \
+           any(indicator in ' '.join(ingredient_names) for indicator in skewer_indicators):
+            data['dish_name'] = 'шашлик'
+            data['category'] = 'meat'
+            data['preparation_style'] = 'grilled'
+            logger.info("🔧 CRITICAL SAFEGUARD: Fixed 'salmon with bread' to 'шашлик' (meat skewers)")
     
     # Исправление: жидкое блюдо = суп
     if data.get('preparation_style') == 'liquid' or data.get('soup'):

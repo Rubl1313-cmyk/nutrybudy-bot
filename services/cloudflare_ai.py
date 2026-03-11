@@ -36,10 +36,71 @@ VISION_MODELS = [
 _RECOGNITION_CACHE: Dict[str, Tuple[Dict, datetime]] = {}
 _CACHE_TTL = 3600  # 1 час
 
-# ========== УЛУЧШЕННЫЕ ПРОМПТЫ ==========
+# ========== ПРОМПТЫ РАСПОЗНАВАНИЯ ЕДЫ ==========
+
+FOOD_RECOGNITION_PROMPT = """You are an expert food recognition AI. Analyze this food image and return ONLY valid JSON.
+
+CRITICAL RULES:
+1. Identify the COMPLETE DISH, not just ingredients
+2. NEVER return just "meat", "beef", "chicken" - these are ingredients, not dishes!
+3. If you see meat on wooden/metal sticks → it's "shashlik" or "meat skewers" or "kebabs"
+4. Be specific about cooking method and dish type
+
+VISUAL CUES FOR SHASHLIK/KEBABS:
+- Cylindrical meat pieces threaded on sticks
+- Wooden or metal skewers visible
+- Grill marks on meat
+- Charred edges
+- Meat pieces stacked linearly
+- Often served with onions, vegetables on the side
+
+REQUIRED JSON FORMAT:
+{
+  "dish_name": "Specific dish name (e.g., 'beef shashlik', 'chicken skewers', 'borscht')",
+  "ingredients": [
+    {"name": "ingredient", "type": "protein|vegetable|carb|fat|other", "estimated_weight_grams": 100, "confidence": 0.9}
+  ],
+  "confidence": 0.85,
+  "meal_type": "breakfast|lunch|dinner|snack",
+  "cooking_method": "grilled|fried|boiled|steamed|baked|raw",
+  "portion_size": "small|medium|large"
+}
+
+EXAMPLES OF CORRECT RECOGNITION:
+
+Image: Meat pieces on wooden sticks with grill marks
+CORRECT: {"dish_name": "beef shashlik", "ingredients": [{"name": "beef", "type": "protein", "estimated_weight_grams": 200}], "cooking_method": "grilled"}
+WRONG: {"dish_name": "beef"} This is an ingredient, not a dish!
+
+Image: Red soup with beets and sour cream
+CORRECT: {"dish_name": "borscht", "ingredients": [{"name": "beets", "type": "vegetable"}, {"name": "cabbage", "type": "vegetable"}], "cooking_method": "boiled"}
+WRONG: {"dish_name": "meat with bread"} Completely wrong!
+
+Image: Pink fish fillet with pasta
+CORRECT: {"dish_name": "grilled salmon with pasta", "ingredients": [{"name": "salmon", "type": "protein"}, {"name": "pasta", "type": "carb"}]}
+WRONG: {"dish_name": "meat with pasta"} Fish is not meat!
+
+Image: Chicken pieces on metal skewers
+CORRECT: {"dish_name": "chicken shashlik", "ingredients": [{"name": "chicken", "type": "protein"}], "cooking_method": "grilled"}
+WRONG: {"dish_name": "chicken"} This is an ingredient!
+
+Image: Pork on wooden sticks with onions
+CORRECT: {"dish_name": "pork kebabs", "ingredients": [{"name": "pork", "type": "protein"}, {"name": "onion", "type": "vegetable"}], "cooking_method": "grilled"}
+WRONG: {"dish_name": "pork with bread"} Wrong identification!
+
+JSON FORMATTING RULES:
+1. Use ONLY double quotes "not single quotes"
+2. NO backslashes before underscores (use "dish_name" NOT "dish_name")
+3. NO markdown code blocks (no ```json)
+4. NO trailing commas
+5. All numbers unquoted
+6. Return ONLY the JSON object, nothing else
+
+Now analyze the image and return ONLY valid JSON:"""
+
 ENHANCED_FOOD_RECOGNITION_PROMPT = """You are an expert food recognition AI specializing in Russian and international cuisine. Your task is to identify COMPLETE DISHES, not just ingredients.
 
-🚨 CRITICAL RULE - MOST IMPORTANT:
+CRITICAL RULE - MOST IMPORTANT:
 NEVER return just a raw ingredient name (like "beef", "chicken", "pork") as dish_name!
 ALWAYS identify the PREPARED DISH based on cooking method and presentation!
 
@@ -1190,330 +1251,81 @@ async def identify_food_cascade(
 
 def _fix_common_recognition_errors(data: Dict) -> Dict:
     """
-    Универсальная система исправления ошибок распознавания для ВСЕХ типов блюд
+    Исправляет типичные ошибки распознавания, особенно для шашлыка
     """
     if not data or 'dish_name' not in data:
         return data
     
-    dish_name = data['dish_name'].lower()
+    dish_name = data.get('dish_name', '').lower()
     ingredients = data.get('ingredients', [])
     ingredient_names = [ing.get('name', '').lower() for ing in ingredients]
+    cooking_method = data.get('cooking_method', '').lower()
     
-    logger.info(f"🔧 Starting universal error correction for: {dish_name}")
-    logger.info(f"🔧 Ingredients detected: {ingredient_names}")
+    logger.info(f"🔧 Starting error correction for: {dish_name}")
     
-    # ========== РУССКИЕ СУПЫ ==========
+    # ========== КРИТИЧЕСКОЕ: ШАШЛЫК/KEBABS ==========
+    skewer_indicators = [
+        'grilled', 'stick', 'skewer', 'kebab', 'shashlik',
+        'шашлык', 'шампур', 'на палочке', 'на шпажке'
+    ]
+    meat_types = ['beef', 'pork', 'chicken', 'lamb', 'meat', 
+                  'говядина', 'свинина', 'курица', 'баранина', 'мясо']
     
-    # Борщ - главный приоритет
-    if ('beets' in ingredient_names or 'beetroot' in ingredient_names or 'свекла' in ingredient_names) and \
+    # Если есть признаки шампуров + мясо = это шашлык!
+    has_skewer_hint = any(ind in dish_name or ind in ' '.join(ingredient_names) 
+                          for ind in skewer_indicators)
+    has_meat = any(meat in ingredient_names for meat in meat_types)
+    is_grilled = cooking_method == 'grilled'
+    
+    if has_meat and (has_skewer_hint or is_grilled):
+        # Определяем тип мяса
+        meat_type = 'meat'
+        for meat in meat_types:
+            if meat in ingredient_names or meat in dish_name:
+                meat_type = meat
+                break
+        
+        # Выбираем название блюда
+        if 'chicken' in meat_type or 'курица' in meat_type:
+            data['dish_name'] = 'chicken shashlik'
+        elif 'beef' in meat_type or 'говядина' in meat_type:
+            data['dish_name'] = 'beef shashlik'
+        elif 'pork' in meat_type or 'свинина' in meat_type:
+            data['dish_name'] = 'pork shashlik'
+        elif 'lamb' in meat_type or 'баранина' in meat_type:
+            data['dish_name'] = 'lamb shashlik'
+        else:
+            data['dish_name'] = 'meat shashlik'
+        
+        data['cooking_method'] = 'grilled'
+        logger.info(f"🔧 FIXED: Identified as shashlik - {data['dish_name']}")
+    
+    # ========== ЗАЩИТА: ingredient ≠ dish ==========
+    # Если dish_name совпадает с ingredient - это ошибка!
+    ingredient_only_dishes = ['beef', 'pork', 'chicken', 'lamb', 'meat', 'fish', 
+                              'говядина', 'свинина', 'курица', 'баранина', 'мясо', 'рыба']
+    
+    if dish_name in ingredient_only_dishes:
+        # Это ингредиент, а не блюдо! Нужно определить блюдо по контексту
+        if cooking_method == 'grilled':
+            data['dish_name'] = f"{dish_name} grilled"
+        elif cooking_method == 'fried':
+            data['dish_name'] = f"{dish_name} fried"
+        elif cooking_method == 'baked':
+            data['dish_name'] = f"{dish_name} baked"
+        else:
+            data['dish_name'] = f"{dish_name} dish"
+        
+        logger.info(f"🔧 FIXED: Changed ingredient '{dish_name}' to dish '{data['dish_name']}'")
+    
+    # ========== СУПЫ ==========
+    if ('beets' in ingredient_names or 'свекла' in ingredient_names) and \
        ('cabbage' in ingredient_names or 'капуста' in ingredient_names):
-        data['dish_name'] = 'борщ'
+        data['dish_name'] = 'borscht'
         data['category'] = 'soup'
-        data['preparation_style'] = 'soup'
-        logger.info("🔧 Fixed: Identified as borscht (beets + cabbage signature)")
+        logger.info("🔧 FIXED: Identified as borscht")
     
-    # Щи
-    elif 'cabbage' in ingredient_names and not ('beets' in ingredient_names or 'beetroot' in ingredient_names):
-        if any(ing in ingredient_names for ing in ['carrot', 'onion', 'potato']):
-            data['dish_name'] = 'щи'
-            data['category'] = 'soup'
-            data['preparation_style'] = 'soup'
-            logger.info("🔧 Fixed: Identified as shchi (cabbage soup signature)")
-    
-    # Уха
-    elif 'fish' in ingredient_names and any(ing in ingredient_names for ing in ['potato', 'carrot', 'onion']):
-        data['dish_name'] = 'уха'
-        data['category'] = 'soup'
-        data['preparation_style'] = 'soup'
-        logger.info("🔧 Fixed: Identified as ukha (fish soup signature)")
-    
-    # Солянка
-    elif ('cucumber' in ingredient_names or 'olive' in ingredient_names) and 'meat' in ingredient_names:
-        data['dish_name'] = 'солянка'
-        data['category'] = 'soup'
-        data['preparation_style'] = 'soup'
-        logger.info("🔧 Fixed: Identified as solyanka (cucumber + olive + meat signature)")
-    
-    # Куриний суп
-    elif 'chicken' in ingredient_names and any(ing in ingredient_names for ing in ['noodles', 'vegetables']):
-        data['dish_name'] = 'куриний суп'
-        data['category'] = 'soup'
-        data['preparation_style'] = 'soup'
-        logger.info("🔧 Fixed: Identified as chicken soup")
-    
-    # Грибний суп
-    elif 'mushrooms' in ingredient_names and any(ing in ingredient_names for ing in ['potato', 'carrot', 'onion']):
-        data['dish_name'] = 'грибний суп'
-        data['category'] = 'soup'
-        data['preparation_style'] = 'soup'
-        logger.info("🔧 Fixed: Identified as mushroom soup")
-    
-    # Гороховий суп
-    elif 'peas' in ingredient_names and any(ing in ingredient_names for ing in ['potato', 'carrot']):
-        data['dish_name'] = 'гороховий суп'
-        data['category'] = 'soup'
-        data['preparation_style'] = 'soup'
-        logger.info("🔧 Fixed: Identified as pea soup")
-    
-    # ========== РУССКИЕ ОСНОВНЫЕ БЛЮДА ==========
-    
-    # Пельмени
-    elif 'dough' in ingredient_names and 'meat' in ingredient_names:
-        data['dish_name'] = 'пельмени'
-        data['category'] = 'main'
-        data['preparation_style'] = 'mixed'
-        logger.info("🔧 Fixed: Identified as pelmeni (dough + meat signature)")
-    
-    # Голубцы
-    elif 'cabbage' in ingredient_names and 'meat' in ingredient_names and not ('beets' in ingredient_names):
-        data['dish_name'] = 'голубцы'
-        data['category'] = 'main'
-        data['preparation_style'] = 'mixed'
-        logger.info("🔧 Fixed: Identified as golubtsy (cabbage + meat signature)")
-    
-    # Котлеты
-    elif 'meat' in ingredient_names and any(ing in ingredient_names for ing in ['bread', 'onion', 'egg']):
-        data['dish_name'] = 'котлеты'
-        data['category'] = 'main'
-        data['preparation_style'] = 'fried'
-        logger.info("🔧 Fixed: Identified as kotlety (meat cutlets signature)")
-    
-    # Гречка с мясом
-    elif 'buckwheat' in ingredient_names and 'meat' in ingredient_names:
-        data['dish_name'] = 'гречка с мясом'
-        data['category'] = 'main'
-        data['preparation_style'] = 'mixed'
-        logger.info("🔧 Fixed: Identified as buckwheat with meat")
-    
-    # ========== САЛАТЫ ==========
-    
-    # Салат Цезарь
-    elif 'lettuce' in ingredient_names and 'caesar dressing' in ingredient_names:
-        data['dish_name'] = 'салат цезарь'
-        data['category'] = 'salad'
-        data['preparation_style'] = 'salad'
-        logger.info("🔧 Fixed: Identified as Caesar salad")
-    
-    # Греческий салат
-    elif 'feta' in ingredient_names and 'olive' in ingredient_names:
-        data['dish_name'] = 'греческий салат'
-        data['category'] = 'salad'
-        data['preparation_style'] = 'salad'
-        logger.info("🔧 Fixed: Identified as Greek salad")
-    
-    # Салат Оливье
-    elif 'potato' in ingredient_names and 'mayonnaise' in ingredient_names and any(ing in ingredient_names for ing in ['carrot', 'peas', 'egg']):
-        data['dish_name'] = 'салат оливье'
-        data['category'] = 'salad'
-        data['preparation_style'] = 'salad'
-        logger.info("🔧 Fixed: Identified as Olivier salad")
-    
-    # Винегрет
-    elif 'beetroot' in ingredient_names and 'potato' in ingredient_names and 'carrot' in ingredient_names:
-        data['dish_name'] = 'винегрет'
-        data['category'] = 'salad'
-        data['preparation_style'] = 'salad'
-        logger.info("🔧 Fixed: Identified as vinaigrette")
-    
-    # Овощевий салат
-    elif any(ing in ingredient_names for ing in ['lettuce', 'tomato', 'cucumber']) and len(ingredient_names) >= 3:
-        data['dish_name'] = 'овочевий салат'
-        data['category'] = 'salad'
-        data['preparation_style'] = 'salad'
-        logger.info("🔧 Fixed: Identified as vegetable salad")
-    
-    # ========== ИТАЛЬЯНСКИЕ БЛЮДА ==========
-    
-    # Спагетти Болоньезе
-    elif 'spaghetti' in ingredient_names and 'beef' in ingredient_names and 'tomato' in ingredient_names:
-        data['dish_name'] = 'спагетти болоньезе'
-        data['category'] = 'pasta'
-        data['preparation_style'] = 'mixed'
-        logger.info("🔧 Fixed: Identified as spaghetti bolognese")
-    
-    # Спагетти Карбонара
-    elif 'spaghetti' in ingredient_names and 'egg' in ingredient_names and 'bacon' in ingredient_names:
-        data['dish_name'] = 'спагетти карбонара'
-        data['category'] = 'pasta'
-        data['preparation_style'] = 'mixed'
-        logger.info("🔧 Fixed: Identified as spaghetti carbonara")
-    
-    # Лазанья
-    elif 'pasta' in ingredient_names and 'beef' in ingredient_names and 'cheese' in ingredient_names:
-        data['dish_name'] = 'лазанья'
-        data['category'] = 'pasta'
-        data['preparation_style'] = 'baked'
-        logger.info("🔧 Fixed: Identified as lasagna")
-    
-    # Пицца Маргарита
-    elif 'dough' in ingredient_names and 'tomato' in ingredient_names and 'cheese' in ingredient_names:
-        data['dish_name'] = 'пицца маргарита'
-        data['category'] = 'pizza'
-        data['preparation_style'] = 'baked'
-        logger.info("🔧 Fixed: Identified as pizza margherita")
-    
-    # ========== АЗИАТСКИЕ БЛЮДА ==========
-    
-    # Жареный рис
-    elif 'rice' in ingredient_names and 'egg' in ingredient_names:
-        data['dish_name'] = 'жареный рис'
-        data['category'] = 'rice'
-        data['preparation_style'] = 'fried'
-        logger.info("🔧 Fixed: Identified as fried rice")
-    
-    # Рамен
-    elif 'noodles' in ingredient_names and 'broth' in ingredient_names:
-        data['dish_name'] = 'рамен'
-        data['category'] = 'soup'
-        data['preparation_style'] = 'soup'
-        logger.info("🔧 Fixed: Identified as ramen")
-    
-    # Суші
-    elif 'rice' in ingredient_names and 'fish' in ingredient_names and 'seaweed' in ingredient_names:
-        data['dish_name'] = 'суші'
-        data['category'] = 'sushi'
-        data['preparation_style'] = 'mixed'
-        logger.info("🔧 Fixed: Identified as sushi")
-    
-    # ========== АМЕРИКАНСКИЕ БЛЮДА ==========
-    
-    # Гамбургер
-    elif 'beef patty' in ingredient_names and 'bun' in ingredient_names:
-        data['dish_name'] = 'гамбургер'
-        data['category'] = 'burger'
-        data['preparation_style'] = 'mixed'
-        logger.info("🔧 Fixed: Identified as hamburger")
-    
-    # Стейк
-    elif 'beef' in ingredient_names and len(ingredient_names) <= 2:
-        data['dish_name'] = 'стейк'
-        data['category'] = 'meat'
-        data['preparation_style'] = 'grilled'
-        logger.info("🔧 Fixed: Identified as steak")
-    
-    # ========== ГАРНИРЫ И ПРОСТЫЕ БЛЮДА ==========
-    
-    # Картофель фрі
-    elif 'potato' in ingredient_names and len(ingredient_names) == 1:
-        data['dish_name'] = 'картофель фрі'
-        data['category'] = 'potato'
-        data['preparation_style'] = 'fried'
-        logger.info("🔧 Fixed: Identified as french fries")
-    
-    # Картофельне пюре
-    elif 'potato' in ingredient_names and any(ing in ingredient_names for ing in ['milk', 'butter']):
-        data['dish_name'] = 'картофельне пюре'
-        data['category'] = 'potato'
-        data['preparation_style'] = 'boiled'
-        logger.info("🔧 Fixed: Identified as mashed potatoes")
-    
-    # Гречка
-    elif 'buckwheat' in ingredient_names and len(ingredient_names) <= 2:
-        data['dish_name'] = 'гречка'
-        data['category'] = 'grain'
-        data['preparation_style'] = 'boiled'
-        logger.info("🔧 Fixed: Identified as buckwheat")
-    
-    # Рис
-    elif 'rice' in ingredient_names and len(ingredient_names) <= 2:
-        data['dish_name'] = 'рис'
-        data['category'] = 'grain'
-        data['preparation_style'] = 'boiled'
-        logger.info("🔧 Fixed: Identified as rice")
-    
-    # Макарони
-    elif 'pasta' in ingredient_names or 'spaghetti' in ingredient_names:
-        data['dish_name'] = 'макарони'
-        data['category'] = 'pasta'
-        data['preparation_style'] = 'boiled'
-        logger.info("🔧 Fixed: Identified as pasta")
-    
-    # ========== МЯСНЫЕ БЛЮДА ==========
-    
-    # Курка гриль
-    elif 'chicken' in ingredient_names and len(ingredient_names) <= 2:
-        data['dish_name'] = 'курка гриль'
-        data['category'] = 'chicken'
-        data['preparation_style'] = 'grilled'
-        logger.info("🔧 Fixed: Identified as grilled chicken")
-    
-    # Жарена риба
-    elif 'fish' in ingredient_names and len(ingredient_names) <= 2:
-        data['dish_name'] = 'жарена риба'
-        data['category'] = 'fish'
-        data['preparation_style'] = 'fried'
-        logger.info("🔧 Fixed: Identified as fried fish")
-    
-    # Запечена риба
-    elif 'fish' in ingredient_names and 'baked' in dish_name:
-        data['dish_name'] = 'запечена риба'
-        data['category'] = 'fish'
-        data['preparation_style'] = 'baked'
-        logger.info("🔧 Fixed: Identified as baked fish")
-    
-    # ========== КРИТИЧЕСКОЕ: ШАМПУРЫ/ШАШЛИК ==========
-    
-    # Шашлик/кебаб - КРИТИЧЕСКИ ВАЖНОЕ ПРАВИЛО!
-    skewer_keywords = ['skewer', 'kebab', 'shashlik', 'шашлик', 'шампур', 'шпажка', 'stick']
-    meat_keywords = ['beef', 'pork', 'chicken', 'lamb', 'meat', 'говядина', 'свинина', 'курица', 'баранина', 'мясо']
-    
-    if (any(skewer in dish_name for skewer in skewer_keywords) or 
-        any(skewer in ' '.join(ingredient_names) for skewer in skewer_keywords)) and \
-       any(meat in ingredient_names for meat in meat_keywords):
-        data['dish_name'] = 'шашлик'
-        data['category'] = 'meat'
-        data['preparation_style'] = 'grilled'
-        logger.info("🔧 CRITICAL FIX: Identified as meat skewers (шашлик) - NOT fish!")
-    
-    # ЗАЩИТА от ошибки "лосось с хлебом" вместо шашлика
-    if ('salmon' in dish_name or 'лосось' in dish_name) and \
-       ('bread' in dish_name or 'хлеб' in dish_name):
-        # Проверяем, возможно это шашлик
-        if any(skewer in ' '.join(ingredient_names) for skewer in skewer_keywords) or \
-           'grilled' in dish_name or 'grill' in dish_name:
-            data['dish_name'] = 'шашлик'
-            data['category'] = 'meat'
-            data['preparation_style'] = 'grilled'
-            logger.info("🔧 CRITICAL FIX: Corrected 'salmon with bread' to meat skewers!")
-    
-    # ========== ОВощеві БЛЮДА ==========
-    
-    # Тушені овочі
-    elif 'vegetables' in ingredient_names and len(ingredient_names) >= 3:
-        data['dish_name'] = 'тушені овочі'
-        data['category'] = 'vegetables'
-        data['preparation_style'] = 'stewed'
-        logger.info("🔧 Fixed: Identified as stewed vegetables")
-    
-    # ========== ЗАЩИТА ОТ ОШИБОК ==========
-    
-    # Исправление: рыба ≠ мясо
-    fish_keywords = ['salmon', 'trout', 'tuna', 'cod', 'fish', 'лосось', 'форель', 'рыба']
-    if any(fish in dish_name for fish in fish_keywords):
-        if 'meat' in dish_name:
-            data['dish_name'] = dish_name.replace('meat', 'fish')
-            logger.info("🔧 Fixed: Changed 'meat' to 'fish'")
-    
-    # КРИТИЧЕСКАЯ ЗАЩИТА: шашлик НЕ МОЖЕТ БЫТЬ рыбой!
-    if ('salmon' in dish_name or 'лосось' in dish_name) and \
-       ('bread' in dish_name or 'хлеб' in dish_name):
-        # Это почти наверняка шашлик, а не лосось с хлебом
-        skewer_indicators = ['grilled', 'stick', 'skewer', 'kebab', 'шампур', 'шашлик']
-        if any(indicator in dish_name for indicator in skewer_indicators) or \
-           any(indicator in ' '.join(ingredient_names) for indicator in skewer_indicators):
-            data['dish_name'] = 'шашлик'
-            data['category'] = 'meat'
-            data['preparation_style'] = 'grilled'
-            logger.info("🔧 CRITICAL SAFEGUARD: Fixed 'salmon with bread' to 'шашлик' (meat skewers)")
-    
-    # Исправление: жидкое блюдо = суп
-    if data.get('preparation_style') == 'liquid' or data.get('soup'):
-        if 'soup' not in dish_name and 'суп' not in dish_name and 'борщ' not in dish_name:
-            if any(ing in ingredient_names for ing in ['broth', 'бульон', 'суп']):
-                data['category'] = 'soup'
-                logger.info("🔧 Fixed: Identified as soup by liquid style")
-    
-    logger.info(f"🔧 Final result: {data['dish_name']} (category: {data.get('category', 'unknown')})")
+    logger.info(f"🔧 Final result: {data['dish_name']}")
     return data
 
 

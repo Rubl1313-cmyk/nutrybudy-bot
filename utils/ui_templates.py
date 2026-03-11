@@ -41,7 +41,7 @@ class ProgressBar:
         
         if style == 'gradient':
             # Градиентный стиль - одноцветный
-            bar = '�' * filled + '⬜' * empty
+            bar = '🟦' * filled + '⬜' * empty
         elif style == 'neon':
             # Неоновый стиль - одноцветный
             bar = '🟦' * filled + '⬜' * empty

@@ -282,7 +282,7 @@ async def _send_product_card(
     
     # Быстрые пресеты веса
     preset_buttons = []
-    common_weights = [50, 100, 150, 200, 250]
+    common_weights = [50, 100, 150, 200]
     for w in common_weights:
         if abs(weight - w) > 5:  # Показываем только если текущий вес сильно отличается
             preset_buttons.append(InlineKeyboardButton(text=f"{w}г", callback_data=f"weight_set_{index}_{w}_{totals_msg_id}"))

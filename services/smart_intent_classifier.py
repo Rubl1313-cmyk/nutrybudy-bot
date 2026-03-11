@@ -260,6 +260,9 @@ class SmartIntentClassifier:
         
         # 3. Нечеткое совпадение с продуктами
         for product_key in LOCAL_FOOD_DB.keys():
+            # Исключаем воду из проверки еды
+            if 'вод' in product_key.lower():
+                continue
             similarity = SequenceMatcher(None, text, product_key).ratio()
             if similarity > 0.7:
                 score += int(similarity * 20)

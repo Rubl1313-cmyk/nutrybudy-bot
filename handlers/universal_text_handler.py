@@ -103,45 +103,54 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
                 food_items = [{'name': text.strip(), 'weight': 100}]
                 all_intents.append(("food", food_items))
 
-    # Если нашли несколько намерений, обрабатываем все
+    # Если нашли несколько намерений, обрабатываем только основное
     if len(all_intents) > 1:
         logger.info(f"🔄 Найден смешанный запрос: {[intent_type for intent_type, _ in all_intents]}")
         
-        for intent_type, data in all_intents:
-            if intent_type == "water":
-                await add_water_quick(message.from_user.id, data)
-                await message.answer(f"✅ Записано {data} мл воды.")
-            elif intent_type == "steps":
-                # Записываем шаги
-                async with get_session() as session:
-                    user_result = await session.execute(
-                        select(User).where(User.telegram_id == message.from_user.id)
+        # Приоритеты: steps > water > food
+        priority_order = {"steps": 1, "water": 2, "food": 3}
+        
+        # Сортируем по приоритету
+        all_intents.sort(key=lambda x: priority_order.get(x[0], 999))
+        
+        # Обрабатываем только самое высокоприоритетное намерение
+        main_intent, data = all_intents[0]
+        logger.info(f"🎯 Основное намерение: {main_intent}")
+        
+        if main_intent == "water":
+            await add_water_quick(message.from_user.id, data)
+            await message.answer(f"✅ Записано {data} мл воды.")
+        elif main_intent == "steps":
+            # Записываем шаги
+            async with get_session() as session:
+                user_result = await session.execute(
+                    select(User).where(User.telegram_id == message.from_user.id)
+                )
+                user = user_result.scalar_one_or_none()
+                if user:
+                    steps_entry = StepsEntry(
+                        user_id=user.id,
+                        steps_count=data,
+                        source='text_input'
                     )
-                    user = user_result.scalar_one_or_none()
-                    if user:
-                        steps_entry = StepsEntry(
-                            user_id=user.id,
-                            steps_count=data,
-                            source='text_input'
-                        )
-                        session.add(steps_entry)
-                        await session.commit()
-                        
-                        goal_steps = user.daily_steps_goal or 10000
-                        percentage = (data / goal_steps * 100) if goal_steps > 0 else 0
-                        
-                        if percentage >= 100:
-                            motivation = "🏆 Отлично! Цель по шагам достигнута!"
-                        elif percentage >= 50:
-                            motivation = "💪 Хорошая работа!"
-                        else:
-                            motivation = "🚶 Хорошее начало!"
-                        
-                        await message.answer(f"✅ Записано {data:,} шагов! {motivation}")
-            elif intent_type == "food":
-                meal_type = intent_data.get("meal_type", "snack")
-                await state.update_data(selected_foods=[], meal_type=meal_type)
-                await process_food_items(message, state, data, meal_type)
+                    session.add(steps_entry)
+                    await session.commit()
+                    
+                    goal_steps = user.daily_steps_goal or 10000
+                    percentage = (data / goal_steps * 100) if goal_steps > 0 else 0
+                    
+                    if percentage >= 100:
+                        motivation = "🏆 Отлично! Цель по шагам достигнута!"
+                    elif percentage >= 50:
+                        motivation = "💪 Хорошая работа!"
+                    else:
+                        motivation = "🚶 Хорошее начало!"
+                    
+                    await message.answer(f"✅ Записано {data:,} шагов! {motivation}")
+        elif main_intent == "food":
+            meal_type = intent_data.get("meal_type", "snack")
+            await state.update_data(selected_foods=[], meal_type=meal_type)
+            await process_food_items(message, state, data, meal_type)
         return
 
     # Если уверенность низкая, предлагаем выбор

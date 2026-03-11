@@ -753,7 +753,7 @@ async def identify_food_multimodel(
     }
     
     if prompt is None:
-        prompt = FOOD_RECOGNITION_PROMPT
+        prompt = ENHANCED_FOOD_RECOGNITION_PROMPT
     
     for attempt in range(retry_count):
         for idx, model_info in enumerate(VISION_MODELS):

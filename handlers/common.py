@@ -641,13 +641,6 @@ async def handle_menu_callbacks(callback: CallbackQuery, state: FSMContext):
         logger.info(f"🔍 DEBUG: Неизвестный menu callback: {callback.data}")
         await callback.answer()
 
-@router.callback_query(F.data == "use_ingredients_instead")
-async def use_ingredients_main_callback(callback: CallbackQuery, state: FSMContext):
-    """🎨 Обработчик для 'нет, это ингредиент'"""
-    await callback.answer()
-    from handlers.media_handlers import use_ingredients_callback
-    await use_ingredients_callback(callback, state)
-
 @router.callback_query(F.data.startswith("progress_"))
 async def progress_main_callback(callback: CallbackQuery, state: FSMContext):
     """🎨 Обработчик для progress_ callback"""

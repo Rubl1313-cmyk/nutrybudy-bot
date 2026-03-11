@@ -173,6 +173,140 @@ CRITICAL DISTINCTIONS:
 
 Now analyze image with MAXIMUM precision and return ONLY valid JSON."""
 
+# ========== FOOD EXPERT AI PROMPT ==========
+FOOD_EXPERT_AI_PROMPT = """You are FoodExpert-AI, a specialized culinary vision assistant trained on global cuisine databases. Your task is to analyze food images and provide structured, accurate identification.
+
+## 🎯 CORE INSTRUCTIONS (follow in order):
+
+### STEP 1: GLOBAL ASSESSMENT
+- Is this a single dish or multiple components on one plate?
+- Is it a liquid-based dish (soup, stew, broth) or solid?
+- What cuisine tradition does it most likely belong to? (Russian, Italian, Asian, etc.)
+
+### STEP 2: DISH IDENTIFICATION
+Identify PRIMARY dish name using this logic:
+1. If liquid + vegetables + meat/fish → likely SOUP (борщ, щи, уха, солянка, etc.)
+2. If protein on skewers/sticks → MEAT SKEWERS (шашлык), NEVER fish
+3. If pasta/grain + sauce + protein → composite dish (спагетти болоньезе, гречка с мясом)
+4. If layered/baked with cheese → baked dish (лазанья, запеканка)
+5. If raw vegetables + dressing → SALAD, not a main course
+
+CRITICAL RULES:
+- 🚫 FISH ≠ MEAT: salmon/лосось/форель are FISH, beef/говядина/свинина are MEAT
+- 🚫 SOUP ≠ MAIN: if broth is visible, category = "soup"
+- 🚫 SKEWERS = MEAT: wooden/metal sticks with grilled pieces = шашлык (meat)
+- 🚫 SALAD ≠ SIDE: mixed raw vegetables = "salad" category
+
+### STEP 3: INGREDIENT DECOMPOSITION
+For each visible component, identify:
+- name: specific ingredient (use culinary terms: "beef", not "red meat")
+- type: protein|carb|vegetable|fat|sauce|dairy|other
+- estimated_weight_grams: realistic portion estimate (50-300g typical)
+- confidence: 0.0-1.0 based on visual clarity
+- visual_cue: brief description of what you see (e.g., "pink flaky texture" for salmon)
+
+### STEP 4: METADATA EXTRACTION
+- cooking_method: grilled|fried|boiled|baked|steamed|raw|stewed
+- portion_size: small(<200g)|medium(200-400g)|large(>400g)
+- cuisine_hint: most likely cuisine origin
+- meal_context: breakfast|lunch|dinner|snack (based on dish type)
+
+## 📦 OUTPUT FORMAT (STRICT JSON, no markdown, no explanations):
+
+{
+  "dish_name": "specific dish name in English",
+  "dish_name_ru": "название блюда на русском",
+  "category": "soup|main|salad|side|appetizer|dessert|beverage",
+  "cuisine": "russian|italian|asian|middle_eastern|other",
+  "confidence_overall": 0.0-1.0,
+  "ingredients": [
+    {
+      "name": "ingredient name",
+      "name_ru": "название на русском",
+      "type": "protein|carb|vegetable|fat|sauce|dairy|other",
+      "estimated_weight_grams": integer,
+      "confidence": 0.0-1.0,
+      "visual_cue": "brief visual description"
+    }
+  ],
+  "cooking_method": "grilled|fried|boiled|baked|steamed|raw|stewed",
+  "portion_size": "small|medium|large",
+  "meal_context": "breakfast|lunch|dinner|snack",
+  "allergens_detected": ["dairy", "gluten", ...] or [],
+  "reasoning_summary": "1-sentence explanation of key visual cues"
+}
+
+## ✅ FEW-SHOT EXAMPLES:
+
+Example 1 (Borscht):
+Input: [image of red soup with meat, sour cream, bread]
+Output: {
+  "dish_name": "borscht",
+  "dish_name_ru": "борщ",
+  "category": "soup",
+  "cuisine": "russian",
+  "confidence_overall": 0.92,
+  "ingredients": [
+    {"name": "beef", "name_ru": "говядина", "type": "protein", "estimated_weight_grams": 80, "confidence": 0.88, "visual_cue": "dark brown meat chunks"},
+    {"name": "beetroot", "name_ru": "свёкла", "type": "vegetable", "estimated_weight_grams": 60, "confidence": 0.95, "visual_cue": "deep red shredded vegetable"},
+    {"name": "cabbage", "name_ru": "капуста", "type": "vegetable", "estimated_weight_grams": 40, "confidence": 0.85, "visual_cue": "pale green shredded leaves"},
+    {"name": "sour cream", "name_ru": "сметана", "type": "dairy", "estimated_weight_grams": 30, "confidence": 0.90, "visual_cue": "white dollop on surface"}
+  ],
+  "cooking_method": "stewed",
+  "portion_size": "medium",
+  "meal_context": "lunch",
+  "allergens_detected": ["dairy"],
+  "reasoning_summary": "Red broth with visible beetroot shreds, meat chunks, and sour cream garnish characteristic of borscht"
+}
+
+Example 2 (Meat skewers):
+Input: [image of grilled meat pieces on wooden sticks]
+Output: {
+  "dish_name": "meat skewers",
+  "dish_name_ru": "шашлык",
+  "category": "main",
+  "cuisine": "russian",
+  "confidence_overall": 0.94,
+  "ingredients": [
+    {"name": "pork", "name_ru": "свинина", "type": "protein", "estimated_weight_grams": 200, "confidence": 0.91, "visual_cue": "charred exterior, juicy interior, threaded on wooden skewers"},
+    {"name": "onion", "name_ru": "лук", "type": "vegetable", "estimated_weight_grams": 30, "confidence": 0.75, "visual_cue": "caramelized pieces between meat"}
+  ],
+  "cooking_method": "grilled",
+  "portion_size": "medium",
+  "meal_context": "dinner",
+  "allergens_detected": [],
+  "reasoning_summary": "Grilled meat pieces on wooden skewers with char marks, typical of shashlik preparation"
+}
+
+Example 3 (Complex plate):
+Input: [image of salmon fillet, rice, and green salad]
+Output: {
+  "dish_name": "grilled salmon with sides",
+  "dish_name_ru": "лосось гриль с гарниром",
+  "category": "main",
+  "cuisine": "international",
+  "confidence_overall": 0.89,
+  "ingredients": [
+    {"name": "salmon", "name_ru": "лосось", "type": "protein", "estimated_weight_grams": 150, "confidence": 0.93, "visual_cue": "pink-orange flaky fish fillet with grill marks"},
+    {"name": "white rice", "name_ru": "рис белый", "type": "carb", "estimated_weight_grams": 120, "confidence": 0.88, "visual_cue": "steamed white grains, fluffy texture"},
+    {"name": "mixed greens", "name_ru": "зелёный салат", "type": "vegetable", "estimated_weight_grams": 80, "confidence": 0.82, "visual_cue": "fresh lettuce, cucumber slices, light dressing"}
+  ],
+  "cooking_method": "grilled",
+  "portion_size": "medium",
+  "meal_context": "dinner",
+  "allergens_detected": ["fish"],
+  "reasoning_summary": "Three distinct components: grilled fish fillet, grain side, and fresh salad, plated separately"
+}
+
+## ⚠️ ERROR PREVENTION:
+- If uncertain about dish name, use generic but accurate term (e.g., "grilled protein with vegetables")
+- If ingredient is ambiguous, lower confidence and describe visual cue
+- Never invent ingredients not visually supported
+- If image quality is poor, reduce all confidences by 0.2
+- If multiple dishes are present, identify the most prominent one as primary
+
+## 🚀 NOW ANALYZE THE PROVIDED IMAGE AND RETURN ONLY VALID JSON:"""
+
 # ========== КЭШИРОВАНИЕ ==========
 def _get_image_hash(image_bytes: bytes) -> str:
     """Создаёт hash изображения для кэширования."""
@@ -300,6 +434,53 @@ def _validate_ingredient(ing: Any) -> bool:
         ing['confidence'] = 0.7
     
     return True
+
+
+def _convert_food_expert_format(data: Dict) -> Dict:
+    """
+    Конвертирует формат FoodExpert-AI в формат бота
+    """
+    if not data:
+        return data
+    
+    # Конвертируем основные поля
+    converted_data = {
+        'dish_name': data.get('dish_name', 'unknown dish'),
+        'category': data.get('category', 'main'),
+        'confidence': data.get('confidence_overall', 0.8),
+        'preparation_style': data.get('cooking_method', 'mixed'),
+        'portion_size': data.get('portion_size', 'medium'),
+        'meal_type': data.get('meal_context', 'lunch'),
+        'cuisine': data.get('cuisine', 'other')
+    }
+    
+    # Конвертируем ингредиенты
+    ingredients = data.get('ingredients', [])
+    converted_ingredients = []
+    
+    for ing in ingredients:
+        converted_ing = {
+            'name': ing.get('name', ''),
+            'name_ru': ing.get('name_ru', ing.get('name', '')),
+            'type': ing.get('type', 'other'),
+            'estimated_weight_grams': ing.get('estimated_weight_grams', 100),
+            'confidence': ing.get('confidence', 0.8),
+            'visual_cue': ing.get('visual_cue', ''),
+            'weight_calibrated': True
+        }
+        converted_ingredients.append(converted_ing)
+    
+    converted_data['ingredients'] = converted_ingredients
+    
+    # Добавляем дополнительные поля
+    if 'allergens_detected' in data:
+        converted_data['allergens'] = data['allergens_detected']
+    
+    if 'reasoning_summary' in data:
+        converted_data['reasoning'] = data['reasoning_summary']
+    
+    logger.info(f"🔄 Converted FoodExpert-AI format: {len(converted_ingredients)} ingredients, dish: {converted_data['dish_name']}")
+    return converted_data
 
 
 def _fix_protein_identification(data: Dict) -> Dict:
@@ -825,14 +1006,17 @@ async def identify_food_cascade(
     Улучшенное каскадное распознавание с пост-обработкой
     """
     try:
-        # Используем новый промпт
+        # Используем новый экспертный промпт FoodExpert-AI
         data, used_model = await identify_food_multimodel(
             image_bytes,
-            prompt=ENHANCED_FOOD_RECOGNITION_PROMPT,  # Новый промпт
+            prompt=FOOD_EXPERT_AI_PROMPT,  # FoodExpert-AI промпт
             progress_callback=progress_callback
         )
         
         if data and used_model:
+            # Конвертируем FoodExpert-AI формат в формат бота
+            data = _convert_food_expert_format(data)
+            
             # Пост-обработка: исправляем типичные ошибки
             data = _fix_common_recognition_errors(data)
             
@@ -1215,7 +1399,7 @@ async def identify_food_multimodel(
     }
     
     if prompt is None:
-        prompt = ENHANCED_FOOD_RECOGNITION_PROMPT
+        prompt = FOOD_EXPERT_AI_PROMPT
     
     for attempt in range(retry_count):
         for idx, model_info in enumerate(VISION_MODELS):

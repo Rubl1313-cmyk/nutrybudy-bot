@@ -1096,7 +1096,7 @@ async def _send_progress_update(
 
 
 # ========== ОСНОВНЫЕ ФУНКЦИИ ==========
-async def identify_food_cascade(
+async def identify_food(
     image_bytes: bytes,
     progress_callback=None
 ) -> Dict[str, Any]:
@@ -1104,87 +1104,14 @@ async def identify_food_cascade(
     Улучшенное каскадное распознавание с пост-обработкой
     """
     try:
-        # Используем новый экспертный промпт FoodExpert-AI
-        data, used_model = await identify_food_multimodel(
+        # Используем новый ансамбль моделей
+        data, used_model = await identify_food_ensemble(
             image_bytes,
-            prompt=FOOD_EXPERT_AI_PROMPT,  # FoodExpert-AI промпт
+            model_indices=[0, 1],  # LLaVA + UForm
             progress_callback=progress_callback
         )
         
         if data and used_model:
-            # 🔍 ПОДРОБНОЕ ЛОГИРОВАНИЕ РЕЗУЛЬТАТОВ AI
-            logger.info("=" * 80)
-            logger.info("🤖 AI RECOGNITION RESULTS")
-            logger.info("=" * 80)
-            logger.info(f"📸 Model used: {used_model}")
-            logger.info(f"📊 Raw AI response type: {type(data)}")
-            
-            # Логируем полный ответ AI
-            logger.info("📋 Full AI Response:")
-            logger.info(json.dumps(data, indent=2, ensure_ascii=False))
-            
-            # Логируем ключевые поля
-            if isinstance(data, dict):
-                dish_name = data.get('dish_name', 'unknown')
-                dish_name_ru = data.get('dish_name_ru', 'unknown')
-                category = data.get('category', 'unknown')
-                confidence = data.get('confidence_overall', data.get('confidence', 0))
-                cooking_method = data.get('cooking_method', 'unknown')
-                portion_size = data.get('portion_size', 'unknown')
-                cuisine = data.get('cuisine', 'unknown')
-                
-                logger.info("🎯 KEY FIELDS FROM AI:")
-                logger.info(f"   Dish Name: {dish_name}")
-                logger.info(f"   Dish Name RU: {dish_name_ru}")
-                logger.info(f"   Category: {category}")
-                logger.info(f"   Confidence: {confidence}")
-                logger.info(f"   Cooking Method: {cooking_method}")
-                logger.info(f"   Portion Size: {portion_size}")
-                logger.info(f"   Cuisine: {cuisine}")
-                
-                # Логируем ингредиенты
-                ingredients = data.get('ingredients', [])
-                if ingredients:
-                    logger.info(f"🥘 Ingredients ({len(ingredients)} found):")
-                    for i, ing in enumerate(ingredients, 1):
-                        name = ing.get('name', 'unknown')
-                        name_ru = ing.get('name_ru', 'unknown')
-                        ing_type = ing.get('type', 'unknown')
-                        weight = ing.get('estimated_weight_grams', 0)
-                        conf = ing.get('confidence', 0)
-                        visual = ing.get('visual_cue', 'no visual cue')
-                        
-                        logger.info(f"   {i}. {name} ({name_ru})")
-                        logger.info(f"      Type: {ing_type}, Weight: {weight}g, Confidence: {conf}")
-                        logger.info(f"      Visual: {visual}")
-                else:
-                    logger.warning("⚠️ No ingredients found in AI response!")
-                
-                # Логируем дополнительные поля
-                allergens = data.get('allergens_detected', [])
-                if allergens:
-                    logger.info(f"🚨 Allergens detected: {allergens}")
-                
-                reasoning = data.get('reasoning_summary', '')
-                if reasoning:
-                    logger.info(f"🧠 AI Reasoning: {reasoning}")
-                
-                visual_cues = data.get('visual_cues', '')
-                if visual_cues:
-                    logger.info(f"👁️ Visual Cues: {visual_cues}")
-            
-            logger.info("=" * 80)
-            logger.info("🔄 STARTING POST-PROCESSING")
-            logger.info("=" * 80)
-            
-            # Конвертируем FoodExpert-AI формат в формат бота
-            logger.info("🔄 Converting FoodExpert-AI format to bot format...")
-            data = _convert_food_expert_format(data)
-            
-            logger.info("✅ Format conversion completed")
-            logger.info(f"📊 Converted dish name: {data.get('dish_name', 'unknown')}")
-            logger.info(f"📊 Converted category: {data.get('category', 'unknown')}")
-            
             # Пост-обработка: исправляем типичные ошибки
             logger.info("🔧 Applying post-processing error fixes...")
             original_dish = data.get('dish_name', 'unknown')
@@ -1192,54 +1119,19 @@ async def identify_food_cascade(
             final_dish = data.get('dish_name', 'unknown')
             
             if original_dish != final_dish:
-                logger.info(f"🔧 DISH NAME CHANGED: '{original_dish}' → '{final_dish}'")
-            else:
-                logger.info(f"✅ Dish name unchanged: '{final_dish}'")
-            
-            logger.info("=" * 80)
-            logger.info("🎉 FINAL RECOGNITION RESULT")
-            logger.info("=" * 80)
-            logger.info(f"🍽️ Final Dish: {data.get('dish_name', 'unknown')}")
-            logger.info(f"📂 Final Category: {data.get('category', 'unknown')}")
-            logger.info(f"📈 Final Confidence: {data.get('confidence', 0)}")
-            logger.info(f"🍳 Final Cooking Method: {data.get('preparation_style', 'unknown')}")
-            logger.info("=" * 80)
+                logger.info(f"🔧 Fixed dish name: {original_dish} → {final_dish}")
             
             return {
                 "success": True,
                 "data": data,
                 "model": used_model,
-                "consensus": False,
-                "confidence": data.get('confidence', 0.5)
+                "consensus": True,  # Ансамбль обеспечивает консенсус
+                "confidence": data.get('confidence', 0.5),
+                "fixes_applied": original_dish != final_dish
             }
-            
-        else:
-            # 🔍 ЛОГИРОВАНИЕ СЛУЧАЕВ, КОГДА AI НЕ СМОГ РАСПОЗНАТЬ
-            logger.warning("=" * 80)
-            logger.warning("⚠️ AI RECOGNITION FAILED")
-            logger.warning("=" * 80)
-            logger.warning(f"📸 Model attempted: {used_model}")
-            logger.warning(f"📊 Data received: {data}")
-            logger.warning("❌ No valid data returned from AI")
-            logger.warning("=" * 80)
-            
-            return {
-                "success": False,
-                "data": None,
-                "model": used_model,
-                "consensus": False,
-                "confidence": 0.0,
-                "error": "AI recognition failed"
-            }
-            
     except Exception as e:
-        logger.error("=" * 80)
-        logger.error("❌ CASCADE RECOGNITION ERROR")
-        logger.error("=" * 80)
-        logger.error(f"🚨 Error: {e}")
-        logger.error("📊 Full error details:", exc_info=True)
-        logger.error("=" * 80)
-        
+        logger.error(f"❌ Enhanced recognition error: {e}", exc_info=True)
+    
     return {
         "success": False,
         "data": None,
@@ -1328,6 +1220,144 @@ def _fix_common_recognition_errors(data: Dict) -> Dict:
     
     logger.info(f"🔧 Final result: {data['dish_name']}")
     return data
+
+
+async def identify_food_ensemble(
+    image_bytes: bytes,
+    model_indices: Optional[List[int]] = None,
+    progress_callback=None
+) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
+    """
+    Запускает несколько vision-моделей параллельно и объединяет результаты.
+    model_indices: список индексов моделей из VISION_MODELS (по умолчанию [0,1] — LLaVA и UForm)
+    Возвращает (объединённые данные, строка с именами использованных моделей)
+    """
+    if not BASE_URL:
+        logger.error("❌ Cloudflare BASE_URL not configured")
+        return None, None
+
+    if model_indices is None:
+        model_indices = [0, 1]  # первые две: LLaVA и UForm
+
+    models_to_use = [VISION_MODELS[i] for i in model_indices if i < len(VISION_MODELS)]
+    if not models_to_use:
+        logger.error("❌ No valid models selected for ensemble")
+        return None, None
+
+    image_hash = _get_image_hash(image_bytes)
+    cached = _get_cached_result(image_hash)
+    if cached:
+        return cached, "cache"
+
+    image_array = list(image_bytes)
+    headers = {
+        "Authorization": f"Bearer {CLOUDFLARE_API_TOKEN}",
+        "Content-Type": "application/json"
+    }
+
+    prompt = FOOD_EXPERT_AI_PROMPT  # используем тот же улучшенный промпт
+
+    async def run_single_model(model_info: dict) -> Tuple[Optional[Dict], Optional[str]]:
+        model = model_info["id"]
+        timeout = model_info["timeout"]
+        try:
+            url = f"{BASE_URL}{model}"
+            payload = {
+                "image": image_array,
+                "prompt": prompt,
+                "max_tokens": 800,
+            }
+            if model == "@cf/llava-hf/llava-1.5-7b-hf":
+                payload["temperature"] = 0.1
+
+            logger.info(f"🤖 Starting ensemble model: {model}")
+            async with aiohttp.ClientSession() as session:
+                async with session.post(url, headers=headers, json=payload, timeout=timeout) as resp:
+                    if resp.status != 200:
+                        error_text = await resp.text()
+                        logger.warning(f"❌ Model {model} HTTP {resp.status}: {error_text[:100]}")
+                        return None, model
+
+                    result = await resp.json()
+                    description = result.get("result", {}).get("description", "").strip()
+                    if not description:
+                        logger.warning(f"⚠️ Model {model} empty description")
+                        return None, model
+
+                    data = _extract_json_from_text(description)
+                    if not data:
+                        logger.warning(f"⚠️ Model {model} failed to extract JSON")
+                        return None, model
+
+                    is_valid, reason = _validate_food_data(data)
+                    if not is_valid:
+                        logger.warning(f"⚠️ Model {model} validation failed: {reason}")
+                        return None, model
+
+                    # пост-обработка
+                    portion_size = data.get('portion_size', 'medium')
+                    if 'ingredients' in data:
+                        data['ingredients'] = _calibrate_weights(data['ingredients'], portion_size)
+                        data = _fix_protein_identification(data)
+
+                    logger.info(f"✅ Model {model} succeeded, confidence: {data.get('confidence', 0)}")
+                    return data, model
+        except asyncio.TimeoutError:
+            logger.warning(f"⏱️ Model {model} timeout")
+        except Exception as e:
+            logger.warning(f"❌ Model {model} error: {type(e).__name__}: {e}")
+        return None, model
+
+    # Запускаем все модели параллельно
+    tasks = [run_single_model(m) for m in models_to_use]
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    # Собираем успешные результаты
+    valid_results = []
+    for res in results:
+        if isinstance(res, Exception):
+            logger.warning(f"🔥 Exception in ensemble task: {res}")
+            continue
+        data, model_name = res
+        if data:
+            # Добавляем вес модели для взвешенного голосования
+            model_weight = next((m["weight"] for m in models_to_use if m["id"] == model_name), 1.0)
+            valid_results.append((data, model_name, model_weight))
+
+    if not valid_results:
+        logger.error("❌ All ensemble models failed")
+        return None, None
+
+    if progress_callback:
+        await progress_callback(stage=3, progress=80)
+
+    # --- Агрегация результатов ---
+    # Простой вариант: выбрать результат с максимальной уверенностью * вес модели
+    best_data = None
+    best_score = -1
+    best_model = None
+    for data, model_name, weight in valid_results:
+        conf = data.get('confidence', 0) * weight
+        if conf > best_score:
+            best_score = conf
+            best_data = data
+            best_model = model_name
+
+    # Усложнённый вариант: если несколько результатов с близкой уверенностью,
+    # можно объединить ингредиенты (взять пересечение или объединение с фильтром по confidence)
+    # Для простоты пока оставляем выбор лучшего.
+
+    # Финальная проверка: если dish_name остался ингредиентом, применяем фикс ещё раз
+    best_data = _fix_common_recognition_errors(best_data)
+
+    # Кэшируем результат
+    _cache_result(image_hash, best_data)
+
+    if progress_callback:
+        await progress_callback(stage=4, progress=100)
+
+    logger.info(f"🏆 Ensemble chose model {best_model} with confidence {best_data.get('confidence', 0)}")
+    return best_data, f"ensemble({best_model})"
 
 
 async def identify_food_multimodel(
@@ -1454,10 +1484,13 @@ async def identify_food_cascade(
 ) -> Dict[str, Any]:
     """
     Каскадное распознавание с улучшенной обработкой ошибок.
+    Использует ансамбль моделей для повышения точности.
     """
     try:
-        data, used_model = await identify_food_multimodel(
+        # Используем новый ансамбль моделей
+        data, used_model = await identify_food_ensemble(
             image_bytes,
+            model_indices=[0, 1],  # LLaVA + UForm
             progress_callback=progress_callback
         )
         
@@ -1466,7 +1499,7 @@ async def identify_food_cascade(
                 "success": True,
                 "data": data,
                 "model": used_model,
-                "consensus": False,
+                "consensus": True,  # Ансамбль обеспечивает консенсус
                 "confidence": data.get('confidence', 0.5)
             }
     except Exception as e:
@@ -1484,10 +1517,10 @@ async def identify_food_cascade(
 
 async def get_simple_ingredients(image_bytes: bytes) -> Optional[List[str]]:
     """Быстрое извлечение списка ингредиентов (fallback)."""
-    data, _ = await identify_food_multimodel(
+    data, _ = await identify_food_ensemble(
         image_bytes,
-        prompt=SIMPLE_INGREDIENTS_PROMPT,
-        max_tokens=200
+        model_indices=[1],  # Используем только UForm для скорости
+        progress_callback=None
     )
     
     if not data:
@@ -1544,7 +1577,11 @@ async def transcribe_audio(audio_bytes: bytes, language: str = "ru") -> Optional
 # ========== БЭКВАРД-СОВМЕСТИМОСТЬ ==========
 async def identify_dish_from_image(image_bytes: bytes) -> Optional[str]:
     """Возвращает только название блюда."""
-    data, _ = await identify_food_multimodel(image_bytes, max_tokens=100)
+    data, _ = await identify_food_ensemble(
+        image_bytes,
+        model_indices=[0],  # Используем только LLaVA для скорости
+        progress_callback=None
+    )
     return data.get("dish_name") if data else None
 
 

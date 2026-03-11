@@ -28,32 +28,30 @@ router = Router()
 
 @router.message(CommandStart())
 async def cmd_start(message: Message, state: FSMContext):
-    """Приветствие с меню"""
+    """🎨 Современное приветствие с персонализацией"""
     await state.clear()
     
     # Получаем данные пользователя для персонализации
     user_name = message.from_user.first_name or message.from_user.username or "Пользователь"
     
-    # Создаем простое приветствие без форматирования
-    welcome_text = (
-        f"👋 Привет, {user_name}!\n\n"
-        "Добро пожаловать в NutriBuddy - твой умный помощник в питании и фитнесе!\n\n"
-        "🤖 Я помогу тебе:\n"
-        "• 📊 Отслеживать питание и калории\n"
-        "• 💧 Контролировать водный баланс\n"
-        "• 🏃 Записывать активность и шаги\n"
-        "• 📈 Вести статистику прогресса\n"
-        "• 🤖 Давать персональные рекомендации\n\n"
-        "⚠️ Важно: Сначала создай профиль командой /set_profile\n"
-        "Это поможет рассчитать твои персональные нормы КБЖУ\n\n"
-        "Выбери действие ниже 👇"
+    # Создаем современное приветствие
+    from utils.message_templates import MessageTemplates
+    welcome_text = MessageTemplates.modern_welcome_message(user_name)
+    
+    # Современная клавиатура
+    from keyboards.improved_keyboards import get_modern_main_menu
+    keyboard = get_modern_main_menu()
+    
+    # Добавляем информацию о профиле
+    profile_text = (
+        "\n\n" + "⚠️ <b>Важно:</b>\n" +
+        "👤 Перед началом работы создайте профиль командой /set_profile\n" +
+        "📊 Это поможет рассчитать ваши персональные нормы КБЖУ"
     )
     
-    # Стандартная клавиатура
-    from keyboards.reply import get_main_keyboard
-    keyboard = get_main_keyboard()
+    welcome_text += profile_text
     
-    await message.answer(welcome_text, reply_markup=keyboard)
+    await message.answer(welcome_text, reply_markup=keyboard, parse_mode="HTML")
 
 @router.message(Command("help"))
 async def cmd_help(message: Message, state: FSMContext):
@@ -247,6 +245,54 @@ async def debug_all_callbacks(callback: CallbackQuery, state: FSMContext):
     if callback.data.startswith("menu_"):
         logger.info(f"🔍 DEBUG: Это menu_ callback, обрабатываем...")
         await handle_menu_callbacks(callback, state)
+        return
+    
+    # Современные инлайн кнопки
+    if callback.data == "manual_food":
+        logger.info(f"🔍 DEBUG: Это manual_food callback")
+        from handlers.food import cmd_log_food
+        await cmd_log_food(callback.message, state, user_id=callback.from_user.id)
+        await callback.answer()
+        return
+    
+    if callback.data == "show_progress":
+        logger.info(f"🔍 DEBUG: Это show_progress callback")
+        from handlers.progress import cmd_progress
+        await cmd_progress(callback.message, state, user_id=callback.from_user.id)
+        await callback.answer()
+        return
+    
+    if callback.data == "log_water":
+        logger.info(f"🔍 DEBUG: Это log_water callback")
+        from handlers.water import cmd_water
+        await cmd_water(callback.message, state, user_id=callback.from_user.id)
+        await callback.answer()
+        return
+    
+    if callback.data == "log_activity":
+        logger.info(f"🔍 DEBUG: Это log_activity callback")
+        from handlers.activity import cmd_fitness
+        await cmd_fitness(callback.message, state, user_id=callback.from_user.id)
+        await callback.answer()
+        return
+    
+    if callback.data == "show_profile":
+        logger.info(f"🔍 DEBUG: Это show_profile callback")
+        await display_profile(callback, callback.from_user.id, state)
+        await callback.answer()
+        return
+    
+    if callback.data == "ai_assistant":
+        logger.info(f"🔍 DEBUG: Это ai_assistant callback")
+        from handlers.ai_assistant import cmd_ask
+        await cmd_ask(callback.message, state)
+        await callback.answer()
+        return
+    
+    if callback.data == "photo_food":
+        logger.info(f"🔍 DEBUG: Это photo_food callback")
+        await callback.message.answer("📸 Отправьте фото еды")
+        await callback.answer()
         return
     
     # Media handlers callbacks
@@ -760,38 +806,5 @@ async def ai_assistant_main_callback(callback: CallbackQuery, state: FSMContext)
     
     from handlers.ai_assistant import cmd_ask
     await cmd_ask(callback.message, state, user_id=callback.from_user.id)
-
-@router.callback_query(F.data == "show_statistics")
-async def show_statistics_main_callback(callback: CallbackQuery, state: FSMContext):
-    """🎨 Обработчик для статистики из главного меню"""
-    await callback.answer()
-    await callback.message.delete()
-    
-    from handlers.progress import cmd_progress
-    await cmd_progress(callback.message, state, user_id=callback.from_user.id)
-
-@router.callback_query(F.data == "settings")
-async def settings_main_callback(callback: CallbackQuery, state: FSMContext):
-    """🎨 Обработчик для настроек из главного меню"""
-    await callback.answer()
-    await callback.message.delete()
-    
-    from handlers.profile import cmd_profile
-    await cmd_profile(callback.message, state, user_id=callback.from_user.id)
-@router.callback_query(F.data == "menu_log_weight")
-async def menu_log_weight_callback(callback: CallbackQuery, state: FSMContext):
-    """Обработка нажатия на кнопку записи веса в меню профиля."""
-    await cmd_log_weight(callback.message, state)
-    await callback.answer()
-    
-@router.message(F.text == "❓ Помощь")
-async def menu_help(message: Message, state: FSMContext):
-    await state.clear()
-    await show_help_menu(message)
-
-@router.message(F.text == "🤖 AI Помощник")
-async def menu_ai_assistant(message: Message, state: FSMContext):
-    from handlers.ai_assistant import cmd_ask
-    await cmd_ask(message, state)
 
 # ========== Конец файла ==========

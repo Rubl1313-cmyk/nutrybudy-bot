@@ -366,60 +366,78 @@ def _fix_protein_identification(data: Dict) -> Dict:
     return old_format_data
 
 
-def _identify_known_dish(ingredients: List[Dict], prep_style: str) -> Optional[str]:
+def _identify_known_dish(ingredients: List[Dict], prep_style: str = 'mixed') -> Optional[str]:
     """
-    Умное определение известных блюд по ингредиентам и методу приготовления.
+    Универсальное определение известных блюд по ингредиентам с улучшенной логикой
     """
-    if not ingredients:
-        return None
-    
-    # Нормализуем названия ингредиентов для анализа
+    # Нормализуем названия ингредиентов
     ingredient_names = []
     for ing in ingredients:
         name = ing.get('name', '').lower()
         # Убираем модификаторы приготовления
         name = name.replace('grilled ', '').replace('fried ', '').replace('boiled ', '')
         name = name.replace('baked ', '').replace('roasted ', '').replace('steamed ', '')
+        name = name.replace('raw ', '').replace('fresh ', '')
         ingredient_names.append(name)
     
-    # Словарь известных блюд с их сигнатурами
+    # Расширенная база известных блюд с их сигнатурами
     known_dishes = {
         # Русские блюда
         'борщ': {
             'ingredients': ['beef', 'beetroot', 'cabbage', 'potato', 'carrot', 'onion'],
             'required': ['beetroot'],
             'prep_style': 'soup',
-            'min_match': 3
+            'min_match': 3,
+            'priority': 100  # Высокий приоритет
         },
         'щи': {
             'ingredients': ['cabbage', 'carrot', 'onion', 'potato'],
             'required': ['cabbage'],
             'prep_style': 'soup',
-            'min_match': 2
+            'min_match': 2,
+            'priority': 90
         },
         'солянка': {
             'ingredients': ['meat', 'cucumber', 'olive', 'tomato'],
             'required': ['cucumber', 'olive'],
             'prep_style': 'soup',
-            'min_match': 2
+            'min_match': 2,
+            'priority': 85
         },
         'уха': {
             'ingredients': ['fish', 'potato', 'carrot', 'onion'],
             'required': ['fish'],
             'prep_style': 'soup',
-            'min_match': 2
+            'min_match': 2,
+            'priority': 85
         },
         'пельмени': {
             'ingredients': ['dough', 'meat', 'onion'],
             'required': ['dough', 'meat'],
             'prep_style': 'mixed',
-            'min_match': 2
+            'min_match': 2,
+            'priority': 80
         },
         'голубцы': {
             'ingredients': ['cabbage', 'meat', 'rice', 'carrot'],
             'required': ['cabbage', 'meat'],
             'prep_style': 'mixed',
-            'min_match': 2
+            'min_match': 2,
+            'priority': 80
+        },
+        'котлеты': {
+            'ingredients': ['meat', 'bread', 'onion', 'egg'],
+            'required': ['meat'],
+            'prep_style': 'fried',
+            'min_match': 2,
+            'priority': 75
+        },
+        'гречка с мясом': {
+            'ingredients': ['buckwheat', 'meat', 'onion'],
+            'required': ['buckwheat', 'meat'],
+            'prep_style': 'mixed',
+            'min_match': 2,
+            'priority': 70
         },
         
         # Салаты
@@ -427,19 +445,29 @@ def _identify_known_dish(ingredients: List[Dict], prep_style: str) -> Optional[s
             'ingredients': ['lettuce', 'chicken', 'parmesan', 'croutons', 'caesar dressing'],
             'required': ['lettuce', 'caesar dressing'],
             'prep_style': 'salad',
-            'min_match': 3
+            'min_match': 3,
+            'priority': 85
         },
         'греческий салат': {
             'ingredients': ['lettuce', 'tomato', 'cucumber', 'feta', 'olive'],
             'required': ['feta', 'olive'],
             'prep_style': 'salad',
-            'min_match': 3
+            'min_match': 3,
+            'priority': 85
         },
         'салат оливье': {
             'ingredients': ['potato', 'carrot', 'peas', 'egg', 'mayonnaise'],
             'required': ['potato', 'mayonnaise'],
             'prep_style': 'salad',
-            'min_match': 3
+            'min_match': 3,
+            'priority': 85
+        },
+        'винегрет': {
+            'ingredients': ['beetroot', 'potato', 'carrot', 'peas', 'pickles'],
+            'required': ['beetroot'],
+            'prep_style': 'salad',
+            'min_match': 3,
+            'priority': 80
         },
         
         # Итальянские блюда
@@ -447,19 +475,29 @@ def _identify_known_dish(ingredients: List[Dict], prep_style: str) -> Optional[s
             'ingredients': ['spaghetti', 'beef', 'tomato', 'onion'],
             'required': ['spaghetti', 'beef', 'tomato'],
             'prep_style': 'mixed',
-            'min_match': 3
+            'min_match': 3,
+            'priority': 90
         },
         'спагетти карбонара': {
             'ingredients': ['spaghetti', 'egg', 'bacon', 'parmesan'],
             'required': ['spaghetti', 'egg', 'bacon'],
             'prep_style': 'mixed',
-            'min_match': 3
+            'min_match': 3,
+            'priority': 90
         },
         'лазанья': {
             'ingredients': ['pasta', 'beef', 'tomato', 'cheese'],
             'required': ['pasta', 'beef', 'cheese'],
             'prep_style': 'baked',
-            'min_match': 3
+            'min_match': 3,
+            'priority': 85
+        },
+        'пицца маргарита': {
+            'ingredients': ['dough', 'tomato', 'cheese', 'basil'],
+            'required': ['dough', 'tomato', 'cheese'],
+            'prep_style': 'baked',
+            'min_match': 3,
+            'priority': 85
         },
         
         # Азиатские блюда
@@ -467,13 +505,22 @@ def _identify_known_dish(ingredients: List[Dict], prep_style: str) -> Optional[s
             'ingredients': ['rice', 'egg', 'vegetables', 'soy sauce'],
             'required': ['rice', 'egg'],
             'prep_style': 'fried',
-            'min_match': 2
+            'min_match': 2,
+            'priority': 80
         },
         'рамен': {
             'ingredients': ['noodles', 'broth', 'egg', 'pork'],
             'required': ['noodles', 'broth'],
             'prep_style': 'soup',
-            'min_match': 2
+            'min_match': 2,
+            'priority': 85
+        },
+        'суші': {
+            'ingredients': ['rice', 'fish', 'seaweed', 'cucumber'],
+            'required': ['rice', 'fish', 'seaweed'],
+            'prep_style': 'mixed',
+            'min_match': 3,
+            'priority': 85
         },
         
         # Американские блюда
@@ -481,19 +528,121 @@ def _identify_known_dish(ingredients: List[Dict], prep_style: str) -> Optional[s
             'ingredients': ['beef patty', 'bun', 'lettuce', 'tomato', 'cheese'],
             'required': ['beef patty', 'bun'],
             'prep_style': 'mixed',
-            'min_match': 2
+            'min_match': 2,
+            'priority': 80
         },
         'стейк': {
             'ingredients': ['beef'],
             'required': ['beef'],
-            'prep_style': 'mixed',
-            'min_match': 1
+            'prep_style': 'grilled',
+            'min_match': 1,
+            'priority': 75
+        },
+        'картофель фрі': {
+            'ingredients': ['potato'],
+            'required': ['potato'],
+            'prep_style': 'fried',
+            'min_match': 1,
+            'priority': 70
+        },
+        
+        # Закуски и гарниры
+        'картофельне пюре': {
+            'ingredients': ['potato', 'milk', 'butter'],
+            'required': ['potato'],
+            'prep_style': 'boiled',
+            'min_match': 1,
+            'priority': 60
+        },
+        'гречка': {
+            'ingredients': ['buckwheat'],
+            'required': ['buckwheat'],
+            'prep_style': 'boiled',
+            'min_match': 1,
+            'priority': 60
+        },
+        'рис': {
+            'ingredients': ['rice'],
+            'required': ['rice'],
+            'prep_style': 'boiled',
+            'min_match': 1,
+            'priority': 60
+        },
+        'макарони': {
+            'ingredients': ['pasta', 'spaghetti'],
+            'required': ['pasta'],
+            'prep_style': 'boiled',
+            'min_match': 1,
+            'priority': 60
+        },
+        
+        # Супы (дополнительные)
+        'куриний суп': {
+            'ingredients': ['chicken', 'vegetables', 'noodles'],
+            'required': ['chicken'],
+            'prep_style': 'soup',
+            'min_match': 2,
+            'priority': 80
+        },
+        'грибний суп': {
+            'ingredients': ['mushrooms', 'potato', 'onion'],
+            'required': ['mushrooms'],
+            'prep_style': 'soup',
+            'min_match': 2,
+            'priority': 80
+        },
+        'гороховий суп': {
+            'ingredients': ['peas', 'potato', 'carrot'],
+            'required': ['peas'],
+            'prep_style': 'soup',
+            'min_match': 2,
+            'priority': 75
+        },
+        
+        # Мясні страви
+        'курка гриль': {
+            'ingredients': ['chicken'],
+            'required': ['chicken'],
+            'prep_style': 'grilled',
+            'min_match': 1,
+            'priority': 75
+        },
+        'жарена риба': {
+            'ingredients': ['fish'],
+            'required': ['fish'],
+            'prep_style': 'fried',
+            'min_match': 1,
+            'priority': 75
+        },
+        'запечена риба': {
+            'ingredients': ['fish'],
+            'required': ['fish'],
+            'prep_style': 'baked',
+            'min_match': 1,
+            'priority': 75
+        },
+        
+        # Овочеві страви
+        'овочевий салат': {
+            'ingredients': ['vegetables', 'lettuce', 'tomato', 'cucumber'],
+            'required': ['vegetables'],
+            'prep_style': 'salad',
+            'min_match': 2,
+            'priority': 70
+        },
+        'тушені овочі': {
+            'ingredients': ['vegetables', 'carrot', 'onion', 'potato'],
+            'required': ['vegetables'],
+            'prep_style': 'stewed',
+            'min_match': 2,
+            'priority': 70
         }
     }
     
-    # Ищем совпадения с известными блюдами
+    # Улучшенный алгоритм сопоставления с приоритетами
     best_match = None
     best_score = 0
+    best_priority = 0
     
     for dish_name, dish_info in known_dishes.items():
         # Проверяем соответствие стиля приготовления
@@ -517,14 +666,25 @@ def _identify_known_dish(ingredients: List[Dict], prep_style: str) -> Optional[s
         if required_matches < len(dish_info['required']):
             continue
         
-        # Вычисляем score (процент совпадения)
-        score = matches / len(dish_info['ingredients'])
+        # Вычисляем score с учетом приоритета
+        score = (matches / len(dish_info['ingredients'])) * 100
+        priority_bonus = dish_info.get('priority', 50)
+        final_score = score + (priority_bonus / 10)
         
-        if score > best_score and score >= 0.5:  # Минимальный порог 50%
-            best_score = score
+        # Логирование для отладки
+        if final_score > best_score:
+            logger.info(f"🔍 {dish_name}: matches={matches}/{len(dish_info['ingredients'])}, score={final_score:.1f}")
+        
+        if final_score > best_score and final_score >= 50:  # Минимальный порог 50%
+            best_score = final_score
+            best_priority = dish_info.get('priority', 50)
             best_match = dish_name
     
-    return best_match
+    if best_match:
+        logger.info(f"🎯 Identified known dish: {best_match} (score: {best_score:.1f}, priority: {best_priority})")
+        return best_match
+    
+    return None
 
 
 def _validate_food_data(data: Dict) -> Tuple[bool, str]:
@@ -689,48 +849,293 @@ async def identify_food_cascade(
 
 def _fix_common_recognition_errors(data: Dict) -> Dict:
     """
-    Исправляет типичные ошибки распознавания
+    Универсальная система исправления ошибок распознавания для ВСЕХ типов блюд
     """
     if not data or 'dish_name' not in data:
         return data
     
     dish_name = data['dish_name'].lower()
     ingredients = data.get('ingredients', [])
-    
-    # Исправление 1: Если есть свекла и капуста - это борщ, не мясо
     ingredient_names = [ing.get('name', '').lower() for ing in ingredients]
     
-    if 'beets' in ingredient_names or 'beetroot' in ingredient_names or 'свекла' in ingredient_names:
-        if 'cabbage' in ingredient_names or 'капуста' in ingredient_names:
-            data['dish_name'] = 'борщ'
-            data['category'] = 'soup'
-            data['preparation_style'] = 'soup'  # Принудительно устанавливаем стиль супа
-            logger.info("🔧 Fixed: Identified as borscht (beets + cabbage)")
+    logger.info(f"🔧 Starting universal error correction for: {dish_name}")
+    logger.info(f"🔧 Ingredients detected: {ingredient_names}")
     
-    # Исправление 2: Если рыба - не называть мясом
+    # ========== РУССКИЕ СУПЫ ==========
+    
+    # Борщ - главный приоритет
+    if ('beets' in ingredient_names or 'beetroot' in ingredient_names or 'свекла' in ingredient_names) and \
+       ('cabbage' in ingredient_names or 'капуста' in ingredient_names):
+        data['dish_name'] = 'борщ'
+        data['category'] = 'soup'
+        data['preparation_style'] = 'soup'
+        logger.info("🔧 Fixed: Identified as borscht (beets + cabbage signature)")
+    
+    # Щи
+    elif 'cabbage' in ingredient_names and not ('beets' in ingredient_names or 'beetroot' in ingredient_names):
+        if any(ing in ingredient_names for ing in ['carrot', 'onion', 'potato']):
+            data['dish_name'] = 'щи'
+            data['category'] = 'soup'
+            data['preparation_style'] = 'soup'
+            logger.info("🔧 Fixed: Identified as shchi (cabbage soup signature)")
+    
+    # Уха
+    elif 'fish' in ingredient_names and any(ing in ingredient_names for ing in ['potato', 'carrot', 'onion']):
+        data['dish_name'] = 'уха'
+        data['category'] = 'soup'
+        data['preparation_style'] = 'soup'
+        logger.info("🔧 Fixed: Identified as ukha (fish soup signature)")
+    
+    # Солянка
+    elif ('cucumber' in ingredient_names or 'olive' in ingredient_names) and 'meat' in ingredient_names:
+        data['dish_name'] = 'солянка'
+        data['category'] = 'soup'
+        data['preparation_style'] = 'soup'
+        logger.info("🔧 Fixed: Identified as solyanka (cucumber + olive + meat signature)")
+    
+    # Куриний суп
+    elif 'chicken' in ingredient_names and any(ing in ingredient_names for ing in ['noodles', 'vegetables']):
+        data['dish_name'] = 'куриний суп'
+        data['category'] = 'soup'
+        data['preparation_style'] = 'soup'
+        logger.info("🔧 Fixed: Identified as chicken soup")
+    
+    # Грибний суп
+    elif 'mushrooms' in ingredient_names and any(ing in ingredient_names for ing in ['potato', 'carrot', 'onion']):
+        data['dish_name'] = 'грибний суп'
+        data['category'] = 'soup'
+        data['preparation_style'] = 'soup'
+        logger.info("🔧 Fixed: Identified as mushroom soup")
+    
+    # Гороховий суп
+    elif 'peas' in ingredient_names and any(ing in ingredient_names for ing in ['potato', 'carrot']):
+        data['dish_name'] = 'гороховий суп'
+        data['category'] = 'soup'
+        data['preparation_style'] = 'soup'
+        logger.info("🔧 Fixed: Identified as pea soup")
+    
+    # ========== РУССКИЕ ОСНОВНЫЕ БЛЮДА ==========
+    
+    # Пельмени
+    elif 'dough' in ingredient_names and 'meat' in ingredient_names:
+        data['dish_name'] = 'пельмени'
+        data['category'] = 'main'
+        data['preparation_style'] = 'mixed'
+        logger.info("🔧 Fixed: Identified as pelmeni (dough + meat signature)")
+    
+    # Голубцы
+    elif 'cabbage' in ingredient_names and 'meat' in ingredient_names and not ('beets' in ingredient_names):
+        data['dish_name'] = 'голубцы'
+        data['category'] = 'main'
+        data['preparation_style'] = 'mixed'
+        logger.info("🔧 Fixed: Identified as golubtsy (cabbage + meat signature)")
+    
+    # Котлеты
+    elif 'meat' in ingredient_names and any(ing in ingredient_names for ing in ['bread', 'onion', 'egg']):
+        data['dish_name'] = 'котлеты'
+        data['category'] = 'main'
+        data['preparation_style'] = 'fried'
+        logger.info("🔧 Fixed: Identified as kotlety (meat cutlets signature)")
+    
+    # Гречка с мясом
+    elif 'buckwheat' in ingredient_names and 'meat' in ingredient_names:
+        data['dish_name'] = 'гречка с мясом'
+        data['category'] = 'main'
+        data['preparation_style'] = 'mixed'
+        logger.info("🔧 Fixed: Identified as buckwheat with meat")
+    
+    # ========== САЛАТЫ ==========
+    
+    # Салат Цезарь
+    elif 'lettuce' in ingredient_names and 'caesar dressing' in ingredient_names:
+        data['dish_name'] = 'салат цезарь'
+        data['category'] = 'salad'
+        data['preparation_style'] = 'salad'
+        logger.info("🔧 Fixed: Identified as Caesar salad")
+    
+    # Греческий салат
+    elif 'feta' in ingredient_names and 'olive' in ingredient_names:
+        data['dish_name'] = 'греческий салат'
+        data['category'] = 'salad'
+        data['preparation_style'] = 'salad'
+        logger.info("🔧 Fixed: Identified as Greek salad")
+    
+    # Салат Оливье
+    elif 'potato' in ingredient_names and 'mayonnaise' in ingredient_names and any(ing in ingredient_names for ing in ['carrot', 'peas', 'egg']):
+        data['dish_name'] = 'салат оливье'
+        data['category'] = 'salad'
+        data['preparation_style'] = 'salad'
+        logger.info("🔧 Fixed: Identified as Olivier salad")
+    
+    # Винегрет
+    elif 'beetroot' in ingredient_names and 'potato' in ingredient_names and 'carrot' in ingredient_names:
+        data['dish_name'] = 'винегрет'
+        data['category'] = 'salad'
+        data['preparation_style'] = 'salad'
+        logger.info("🔧 Fixed: Identified as vinaigrette")
+    
+    # Овощевий салат
+    elif any(ing in ingredient_names for ing in ['lettuce', 'tomato', 'cucumber']) and len(ingredient_names) >= 3:
+        data['dish_name'] = 'овочевий салат'
+        data['category'] = 'salad'
+        data['preparation_style'] = 'salad'
+        logger.info("🔧 Fixed: Identified as vegetable salad")
+    
+    # ========== ИТАЛЬЯНСКИЕ БЛЮДА ==========
+    
+    # Спагетти Болоньезе
+    elif 'spaghetti' in ingredient_names and 'beef' in ingredient_names and 'tomato' in ingredient_names:
+        data['dish_name'] = 'спагетти болоньезе'
+        data['category'] = 'pasta'
+        data['preparation_style'] = 'mixed'
+        logger.info("🔧 Fixed: Identified as spaghetti bolognese")
+    
+    # Спагетти Карбонара
+    elif 'spaghetti' in ingredient_names and 'egg' in ingredient_names and 'bacon' in ingredient_names:
+        data['dish_name'] = 'спагетти карбонара'
+        data['category'] = 'pasta'
+        data['preparation_style'] = 'mixed'
+        logger.info("🔧 Fixed: Identified as spaghetti carbonara")
+    
+    # Лазанья
+    elif 'pasta' in ingredient_names and 'beef' in ingredient_names and 'cheese' in ingredient_names:
+        data['dish_name'] = 'лазанья'
+        data['category'] = 'pasta'
+        data['preparation_style'] = 'baked'
+        logger.info("🔧 Fixed: Identified as lasagna")
+    
+    # Пицца Маргарита
+    elif 'dough' in ingredient_names and 'tomato' in ingredient_names and 'cheese' in ingredient_names:
+        data['dish_name'] = 'пицца маргарита'
+        data['category'] = 'pizza'
+        data['preparation_style'] = 'baked'
+        logger.info("🔧 Fixed: Identified as pizza margherita")
+    
+    # ========== АЗИАТСКИЕ БЛЮДА ==========
+    
+    # Жареный рис
+    elif 'rice' in ingredient_names and 'egg' in ingredient_names:
+        data['dish_name'] = 'жареный рис'
+        data['category'] = 'rice'
+        data['preparation_style'] = 'fried'
+        logger.info("🔧 Fixed: Identified as fried rice")
+    
+    # Рамен
+    elif 'noodles' in ingredient_names and 'broth' in ingredient_names:
+        data['dish_name'] = 'рамен'
+        data['category'] = 'soup'
+        data['preparation_style'] = 'soup'
+        logger.info("🔧 Fixed: Identified as ramen")
+    
+    # Суші
+    elif 'rice' in ingredient_names and 'fish' in ingredient_names and 'seaweed' in ingredient_names:
+        data['dish_name'] = 'суші'
+        data['category'] = 'sushi'
+        data['preparation_style'] = 'mixed'
+        logger.info("🔧 Fixed: Identified as sushi")
+    
+    # ========== АМЕРИКАНСКИЕ БЛЮДА ==========
+    
+    # Гамбургер
+    elif 'beef patty' in ingredient_names and 'bun' in ingredient_names:
+        data['dish_name'] = 'гамбургер'
+        data['category'] = 'burger'
+        data['preparation_style'] = 'mixed'
+        logger.info("🔧 Fixed: Identified as hamburger")
+    
+    # Стейк
+    elif 'beef' in ingredient_names and len(ingredient_names) <= 2:
+        data['dish_name'] = 'стейк'
+        data['category'] = 'meat'
+        data['preparation_style'] = 'grilled'
+        logger.info("🔧 Fixed: Identified as steak")
+    
+    # ========== ГАРНИРЫ И ПРОСТЫЕ БЛЮДА ==========
+    
+    # Картофель фрі
+    elif 'potato' in ingredient_names and len(ingredient_names) == 1:
+        data['dish_name'] = 'картофель фрі'
+        data['category'] = 'potato'
+        data['preparation_style'] = 'fried'
+        logger.info("🔧 Fixed: Identified as french fries")
+    
+    # Картофельне пюре
+    elif 'potato' in ingredient_names and any(ing in ingredient_names for ing in ['milk', 'butter']):
+        data['dish_name'] = 'картофельне пюре'
+        data['category'] = 'potato'
+        data['preparation_style'] = 'boiled'
+        logger.info("🔧 Fixed: Identified as mashed potatoes")
+    
+    # Гречка
+    elif 'buckwheat' in ingredient_names and len(ingredient_names) <= 2:
+        data['dish_name'] = 'гречка'
+        data['category'] = 'grain'
+        data['preparation_style'] = 'boiled'
+        logger.info("🔧 Fixed: Identified as buckwheat")
+    
+    # Рис
+    elif 'rice' in ingredient_names and len(ingredient_names) <= 2:
+        data['dish_name'] = 'рис'
+        data['category'] = 'grain'
+        data['preparation_style'] = 'boiled'
+        logger.info("🔧 Fixed: Identified as rice")
+    
+    # Макарони
+    elif 'pasta' in ingredient_names or 'spaghetti' in ingredient_names:
+        data['dish_name'] = 'макарони'
+        data['category'] = 'pasta'
+        data['preparation_style'] = 'boiled'
+        logger.info("🔧 Fixed: Identified as pasta")
+    
+    # ========== МЯСНЫЕ БЛЮДА ==========
+    
+    # Курка гриль
+    elif 'chicken' in ingredient_names and len(ingredient_names) <= 2:
+        data['dish_name'] = 'курка гриль'
+        data['category'] = 'chicken'
+        data['preparation_style'] = 'grilled'
+        logger.info("🔧 Fixed: Identified as grilled chicken")
+    
+    # Жарена риба
+    elif 'fish' in ingredient_names and len(ingredient_names) <= 2:
+        data['dish_name'] = 'жарена риба'
+        data['category'] = 'fish'
+        data['preparation_style'] = 'fried'
+        logger.info("🔧 Fixed: Identified as fried fish")
+    
+    # Запечена риба
+    elif 'fish' in ingredient_names and 'baked' in dish_name:
+        data['dish_name'] = 'запечена риба'
+        data['category'] = 'fish'
+        data['preparation_style'] = 'baked'
+        logger.info("🔧 Fixed: Identified as baked fish")
+    
+    # ========== ОВощеві БЛЮДА ==========
+    
+    # Тушені овочі
+    elif 'vegetables' in ingredient_names and len(ingredient_names) >= 3:
+        data['dish_name'] = 'тушені овочі'
+        data['category'] = 'vegetables'
+        data['preparation_style'] = 'stewed'
+        logger.info("🔧 Fixed: Identified as stewed vegetables")
+    
+    # ========== ЗАЩИТА ОТ ОШИБОК ==========
+    
+    # Исправление: рыба ≠ мясо
     fish_keywords = ['salmon', 'trout', 'tuna', 'cod', 'fish', 'лосось', 'форель', 'рыба']
     if any(fish in dish_name for fish in fish_keywords):
         if 'meat' in dish_name:
             data['dish_name'] = dish_name.replace('meat', 'fish')
             logger.info("🔧 Fixed: Changed 'meat' to 'fish'")
     
-    # Исправление 3: Если жидкое блюдо в тарелке - это суп
+    # Исправление: жидкое блюдо = суп
     if data.get('preparation_style') == 'liquid' or data.get('soup'):
         if 'soup' not in dish_name and 'суп' not in dish_name and 'борщ' not in dish_name:
-            # Проверяем ингредиенты на наличие типичных для супов
             if any(ing in ingredient_names for ing in ['broth', 'бульон', 'суп']):
                 data['category'] = 'soup'
-                logger.info("🔧 Fixed: Identified as soup")
+                logger.info("🔧 Fixed: Identified as soup by liquid style")
     
-    # Исправление 4: Принудительное определение борща по набору ингредиентов
-    if ('beets' in ingredient_names or 'beetroot' in ingredient_names) and \
-       ('cabbage' in ingredient_names or 'капуста' in ingredient_names) and \
-       ('potato' in ingredient_names or 'картофель' in ingredient_names):
-        data['dish_name'] = 'борщ'
-        data['category'] = 'soup'
-        data['preparation_style'] = 'soup'
-        logger.info("🔧 Fixed: Forced borscht identification by ingredient signature")
-    
+    logger.info(f"🔧 Final result: {data['dish_name']} (category: {data.get('category', 'unknown')})")
     return data
 
 

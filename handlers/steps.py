@@ -211,7 +211,7 @@ async def steps_manual_callback(callback: CallbackQuery, state: FSMContext):
     # Устанавливаем состояние ожидания ввода
     await state.set_state("waiting_steps_input")
 
-@router.message(F.text)
+@router.message(F.text, F.state == "waiting_steps_input")
 async def steps_input_handler(message: Message, state: FSMContext):
     """Обработчик ручного ввода шагов"""
     current_state = await state.get_state()
@@ -378,7 +378,7 @@ async def steps_set_goal_callback(callback: CallbackQuery, state: FSMContext):
     
     await state.set_state("waiting_steps_goal")
 
-@router.message(F.text)
+@router.message(F.text, F.state == "waiting_steps_goal")
 async def steps_goal_input_handler(message: Message, state: FSMContext):
     """Обработчик установки цели по шагам"""
     current_state = await state.get_state()

@@ -1891,6 +1891,10 @@ async def _show_daily_progress(callback: CallbackQuery, session, user, meal):
         daily_total_water = sum(water.amount for water in today_water)
         daily_total_steps = sum(steps.steps_count for steps in today_steps)
         
+        # Рассчитываем сожженные калории от шагов
+        steps_calories_burned = int(daily_total_steps * 0.04)  # ~0.04 ккал на шаг
+        net_calories = daily_total_cal - steps_calories_burned
+        
         # Получаем цели пользователя
         goal_cal = user.daily_calorie_goal or 2000
         goal_prot = user.daily_protein_goal or 150
@@ -1901,11 +1905,22 @@ async def _show_daily_progress(callback: CallbackQuery, session, user, meal):
         
         # ✅ Красивая карточка прогресса дня
         daily_progress = NutritionCard.create_modern_daily_goal_card(
-            daily_total_cal, goal_cal,
+            net_calories, goal_cal,
             daily_total_prot, goal_prot,
             daily_total_fat, goal_fat,
             daily_total_carbs, goal_carbs
         )
+        
+        # Добавляем информацию о сожженных калориях
+        calories_info = (
+            f"🔥 <b>Баланс калорий</b>\n"
+            f"{'═' * 35}\n"
+            f"🍽️ Потреблено: {daily_total_cal:.0f} ккал\n"
+            f"👞 Сожжено: {steps_calories_burned:.0f} ккал ({daily_total_steps:,} шагов)\n"
+            f"⚖️ Чистые: {net_calories:.0f} ккал\n"
+        )
+        
+        await callback.message.answer(calories_info, parse_mode="HTML")
         
         await callback.message.answer(daily_progress, parse_mode="HTML")
         
@@ -1936,18 +1951,18 @@ async def _show_daily_progress(callback: CallbackQuery, session, user, meal):
         await callback.message.answer(steps_progress, parse_mode="HTML")
         
         # ========== ✅ МОТИВАЦИОННОЕ СООБЩЕНИЕ ==========
-        cal_percentage = (daily_total_cal / goal_cal * 100) if goal_cal > 0 else 0
+        cal_percentage = (net_calories / goal_cal * 100) if goal_cal > 0 else 0
         water_percentage = (daily_total_water / goal_water * 100) if goal_water > 0 else 0
         steps_percentage = (daily_total_steps / goal_steps * 100) if goal_steps > 0 else 0
         
         # Умное мотивационное сообщение с учетом воды и шагов
         if cal_percentage >= 90 and cal_percentage <= 110:
-            motivation = "🎯 <b>Отличный результат!</b> Вы прямо на цели по калориям!"
+            motivation = f"🎯 <b>Отличный результат!</b> Чистые калории: {net_calories:.0f} ккал - прямо на цели!"
         elif cal_percentage > 110:
-            motivation = "⚠️ <b>Превысили дневную норму!</b> Но это лучше, чем недоедать."
+            motivation = f"⚠️ <b>Превысили дневную норму!</b> Чистые калории: {net_calories:.0f} ккал. Но это лучше, чем недоедать."
         else:
-            remaining_cal = goal_cal - daily_total_cal
-            motivation = f"💪 <b>Хорошая работа!</b> Осталось еще {remaining_cal:.0f} ккал до цели."
+            remaining_cal = goal_cal - net_calories
+            motivation = f"💪 <b>Хорошая работа!</b> Осталось еще {remaining_cal:.0f} ккал до цели (чистые: {net_calories:.0f} ккал)."
         
         # Добавляем информацию о воде
         if water_percentage < 50:
@@ -2032,6 +2047,10 @@ async def cmd_today_summary(message: Message):
         daily_total_water = sum(water.amount for water in today_water)
         daily_total_steps = sum(steps.steps_count for steps in today_steps)
         
+        # Рассчитываем сожженные калории от шагов
+        steps_calories_burned = int(daily_total_steps * 0.04)  # ~0.04 ккал на шаг
+        net_calories = daily_total_cal - steps_calories_burned
+        
         goal_cal = user.daily_calorie_goal or 2000
         goal_prot = user.daily_protein_goal or 150
         goal_fat = user.daily_fat_goal or 65
@@ -2053,11 +2072,22 @@ async def cmd_today_summary(message: Message):
         
         # ✅ Прогресс-карточка
         daily_progress = NutritionCard.create_modern_daily_goal_card(
-            daily_total_cal, goal_cal,
+            net_calories, goal_cal,
             daily_total_prot, goal_prot,
             daily_total_fat, goal_fat,
             daily_total_carbs, goal_carbs
         )
+        
+        # Добавляем информацию о сожженных калориях
+        calories_info = (
+            f"🔥 <b>Баланс калорий</b>\n"
+            f"{'═' * 35}\n"
+            f"🍽️ Потреблено: {daily_total_cal:.0f} ккал\n"
+            f"👞 Сожжено: {steps_calories_burned:.0f} ккал ({daily_total_steps:,} шагов)\n"
+            f"⚖️ Чистые: {net_calories:.0f} ккал\n"
+        )
+        
+        await message.answer(calories_info, parse_mode="HTML")
         
         await message.answer(daily_progress, parse_mode="HTML")
         

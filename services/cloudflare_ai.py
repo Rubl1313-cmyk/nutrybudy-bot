@@ -1,18 +1,18 @@
 """
 Cloudflare Workers AI Integration for NutriBuddy
-✅ УЛУЧШЕНО: Progressive loading, надёжное извлечение JSON, кэширование
-✅ Добавлено: Retry-логика, валидация, fallback-механизмы, прогресс-бар
+УЛУЧШЕНО: Progressive loading, надёжное извлечение JSON, кэширование
+Добавлено: Retry-логика, валидация, fallback-механизмы, прогресс-бар
 """
 import aiohttp
-import os
-import logging
 import asyncio
-import json
-import re
 import hashlib
-from typing import Optional, Dict, Any, Tuple, List
-from functools import lru_cache
+import json
+import logging
+import os
+import re
 from datetime import datetime, timedelta
+from typing import Dict, List, Optional, Tuple, Any
+from functools import lru_cache
 
 logger = logging.getLogger(__name__)
 
@@ -37,43 +37,135 @@ _RECOGNITION_CACHE: Dict[str, Tuple[Dict, datetime]] = {}
 _CACHE_TTL = 3600  # 1 час
 
 # ========== УЛУЧШЕННЫЕ ПРОМПТЫ ==========
-FOOD_RECOGNITION_PROMPT = """You are an expert food nutritionist with 10+ years of experience. Analyze this food image carefully and return ONLY valid JSON.
+FOOD_RECOGNITION_PROMPT = """You are an advanced computer vision system specialized in food ingredient identification and nutritional analysis. Analyze this food image systematically and return ONLY valid JSON.
 
-CRITICAL REQUIREMENTS:
-1. Return pure JSON without markdown, without backslashes before underscores, without any formatting
-2. Be SPECIFIC about dishes - use exact names like "grilled chicken breast" not just "chicken"
-3. Estimate weights realistically based on portion size
-4. Consider cooking methods visible in the image
+PRIMARY OBJECTIVE:
+Identify ALL visible food items with their cooking methods and estimated weights. Focus on ingredient-level recognition rather than attempting to name complex dishes.
+
+ANALYSIS METHODOLOGY:
+1. Scan the entire image systematically
+2. Identify each distinct food component
+3. Determine cooking method for each component
+4. Estimate realistic weights based on visual portion size
+5. Assess confidence for each identification
+
+FOOD CATEGORIES TO IDENTIFY:
+
+PROTEINS:
+- Meats: beef, pork, lamb, chicken, turkey - identify specific cuts
+- Seafood: fish (salmon, tuna, cod, etc.), shrimp, crab, squid
+- Plant-based: tofu, tempeh, legumes, eggs
+
+CARBOHYDRATES:
+- Grains: rice (white, brown), pasta (spaghetti, penne, etc.), bread
+- Root vegetables: potatoes, sweet potatoes, carrots, beets
+- Legumes: beans, lentils, chickpeas
+
+VEGETABLES:
+- Leafy greens: lettuce, spinach, kale, cabbage
+- Cruciferous: broccoli, cauliflower, Brussels sprouts
+- Nightshade: tomatoes, peppers, eggplant
+- Allium: onions, garlic, leeks
+- Others: cucumbers, zucchini, mushrooms, corn
+
+FRUITS:
+- Fresh: apples, bananas, berries, citrus
+- Dried: raisins, dates, apricots
+
+FATS & OILS:
+- Visible oils: olive oil, butter, vegetable oil
+- Nuts & seeds: almonds, walnuts, sesame seeds
+- Avocado, cheese, cream
+
+SAUCES & DRESSINGS:
+- Tomato-based: marinara, ketchup, tomato sauce
+- Cream-based: cream sauce, mayonnaise, ranch
+- Oil-based: vinaigrette, pesto
+- Other: soy sauce, teriyaki, BBQ sauce
+
+COOKING METHODS IDENTIFICATION:
+- Grilled: visible grill marks, charred areas
+- Fried: golden-brown exterior, oil sheen
+- Baked/Roasted: dry heat appearance, even browning
+- Boiled/Steamed: moist appearance, no browning
+- Raw: natural colors, unprocessed appearance
+- Stir-fried: high heat searing, Asian style
+
+VISUAL ANALYSIS CRITERIA:
+- Color: Natural vs processed colors
+- Texture: Smooth, rough, crispy, soft
+- Shape: Cut forms (slices, cubes, strips)
+- Arrangement: How items are combined on plate
+- Cooking indicators: Grill marks, browning, moisture
 
 REQUIRED JSON FORMAT:
 {
-  "dish_name": "Specific dish name in English",
   "ingredients": [
-    {"name": "ingredient", "type": "protein|vegetable|carb|fat|sauce|garnish|other", "estimated_weight_grams": 100, "confidence": 0.9}
+    {
+      "name": "specific ingredient name",
+      "category": "protein|carb|vegetable|fruit|fat|sauce|other",
+      "cooking_method": "grilled|fried|baked|boiled|steamed|raw|stir-fried|roasted",
+      "estimated_weight_grams": number,
+      "confidence": 0.0-1.0,
+      "visual_notes": "brief description of appearance"
+    }
   ],
-  "confidence": 0.85,
+  "preparation_style": "mixed|separated|layered|casserole|soup|salad",
   "meal_type": "breakfast|lunch|dinner|snack",
-  "cooking_method": "grilled|fried|boiled|steamed|baked|raw|roasted",
-  "portion_size": "small|medium|large",
-  "complexity": "simple|moderate|complex"
+  "overall_confidence": 0.0-1.0
 }
 
-RULES:
-1. Use ONLY double quotes, never single quotes
-2. NO backslashes before underscores (use "dish_name" NOT "dish\_name")
-3. NO markdown code blocks ```json```
-4. NO trailing commas
-5. All numbers must be unquoted
-6. Be as specific as possible about dishes and ingredients
-7. Consider visual cues for cooking methods
-8. Estimate portion sizes realistically
+ACCURACY REQUIREMENTS:
+- Each ingredient must be individually identifiable
+- Cooking methods must match visual evidence
+- Weight estimates must be realistic for portion size
+- Confidence scores must reflect identification certainty
+- Use standard culinary terminology
 
-EXAMPLES:
-{"dish_name":"grilled chicken breast with vegetables","ingredients":[{"name":"chicken breast","type":"protein","estimated_weight_grams":150,"confidence":0.95},{"name":"broccoli","type":"vegetable","estimated_weight_grams":100,"confidence":0.9}],"confidence":0.9,"meal_type":"lunch","cooking_method":"grilled","portion_size":"medium","complexity":"simple"}
+EXAMPLES OF CORRECT ANALYSIS:
+{
+  "ingredients": [
+    {
+      "name": "grilled chicken breast",
+      "category": "protein",
+      "cooking_method": "grilled",
+      "estimated_weight_grams": 150,
+      "confidence": 0.9,
+      "visual_notes": "white meat with grill marks, sliced"
+    },
+    {
+      "name": "spaghetti pasta",
+      "category": "carb",
+      "cooking_method": "boiled",
+      "estimated_weight_grams": 120,
+      "confidence": 0.95,
+      "visual_notes": "long strands, white color, moist appearance"
+    },
+    {
+      "name": "lettuce mix",
+      "category": "vegetable",
+      "cooking_method": "raw",
+      "estimated_weight_grams": 50,
+      "confidence": 0.85,
+      "visual_notes": "mixed green leaves, fresh appearance"
+    }
+  ],
+  "preparation_style": "mixed",
+  "meal_type": "lunch",
+  "overall_confidence": 0.9
+}
 
-{"dish_name":"spaghetti carbonara","ingredients":[{"name":"spaghetti pasta","type":"carb","estimated_weight_grams":80,"confidence":0.9},{"name":"bacon","type":"protein","estimated_weight_grams":60,"confidence":0.85},{"name":"eggs","type":"protein","estimated_weight_grams":50,"confidence":0.8}],"confidence":0.85,"meal_type":"dinner","cooking_method":"boiled","portion_size":"medium","complexity":"moderate"}
+CRITICAL RULES:
+1. Identify EACH visible ingredient separately
+2. Be specific about cooking methods based on visual evidence
+3. Provide realistic weight estimates
+4. Use confidence scores honestly
+5. Focus on ingredients, not complex dish names
+6. If uncertain, lower confidence and describe visually
+7. Include all components - even small garnishes
+8. Distinguish between similar items (e.g., different vegetable types)
 
-Now analyze the image and return JSON:"""
+Now analyze the image systematically and return JSON with all identifiable ingredients:"""
 
 # ========== КЭШИРОВАНИЕ ==========
 def _get_image_hash(image_bytes: bytes) -> str:
@@ -107,7 +199,7 @@ def _cache_result(image_hash: str, result: Dict):
 def _extract_json_from_text(text: str) -> Optional[Dict]:
     """
     Извлекает JSON из текста с улучшенной обработкой экранирований.
-    ✅ ИСПРАВЛЕНО: обработка \_ → _, \" → "
+    ✅ ИСПРАВЛЕНО: обработка _ → _, " → "
     """
     if not text or not isinstance(text, str):
         return None
@@ -171,23 +263,31 @@ def _extract_json_from_text(text: str) -> Optional[Dict]:
 
 # ========== ВАЛИДАЦИЯ ДАННЫХ ==========
 def _validate_ingredient(ing: Any) -> bool:
-    """Проверяет валидность одного ингредиента."""
+    """Проверяет валидность одного ингредиента для нового формата."""
     if not isinstance(ing, dict):
         return False
     
+    # Проверяем обязательные поля для нового формата
     name = ing.get('name', '')
     if not name or not isinstance(name, str) or len(name.strip()) < 2:
         return False
+    
+    # Проверяем category
+    valid_categories = {'protein', 'carb', 'vegetable', 'fruit', 'fat', 'sauce', 'other'}
+    category = ing.get('category', '')
+    if category not in valid_categories:
+        # Пробуем старый формат с 'type'
+        valid_types = {'protein', 'vegetable', 'carb', 'fat', 'sauce', 'garnish', 'other'}
+        type_field = ing.get('type', '')
+        if type_field not in valid_types:
+            ing['type'] = 'other'
+        else:
+            ing['category'] = type_field
     
     weight = ing.get('estimated_weight_grams')
     if weight is not None:
         if not isinstance(weight, (int, float)) or weight < 1 or weight > 2000:
             ing['estimated_weight_grams'] = 100
-    
-    valid_types = {'protein', 'vegetable', 'carb', 'fat', 'sauce', 'garnish', 'other'}
-    ing_type = ing.get('type', 'other')
-    if ing_type not in valid_types:
-        ing['type'] = 'other'
     
     conf = ing.get('confidence')
     if conf is None or not isinstance(conf, (int, float)) or not 0 <= conf <= 1:
@@ -196,11 +296,264 @@ def _validate_ingredient(ing: Any) -> bool:
     return True
 
 
+def _fix_protein_identification(data: Dict) -> Dict:
+    """
+    Обрабатывает результаты AI для нового формата ингредиентов.
+    Конвертирует в формат, ожидаемый ботом.
+    """
+    if not data or 'ingredients' not in data:
+        return data
+    
+    ingredients = data.get('ingredients', [])
+    
+    # Конвертируем новый формат в старый для совместимости
+    converted_ingredients = []
+    
+    for ing in ingredients:
+        # Конвертируем category в type
+        category_map = {
+            'protein': 'protein',
+            'carb': 'carb', 
+            'vegetable': 'vegetable',
+            'fruit': 'vegetable',  # фрукты как овощи для КБЖУ
+            'fat': 'fat',
+            'sauce': 'sauce',
+            'other': 'other'
+        }
+        
+        converted_ing = {
+            'name': ing.get('name', ''),
+            'type': category_map.get(ing.get('category', 'other'), 'other'),
+            'estimated_weight_grams': ing.get('estimated_weight_grams', 100),
+            'confidence': ing.get('confidence', 0.8)
+        }
+        
+        # Добавляем весовую калибровку если нужно
+        if 'weight_calibrated' not in converted_ing:
+            converted_ing['weight_calibrated'] = True
+            
+        converted_ingredients.append(converted_ing)
+    
+    # Создаем старый формат для совместимости
+    old_format_data = {
+        'ingredients': converted_ingredients,
+        'confidence': data.get('overall_confidence', 0.8),
+        'meal_type': data.get('meal_type', 'lunch')
+    }
+    
+    # Умное определение известных блюд
+    dish_name = _identify_known_dish(converted_ingredients, data.get('preparation_style', 'mixed'))
+    
+    if dish_name:
+        old_format_data['dish_name'] = dish_name
+        logger.info(f"🎯 Identified known dish: {dish_name}")
+    else:
+        # Генерируем название на основе ингредиентов
+        prep_style = data.get('preparation_style', 'mixed')
+        protein_names = [ing['name'] for ing in converted_ingredients if ing['type'] == 'protein']
+        carb_names = [ing['name'] for ing in converted_ingredients if ing['type'] == 'carb']
+        
+        if protein_names and carb_names:
+            if prep_style == 'salad':
+                old_format_data['dish_name'] = f"{protein_names[0]} with {carb_names[0]} salad"
+            else:
+                old_format_data['dish_name'] = f"{protein_names[0]} with {carb_names[0]}"
+        elif protein_names:
+            old_format_data['dish_name'] = protein_names[0]
+        elif carb_names:
+            old_format_data['dish_name'] = carb_names[0]
+        else:
+            old_format_data['dish_name'] = 'mixed dish'
+    
+    logger.info(f"🔄 Converted AI result: {len(converted_ingredients)} ingredients, dish: {old_format_data['dish_name']}")
+    
+    return old_format_data
+
+
+def _identify_known_dish(ingredients: List[Dict], prep_style: str) -> Optional[str]:
+    """
+    Умное определение известных блюд по ингредиентам и методу приготовления.
+    """
+    if not ingredients:
+        return None
+    
+    # Нормализуем названия ингредиентов для анализа
+    ingredient_names = []
+    for ing in ingredients:
+        name = ing.get('name', '').lower()
+        # Убираем модификаторы приготовления
+        name = name.replace('grilled ', '').replace('fried ', '').replace('boiled ', '')
+        name = name.replace('baked ', '').replace('roasted ', '').replace('steamed ', '')
+        ingredient_names.append(name)
+    
+    # Словарь известных блюд с их сигнатурами
+    known_dishes = {
+        # Русские блюда
+        'борщ': {
+            'ingredients': ['beef', 'beetroot', 'cabbage', 'potato', 'carrot', 'onion'],
+            'required': ['beetroot'],
+            'prep_style': 'soup',
+            'min_match': 3
+        },
+        'щи': {
+            'ingredients': ['cabbage', 'carrot', 'onion', 'potato'],
+            'required': ['cabbage'],
+            'prep_style': 'soup',
+            'min_match': 2
+        },
+        'солянка': {
+            'ingredients': ['meat', 'cucumber', 'olive', 'tomato'],
+            'required': ['cucumber', 'olive'],
+            'prep_style': 'soup',
+            'min_match': 2
+        },
+        'уха': {
+            'ingredients': ['fish', 'potato', 'carrot', 'onion'],
+            'required': ['fish'],
+            'prep_style': 'soup',
+            'min_match': 2
+        },
+        'пельмени': {
+            'ingredients': ['dough', 'meat', 'onion'],
+            'required': ['dough', 'meat'],
+            'prep_style': 'mixed',
+            'min_match': 2
+        },
+        'голубцы': {
+            'ingredients': ['cabbage', 'meat', 'rice', 'carrot'],
+            'required': ['cabbage', 'meat'],
+            'prep_style': 'mixed',
+            'min_match': 2
+        },
+        
+        # Салаты
+        'салат цезарь': {
+            'ingredients': ['lettuce', 'chicken', 'parmesan', 'croutons', 'caesar dressing'],
+            'required': ['lettuce', 'caesar dressing'],
+            'prep_style': 'salad',
+            'min_match': 3
+        },
+        'греческий салат': {
+            'ingredients': ['lettuce', 'tomato', 'cucumber', 'feta', 'olive'],
+            'required': ['feta', 'olive'],
+            'prep_style': 'salad',
+            'min_match': 3
+        },
+        'салат оливье': {
+            'ingredients': ['potato', 'carrot', 'peas', 'egg', 'mayonnaise'],
+            'required': ['potato', 'mayonnaise'],
+            'prep_style': 'salad',
+            'min_match': 3
+        },
+        
+        # Итальянские блюда
+        'спагетти болоньезе': {
+            'ingredients': ['spaghetti', 'beef', 'tomato', 'onion'],
+            'required': ['spaghetti', 'beef', 'tomato'],
+            'prep_style': 'mixed',
+            'min_match': 3
+        },
+        'спагетти карбонара': {
+            'ingredients': ['spaghetti', 'egg', 'bacon', 'parmesan'],
+            'required': ['spaghetti', 'egg', 'bacon'],
+            'prep_style': 'mixed',
+            'min_match': 3
+        },
+        'лазанья': {
+            'ingredients': ['pasta', 'beef', 'tomato', 'cheese'],
+            'required': ['pasta', 'beef', 'cheese'],
+            'prep_style': 'baked',
+            'min_match': 3
+        },
+        
+        # Азиатские блюда
+        'жареный рис': {
+            'ingredients': ['rice', 'egg', 'vegetables', 'soy sauce'],
+            'required': ['rice', 'egg'],
+            'prep_style': 'fried',
+            'min_match': 2
+        },
+        'рамен': {
+            'ingredients': ['noodles', 'broth', 'egg', 'pork'],
+            'required': ['noodles', 'broth'],
+            'prep_style': 'soup',
+            'min_match': 2
+        },
+        
+        # Американские блюда
+        'гамбургер': {
+            'ingredients': ['beef patty', 'bun', 'lettuce', 'tomato', 'cheese'],
+            'required': ['beef patty', 'bun'],
+            'prep_style': 'mixed',
+            'min_match': 2
+        },
+        'стейк': {
+            'ingredients': ['beef'],
+            'required': ['beef'],
+            'prep_style': 'mixed',
+            'min_match': 1
+        }
+    }
+    
+    # Ищем совпадения с известными блюдами
+    best_match = None
+    best_score = 0
+    
+    for dish_name, dish_info in known_dishes.items():
+        # Проверяем соответствие стиля приготовления
+        if dish_info['prep_style'] != prep_style and dish_info['prep_style'] != 'mixed':
+            continue
+        
+        # Считаем совпадения ингредиентов
+        matches = 0
+        required_matches = 0
+        
+        for ingredient in ingredient_names:
+            if ingredient in dish_info['ingredients']:
+                matches += 1
+                if ingredient in dish_info['required']:
+                    required_matches += 1
+        
+        # Проверяем минимальные требования
+        if matches < dish_info['min_match']:
+            continue
+        
+        if required_matches < len(dish_info['required']):
+            continue
+        
+        # Вычисляем score (процент совпадения)
+        score = matches / len(dish_info['ingredients'])
+        
+        if score > best_score and score >= 0.5:  # Минимальный порог 50%
+            best_score = score
+            best_match = dish_name
+    
+    return best_match
+
+
 def _validate_food_data(data: Dict) -> Tuple[bool, str]:
-    """Расширенная валидация данных о еде."""
+    """Валидация данных о еде для нового формата."""
     if not isinstance(data, dict):
         return False, "Not a dictionary"
     
+    # Новый формат - проверяем ingredients
+    if 'ingredients' in data:
+        ingredients = data.get('ingredients', [])
+        if not isinstance(ingredients, list) or len(ingredients) == 0:
+            return False, "Empty ingredients list"
+        
+        # Проверяем каждый ингредиент
+        valid_count = 0
+        for ing in ingredients:
+            if _validate_ingredient(ing):
+                valid_count += 1
+        
+        if valid_count == 0:
+            return False, "No valid ingredients"
+        
+        return True, "OK"
+    
+    # Старый формат - для совместимости
     dish = data.get('dish_name', '')
     if not dish or not isinstance(dish, str) or len(dish.strip()) < 3:
         return False, "Invalid dish_name"
@@ -383,6 +736,7 @@ async def identify_food_multimodel(
                             portion_size = data.get('portion_size', 'medium')
                             if 'ingredients' in data:
                                 data['ingredients'] = _calibrate_weights(data['ingredients'], portion_size)
+                                data = _fix_protein_identification(data)
                             
                             # Кэширование результата
                             _cache_result(image_hash, data)

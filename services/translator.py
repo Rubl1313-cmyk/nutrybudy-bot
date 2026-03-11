@@ -71,10 +71,54 @@ AI_TO_DB_MAPPING = {
     "baked chicken": "курица запеченная",
     "fried chicken": "курица жареная",
     "chicken breast": "куриная грудка",
+    
+    # Блюда с рыбой
+    "grilled salmon with pasta": "лосось с макаронами",
+    "salmon with pasta": "лосось с макаронами",
+    "grilled fish with pasta": "рыба с макаронами",
+    "fish with pasta": "рыба с макаронами",
+    "pasta with fish": "макароны с рыбой",
+    "pasta with salmon": "макароны с лососем",
+    "fish pasta": "макароны с рыбой",
+    "salmon pasta": "макароны с лососем",
+    "grilled fish salad": "салат с рыбой гриль",
+    "fish salad": "салат с рыбой",
+    "seafood pasta": "макароны с морепродуктами",
+    
+    # Методы приготовления
+    "grilled chicken": "курица гриль",
+    "fried chicken": "жареная курица",
+    "boiled chicken": "вареная курица",
+    "baked chicken": "запеченная курица",
+    "roasted chicken": "запеченная курица",
+    "steamed chicken": "курица на пару",
+    "stewed chicken": "тушеная курица",
+    
+    "grilled meat": "мясо гриль",
+    "fried meat": "жареное мясо",
+    "boiled meat": "вареное мясо",
+    "baked meat": "запеченное мясо",
+    "roasted meat": "запеченное мясо",
+    "stewed meat": "тушеное мясо",
+    
+    "grilled fish": "рыба гриль",
+    "fried fish": "жареная рыба",
+    "boiled fish": "вареная рыба",
+    "baked fish": "запеченная рыба",
+    "steamed fish": "рыба на пару",
+    
+    # Салаты с уточнением
+    "chicken pasta salad": "салат с макаронами и курицей",
+    "tuna pasta salad": "салат с макаронами и тунцом",
+    "seafood pasta salad": "салат с макаронами и морепродуктами",
+    
+    # Салаты
     "caesar salad": "салат цезарь",
     "greek salad": "греческий салат",
     "olivier salad": "салат оливье",
     "russian salad": "салат оливье",
+    "pasta salad": "салат с макаронами",  # Возвращаем корректный перевод
+    "pasta with sauce": "макароны с соусом",  # Отдельное блюдо
     "borscht": "борщ",
     "shchi": "щи",
     "solyanka": "солянка",
@@ -153,10 +197,19 @@ AI_TO_DB_MAPPING = {
     # Ингредиенты - Рыба
     "fish": "треска",
     "salmon": "лосось",
+    "grilled salmon": "лосось гриль",
+    "grilled fish": "рыба гриль",
+    "salmon fillet": "филе лосося",
+    "fish fillet": "филе рыбы",
+    "red fish": "красная рыба",
     "trout": "форель",
+    "grilled trout": "форель гриль",
     "tuna": "тунец",
+    "grilled tuna": "тунец гриль",
     "cod": "треска",
+    "grilled cod": "треска гриль",
     "mackerel": "скумбрия",
+    "grilled mackerel": "скумбрия гриль",
     "herring": "сельдь",
     "shrimp": "креветки",
     "prawns": "креветки",

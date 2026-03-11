@@ -484,7 +484,12 @@ async def process_food_items(
 
     if not skip_dish_check:
         from services.dish_db import find_matching_dishes
-        matches = find_matching_dishes(product_name, threshold=0.5)
+        logger.info(f"🔍 Поиск блюд для '{product_name}'")
+        matches = find_matching_dishes(product_name, threshold=0.3)  # Понижаем порог до 0.3
+        
+        logger.info(f"🔍 Найдено совпадений: {len(matches)}")
+        for match in matches:
+            logger.info(f"🔍 - {match['name']} (score: {match['score']})")
 
         if matches:
             await state.update_data(
@@ -1350,20 +1355,90 @@ async def continue_as_ingredient_callback(callback: CallbackQuery, state: FSMCon
     data = await state.get_data()
     pending_index = data.get('pending_index', 0)
     pending_food_items = data.get('pending_food_items', [])
+    current_item = pending_food_items[pending_index] if pending_index < len(pending_food_items) else None
     
     # Безопасность: проверяем что pending_food_items это список
-    if not isinstance(pending_food_items, list):
-        pending_food_items = []
+    if not isinstance(pending_food_items, list) or not current_item:
+        await callback.answer("❌ Ошибка данных", show_alert=True)
+        return
     
     await callback.message.delete()
     
-    # Увеличиваем индекс на 1, чтобы перейти к следующему продукту
+    # Ищем ингредиенты для текущего продукта
+    product_name = current_item['name']
+    logger.info(f"🔄 Ищем ингредиенты для '{product_name}' как ингредиент")
+    
+    # Ищем в базе ингредиентов
+    food_data = await _get_food_data_cached(product_name, return_variants=True)
+    
+    # Если найдены варианты - показываем выбор
+    if isinstance(food_data, list) and len(food_data) > 1:
+        total_pages = (len(food_data) + VARIANTS_PER_PAGE - 1) // VARIANTS_PER_PAGE
+        await _show_variants_page(
+            callback.message,
+            state,
+            food_data,
+            current_item,
+            data.get('pending_meal_type', 'snack'),
+            pending_index,
+            0,
+            total_pages
+        )
+        await callback.answer()
+        return
+    
+    # Если найден один вариант - добавляем его
+    if isinstance(food_data, list) and len(food_data) == 1:
+        selected_foods = data.get('selected_foods', [])
+        selected_food = {
+            'name': food_data[0]['name'],
+            'weight': current_item.get('weight', 100),
+            'base_calories': food_data[0]['calories'],
+            'base_protein': food_data[0]['protein'],
+            'base_fat': food_data[0]['fat'],
+            'base_carbs': food_data[0]['carbs'],
+            'source': 'database',
+            'key': food_data[0]['key'],
+            'ai_confidence': current_item.get('ai_confidence', 0.5)
+        }
+        selected_foods.append(selected_food)
+        await state.update_data(selected_foods=selected_foods)
+        
+        # Переходим к следующему продукту
+        await process_food_items(
+            callback.message,
+            state,
+            pending_food_items,
+            data.get('pending_meal_type', 'snack'),
+            pending_index + 1,
+            skip_dish_check=True
+        )
+        await callback.answer()
+        return
+    
+    # Если ничего не найдено - создаем заглушку и переходим дальше
+    logger.warning(f"⚠️ Ингредиенты для '{product_name}' не найдены, создаем заглушку")
+    selected_foods = data.get('selected_foods', [])
+    selected_food = {
+        'name': product_name,
+        'weight': current_item.get('weight', 100),
+        'base_calories': 0,
+        'base_protein': 0,
+        'base_fat': 0,
+        'base_carbs': 0,
+        'source': 'unknown',
+        'ai_confidence': current_item.get('ai_confidence', 0.5)
+    }
+    selected_foods.append(selected_food)
+    await state.update_data(selected_foods=selected_foods)
+    
+    # Переходим к следующему продукту
     await process_food_items(
         callback.message,
         state,
         pending_food_items,
         data.get('pending_meal_type', 'snack'),
-        pending_index + 1,  # Переходим к следующему продукту
+        pending_index + 1,
         skip_dish_check=True
     )
     await callback.answer()

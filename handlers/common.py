@@ -641,4 +641,63 @@ async def handle_menu_callbacks(callback: CallbackQuery, state: FSMContext):
         logger.info(f"🔍 DEBUG: Неизвестный menu callback: {callback.data}")
         await callback.answer()
 
+# ========== УНИВЕРСАЛЬНЫЙ ОБРАБОТЧИК CALLBACK ==========
+
+@router.callback_query()
+async def debug_all_callbacks(callback: CallbackQuery, state: FSMContext):
+    """🔍 Ловим ВСЕ callback для отладки"""
+    logger.info(f"🔍 DEBUG: ПОЛУЧЕН CALLBACK: {callback.data}")
+    logger.info(f"🔍 DEBUG: ОТ ПОЛЬЗОВАТЕЛЯ: {callback.from_user.id}")
+    
+    # Media handlers callbacks
+    if callback.data == "use_ingredients_instead":
+        logger.info(f"🔍 DEBUG: Это use_ingredients_instead callback, перенаправляем...")
+        from handlers.media_handlers import use_ingredients_callback
+        await use_ingredients_callback(callback, state)
+        return
+    
+    # Progress callbacks
+    if callback.data.startswith("progress_"):
+        logger.info(f"🔍 DEBUG: Это progress_ callback, обрабатываем...")
+        await period_callback_internal(callback, state)
+        return
+    
+    # Menu callbacks
+    if callback.data.startswith("menu_"):
+        logger.info(f"🔍 DEBUG: Это menu_ callback, перенаправляем...")
+        await handle_menu_callbacks(callback, state)
+        return
+    
+    # Main menu callbacks
+    main_menu_callbacks = [
+        "manual_food", "show_progress", "log_water", "log_activity", 
+        "show_profile", "ai_assistant", "show_statistics", "settings"
+    ]
+    if callback.data in main_menu_callbacks:
+        logger.info(f"🔍 DEBUG: Это main menu callback: {callback.data}")
+        # Ручная обработка для каждого
+        if callback.data == "manual_food":
+            await manual_food_main_callback(callback, state)
+        elif callback.data == "show_progress":
+            await show_progress_main_callback(callback, state)
+        elif callback.data == "log_water":
+            await log_water_main_callback(callback, state)
+        elif callback.data == "log_activity":
+            await log_activity_main_callback(callback, state)
+        elif callback.data == "show_profile":
+            await show_profile_main_callback(callback, state)
+        elif callback.data == "ai_assistant":
+            await ai_assistant_main_callback(callback, state)
+        return
+    
+    # Help callbacks
+    if callback.data.startswith("help_"):
+        logger.info(f"🔍 DEBUG: Это help_ callback, перенаправляем...")
+        await help_category_callback(callback, state)
+        return
+    
+    # Если не нашли обработчик
+    logger.info(f"🔍 DEBUG: Неизвестный callback, игнорируем")
+    await callback.answer()
+
 # ========== Конец файла ==========

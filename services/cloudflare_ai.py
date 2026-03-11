@@ -166,32 +166,31 @@ FOOD CATEGORIES WITH DISH EXAMPLES:
 
 OUTPUT FORMAT - STRICT JSON:
 {
-  "dish_name": "SPECIFIC DISH NAME (e.g., 'beef skewers', 'borscht', 'grilled chicken breast')",
-  "dish_name_ru": "Название на русском (e.g., 'шашлык из говядины', 'борщ', 'куриная грудка гриль')",
+  "dish_name": "SPECIFIC DISH NAME",
+  "dish_name_ru": "Название на русском",
   "category": "skewers|steak|soup|pasta|salad|main|side",
   "confidence": 0.0-1.0,
   "ingredients": [
     {
-      "name": "ingredient name (e.g., 'beef', 'onion', 'tomato')",
+      "name": "ingredient name",
       "type": "protein|carb|vegetable|fat|sauce",
       "estimated_weight_grams": number,
       "confidence": 0.0-1.0
     }
   ],
   "cooking_method": "grilled|fried|boiled|baked|steamed|raw|stewed",
-  "visual_cues": "brief description of what you see (e.g., 'meat on wooden sticks with grill marks')"
+  "visual_cues": "brief description of what you see"
 }
 
 ✅ EXAMPLES OF CORRECT RECOGNITION:
 
-Example 1 - Meat Skewers:
 Image: Meat pieces on wooden sticks with grill marks
 CORRECT: {
-  "dish_name": "beef skewers",
-  "dish_name_ru": "шашлык из говядины",
+  "dish_name": "chicken skewers",
+  "dish_name_ru": "шашлык из курицы",
   "category": "skewers",
   "ingredients": [
-    {"name": "beef", "type": "protein", "estimated_weight_grams": 200},
+    {"name": "chicken", "type": "protein", "estimated_weight_grams": 200},
     {"name": "onion", "type": "vegetable", "estimated_weight_grams": 30}
   ],
   "cooking_method": "grilled",
@@ -1222,6 +1221,247 @@ def _fix_common_recognition_errors(data: Dict) -> Dict:
     return data
 
 
+def _filter_non_food_items(data: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Фильтрует бытовые предметы и непищевые объекты из результатов распознавания.
+    Возвращает отфильтрованные данные и информацию об удаленных элементах.
+    """
+    if not data or 'ingredients' not in data:
+        return data
+    
+    # Список бытовых предметов и непищевых объектов
+    NON_FOOD_ITEMS = {
+        # 🍽️ Столовые приборы
+        'fork', 'spoon', 'knife', 'chopsticks', 'forks', 'spoons', 'knives',
+        'вилка', 'ложка', 'нож', 'палочки', 'вилки', 'ложки', 'ножи',
+        
+        # 🍽️ Посуда
+        'plate', 'bowl', 'cup', 'glass', 'mug', 'saucer', 'platter', 'tray',
+        'тарелка', 'миска', 'чашка', 'стакан', 'кружка', 'блюдце', 'поднос', 'лоток',
+        'plates', 'bowls', 'cups', 'glasses', 'mugs', 'тарелки', 'миски', 'чашки',
+        
+        # 🔪 Кухонные принадлежности
+        'cutting board', 'board', 'napkin', 'tissue', 'paper towel',
+        'разделочная доска', 'доска', 'салфетка', 'бумажное полотенце',
+        
+        # 🕯️ Другие непищевые объекты
+        'table', 'chair', 'menu', 'book', 'phone', 'bottle cap',
+        'стол', 'стул', 'меню', 'книга', 'телефон', 'крышка бутылки',
+        
+        # 🧼 Чистящие средства
+        'soap', 'detergent', 'sponge', 'cloth', 'towel',
+        'мыло', 'моющее средство', 'губка', 'ткань', 'полотенце',
+        
+        # 📦 Упаковка
+        'wrapper', 'package', 'bag', 'container', 'box', 'foil', 'plastic',
+        'обертка', 'упаковка', 'пакет', 'контейнер', 'коробка', 'фольга', 'пластик',
+        
+        # 🌿 Декоративные элементы
+        'flower', 'leaf', 'decoration', 'garnish', 'parsley', 'dill',
+        'цветок', 'лист', 'декорация', 'гарнир', 'петрушка', 'укроп',
+        
+        # ⚠️ Мусор и посторонние предметы
+        'trash', 'dirt', 'dust', 'hair', 'string', 'paper',
+        'мусор', 'грязь', 'пыль', 'волос', 'нить', 'бумага'
+    }
+    
+    # Также фильтруем названия блюд, которые являются бытовыми предметами
+    NON_FOOD_DISHES = {
+        'plate', 'bowl', 'cup', 'glass', 'fork', 'spoon', 'knife',
+        'тарелка', 'миска', 'чашка', 'стакан', 'вилка', 'ложка', 'нож'
+    }
+    
+    original_ingredients = data.get('ingredients', [])
+    filtered_ingredients = []
+    removed_items = []
+    
+    for ingredient in original_ingredients:
+        ingredient_name = ingredient.get('name', '').lower().strip()
+        
+        # Проверяем, является ли ингредиент бытовым предметом
+        is_non_food = False
+        
+        # Прямое совпадение
+        if ingredient_name in NON_FOOD_ITEMS:
+            is_non_food = True
+        
+        # Проверка на вхождение ключевых слов
+        elif any(non_food in ingredient_name for non_food in NON_FOOD_ITEMS):
+            is_non_food = True
+        
+        # Дополнительные проверки для составных слов
+        elif any(keyword in ingredient_name for keyword in ['plastic', 'metal', 'wood', 'glass', 'paper']):
+            # Исключаем случаи, когда это может быть пищей (например, "wood ear mushrooms")
+            if not any(food_word in ingredient_name for food_word in ['mushroom', 'vegetable', 'food']):
+                is_non_food = True
+        
+        if is_non_food:
+            removed_items.append(ingredient_name)
+            logger.info(f"🚫 Filtered non-food item: {ingredient_name}")
+        else:
+            filtered_ingredients.append(ingredient)
+    
+    # Фильтруем название блюда
+    dish_name = data.get('dish_name', '').lower().strip()
+    if dish_name in NON_FOOD_DISHES:
+        logger.warning(f"🚫 Filtered non-food dish name: {dish_name}")
+        # Если название блюда - это бытовой предмет, сбрасываем результат
+        return {
+            'success': False,
+            'error': f'Detected non-food item: {dish_name}',
+            'filtered_items': removed_items,
+            'original_dish': dish_name
+        }
+    
+    # Обновляем данные
+    result = data.copy()
+    result['ingredients'] = filtered_ingredients
+    
+    # Логируем результаты фильтрации
+    if removed_items:
+        logger.info(f"🧹 Filtered {len(removed_items)} non-food items: {', '.join(removed_items)}")
+        logger.info(f"✅ Kept {len(filtered_ingredients)} food ingredients")
+    
+    # Если после фильтрации не осталось ингредиентов, помечаем как подозрительный результат
+    if len(filtered_ingredients) == 0 and len(original_ingredients) > 0:
+        logger.warning(f"⚠️ All ingredients were filtered as non-food items")
+        result['suspicious'] = True
+        result['warning'] = 'All detected items appear to be non-food objects'
+    
+    # Добавляем информацию о фильтрации
+    result['filter_info'] = {
+        'original_count': len(original_ingredients),
+        'filtered_count': len(filtered_ingredients),
+        'removed_items': removed_items
+    }
+    
+    return result
+
+
+def _merge_ensemble_results(valid_results: List[Tuple[Dict, str, float]]) -> Dict[str, Any]:
+    """
+    Умно объединяет результаты от нескольких моделей ансамбля.
+    Приоритет: лучшее название блюда + объединенные ингредиенты
+    """
+    logger.info(f"🔄 Merging results from {len(valid_results)} models...")
+    
+    # 1. Выбираем лучшее название блюда по взвешенной уверенности
+    best_dish_data = None
+    best_dish_score = -1
+    
+    for data, model_name, weight in valid_results:
+        dish_confidence = data.get('confidence', 0) * weight
+        if dish_confidence > best_dish_score:
+            best_dish_score = dish_confidence
+            best_dish_data = data
+    
+    if not best_dish_data:
+        return valid_results[0][0]  # fallback
+    
+    # 2. Собираем все ингредиенты от всех моделей
+    all_ingredients = []
+    ingredient_map = {}  # name -> [ingredient_data, sources]
+    
+    for data, model_name, weight in valid_results:
+        ingredients = data.get('ingredients', [])
+        model_confidence = data.get('confidence', 0)
+        
+        for ing in ingredients:
+            ing_name = ing.get('name', '').lower().strip()
+            if not ing_name:
+                continue
+                
+            # Нормализуем название ингредиента
+            normalized_name = ing_name.lower()
+            
+            if normalized_name not in ingredient_map:
+                ingredient_map[normalized_name] = {
+                    'data': ing.copy(),
+                    'sources': [],
+                    'total_confidence': 0,
+                    'detection_count': 0
+                }
+            
+            # Добавляем информацию о детекции
+            ingredient_map[normalized_name]['sources'].append({
+                'model': model_name,
+                'confidence': ing.get('confidence', 0),
+                'weight': weight,
+                'model_confidence': model_confidence
+            })
+            
+            # Суммируем взвешенную уверенность
+            weighted_conf = ing.get('confidence', 0) * weight * model_confidence
+            ingredient_map[normalized_name]['total_confidence'] += weighted_conf
+            ingredient_map[normalized_name]['detection_count'] += 1
+            
+            # Обновляем данные лучшим вариантом
+            current_weighted = ing.get('confidence', 0) * weight
+            best_weighted = ingredient_map[normalized_name]['data'].get('confidence', 0) * 1.0
+            
+            if current_weighted > best_weighted:
+                ingredient_map[normalized_name]['data'] = ing.copy()
+    
+    # 3. Фильтруем и объединяем ингредиенты
+    merged_ingredients = []
+    
+    for name, info in ingredient_map.items():
+        # Усредняем уверенность по всем моделям
+        avg_confidence = info['total_confidence'] / info['detection_count']
+        
+        # Учитываем количество моделей, которые обнаружили ингредиент
+        detection_bonus = 0.1 * (info['detection_count'] - 1)  # +0.1 за каждую дополнительную модель
+        final_confidence = min(avg_confidence + detection_bonus, 1.0)
+        
+        # Берем ингредиент только если уверенность достаточно высока
+        if final_confidence >= 0.3:  # Порог можно настроить
+            ingredient = info['data'].copy()
+            ingredient['confidence'] = final_confidence
+            
+            # Добавляем мета-информацию
+            ingredient['detected_by'] = [s['model'] for s in info['sources']]
+            ingredient['detection_count'] = info['detection_count']
+            
+            merged_ingredients.append(ingredient)
+            logger.info(f"🔗 Merged ingredient: {name} (confidence: {final_confidence:.2f}, models: {info['detection_count']})")
+    
+    # 4. Сортируем ингредиенты по уверенности
+    merged_ingredients.sort(key=lambda x: x['confidence'], reverse=True)
+    
+    # 5. Создаем финальный результат
+    result = best_dish_data.copy()
+    result['ingredients'] = merged_ingredients
+    result['ensemble_info'] = {
+        'models_count': len(valid_results),
+        'ingredients_merged': len(merged_ingredients),
+        'source_models': [name for _, name, _ in valid_results]
+    }
+    
+    # Усредняем общую уверенность
+    total_confidence = sum(data.get('confidence', 0) for data, _, _ in valid_results) / len(valid_results)
+    result['confidence'] = total_confidence
+    
+    # Финальная фильтрация объединенных результатов
+    result = _filter_non_food_items(result)
+    if result.get('success') == False:
+        logger.warning(f"⚠️ Ensemble detected non-food items: {result.get('error')}")
+        # Возвращаем лучший результат без фильтрации как fallback
+        result = best_dish_data.copy()
+        result['ingredients'] = merged_ingredients
+        result['confidence'] = total_confidence
+        result['ensemble_info'] = {
+            'models_count': len(valid_results),
+            'ingredients_merged': len(merged_ingredients),
+            'source_models': [name for _, name, _ in valid_results],
+            'filter_warning': 'Non-food items detected in ensemble result'
+        }
+    
+    logger.info(f"✅ Merged {len(merged_ingredients)} ingredients from {len(valid_results)} models")
+    logger.info(f"🏆 Best dish: {result.get('dish_name', 'unknown')} (confidence: {total_confidence:.2f})")
+    
+    return result
+
+
 async def identify_food_ensemble(
     image_bytes: bytes,
     model_indices: Optional[List[int]] = None,
@@ -1294,6 +1534,12 @@ async def identify_food_ensemble(
                         logger.warning(f"⚠️ Model {model} validation failed: {reason}")
                         return None, model
 
+                    # Фильтрация бытовых предметов
+                    data = _filter_non_food_items(data)
+                    if data.get('success') == False:
+                        logger.warning(f"⚠️ Model {model} detected non-food items: {data.get('error')}")
+                        return None, model
+
                     # пост-обработка
                     portion_size = data.get('portion_size', 'medium')
                     if 'ingredients' in data:
@@ -1332,21 +1578,16 @@ async def identify_food_ensemble(
         await progress_callback(stage=3, progress=80)
 
     # --- Агрегация результатов ---
-    # Простой вариант: выбрать результат с максимальной уверенностью * вес модели
-    best_data = None
-    best_score = -1
-    best_model = None
-    for data, model_name, weight in valid_results:
-        conf = data.get('confidence', 0) * weight
-        if conf > best_score:
-            best_score = conf
-            best_data = data
-            best_model = model_name
-
-    # Усложнённый вариант: если несколько результатов с близкой уверенностью,
-    # можно объединить ингредиенты (взять пересечение или объединение с фильтром по confidence)
-    # Для простоты пока оставляем выбор лучшего.
-
+    # Улучшенный вариант: объединяем лучшие ингредиенты от всех моделей
+    
+    if len(valid_results) == 1:
+        # Если только одна модель успешна, используем её результат
+        best_data, best_model, _ = valid_results[0]
+    else:
+        # Если несколько моделей успешны, объединяем результаты
+        best_data = _merge_ensemble_results(valid_results)
+        best_model = f"ensemble({'+'.join([name for _, name, _ in valid_results])})"
+    
     # Финальная проверка: если dish_name остался ингредиентом, применяем фикс ещё раз
     best_data = _fix_common_recognition_errors(best_data)
 
@@ -1356,8 +1597,15 @@ async def identify_food_ensemble(
     if progress_callback:
         await progress_callback(stage=4, progress=100)
 
-    logger.info(f"🏆 Ensemble chose model {best_model} with confidence {best_data.get('confidence', 0)}")
-    return best_data, f"ensemble({best_model})"
+    logger.info(f"🏆 Ensemble result: {best_model}")
+    logger.info(f"📊 Final confidence: {best_data.get('confidence', 0):.2f}")
+    
+    # Логируем информацию об ингредиентах
+    ensemble_info = best_data.get('ensemble_info', {})
+    if ensemble_info:
+        logger.info(f"🔗 Merged {ensemble_info.get('ingredients_merged', 0)} ingredients from {ensemble_info.get('models_count', 0)} models")
+    
+    return best_data, best_model
 
 
 async def identify_food_multimodel(
@@ -1439,6 +1687,12 @@ async def identify_food_multimodel(
                             is_valid, reason = _validate_food_data(data)
                             if not is_valid:
                                 logger.warning(f"⚠️ Model {model}: validation failed - {reason}")
+                                continue
+                            
+                            # Фильтрация бытовых предметов
+                            data = _filter_non_food_items(data)
+                            if data.get('success') == False:
+                                logger.warning(f"⚠️ Model {model} detected non-food items: {data.get('error')}")
                                 continue
                             
                             # Пост-обработка

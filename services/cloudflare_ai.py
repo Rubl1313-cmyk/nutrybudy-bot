@@ -27,9 +27,8 @@ else:
 
 # Модели с приоритетами (от лучших к быстрым)
 VISION_MODELS = [
-    {"id": "@cf/llava-hf/llava-1.5-7b-hf", "priority": 1, "timeout": 90, "weight": 0.6},
-    {"id": "@cf/unum/uform-gen2-qwen-500m", "priority": 2, "timeout": 60, "weight": 0.4},
-    {"id": "@cf/llava-hf/bakllava-1", "priority": 3, "timeout": 90, "weight": 0.3},
+    {"id": "@cf/llava-hf/llava-1.5-7b-hf", "priority": 1, "timeout": 120, "weight": 0.6},
+    {"id": "@cf/unum/uform-gen2-qwen-500m", "priority": 2, "timeout": 90, "weight": 0.4},
 ]
 
 # Кэш результатов (hash изображения → результат)
@@ -38,30 +37,77 @@ _CACHE_TTL = 3600  # 1 час
 
 # ========== СПЕЦИАЛИЗИРОВАННЫЕ ПРОМПТЫ ДЛЯ АНСАМБЛЯ ==========
 
-# Упрощенный промпт для LLaVA - "шеф-повар" (контекст и структура блюда)
-SIMPLIFIED_FOOD_PROMPT = """You are a food recognition AI. Analyze the image and return a JSON with dish name, ingredients, and cooking method.
+# Улучшенный промпт для LLaVA на основе исследований 2024-2025
+ENHANCED_FOOD_RECOGNITION_PROMPT = """You are an expert food recognition AI specialized in detailed food analysis. Analyze this image and return structured JSON with precise classification.
 
-CRITICAL RULES:
-- dish_name must be a COMPLETE DISH (e.g., "beef shashlik", not just "beef").
-- If you see meat on wooden/metal sticks → dish_name = "beef shashlik", "chicken shashlik", etc.
-- If you see a thick cut of meat with grill marks → dish_name = "beef steak", "pork steak".
-- If you see soup with beets and sour cream → dish_name = "borscht".
-- If you see pink fish with pasta → dish_name = "salmon with pasta".
-- List all visible ingredients, including garnishes and sauces.
+PRECISE CLASSIFICATION RULES:
 
-Return ONLY valid JSON in this format:
+1. PROTEIN IDENTIFICATION:
+   - RED MEAT: beef, pork, lamb, veal → specify cut (steak, chop, ground, shashlik)
+   - POULTRY: chicken, turkey, duck → specify part (breast, thigh, wing, whole)
+   - FISH: salmon, tuna, cod, trout, herring → specify fresh/salted/smoked
+   - SEAFOOD: shrimp, crab, squid, mussels, clams
+   - PLANT PROTEIN: tofu, beans, lentils, chickpeas, tempeh
+
+2. SOUP CLASSIFICATION:
+   - CLEAR BROTHS: chicken broth, beef broth, vegetable broth, fish broth
+   - CREAM SOUPS: cream of mushroom, cream of chicken, tomato cream
+   - VEGETABLE SOUPS: borscht (beetroot), shchi (cabbage), minestrone
+   - BEAN/LENTIL SOUPS: lentil soup, bean soup, split pea soup
+   - NOODLE SOUPS: chicken noodle, ramen, pho, udon
+
+3. COOKING METHODS:
+   - DRY HEAT: grilled, fried, roasted, baked, sautéed, seared
+   - MOIST HEAT: boiled, steamed, stewed, braised, poached
+   - COMBINATION: stir-fried, curried, casseroled
+   - RAW: fresh, cured, smoked, pickled
+
+4. FOOD CATEGORIES:
+   - PROTEINS: meat, poultry, fish, seafood, eggs, legumes
+   - CARBOHYDRATES: grains, pasta, rice, potatoes, bread
+   - VEGETABLES: leafy greens, root vegetables, nightshades, cruciferous
+   - FRUITS: citrus, berries, tropical, stone fruits
+   - DAIRY: milk, cheese, yogurt, butter
+   - FATS/OILS: olive oil, vegetable oil, butter, lard
+   - SAUCES: tomato-based, cream-based, oil-based, vinegar-based
+
+VISUAL IDENTIFICATION GUIDELINES:
+
+- MEAT ON SKEWERS → "shashlik/kebab" (not just "meat")
+- LIQUID IN BOWL WITH VEGETABLES → "soup" (specify type)
+- THICK CUT WITH GRILL MARKS → "steak" (specify meat type)
+- PINK FISH FLESH → "salmon/tuna" (specify cooking)
+- WHITE FLAKY FISH → "cod/tilapia/sea bass"
+- RED LIQUID WITH BEETS → "borscht"
+- GREEN LEAFY VEGETABLES → "salad" (specify type)
+- CREAMY WHITE LIQUID → "cream soup" (specify base)
+
+REQUIRED JSON FORMAT:
 {
-  "dish_name": "specific dish name",
-  "dish_name_ru": "название на русском (if known)",
-  "cooking_method": "grilled|fried|boiled|baked|raw|stewed",
+  "dish_name": "specific dish name (e.g., 'beef shashlik', 'creamy mushroom soup', 'grilled salmon steak')",
+  "dish_name_ru": "название блюда на русском",
+  "category": "main_course|soup|salad|side_dish|appetizer|dessert",
+  "subcategory": "meat_dish|poultry_dish|fish_dish|vegetable_dish|grain_dish|soup_type",
+  "protein_type": "red_meat|poultry|fish|seafood|plant_protein|none",
+  "cooking_method": "grilled|fried|boiled|baked|steamed|stewed|raw|sautéed",
   "ingredients": [
-    {"name": "ingredient", "type": "protein|carb|vegetable|fat|sauce", "estimated_weight_grams": 100, "confidence": 0.9}
+    {
+      "name": "ingredient name",
+      "type": "protein|carb|vegetable|fruit|dairy|fat|sauce",
+      "subtype": "specific subtype (e.g., 'root_vegetable', 'leafy_green', 'citrus_fruit')",
+      "estimated_weight_grams": 100,
+      "confidence": 0.9
+    }
   ],
-  "confidence": 0.85
-}"""
+  "confidence": 0.85,
+  "visual_cues": ["key visual features identified"],
+  "cooking_level": "rare|medium_rare|medium|medium_well|well_done|N/A"
+}
+
+CRITICAL: Return ONLY valid JSON. No explanations outside JSON structure."""
 
 # Промпт для LLaVA - "шеф-повар" (контекст и структура блюда)
-LLAVA_ENSEMBLE_PROMPT = SIMPLIFIED_FOOD_PROMPT  # Используем упрощенную версию
+LLAVA_ENSEMBLE_PROMPT = ENHANCED_FOOD_RECOGNITION_PROMPT  # Используем улучшенную версию на основе исследований
 
 # Промпт для UForm - "помощник по ингредиентам" (детальное перечисление)
 UFORM_INGREDIENTS_PROMPT = """List all the food ingredients you see in this image. 
@@ -1661,7 +1707,7 @@ async def identify_food_ensemble(
             payload = {
                 "image": image_array,
                 "prompt": LLAVA_ENSEMBLE_PROMPT,
-                "max_tokens": 800,
+                "max_tokens": 1200,  # Увеличили с 800 до 1200 для более подробных ответов
                 "temperature": 0.1
             }
 
@@ -1716,8 +1762,8 @@ async def identify_food_ensemble(
             payload = {
                 "image": image_array,
                 "prompt": UFORM_DETAILED_PROMPT,  # Используем детальный промпт
-                "max_tokens": 300,
-                "temperature": 0.1
+                "max_tokens": 500  # Увеличили с 300 до 500 для более подробных списков
+                # UForm не поддерживает temperature
             }
 
             logger.info(f"🥘 Starting UForm model: {model}")

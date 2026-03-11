@@ -704,6 +704,7 @@ def _fix_common_recognition_errors(data: Dict) -> Dict:
         if 'cabbage' in ingredient_names or 'капуста' in ingredient_names:
             data['dish_name'] = 'борщ'
             data['category'] = 'soup'
+            data['preparation_style'] = 'soup'  # Принудительно устанавливаем стиль супа
             logger.info("🔧 Fixed: Identified as borscht (beets + cabbage)")
     
     # Исправление 2: Если рыба - не называть мясом
@@ -720,6 +721,15 @@ def _fix_common_recognition_errors(data: Dict) -> Dict:
             if any(ing in ingredient_names for ing in ['broth', 'бульон', 'суп']):
                 data['category'] = 'soup'
                 logger.info("🔧 Fixed: Identified as soup")
+    
+    # Исправление 4: Принудительное определение борща по набору ингредиентов
+    if ('beets' in ingredient_names or 'beetroot' in ingredient_names) and \
+       ('cabbage' in ingredient_names or 'капуста' in ingredient_names) and \
+       ('potato' in ingredient_names or 'картофель' in ingredient_names):
+        data['dish_name'] = 'борщ'
+        data['category'] = 'soup'
+        data['preparation_style'] = 'soup'
+        logger.info("🔧 Fixed: Forced borscht identification by ingredient signature")
     
     return data
 

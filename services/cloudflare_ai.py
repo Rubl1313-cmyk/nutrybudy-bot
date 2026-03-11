@@ -1050,11 +1050,98 @@ async def identify_food_cascade(
         )
         
         if data and used_model:
+            # 🔍 ПОДРОБНОЕ ЛОГИРОВАНИЕ РЕЗУЛЬТАТОВ AI
+            logger.info("=" * 80)
+            logger.info("🤖 AI RECOGNITION RESULTS")
+            logger.info("=" * 80)
+            logger.info(f"📸 Model used: {used_model}")
+            logger.info(f"📊 Raw AI response type: {type(data)}")
+            
+            # Логируем полный ответ AI
+            logger.info("📋 Full AI Response:")
+            logger.info(json.dumps(data, indent=2, ensure_ascii=False))
+            
+            # Логируем ключевые поля
+            if isinstance(data, dict):
+                dish_name = data.get('dish_name', 'unknown')
+                dish_name_ru = data.get('dish_name_ru', 'unknown')
+                category = data.get('category', 'unknown')
+                confidence = data.get('confidence_overall', data.get('confidence', 0))
+                cooking_method = data.get('cooking_method', 'unknown')
+                portion_size = data.get('portion_size', 'unknown')
+                cuisine = data.get('cuisine', 'unknown')
+                
+                logger.info("🎯 KEY FIELDS FROM AI:")
+                logger.info(f"   Dish Name: {dish_name}")
+                logger.info(f"   Dish Name RU: {dish_name_ru}")
+                logger.info(f"   Category: {category}")
+                logger.info(f"   Confidence: {confidence}")
+                logger.info(f"   Cooking Method: {cooking_method}")
+                logger.info(f"   Portion Size: {portion_size}")
+                logger.info(f"   Cuisine: {cuisine}")
+                
+                # Логируем ингредиенты
+                ingredients = data.get('ingredients', [])
+                if ingredients:
+                    logger.info(f"🥘 Ingredients ({len(ingredients)} found):")
+                    for i, ing in enumerate(ingredients, 1):
+                        name = ing.get('name', 'unknown')
+                        name_ru = ing.get('name_ru', 'unknown')
+                        ing_type = ing.get('type', 'unknown')
+                        weight = ing.get('estimated_weight_grams', 0)
+                        conf = ing.get('confidence', 0)
+                        visual = ing.get('visual_cue', 'no visual cue')
+                        
+                        logger.info(f"   {i}. {name} ({name_ru})")
+                        logger.info(f"      Type: {ing_type}, Weight: {weight}g, Confidence: {conf}")
+                        logger.info(f"      Visual: {visual}")
+                else:
+                    logger.warning("⚠️ No ingredients found in AI response!")
+                
+                # Логируем дополнительные поля
+                allergens = data.get('allergens_detected', [])
+                if allergens:
+                    logger.info(f"🚨 Allergens detected: {allergens}")
+                
+                reasoning = data.get('reasoning_summary', '')
+                if reasoning:
+                    logger.info(f"🧠 AI Reasoning: {reasoning}")
+                
+                visual_cues = data.get('visual_cues', '')
+                if visual_cues:
+                    logger.info(f"👁️ Visual Cues: {visual_cues}")
+            
+            logger.info("=" * 80)
+            logger.info("🔄 STARTING POST-PROCESSING")
+            logger.info("=" * 80)
+            
             # Конвертируем FoodExpert-AI формат в формат бота
+            logger.info("🔄 Converting FoodExpert-AI format to bot format...")
             data = _convert_food_expert_format(data)
             
+            logger.info("✅ Format conversion completed")
+            logger.info(f"📊 Converted dish name: {data.get('dish_name', 'unknown')}")
+            logger.info(f"📊 Converted category: {data.get('category', 'unknown')}")
+            
             # Пост-обработка: исправляем типичные ошибки
+            logger.info("🔧 Applying post-processing error fixes...")
+            original_dish = data.get('dish_name', 'unknown')
             data = _fix_common_recognition_errors(data)
+            final_dish = data.get('dish_name', 'unknown')
+            
+            if original_dish != final_dish:
+                logger.info(f"🔧 DISH NAME CHANGED: '{original_dish}' → '{final_dish}'")
+            else:
+                logger.info(f"✅ Dish name unchanged: '{final_dish}'")
+            
+            logger.info("=" * 80)
+            logger.info("🎉 FINAL RECOGNITION RESULT")
+            logger.info("=" * 80)
+            logger.info(f"🍽️ Final Dish: {data.get('dish_name', 'unknown')}")
+            logger.info(f"📂 Final Category: {data.get('category', 'unknown')}")
+            logger.info(f"📈 Final Confidence: {data.get('confidence', 0)}")
+            logger.info(f"🍳 Final Cooking Method: {data.get('preparation_style', 'unknown')}")
+            logger.info("=" * 80)
             
             return {
                 "success": True,
@@ -1064,8 +1151,32 @@ async def identify_food_cascade(
                 "confidence": data.get('confidence', 0.5)
             }
             
+        else:
+            # 🔍 ЛОГИРОВАНИЕ СЛУЧАЕВ, КОГДА AI НЕ СМОГ РАСПОЗНАТЬ
+            logger.warning("=" * 80)
+            logger.warning("⚠️ AI RECOGNITION FAILED")
+            logger.warning("=" * 80)
+            logger.warning(f"📸 Model attempted: {used_model}")
+            logger.warning(f"📊 Data received: {data}")
+            logger.warning("❌ No valid data returned from AI")
+            logger.warning("=" * 80)
+            
+            return {
+                "success": False,
+                "data": None,
+                "model": used_model,
+                "consensus": False,
+                "confidence": 0.0,
+                "error": "AI recognition failed"
+            }
+            
     except Exception as e:
-        logger.error(f"❌ Cascade recognition error: {e}", exc_info=True)
+        logger.error("=" * 80)
+        logger.error("❌ CASCADE RECOGNITION ERROR")
+        logger.error("=" * 80)
+        logger.error(f"🚨 Error: {e}")
+        logger.error("📊 Full error details:", exc_info=True)
+        logger.error("=" * 80)
         
     return {
         "success": False,

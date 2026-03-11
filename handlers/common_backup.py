@@ -229,6 +229,233 @@ async def show_progress_main_callback(callback: CallbackQuery, state: FSMContext
     from handlers.progress import cmd_progress
     await cmd_progress(callback.message, state, user_id=callback.from_user.id)
 
+async def handle_menu_callbacks(callback: CallbackQuery, state: FSMContext):
+    logger.info(f"🔍 DEBUG: ПОЛУЧЕН CALLBACK: {callback.data}")
+    logger.info(f"🔍 DEBUG: ОТ ПОЛЬЗОВАТЕЛЯ: {callback.from_user.id}")
+    
+    # Если это progress_ - обрабатываем
+    if callback.data.startswith("progress_"):
+        logger.info(f"🔍 DEBUG: Это progress_ callback, обрабатываем...")
+        await period_callback_internal(callback, state)
+        return
+    
+    # Если это menu_ - обрабатываем основные кнопки меню
+    if callback.data.startswith("menu_"):
+        logger.info(f"🔍 DEBUG: Это menu_ callback, обрабатываем...")
+        await handle_menu_callbacks(callback, state)
+        return
+    
+    # Современные инлайн кнопки
+    if callback.data == "manual_food":
+        logger.info(f"🔍 DEBUG: Это manual_food callback")
+        from handlers.food import cmd_log_food
+        await cmd_log_food(callback.message, state, user_id=callback.from_user.id)
+        await callback.answer()
+        return
+    
+    if callback.data == "show_progress":
+        logger.info(f"🔍 DEBUG: Это show_progress callback")
+        from handlers.progress import cmd_progress
+        await cmd_progress(callback.message, state, user_id=callback.from_user.id)
+        await callback.answer()
+        return
+    
+    if callback.data == "log_water":
+        logger.info(f"🔍 DEBUG: Это log_water callback")
+        from handlers.water import cmd_water
+        await cmd_water(callback.message, state, user_id=callback.from_user.id)
+        await callback.answer()
+        return
+    
+    if callback.data == "log_activity":
+        logger.info(f"🔍 DEBUG: Это log_activity callback")
+        from handlers.activity import cmd_fitness
+        await cmd_fitness(callback.message, state, user_id=callback.from_user.id)
+        await callback.answer()
+        return
+    
+    if callback.data == "show_profile":
+        logger.info(f"🔍 DEBUG: Это show_profile callback")
+        await display_profile(callback, callback.from_user.id, state)
+        await callback.answer()
+        return
+    
+    if callback.data == "ai_assistant":
+        logger.info(f"🔍 DEBUG: Это ai_assistant callback")
+        from handlers.ai_assistant import cmd_ask
+        await cmd_ask(callback.message, state)
+        await callback.answer()
+        return
+    
+    if callback.data == "photo_food":
+        logger.info(f"🔍 DEBUG: Это photo_food callback")
+        await callback.message.answer("📸 Отправьте фото еды")
+        await callback.answer()
+        return
+    
+    # Media handlers callbacks
+    if callback.data == "use_ingredients_instead":
+        logger.info(f"🔍 DEBUG: Это use_ingredients_instead callback, перенаправляем...")
+        from handlers.media_handlers import use_ingredients_callback
+        await use_ingredients_callback(callback, state)
+        return
+    
+    if callback.data == "confirm_dish_as_is":
+        logger.info(f"🔍 DEBUG: Это confirm_dish_as_is callback, перенаправляем...")
+        from handlers.media_handlers import confirm_dish_callback
+        await confirm_dish_callback(callback, state)
+        return
+    
+    if callback.data == "continue_ingredient":
+        logger.info(f"🔍 DEBUG: Это continue_ingredient callback, перенаправляем...")
+        from handlers.media_handlers import continue_as_ingredient_callback
+        await continue_as_ingredient_callback(callback, state)
+        return
+    
+    if callback.data.startswith("select_dish_idx_"):
+        logger.info(f"🔍 DEBUG: Это select_dish_idx_ callback, перенаправляем...")
+        from handlers.media_handlers import select_dish_by_index_callback
+        await select_dish_by_index_callback(callback, state)
+        return
+    
+    if callback.data.startswith("variants_page_"):
+        logger.info(f"🔍 DEBUG: Это variants_page_ callback, перенаправляем...")
+        from handlers.media_handlers import variants_page_callback
+        await variants_page_callback(callback, state)
+        return
+    
+    if callback.data.startswith("select_variant_"):
+        logger.info(f"🔍 DEBUG: Это select_variant_ callback, перенаправляем...")
+        from handlers.media_handlers import select_variant_callback
+        await select_variant_callback(callback, state)
+        return
+    
+    if callback.data.startswith("weight_"):
+        logger.info(f"🔍 DEBUG: Это weight_ callback, перенаправляем...")
+        from handlers.media_handlers import weight_callback
+        await weight_callback(callback, state)
+        return
+    
+    if callback.data == "add_food":
+        logger.info(f"🔍 DEBUG: Это add_food callback, перенаправляем...")
+        from handlers.media_handlers import add_food_callback
+        await add_food_callback(callback, state)
+        return
+    
+    if callback.data == "confirm_meal":
+        logger.info(f"🔍 DEBUG: Это confirm_meal callback, перенаправляем...")
+        from handlers.media_handlers import confirm_meal_callback
+        await confirm_meal_callback(callback, state)
+        return
+    
+    if callback.data == "cancel_meal":
+        logger.info(f"🔍 DEBUG: Это cancel_meal callback, перенаправляем...")
+        from handlers.media_handlers import cancel_meal_callback
+        await cancel_meal_callback(callback, state)
+        return
+    
+    if callback.data == "action_cancel":
+        logger.info(f"🔍 DEBUG: Это action_cancel callback, перенаправляем...")
+        from handlers.media_handlers import action_cancel_callback
+        await action_cancel_callback(callback, state)
+        return
+    
+    if callback.data == "food_manual":
+        logger.info(f"🔍 DEBUG: Это food_manual callback, перенаправляем...")
+        from handlers.media_handlers import food_manual_callback
+        await food_manual_callback(callback, state)
+        return
+    
+    if callback.data == "show_nutrition_details":
+        logger.info(f"🔍 DEBUG: Это show_nutrition_details callback, перенаправляем...")
+        from handlers.media_handlers import show_nutrition_details_callback
+        await show_nutrition_details_callback(callback, state)
+        return
+    
+    if callback.data == "retry_photo":
+        logger.info(f"🔍 DEBUG: Это retry_photo callback, перенаправляем...")
+        from handlers.media_handlers import retry_photo_callback
+        await retry_photo_callback(callback, state)
+        return
+    
+    if callback.data == "manual_food":
+        logger.info(f"🔍 DEBUG: Это manual_food callback, перенаправляем...")
+        from handlers.media_handlers import manual_food_callback
+        await manual_food_callback(callback, state)
+        return
+    
+    if callback.data == "manual_food_entry":
+        logger.info(f"🔍 DEBUG: Это manual_food_entry callback, перенаправляем...")
+        from handlers.media_handlers import manual_food_entry_callback
+        await manual_food_entry_callback(callback, state)
+        return
+    
+    # Другие callback...
+    logger.info(f"🔍 DEBUG: Неизвестный callback, игнорируем")
+
+async def handle_menu_callbacks(callback: CallbackQuery, state: FSMContext):
+    """Обработка menu_* callback'ов"""
+    from handlers.food import cmd_log_food
+    from handlers.water import cmd_water
+    from handlers.activity import cmd_fitness
+    from handlers.meal_plan import cmd_meal_plan
+    from handlers.ai_assistant import cmd_ask
+    from handlers.steps import cmd_log_steps
+    from utils.states import StepsStates
+    
+    if callback.data == "menu_food_photo":
+        await callback.message.answer("📸 Отправьте фото еды")
+        await callback.answer()
+    
+    elif callback.data == "menu_food_manual":
+        await cmd_log_food(callback.message, state, user_id=callback.from_user.id)
+        await callback.answer()
+    
+    elif callback.data == "menu_meal_plan":
+        await cmd_meal_plan(callback.message, state, user_id=callback.from_user.id)
+        await callback.answer()
+    
+    elif callback.data == "menu_ai":
+        await cmd_ask(callback.message, state, user_id=callback.from_user.id)
+        await callback.answer()
+    
+    elif callback.data == "menu_water":
+        await cmd_water(callback.message, state, user_id=callback.from_user.id)
+        await callback.answer()
+    
+    elif callback.data == "menu_activity":
+        await cmd_fitness(callback.message, state, user_id=callback.from_user.id)
+        await callback.answer()
+    
+    elif callback.data == "menu_steps":
+        await state.set_state(StepsStates.waiting_for_steps)
+        await callback.message.answer("👟 Введите количество шагов (только число):")
+        await callback.answer()
+    
+    elif callback.data == "menu_profile_view":
+        await display_profile(callback, callback.from_user.id, state)
+        await callback.answer()
+    
+    elif callback.data == "menu_profile_edit":
+        await edit_profile(callback.message, state, user_id=callback.from_user.id)
+        await callback.answer()
+    
+    elif callback.data == "menu_log_weight":
+        await cmd_log_weight(callback.message, state)
+        await callback.answer()
+    
+    elif callback.data == "menu_back":
+        await callback.message.delete()
+        await callback.message.answer(
+            "🏠 Главное меню",
+            reply_markup=get_main_keyboard()
+        )
+        await callback.answer()
+    
+    else:
+        logger.info(f"🔍 DEBUG: Неизвестный menu callback: {callback.data}")
+        await callback.answer()
+
 async def period_callback_internal(callback: CallbackQuery, state: FSMContext):
     """🎨 Внутренний обработчик выбора периода"""
     try:
@@ -577,68 +804,5 @@ async def ai_assistant_main_callback(callback: CallbackQuery, state: FSMContext)
     
     from handlers.ai_assistant import cmd_ask
     await cmd_ask(callback.message, state, user_id=callback.from_user.id)
-
-async def handle_menu_callbacks(callback: CallbackQuery, state: FSMContext):
-    """Обработка menu_* callback'ов"""
-    from handlers.food import cmd_log_food
-    from handlers.water import cmd_water
-    from handlers.activity import cmd_fitness
-    from handlers.meal_plan import cmd_meal_plan
-    from handlers.ai_assistant import cmd_ask
-    from handlers.steps import cmd_log_steps
-    from utils.states import StepsStates
-    
-    if callback.data == "menu_food_photo":
-        await callback.message.answer("📸 Отправьте фото еды")
-        await callback.answer()
-    
-    elif callback.data == "menu_food_manual":
-        await cmd_log_food(callback.message, state, user_id=callback.from_user.id)
-        await callback.answer()
-    
-    elif callback.data == "menu_meal_plan":
-        await cmd_meal_plan(callback.message, state, user_id=callback.from_user.id)
-        await callback.answer()
-    
-    elif callback.data == "menu_ai":
-        await cmd_ask(callback.message, state, user_id=callback.from_user.id)
-        await callback.answer()
-    
-    elif callback.data == "menu_water":
-        await cmd_water(callback.message, state, user_id=callback.from_user.id)
-        await callback.answer()
-    
-    elif callback.data == "menu_activity":
-        await cmd_fitness(callback.message, state, user_id=callback.from_user.id)
-        await callback.answer()
-    
-    elif callback.data == "menu_steps":
-        await state.set_state(StepsStates.waiting_for_steps)
-        await callback.message.answer("👟 Введите количество шагов (только число):")
-        await callback.answer()
-    
-    elif callback.data == "menu_profile_view":
-        await display_profile(callback, callback.from_user.id, state)
-        await callback.answer()
-    
-    elif callback.data == "menu_profile_edit":
-        await edit_profile(callback.message, state, user_id=callback.from_user.id)
-        await callback.answer()
-    
-    elif callback.data == "menu_log_weight":
-        await cmd_log_weight(callback.message, state)
-        await callback.answer()
-    
-    elif callback.data == "menu_back":
-        await callback.message.delete()
-        await callback.message.answer(
-            "🏠 Главное меню",
-            reply_markup=get_main_keyboard()
-        )
-        await callback.answer()
-    
-    else:
-        logger.info(f"🔍 DEBUG: Неизвестный menu callback: {callback.data}")
-        await callback.answer()
 
 # ========== Конец файла ==========

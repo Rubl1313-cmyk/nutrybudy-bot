@@ -274,11 +274,8 @@ async def _send_product_card(
     weight_buttons = []
     if weight >= 10:
         weight_buttons.append(InlineKeyboardButton(text="➖10г", callback_data=f"weight_dec_{index}_10_{totals_msg_id}"))
-    if weight >= 50:
-        weight_buttons.append(InlineKeyboardButton(text="➖50г", callback_data=f"weight_dec_{index}_50_{totals_msg_id}"))
     
     weight_buttons.append(InlineKeyboardButton(text="➕10г", callback_data=f"weight_inc_{index}_10_{totals_msg_id}"))
-    weight_buttons.append(InlineKeyboardButton(text="➕50г", callback_data=f"weight_inc_{index}_50_{totals_msg_id}"))
     
     if weight_buttons:
         keyboard.append(weight_buttons)
@@ -1913,7 +1910,7 @@ async def _show_daily_progress(callback: CallbackQuery, session, user, meal):
         await callback.message.answer(daily_progress, parse_mode="HTML")
         
         # ========== 💪 ПРОГРЕСС ПО ВОДЕ ==========
-        water_bar = ProgressBar.create_modern_bar(daily_total_water, goal_water, 12, 'neon')
+        water_bar = ProgressBar.create_modern_bar(daily_total_water, goal_water, 12, 'gradient')
         water_percentage = (daily_total_water / goal_water * 100) if goal_water > 0 else 0
         
         water_progress = (
@@ -2065,7 +2062,7 @@ async def cmd_today_summary(message: Message):
         await message.answer(daily_progress, parse_mode="HTML")
         
         # ========== 💪 ПРОГРЕСС ПО ВОДЕ ==========
-        water_bar = ProgressBar.create_modern_bar(daily_total_water, goal_water, 12, 'neon')
+        water_bar = ProgressBar.create_modern_bar(daily_total_water, goal_water, 12, 'gradient')
         water_percentage = (daily_total_water / goal_water * 100) if goal_water > 0 else 0
         
         water_progress = (

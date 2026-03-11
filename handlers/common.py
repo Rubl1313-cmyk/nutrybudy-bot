@@ -430,7 +430,7 @@ async def _create_modern_progress_message(user, stats: dict, period_name: str, p
         stats['avg_cal_consumed'], user.daily_calorie_goal, style="gradient"
     )
     water_bar = ProgressBar.create_modern_bar(
-        stats['avg_water'], user.daily_water_goal, style="neon"
+        stats['avg_water'], user.daily_water_goal, style="gradient"
     )
     
     # 🎨 Карточки питательных веществ

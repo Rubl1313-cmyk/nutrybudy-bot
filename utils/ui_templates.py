@@ -40,26 +40,11 @@ class ProgressBar:
         empty = length - filled
         
         if style == 'gradient':
-            # Градиентный стиль
-            if percentage >= 100:
-                bar = '🟢' * filled + '⬜' * empty
-            elif percentage >= 75:
-                bar = '🔵' * filled + '⬜' * empty
-            elif percentage >= 50:
-                bar = '🟡' * filled + '⬜' * empty
-            elif percentage >= 25:
-                bar = '🟠' * filled + '⬜' * empty
-            else:
-                bar = '🔴' * filled + '⬜' * empty
+            # Градиентный стиль - одноцветный
+            bar = '�' * filled + '⬜' * empty
         elif style == 'neon':
-            # Неоновый стиль
-            neon_chars = ['🟦', '🟩', '🟨', '🟧']
-            bar = ''
-            for i in range(length):
-                if i < filled:
-                    bar += neon_chars[i % len(neon_chars)]
-                else:
-                    bar += '⬛'
+            # Неоновый стиль - одноцветный
+            bar = '🟦' * filled + '⬜' * empty
         else:
             # Минималистичный стиль
             bar = '▓' * filled + '░' * empty

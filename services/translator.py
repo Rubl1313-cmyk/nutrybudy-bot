@@ -13,6 +13,75 @@ logger = logging.getLogger(__name__)
 
 # ==================== ПРЯМОЕ МАППИРОВАНИЕ AI → БАЗА ====================
 AI_TO_DB_MAPPING = {
+    # РЫБА (отдельно от мяса!)
+    "salmon": "лосось",
+    "grilled salmon": "лосось жареный",
+    "baked salmon": "лосось запеченный",
+    "salmon fillet": "лосось",
+    "trout": "форель",
+    "grilled trout": "форель жареная",
+    "tuna": "тунец",
+    "cod": "треска",
+    "mackerel": "скумбрия",
+    "herring": "сельдь",
+    "fish": "рыба",
+    "grilled fish": "рыба жареная",
+    "baked fish": "рыба запеченная",
+    
+    # СУПЫ (отдельно от основных блюд!)
+    "borscht": "борщ",
+    "beet soup": "борщ",
+    "russian borscht": "борщ",
+    "shchi": "щи",
+    "cabbage soup": "щи",
+    "solyanka": "солянка",
+    "ukha": "уха",
+    "fish soup": "уха",
+    "chicken soup": "куриный суп",
+    "mushroom soup": "грибной суп",
+    "pea soup": "гороховый суп",
+    "noodle soup": "суп с лапшой",
+    
+    # МЯСО (только настоящее мясо)
+    "beef": "говядина",
+    "pork": "свинина",
+    "lamb": "баранина",
+    "veal": "телятина",
+    "grilled beef": "говядина жареная",
+    "fried pork": "свинина жареная",
+    
+    # ПТИЦА
+    "chicken": "курица",
+    "grilled chicken": "курица жареная",
+    "baked chicken": "курица запеченная",
+    "chicken breast": "куриная грудка",
+    "turkey": "индейка",
+    
+    # ПАСТА И ГАРНИРЫ
+    "pasta": "макароны",
+    "spaghetti": "спагетти",
+    "pasta with salmon": "макароны с лососем",
+    "pasta with chicken": "макароны с курицей",
+    "rice": "рис",
+    "buckwheat": "гречка",
+    "potatoes": "картофель",
+    "mashed potatoes": "картофельное пюре",
+    "fried potatoes": "картофель жареный",
+    
+    # САЛАТЫ
+    "salad": "салат",
+    "green salad": "салат",
+    "mixed salad": "салат",
+    "caesar salad": "салат цезарь",
+    "greek salad": "греческий салат",
+    "olivier salad": "салат оливье",
+    
+    # ХЛЕБ
+    "bread": "хлеб",
+    "white bread": "хлеб пшеничный",
+    "black bread": "хлеб ржаной",
+    "bun": "булка",
+    
     # Блюда - Итальянская кухня
     "spaghetti": "спагетти",
     "spaghetti pasta": "спагетти",

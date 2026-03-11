@@ -37,135 +37,131 @@ _RECOGNITION_CACHE: Dict[str, Tuple[Dict, datetime]] = {}
 _CACHE_TTL = 3600  # 1 час
 
 # ========== УЛУЧШЕННЫЕ ПРОМПТЫ ==========
-FOOD_RECOGNITION_PROMPT = """You are an advanced computer vision system specialized in food ingredient identification and nutritional analysis. Analyze this food image systematically and return ONLY valid JSON.
-
-PRIMARY OBJECTIVE:
-Identify ALL visible food items with their cooking methods and estimated weights. Focus on ingredient-level recognition rather than attempting to name complex dishes.
-
-ANALYSIS METHODOLOGY:
-1. Scan the entire image systematically
-2. Identify each distinct food component
-3. Determine cooking method for each component
-4. Estimate realistic weights based on visual portion size
-5. Assess confidence for each identification
-
-FOOD CATEGORIES TO IDENTIFY:
-
-PROTEINS:
-- Meats: beef, pork, lamb, chicken, turkey - identify specific cuts
-- Seafood: fish (salmon, tuna, cod, etc.), shrimp, crab, squid
-- Plant-based: tofu, tempeh, legumes, eggs
-
-CARBOHYDRATES:
-- Grains: rice (white, brown), pasta (spaghetti, penne, etc.), bread
-- Root vegetables: potatoes, sweet potatoes, carrots, beets
-- Legumes: beans, lentils, chickpeas
-
-VEGETABLES:
-- Leafy greens: lettuce, spinach, kale, cabbage
-- Cruciferous: broccoli, cauliflower, Brussels sprouts
-- Nightshade: tomatoes, peppers, eggplant
-- Allium: onions, garlic, leeks
-- Others: cucumbers, zucchini, mushrooms, corn
-
-FRUITS:
-- Fresh: apples, bananas, berries, citrus
-- Dried: raisins, dates, apricots
-
-FATS & OILS:
-- Visible oils: olive oil, butter, vegetable oil
-- Nuts & seeds: almonds, walnuts, sesame seeds
-- Avocado, cheese, cream
-
-SAUCES & DRESSINGS:
-- Tomato-based: marinara, ketchup, tomato sauce
-- Cream-based: cream sauce, mayonnaise, ranch
-- Oil-based: vinaigrette, pesto
-- Other: soy sauce, teriyaki, BBQ sauce
-
-COOKING METHODS IDENTIFICATION:
-- Grilled: visible grill marks, charred areas
-- Fried: golden-brown exterior, oil sheen
-- Baked/Roasted: dry heat appearance, even browning
-- Boiled/Steamed: moist appearance, no browning
-- Raw: natural colors, unprocessed appearance
-- Stir-fried: high heat searing, Asian style
-
-VISUAL ANALYSIS CRITERIA:
-- Color: Natural vs processed colors
-- Texture: Smooth, rough, crispy, soft
-- Shape: Cut forms (slices, cubes, strips)
-- Arrangement: How items are combined on plate
-- Cooking indicators: Grill marks, browning, moisture
-
-REQUIRED JSON FORMAT:
-{
-  "ingredients": [
-    {
-      "name": "specific ingredient name",
-      "category": "protein|carb|vegetable|fruit|fat|sauce|other",
-      "cooking_method": "grilled|fried|baked|boiled|steamed|raw|stir-fried|roasted",
-      "estimated_weight_grams": number,
-      "confidence": 0.0-1.0,
-      "visual_notes": "brief description of appearance"
-    }
-  ],
-  "preparation_style": "mixed|separated|layered|casserole|soup|salad",
-  "meal_type": "breakfast|lunch|dinner|snack",
-  "overall_confidence": 0.0-1.0
-}
-
-ACCURACY REQUIREMENTS:
-- Each ingredient must be individually identifiable
-- Cooking methods must match visual evidence
-- Weight estimates must be realistic for portion size
-- Confidence scores must reflect identification certainty
-- Use standard culinary terminology
-
-EXAMPLES OF CORRECT ANALYSIS:
-{
-  "ingredients": [
-    {
-      "name": "grilled chicken breast",
-      "category": "protein",
-      "cooking_method": "grilled",
-      "estimated_weight_grams": 150,
-      "confidence": 0.9,
-      "visual_notes": "white meat with grill marks, sliced"
-    },
-    {
-      "name": "spaghetti pasta",
-      "category": "carb",
-      "cooking_method": "boiled",
-      "estimated_weight_grams": 120,
-      "confidence": 0.95,
-      "visual_notes": "long strands, white color, moist appearance"
-    },
-    {
-      "name": "lettuce mix",
-      "category": "vegetable",
-      "cooking_method": "raw",
-      "estimated_weight_grams": 50,
-      "confidence": 0.85,
-      "visual_notes": "mixed green leaves, fresh appearance"
-    }
-  ],
-  "preparation_style": "mixed",
-  "meal_type": "lunch",
-  "overall_confidence": 0.9
-}
+ENHANCED_FOOD_RECOGNITION_PROMPT = """You are an expert food recognition AI specializing in Russian and international cuisine. Your task is to identify dishes and ingredients with MAXIMUM precision.
 
 CRITICAL RULES:
-1. Identify EACH visible ingredient separately
-2. Be specific about cooking methods based on visual evidence
-3. Provide realistic weight estimates
-4. Use confidence scores honestly
-5. Focus on ingredients, not complex dish names
-6. If uncertain, lower confidence and describe visually
-7. Include all components - even small garnishes
-8. Distinguish between similar items (e.g., different vegetable types)
+1. NEVER confuse fish with meat - they are DIFFERENT categories
+2. NEVER confuse soups with main dishes - soups are LIQUID dishes
+3. Identify SPECIFIC types, not generic categories
+4. Recognize COMPLETE dishes, not just components
 
-Now analyze the image systematically and return JSON with all identifiable ingredients:"""
+FOOD CATEGORIES (MUTUALLY EXCLUSIVE):
+
+ FISH & SEAFOOD (НЕ МЯСО):
+- Salmon/лосось/семга, trout/форель, tuna/тунец, cod/треска
+- Mackerel/скумбрия, herring/сельдь, pike/щука, carp/карп
+- Shrimp/креветки, crab/краб, squid/кальмары, mussels/мидии
+- NEVER call fish "meat" - it's "fish" or "seafood"
+
+ MEAT (МЯСО):
+- Beef/говядина, pork/свинина, lamb/баранина, veal/телятина
+- Chicken/курица, turkey/индейка, duck/утка
+- ONLY solid meat dishes, NOT fish
+
+ SOUPS (СУПЫ - ЖИДКИЕ БЛЮДА):
+- Borscht/борщ (beet soup with meat and vegetables)
+- Shchi/щи (cabbage soup)
+- Solyanka/солянка (mixed meat and pickle soup)
+- Ukha/уха (fish soup)
+- Chicken soup/куриный суп
+- Mushroom soup/грибной суп
+- Pea soup/гороховый суп
+- ALWAYS identify as "soup", NEVER as "meat with bread"
+
+ PASTA & GRAINS (ГАРНИРЫ):
+- Pasta/макароны/спагетти (specify type if visible)
+- Rice/рис (white, brown, basmati)
+- Buckwheat/гречка
+- Potatoes/картофель (boiled, fried, mashed)
+
+ SALADS & VEGETABLES (САЛАТЫ И ОВОЩИ):
+- Green salad/зеленый салат
+- Caesar salad/салат цезарь
+- Greek salad/греческий салат
+- Olivier salad/оливье
+- Mixed vegetables/овощное ассорти
+- ALWAYS identify salads separately from main dishes
+
+ BREAD & BAKERY (ХЛЕБ И ВЫПЕЧКА):
+- Bread/хлеб (white, black, rye)
+- Bun/булка
+- ONLY if clearly visible as separate item
+
+SPECIFIC DISH IDENTIFICATION:
+
+For BORSHCH (борщ):
+- MUST identify as: "borscht" or "beet soup"
+- Ingredients: beets, cabbage, potatoes, carrots, meat (optional), sour cream
+- NEVER identify as "meat with bread"
+
+For FISH dishes:
+- MUST specify: "salmon", "trout", "tuna", etc.
+- NEVER call it "meat"
+- Example: "grilled salmon" NOT "grilled meat"
+
+For COMPLEX dishes:
+- Identify EACH component separately
+- Example: "salmon with pasta and salad" has 3 components:
+  1. Fish: salmon
+  2. Carb: pasta
+  3. Vegetable: salad
+
+RECOGNITION PRIORITY:
+1. First identify if it's a SOUP (liquid in bowl)
+2. Then identify MAIN PROTEIN (fish vs meat vs chicken)
+3. Then identify SIDES (pasta, rice, potatoes, vegetables)
+4. Then identify SALADS separately
+5. Then identify BREAD if visible
+
+OUTPUT FORMAT:
+For EACH visible dish/component, provide:
+{
+  "dish_name": "SPECIFIC name (e.g., 'grilled salmon', 'borscht', 'chicken with rice')",
+  "category": "fish|meat|chicken|soup|pasta|salad|vegetables|bread",
+  "ingredients": [
+    {
+      "name": "specific ingredient (e.g., 'salmon', 'beets', 'pasta')",
+      "type": "protein|carb|vegetable|fat|sauce",
+      "estimated_weight_grams": number,
+      "confidence": 0.0-1.0
+    }
+  ],
+  "cooking_method": "grilled|fried|boiled|baked|steamed|raw",
+  "portion_size": "small|medium|large",
+  "confidence": 0.0-1.0
+}
+
+EXAMPLES OF CORRECT RECOGNITION:
+
+Image: Red soup with meat and sour cream
+ CORRECT: {"dish_name": "borscht", "category": "soup", ...}
+ WRONG: {"dish_name": "meat with bread", ...}
+
+Image: Pink fish fillet with pasta and green salad
+ CORRECT: [
+  {"dish_name": "grilled salmon", "category": "fish", ...},
+  {"dish_name": "pasta", "category": "pasta", ...},
+  {"dish_name": "green salad", "category": "salad", ...}
+]
+ WRONG: {"dish_name": "meat with pasta", ...}
+
+Image: Clear soup with fish and vegetables
+ CORRECT: {"dish_name": "ukha", "category": "soup", ...}
+ WRONG: {"dish_name": "fish with vegetables", ...}
+
+Image: Chicken breast with buckwheat
+ CORRECT: [
+  {"dish_name": "grilled chicken breast", "category": "chicken", ...},
+  {"dish_name": "buckwheat", "category": "grains", ...}
+]
+
+CRITICAL DISTINCTIONS:
+- FISH ≠ MEAT (рыба ≠ мясо)
+- SOUP ≠ MAIN DISH (суп ≠ второе блюдо)
+- SALAD ≠ SIDE DISH (салат ≠ гарнир)
+- Be SPECIFIC: "salmon" NOT "fish", "borscht" NOT "soup"
+
+Now analyze image with MAXIMUM precision and return ONLY valid JSON."""
 
 # ========== КЭШИРОВАНИЕ ==========
 def _get_image_hash(image_bytes: bytes) -> str:
@@ -651,6 +647,83 @@ async def _send_progress_update(
 
 
 # ========== ОСНОВНЫЕ ФУНКЦИИ ==========
+async def identify_food_cascade(
+    image_bytes: bytes,
+    progress_callback=None
+) -> Dict[str, Any]:
+    """
+    Улучшенное каскадное распознавание с пост-обработкой
+    """
+    try:
+        # Используем новый промпт
+        data, used_model = await identify_food_multimodel(
+            image_bytes,
+            prompt=ENHANCED_FOOD_RECOGNITION_PROMPT,  # Новый промпт
+            progress_callback=progress_callback
+        )
+        
+        if data and used_model:
+            # Пост-обработка: исправляем типичные ошибки
+            data = _fix_common_recognition_errors(data)
+            
+            return {
+                "success": True,
+                "data": data,
+                "model": used_model,
+                "consensus": False,
+                "confidence": data.get('confidence', 0.5)
+            }
+            
+    except Exception as e:
+        logger.error(f"❌ Cascade recognition error: {e}", exc_info=True)
+        
+    return {
+        "success": False,
+        "data": None,
+        "model": None,
+        "consensus": False,
+        "confidence": 0.0,
+        "error": "All models failed"
+    }
+
+
+def _fix_common_recognition_errors(data: Dict) -> Dict:
+    """
+    Исправляет типичные ошибки распознавания
+    """
+    if not data or 'dish_name' not in data:
+        return data
+    
+    dish_name = data['dish_name'].lower()
+    ingredients = data.get('ingredients', [])
+    
+    # Исправление 1: Если есть свекла и капуста - это борщ, не мясо
+    ingredient_names = [ing.get('name', '').lower() for ing in ingredients]
+    
+    if 'beets' in ingredient_names or 'beetroot' in ingredient_names or 'свекла' in ingredient_names:
+        if 'cabbage' in ingredient_names or 'капуста' in ingredient_names:
+            data['dish_name'] = 'борщ'
+            data['category'] = 'soup'
+            logger.info("🔧 Fixed: Identified as borscht (beets + cabbage)")
+    
+    # Исправление 2: Если рыба - не называть мясом
+    fish_keywords = ['salmon', 'trout', 'tuna', 'cod', 'fish', 'лосось', 'форель', 'рыба']
+    if any(fish in dish_name for fish in fish_keywords):
+        if 'meat' in dish_name:
+            data['dish_name'] = dish_name.replace('meat', 'fish')
+            logger.info("🔧 Fixed: Changed 'meat' to 'fish'")
+    
+    # Исправление 3: Если жидкое блюдо в тарелке - это суп
+    if data.get('preparation_style') == 'liquid' or data.get('soup'):
+        if 'soup' not in dish_name and 'суп' not in dish_name and 'борщ' not in dish_name:
+            # Проверяем ингредиенты на наличие типичных для супов
+            if any(ing in ingredient_names for ing in ['broth', 'бульон', 'суп']):
+                data['category'] = 'soup'
+                logger.info("🔧 Fixed: Identified as soup")
+    
+    return data
+
+
 async def identify_food_multimodel(
     image_bytes: bytes,
     prompt: str = None,

@@ -271,138 +271,139 @@ WRONG: {"dish_name": "meat with pasta"} ❌ Fish is not meat!
 NOW ANALYZE THE IMAGE AND RETURN ONLY VALID JSON WITH SPECIFIC DISH NAME!"""
 
 # ========== FOOD EXPERT AI PROMPT ==========
-FOOD_EXPERT_AI_PROMPT = """You are FoodExpert-AI, a specialized culinary vision assistant trained on global cuisine databases. Your task is to analyze food images and provide structured, accurate identification.
+FOOD_EXPERT_AI_PROMPT = """You are FoodExpert-AI. Analyze this food image and return ONLY valid JSON.
 
-## 🎯 CORE INSTRUCTIONS (follow in order):
+═══════════════════════════════════════════════════════════════
+🎯 CRITICAL RULE #1 (MOST IMPORTANT):
+═══════════════════════════════════════════════════════════════
+dish_name MUST be a COMPLETE PREPARED DISH, NEVER just an ingredient!
 
-### STEP 1: GLOBAL ASSESSMENT
-- Is this a single dish or multiple components on one plate?
-- Is it a liquid-based dish (soup, stew, broth) or solid?
-- What cuisine tradition does it most likely belong to? (Russian, Italian, Asian, etc.)
+❌ WRONG: {"dish_name": "beef"} ← This is an INGREDIENT!
+❌ WRONG: {"dish_name": "chicken"} ← This is an INGREDIENT!
+❌ WRONG: {"dish_name": "salmon"} ← This is an INGREDIENT!
+❌ WRONG: {"dish_name": "mixed dish"} ← Too generic!
 
-### STEP 2: DISH IDENTIFICATION
-Identify PRIMARY dish name using this logic:
-1. If liquid + vegetables + meat/fish → likely SOUP (борщ, щи, уха, солянка, etc.)
-2. If protein on skewers/sticks → MEAT SKEWERS (шашлык), NEVER fish
-3. If pasta/grain + sauce + protein → composite dish (спагетти болоньезе, гречка с мясом)
-4. If layered/baked with cheese → baked dish (лазанья, запеканка)
-5. If raw vegetables + dressing → SALAD, not a main course
+✅ CORRECT: {"dish_name": "beef shashlik"} ← Complete dish!
+✅ CORRECT: {"dish_name": "grilled chicken breast"} ← Complete dish!
+✅ CORRECT: {"dish_name": "borscht"} ← Complete dish!
+✅ CORRECT: {"dish_name": "salmon with pasta"} ← Complete dish!
 
-CRITICAL RULES:
-- 🚫 FISH ≠ MEAT: salmon/лосось/форель are FISH, beef/говядина/свинина are MEAT
-- 🚫 SOUP ≠ MAIN: if broth is visible, category = "soup"
-- 🚫 SKEWERS = MEAT: wooden/metal sticks with grilled pieces = шашлык (meat)
-- 🚫 SALAD ≠ SIDE: mixed raw vegetables = "salad" category
+═══════════════════════════════════════════════════════════════
+📋 VISUAL DISH IDENTIFICATION TABLE:
+═══════════════════════════════════════════════════════════════
+┌─────────────────────────────────┬──────────────────────────────┐
+│ WHAT YOU SEE                    │ CORRECT dish_name            │
+├─────────────────────────────────┼──────────────────────────────┤
+│ Meat on wooden/metal sticks     │ "{meat} shashlik/kebabs"     │
+│ Thick meat + grill marks        │ "{meat} steak"                │
+│ Red soup + beets + sour cream   │ "borscht"                     │
+│ Liquid broth + vegetables       │ "{type} soup"                 │
+│ Pink fish + pasta shapes        │ "salmon with pasta"           │
+│ Pink fish + rice grains         │ "salmon with rice"            │
+│ Bowtie/farfalle pasta           │ "pasta" NOT "rice"            │
+│ Mixed raw vegetables + dressing │ "{type} salad"                │
+│ Breaded cutlet + fried          │ "cutlet" or "schnitzel"       │
+│ Dumplings in broth              │ "pelmeni" or "dumplings"      │
+└─────────────────────────────────┴──────────────────────────────┘
 
-### STEP 3: INGREDIENT DECOMPOSITION
-For each visible component, identify:
-- name: specific ingredient (use culinary terms: "beef", not "red meat")
-- type: protein|carb|vegetable|fat|sauce|dairy|other
-- estimated_weight_grams: realistic portion estimate (50-300g typical)
-- confidence: 0.0-1.0 based on visual clarity
-- visual_cue: brief description of what you see (e.g., "pink flaky texture" for salmon)
+═══════════════════════════════════════════════════════════════
+🔍 INGREDIENT TYPE RULES:
+═══════════════════════════════════════════════════════════════
+• FISH ≠ MEAT: salmon/trout/tuna = "protein" type "fish"
+• PASTA ≠ RICE: farfalle/spaghetti/penne = "carb" type "pasta"
+• SOUP = liquid in bowl with submerged ingredients
+• SKEWERS = meat ONLY (fish on sticks is rare, verify carefully)
 
-### STEP 4: METADATA EXTRACTION
-- cooking_method: grilled|fried|boiled|baked|steamed|raw|stewed
-- portion_size: small(<200g)|medium(200-400g)|large(>400g)
-- cuisine_hint: most likely cuisine origin
-- meal_context: breakfast|lunch|dinner|snack (based on dish type)
-
-## 📦 OUTPUT FORMAT (STRICT JSON, no markdown, no explanations):
-
+═══════════════════════════════════════════════════════════════
+📦 REQUIRED JSON FORMAT (STRICT):
+═══════════════════════════════════════════════════════════════
 {
-  "dish_name": "specific dish name in English",
-  "dish_name_ru": "название блюда на русском",
-  "category": "soup|main|salad|side|appetizer|dessert|beverage",
-  "cuisine": "russian|italian|asian|middle_eastern|other",
-  "confidence_overall": 0.0-1.0,
+  "dish_name": "SPECIFIC DISH (e.g., 'beef shashlik', 'borscht')",
+  "dish_name_ru": "Название на русском",
+  "category": "skewers|steak|soup|pasta|salad|main|side|dessert",
+  "confidence": 0.0-1.0,
   "ingredients": [
     {
-      "name": "ingredient name",
+      "name": "ingredient",
       "name_ru": "название на русском",
-      "type": "protein|carb|vegetable|fat|sauce|dairy|other",
-      "estimated_weight_grams": integer,
-      "confidence": 0.0-1.0,
-      "visual_cue": "brief visual description"
+      "type": "protein|carb|vegetable|fat|dairy|sauce",
+      "estimated_weight_grams": 100,
+      "confidence": 0.9,
+      "visual_cue": "brief description"
     }
   ],
   "cooking_method": "grilled|fried|boiled|baked|steamed|raw|stewed",
   "portion_size": "small|medium|large",
-  "meal_context": "breakfast|lunch|dinner|snack",
-  "allergens_detected": ["dairy", "gluten", ...] or [],
-  "reasoning_summary": "1-sentence explanation of key visual cues"
+  "visual_cues": "what you see in 1 sentence"
 }
 
-## ✅ FEW-SHOT EXAMPLES:
+═══════════════════════════════════════════════════════════════
+✅ FEW-SHOT EXAMPLES:
+═══════════════════════════════════════════════════════════════
 
-Example 1 (Borscht):
-Input: [image of red soup with meat, sour cream, bread]
-Output: {
+EXAMPLE 1 - SHASHLIK:
+Image: Brown meat pieces on wooden sticks, grill marks, onions
+{
+  "dish_name": "beef shashlik",
+  "dish_name_ru": "шашлык из говядины",
+  "category": "skewers",
+  "ingredients": [
+    {"name": "beef", "name_ru": "говядина", "type": "protein", "estimated_weight_grams": 200, "confidence": 0.92, "visual_cue": "charred meat on wooden skewers"},
+    {"name": "onion", "name_ru": "лук", "type": "vegetable", "estimated_weight_grams": 30, "confidence": 0.78, "visual_cue": "caramelized onion pieces"}
+  ],
+  "cooking_method": "grilled",
+  "portion_size": "medium",
+  "visual_cues": "grilled meat pieces threaded on wooden sticks with char marks"
+}
+
+EXAMPLE 2 - BORSCHT:
+Image: Red soup in white bowl, sour cream, dill, bread
+{
   "dish_name": "borscht",
   "dish_name_ru": "борщ",
   "category": "soup",
-  "cuisine": "russian",
-  "confidence_overall": 0.92,
   "ingredients": [
-    {"name": "beef", "name_ru": "говядина", "type": "protein", "estimated_weight_grams": 80, "confidence": 0.88, "visual_cue": "dark brown meat chunks"},
+    {"name": "beef", "name_ru": "говядина", "type": "protein", "estimated_weight_grams": 80, "confidence": 0.88, "visual_cue": "dark meat chunks"},
     {"name": "beetroot", "name_ru": "свёкла", "type": "vegetable", "estimated_weight_grams": 60, "confidence": 0.95, "visual_cue": "deep red shredded vegetable"},
-    {"name": "cabbage", "name_ru": "капуста", "type": "vegetable", "estimated_weight_grams": 40, "confidence": 0.85, "visual_cue": "pale green shredded leaves"},
+    {"name": "cabbage", "name_ru": "капуста", "type": "vegetable", "estimated_weight_grams": 40, "confidence": 0.85, "visual_cue": "pale green shreds"},
     {"name": "sour cream", "name_ru": "сметана", "type": "dairy", "estimated_weight_grams": 30, "confidence": 0.90, "visual_cue": "white dollop on surface"}
   ],
   "cooking_method": "stewed",
   "portion_size": "medium",
-  "meal_context": "lunch",
-  "allergens_detected": ["dairy"],
-  "reasoning_summary": "Red broth with visible beetroot shreds, meat chunks, and sour cream garnish characteristic of borscht"
+  "visual_cues": "red broth with beetroot shreds, meat, and sour cream garnish"
 }
 
-Example 2 (Meat skewers):
-Input: [image of grilled meat pieces on wooden sticks]
-Output: {
-  "dish_name": "meat skewers",
-  "dish_name_ru": "шашлык",
+EXAMPLE 3 - SALMON WITH PASTA:
+Image: Pink fish fillet, bowtie pasta, green salad
+{
+  "dish_name": "grilled salmon with pasta",
+  "dish_name_ru": "лосось гриль с пастой",
   "category": "main",
-  "cuisine": "russian",
-  "confidence_overall": 0.94,
   "ingredients": [
-    {"name": "pork", "name_ru": "свинина", "type": "protein", "estimated_weight_grams": 200, "confidence": 0.91, "visual_cue": "charred exterior, juicy interior, threaded on wooden skewers"},
-    {"name": "onion", "name_ru": "лук", "type": "vegetable", "estimated_weight_grams": 30, "confidence": 0.75, "visual_cue": "caramelized pieces between meat"}
+    {"name": "salmon", "name_ru": "лосось", "type": "protein", "estimated_weight_grams": 150, "confidence": 0.93, "visual_cue": "pink-orange flaky fish with grill marks"},
+    {"name": "pasta", "name_ru": "паста", "type": "carb", "estimated_weight_grams": 120, "confidence": 0.88, "visual_cue": "bowtie-shaped pasta, not rice grains"},
+    {"name": "lettuce", "name_ru": "салат", "type": "vegetable", "estimated_weight_grams": 50, "confidence": 0.82, "visual_cue": "fresh green leaves"}
   ],
   "cooking_method": "grilled",
   "portion_size": "medium",
-  "meal_context": "dinner",
-  "allergens_detected": [],
-  "reasoning_summary": "Grilled meat pieces on wooden skewers with char marks, typical of shashlik preparation"
+  "visual_cues": "pink fish fillet with bowtie pasta and green salad"
 }
 
-Example 3 (Complex plate):
-Input: [image of salmon fillet, rice, and green salad]
-Output: {
-  "dish_name": "grilled salmon with sides",
-  "dish_name_ru": "лосось гриль с гарниром",
-  "category": "main",
-  "cuisine": "international",
-  "confidence_overall": 0.89,
-  "ingredients": [
-    {"name": "salmon", "name_ru": "лосось", "type": "protein", "estimated_weight_grams": 150, "confidence": 0.93, "visual_cue": "pink-orange flaky fish fillet with grill marks"},
-    {"name": "white rice", "name_ru": "рис белый", "type": "carb", "estimated_weight_grams": 120, "confidence": 0.88, "visual_cue": "steamed white grains, fluffy texture"},
-    {"name": "mixed greens", "name_ru": "зелёный салат", "type": "vegetable", "estimated_weight_grams": 80, "confidence": 0.82, "visual_cue": "fresh lettuce, cucumber slices, light dressing"}
-  ],
-  "cooking_method": "grilled",
-  "portion_size": "medium",
-  "meal_context": "dinner",
-  "allergens_detected": ["fish"],
-  "reasoning_summary": "Three distinct components: grilled fish fillet, grain side, and fresh salad, plated separately"
-}
+═══════════════════════════════════════════════════════════════
+🚨 FINAL VALIDATION CHECKLIST (BEFORE RETURNING):
+═══════════════════════════════════════════════════════════════
+□ Is dish_name a COMPLETE DISH (not just ingredient like "beef")?
+□ For skewers: does dish_name include "shashlik/kebabs/skewers"?
+□ For soups: is category = "soup" and dish specific (borscht/shchi)?
+□ For pasta: did I verify it's NOT rice (check shape visually)?
+□ For fish: is type = "protein" but NOT called "meat"?
+□ Are all ingredients visually supported (no hallucinations)?
+□ Is JSON valid (double quotes, no trailing commas)?
 
-## ⚠️ ERROR PREVENTION:
-- If uncertain about dish name, use generic but accurate term (e.g., "grilled protein with vegetables")
-- If ingredient is ambiguous, lower confidence and describe visual cue
-- Never invent ingredients not visually supported
-- If image quality is poor, reduce all confidences by 0.2
-- If multiple dishes are present, identify the most prominent one as primary
-
-## 🚀 NOW ANALYZE THE PROVIDED IMAGE AND RETURN ONLY VALID JSON:"""
+═══════════════════════════════════════════════════════════════
+NOW ANALYZE THE IMAGE AND RETURN ONLY VALID JSON:
+═══════════════════════════════════════════════════════════════
+"""
 
 # ========== КЭШИРОВАНИЕ ==========
 def _get_image_hash(image_bytes: bytes) -> str:

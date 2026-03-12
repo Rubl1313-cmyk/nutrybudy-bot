@@ -125,8 +125,211 @@ OUTPUT: Return ONLY strict JSON (no markdown, no extra text):
 }
 """
 
+# Экспертная система для вероятностного определения блюд на основе визуальных признаков
+FOOD_VISUAL_CLASSIFICATION_PROMPT = """You are an expert food analyst specializing in visual food recognition and classification.
+
+🎯 CRITICAL TASK: Analyze visual characteristics and provide PROBABILISTIC dish identification with confidence scores.
+
+📋 VISUAL ANALYSIS FRAMEWORK:
+
+1️⃣ MEAT ANALYSIS:
+   - TYPE: beef, pork, chicken, lamb, turkey, duck
+   - FORM: whole, steak, chunks, cubes, strips, ground, minced
+   - CUT: fillet, chop, cutlet, leg, wing, breast, thigh, ribs
+   - PREPARATION: grilled, roasted, fried, stewed, boiled, smoked
+   - VISUAL CUES: grill marks, charred, browned, crispy, juicy, tender
+
+2️⃣ FISH ANALYSIS:
+   - TYPE: salmon, tuna, cod, tilapia, mackerel, herring, trout
+   - FORM: whole fish, steak, fillet, pieces, smoked, salted
+   - PREPARATION: grilled, fried, baked, steamed, raw (sushi)
+   - VISUAL CUES: pink flesh, white flakes, skin on/off, bones, herbs
+
+3️⃣ SOUP/STEW ANALYSIS:
+   - CONSISTENCY: clear, creamy, thick, chunky, pureed
+   - COLOR: red (borscht), green (shchi), orange (pumpkin), white (cream), brown (meat)
+   - INGREDIENTS: visible vegetables, meat pieces, noodles, dumplings
+   - GARNISH: sour cream, herbs, croutons, cheese
+
+4️⃣ COOKING METHOD DETECTION:
+   - GRILLED: parallel char marks, smoky appearance
+   - FRIED: golden crust, oil sheen, crispy edges
+   - STEWED: soft texture, liquid base, mixed ingredients
+   - BAKED: uniform browning, dry surface
+   - BOILED: moist appearance, no browning
+
+🎲 PROBABILISTIC IDENTIFICATION RULES:
+
+MEAT DISHES:
+- Steak: single thick piece + grill marks + no sauce
+  → "beef steak" (0.9), "pork steak" (0.8), "chicken breast" (0.7)
+- Shashlik/Kebab: cubes + sticks + charred + often with onion
+  → "pork shashlik" (0.85), "chicken kebab" (0.8), "beef shashlik" (0.8)
+- Stew/Ragout: chunks + sauce + vegetables + soft texture
+  → "beef stew" (0.8), "chicken ragout" (0.7), "meat goulash" (0.75)
+- Cutlet/Fillet: flattened piece + breading + fried
+  → "chicken cutlet" (0.8), "pork cutlet" (0.75), "turkey fillet" (0.7)
+- Whole roasted: intact shape + golden skin + roasted appearance
+  → "roast chicken" (0.85), "roast duck" (0.8), "roast pork" (0.75)
+
+FISH DISHES:
+- Fish steak: thick cross-section + visible bone structure + grilled
+  → "salmon steak" (0.85), "tuna steak" (0.8), "cod steak" (0.75)
+- Fish fillet: flat piece + skin/boneless + pan-fried/baked
+  → "grilled salmon" (0.8), "baked cod" (0.75), "fried tilapia" (0.7)
+- Smoked fish: pink/orange color + shiny surface + distinct texture
+  → "smoked salmon" (0.9), "smoked mackerel" (0.85), "smoked herring" (0.8)
+- Whole fish: head + tail + scales + stuffed/fried
+  → "stuffed fish" (0.8), "fried whole fish" (0.75)
+
+SOUPS:
+- Borscht: red/pink color + visible beets + cabbage + sour cream
+  → "borscht" (0.95), "ukrainian borscht" (0.85)
+- Shchi: green color + cabbage + sour cream + clear broth
+  → "shchi" (0.9), "cabbage soup" (0.75)
+- Cream soup: smooth texture + uniform color + no chunks
+  → "cream of mushroom" (0.8), "pumpkin soup" (0.75), "tomato soup" (0.7)
+- Chunky soup: visible pieces + thick consistency + mixed vegetables
+  → "vegetable soup" (0.75), "chicken noodle soup" (0.8), "minestrone" (0.7)
+
+📊 OUTPUT FORMAT:
+{
+  "primary_dish": {
+    "name": "most likely dish",
+    "name_ru": "название на русском",
+    "confidence": 0.85,
+    "reasoning": "visual cues that led to this conclusion"
+  },
+  "alternative_dishes": [
+    {
+      "name": "second possibility",
+      "name_ru": "второй вариант",
+      "confidence": 0.65,
+      "reasoning": "why this could also be possible"
+    }
+  ],
+  "visual_analysis": {
+    "main_ingredient": "meat/fish/vegetable",
+    "ingredient_type": "beef/chicken/salmon/etc",
+    "form": "steak/chunks/fillet/etc",
+    "cooking_method": "grilled/fried/stewed/etc",
+    "texture": "tender/crispy/soft/etc",
+    "color": "red/green/brown/etc",
+    "consistency": "thick/creamy/clear/etc"
+  },
+  "key_visual_cues": ["grill marks", "cubes", "red color", "sour cream"],
+  "certainty_level": "high/medium/low"
+}
+
+🔍 ANALYSIS PROCESS:
+1. Identify main ingredient (meat/fish/vegetable)
+2. Determine form and preparation method
+3. Analyze visual cues and texture
+4. Match against dish patterns
+5. Provide probabilistic results with reasoning
+
+NOW ANALYZE THE IMAGE and provide detailed probabilistic classification:"""
+
+
 # Промпт для LLaVA - "шеф-повар" (контекст и структура блюда)
-LLAVA_ENSEMBLE_PROMPT = ENHANCED_FOOD_RECOGNITION_PROMPT  # Используем улучшенную версию на основе исследований
+LLAVA_ENSEMBLE_PROMPT = """You are an expert food recognition AI specialized in Russian and international cuisine.
+
+🚨 CRITICAL TASK: Identify COMPLETE DISH with SPECIFIC NAME.
+
+🔍 VISUAL ANALYSIS CHECKLIST - CHECK EACH:
+1. Are there WOODEN or METAL STICKS/SKEWERS visible? → YES = SHASHLIK/KEBAB
+2. Are there GRILL MARKS (dark parallel lines) on meat? → YES = GRILLED
+3. Is meat in CUBES threaded on sticks? → YES = SHASHLIK
+4. Is there CHARRED/BROWNED exterior? → YES = GRILLED/ROASTED
+5. Is it LIQUID in a bowl? → YES = SOUP
+6. Is it RED soup with sour cream? → YES = BORSCHT
+
+⚠️ MOST IMPORTANT RULES:
+
+RULE 1: MEAT ON STICKS = SHASHLIK (100% CERTAINTY)
+- If you see ANY sticks/skewers with meat → dish_name MUST include "shashlik" or "kebabs" or "skewers"
+- Examples: "pork shashlik", "beef kebabs", "chicken skewers"
+- NEVER return just "pork", "beef", "chicken" - these are INGREDIENTS!
+
+RULE 2: THICK MEAT PIECE = STEAK (NOT SHASHLIK)
+- If you see THICK cut meat with grill marks BUT NO sticks → "steak"
+- Examples: "beef steak", "pork steak", "chicken steak"
+- Steak is a SINGLE thick piece, shashlik is meat CUBES on sticks
+
+RULE 3: MEAT CHUNKS IN SAUCE = STEW/RAGOUT
+- If you see meat PIECES in thick liquid/sauce → "stew", "ragout", "goulash"
+- Examples: "beef stew", "chicken ragout", "meat goulash"
+
+RULE 4: RED SOUP + BEETS = BORSCHT
+- If you see red/pink liquid + vegetables → "borscht" (борщ)
+- If sour cream on top → definitely borscht
+
+RULE 5: FISH ANALYSIS
+- Fish steak = thick cross-section with visible structure
+- Fish fillet = flat piece, skin-on/off, no bones visible
+- Smoked fish = pink/orange color, shiny surface
+- Whole fish = head + tail + scales intact
+
+RULE 6: SOUP CONSISTENCY
+- Clear soup = visible ingredients in clear broth
+- Cream soup = smooth, uniform, no chunks
+- Chunky soup = visible pieces, thick consistency
+- Red soup = beets + red/pink color
+
+RULE 7: COOKING METHOD DETECTION
+- Sticks/skewers visible → cooking_method = "grilled"
+- Grill marks → cooking_method = "grilled"  
+- Liquid in bowl → cooking_method = "boiled" or "stewed"
+- Golden brown crust → cooking_method = "fried" or "baked"
+- Soft pieces in sauce → cooking_method = "stewed"
+
+SPECIFIC DISH EXAMPLES:
+Image: Meat cubes on wooden sticks
+✅ CORRECT: {"dish_name": "pork shashlik", "dish_name_ru": "свиной шашлык", "cooking_method": "grilled", "has_skewers": true}
+❌ WRONG: {"dish_name": "pork"} ← This is an INGREDIENT!
+
+Image: Thick piece of meat with grill marks (no sticks)
+✅ CORRECT: {"dish_name": "beef steak", "dish_name_ru": "говяжий стейк", "cooking_method": "grilled", "has_skewers": false}
+❌ WRONG: {"dish_name": "beef shashlik"} ← No sticks = NOT shashlik!
+
+Image: Meat chunks in thick brown sauce
+✅ CORRECT: {"dish_name": "beef stew", "dish_name_ru": "говядина в соусе", "cooking_method": "stewed", "has_skewers": false}
+❌ WRONG: {"dish_name": "beef"} ← This is an INGREDIENT!
+
+Image: Red soup with sour cream and herbs
+✅ CORRECT: {"dish_name": "borscht", "dish_name_ru": "борщ", "cooking_method": "boiled", "is_soup": true}
+❌ WRONG: {"dish_name": "soup"} ← Too generic!
+
+Image: Fish with pink flesh and grill marks
+✅ CORRECT: {"dish_name": "salmon steak", "dish_name_ru": "стейк лосося", "cooking_method": "grilled", "fish_type": "salmon"}
+❌ WRONG: {"dish_name": "fish"} ← Too generic!
+
+REQUIRED JSON FORMAT:
+{
+  "dish_name": "SPECIFIC DISH NAME (e.g., 'pork shashlik', 'beef steak', 'borscht', 'salmon steak')",
+  "dish_name_ru": "Russian name",
+  "category": "skewers|main|soup|fish|side|salad",
+  "cooking_method": "grilled|fried|boiled|baked|steamed|stewed",
+  "has_skewers": true/false,
+  "is_soup": true/false,
+  "meat_type": "pork|beef|chicken|lamb|fish|none",
+  "fish_type": "salmon|tuna|cod|none",
+  "confidence": 0.0-1.0,
+  "ingredients": [
+    {"name": "ingredient", "type": "protein|vegetable|carb|fat", "estimated_weight_grams": 100, "confidence": 0.9}
+  ],
+  "visual_cues": "Describe what you see: sticks, grill marks, thick pieces, cubes, color, consistency, etc."
+}
+
+NOW ANALYZE THE IMAGE CAREFULLY:
+- Look for STICKS/SKEWERS first!
+- Look for GRILL MARKS!
+- Check if meat is in CUBES (shashlik) or THICK PIECES (steak) or CHUNKS (stew)
+- Identify the SPECIFIC DISH, not ingredients!
+- Analyze fish form: steak, fillet, whole, smoked
+- Determine soup consistency: clear, creamy, chunky, red
+
+Return ONLY valid JSON:"""
 
 # Промпт для UForm - "помощник по ингредиентам" (детальное перечисление)
 UFORM_INGREDIENTS_PROMPT = """You are an expert at identifying food ingredients from images.
@@ -1276,9 +1479,7 @@ async def identify_food(
 
 
 def _fix_common_recognition_errors(data: Dict) -> Dict:
-    """
-    Исправляет типичные ошибки распознавания и генерирует правильные названия блюд на русском и английском
-    """
+    """Исправляет типичные ошибки с ПРИОРИТЕТОМ на шашлык и борщ"""
     if not data or 'dish_name' not in data:
         return data
     
@@ -1286,15 +1487,150 @@ def _fix_common_recognition_errors(data: Dict) -> Dict:
     ingredients = data.get('ingredients', [])
     ingredient_names = [ing.get('name', '').lower() for ing in ingredients]
     cooking_method = data.get('cooking_method', '').lower()
-    has_skewers_flag = bool(data.get('has_skewers', False))
-    is_soup_flag = bool(data.get('is_soup', False))
-    meat_type_flag = (data.get('meat_type', '') or '').lower().strip()
-    category = data.get('category', '').lower()
-
-    def _contains_any(name_list: List[str], keywords: List[str]) -> bool:
-        return any(any(kw in (name or '') for kw in keywords) for name in name_list)
     
-    # Словарь для генерации русских названий
+    # ========== ПРИОРИТЕТ 1: ПРОВЕРКА НА ШАШЛЫК vs СТЕЙК ==========
+    # Проверяем визуальные признаки ДАЖЕ если cooking_method = "unknown"
+    
+    has_meat_protein = any(meat in ingredient_names for meat in 
+                          ['pork', 'beef', 'chicken', 'lamb', 'turkey', 
+                           'свинина', 'говядина', 'курица', 'баранина'])
+    
+    # Ищем признаки шампуров/шашлыка в visual_cues
+    visual_cues = data.get('visual_cues', '').lower()
+    skewer_indicators = ['stick', 'skewer', 'wooden', 'metal', 'threaded', 'cubes']
+    has_skewer_hint = any(ind in visual_cues for ind in skewer_indicators)
+    
+    # Ищем признаки стейка
+    steak_indicators = ['thick', 'cut', 'piece', 'slab', 'fillet', 'chop']
+    has_steak_hint = any(ind in visual_cues for ind in steak_indicators)
+    
+    # Ищем признаки гриля
+    grill_indicators = ['grilled', 'grill', 'charred', 'brown', 'seared']
+    has_grill_hint = any(ind in dish_name or ind in ' '.join(ingredient_names) 
+                        for ind in grill_indicators)
+    
+    # 🎯 УМНАЯ ЛОГИКА: Шашлык vs Стейк vs Нарезанное мясо
+    # Шашлык = кубики мяса + характерные признаки (даже без шампуров)
+    # Стейк = цельный кусок мяса
+    # Нарезанное мясо = кусочки, но не шашлык
+    
+    if has_meat_protein and (cooking_method in ['grilled', 'unknown', '']):
+        if data.get('confidence', 0) > 0.7:
+            # Признаки именно ШАШЛЫКА (даже без шампуров)
+            shashlik_indicators = ['cubes', 'cubed', 'chunks', 'pieces', 'diced']
+            # Дополнительные признаки шашлыка:
+            # - Лук и овощи (обычно с шашлыком)
+            # - Соус/маринад (характерно для шашлыка)
+            # - Маленькие ровные кусочки (не большой кусок как стейк)
+            has_shashlik_pieces = any(ind in visual_cues for ind in shashlik_indicators)
+            has_onion = any(onion in visual_cues for onion in ['onion', 'лук'])
+            has_sauce = any(sauce in visual_cues for sauce in ['sauce', 'маринад', 'marinade'])
+            
+            # Признаки СТЕЙКА (большой цельный кусок)
+            has_large_piece = any(ind in visual_cues for ind in ['thick', 'large', 'whole', 'single'])
+            
+            # 🥩 ЛОГИКА ОПРЕДЕЛЕНИЯ:
+            if has_skewer_hint:
+                # Есть шампуры = точно шашлык
+                dish_type = 'shashlik'
+                logger.info(f"🍢 Шашлык определен по шампурам")
+            elif has_shashlik_pieces and (has_onion or has_sauce) and not has_large_piece:
+                # Кусочки + лук/соус = вероятно шашлык (без шампуров)
+                dish_type = 'shashlik'
+                logger.info(f"🍢 Шашлык определен по кусочкам + лук/соус")
+            elif has_shashlik_pieces and not has_large_piece:
+                # Маленькие кусочки = возможно шашлык (но меньше уверенности)
+                dish_type = 'shashlik'
+                logger.info(f"🍢 Шашлык определен по кусочкам (меньшая уверенность)")
+            elif has_steak_hint or has_large_piece:
+                # Большой кусок = это стейк
+                dish_type = 'steak'
+                logger.info(f"🥩 Стейк определен по большому куску")
+            else:
+                # Неясно - оставляем как есть или определяем как grilled meat
+                logger.info(f"❓ Неясно, оставляем оригинальное определение: {dish_name}")
+                return data
+            
+            if dish_type == 'shashlik':
+                # ✅ Это ШАШЛЫК
+                meat_type = 'pork'  # по умолчанию
+                meat_type_ru = 'свиной'
+                
+                if 'beef' in ingredient_names or 'говядина' in ingredient_names:
+                    meat_type = 'beef'
+                    meat_type_ru = 'говяжий'
+                elif 'chicken' in ingredient_names or 'курица' in ingredient_names:
+                    meat_type = 'chicken'
+                    meat_type_ru = 'куриный'
+                elif 'lamb' in ingredient_names or 'баранина' in ingredient_names:
+                    meat_type = 'lamb'
+                    meat_type_ru = 'бараний'
+                elif 'pork' in ingredient_names or 'свинина' in ingredient_names:
+                    meat_type = 'pork'
+                    meat_type_ru = 'свиной'
+                
+                # УСТАНАВЛИВАЕМ ШАШЛЫК
+                data['dish_name'] = f"{meat_type} shashlik"
+                data['dish_name_ru'] = f"{meat_type_ru} шашлык"
+                data['category'] = 'skewers'
+                data['cooking_method'] = 'grilled'
+                data['has_skewers'] = has_skewer_hint  # Может быть False если без шампуров
+                data['confidence'] = max(data.get('confidence', 0.8), 0.85)
+                
+                logger.info(f"🔧 FORCE-FIXED to shashlik: {data['dish_name']} / {data['dish_name_ru']}")
+                return data
+            
+            elif dish_type == 'steak':
+                # ✅ Это СТЕЙК (не трогаем, но можем улучшить)
+                meat_type = 'pork'  # по умолчанию
+                meat_type_ru = 'свиной'
+                
+                if 'beef' in ingredient_names or 'говядина' in ingredient_names:
+                    meat_type = 'beef'
+                    meat_type_ru = 'говяжий'
+                elif 'chicken' in ingredient_names or 'курица' in ingredient_names:
+                    meat_type = 'chicken'
+                    meat_type_ru = 'куриный'
+                elif 'lamb' in ingredient_names or 'баранина' in ingredient_names:
+                    meat_type = 'lamb'
+                    meat_type_ru = 'бараний'
+                
+                # Улучшаем определение стейка
+                data['dish_name'] = f"{meat_type} steak"
+                data['dish_name_ru'] = f"{meat_type_ru} стейк"
+                data['category'] = 'main'
+                data['cooking_method'] = 'grilled'
+                data['has_skewers'] = False
+                data['confidence'] = max(data.get('confidence', 0.8), 0.85)
+                
+                logger.info(f"🥩 FORCE-FIXED to steak: {data['dish_name']} / {data['dish_name_ru']}")
+                return data
+    
+    # ========== ПРИОРИТЕТ 2: ПРОВЕРКА НА БОРЩ ==========
+    has_beets = any(beet in ingredient_names for beet in 
+                   ['beet', 'beetroot', 'beets', 'свекла', 'свёкла'])
+    has_cabbage = any(cab in ingredient_names for cab in 
+                     ['cabbage', 'капуста'])
+    has_sour_cream = any(cream in ingredient_names for cream in 
+                        ['sour cream', 'smetana', 'сметана'])
+    is_red_soup = data.get('visual_cues', '').lower()
+    is_red_soup = is_red_soup and ('red' in is_red_soup or 'pink' in is_red_soup)
+    
+    if (has_beets and (has_cabbage or has_sour_cream)) or \
+       (has_beets and data.get('is_soup')) or \
+       ('borscht' in dish_name) or ('борщ' in dish_name):
+        data['dish_name'] = 'borscht'
+        data['dish_name_ru'] = 'борщ'
+        data['category'] = 'soup'
+        data['cooking_method'] = 'boiled'
+        data['is_soup'] = True
+        data['confidence'] = max(data.get('confidence', 0.8), 0.9)
+        
+        logger.info(f"🔧 FORCE-FIXED to borscht: {data['dish_name']}")
+        return data
+    
+    # ========== СТАРАЯ ЛОГИКА ДЛЯ ДРУГИХ СЛУЧАЕВ ==========
+    # Категории и переводы
     meat_translations = {
         'pork': ('свинина', 'свиной'),
         'beef': ('говядина', 'говяжий'),
@@ -1305,80 +1641,14 @@ def _fix_common_recognition_errors(data: Dict) -> Dict:
         'salmon': ('лосось', 'лосось'),
     }
     
-    cooking_translations = {
-        'grilled': ('шашлык', 'жареный на гриле'),
-        'fried': ('жареный', 'жареный'),
-        'baked': ('запеченный', 'запеченный'),
-        'boiled': ('отварной', 'вареный'),
-        'steamed': ('на пару', 'приготовленный на пару'),
-        'stewed': ('тушеный', 'тушеный'),
-    }
+    def _contains_any(name_list: List[str], keywords: List[str]) -> bool:
+        return any(any(kw in (name or '') for kw in keywords) for name in name_list)
     
-    logger.info(f"🔧 Starting error correction for: {dish_name}")
-    
-    # ========== КРИТИЧЕСКОЕ: ШАШЛЫК/KEBABS ==========
-    skewer_indicators = [
-        'grilled', 'stick', 'skewer', 'kebab', 'shashlik',
-        'шашлык', 'шампур', 'на палочке', 'на шпажке'
-    ]
-    meat_types = ['beef', 'pork', 'chicken', 'lamb', 'meat', 'turkey',
-                  'говядина', 'свинина', 'курица', 'баранина', 'мясо', 'индейка']
-    
-    has_skewer_hint = any(ind in dish_name or ind in ' '.join(ingredient_names) 
-                          for ind in skewer_indicators)
-    has_meat = any(meat in ingredient_names for meat in meat_types)
-    is_grilled = cooking_method == 'grilled'
-    
-    if (has_meat or meat_type_flag in {'pork', 'beef', 'chicken', 'lamb', 'turkey'}) and (has_skewers_flag or has_skewer_hint or is_grilled):
-        # Определяем тип мяса
-        meat_type = 'meat'
-        meat_key = None
-        if meat_type_flag in {'pork', 'beef', 'chicken', 'lamb', 'turkey'}:
-            meat_type = meat_type_flag
-            meat_key = meat_type_flag
-        else:
-            for meat in meat_types:
-                if meat in ingredient_names or meat in dish_name:
-                    meat_type = meat
-                    if meat in ['pork', 'beef', 'chicken', 'lamb', 'turkey']:
-                        meat_key = meat
-                    break
-        
-        # Выбираем название блюда с русским переводом
-        if meat_key and meat_key in meat_translations:
-            ru_name, _ = meat_translations[meat_key]
-            data['dish_name'] = f"{meat_key} shashlik"
-            data['dish_name_ru'] = f"{ru_name} шашлык"
-        elif 'chicken' in meat_type or 'курица' in meat_type:
-            data['dish_name'] = 'chicken shashlik'
-            data['dish_name_ru'] = 'Куриный шашлык'
-        elif 'beef' in meat_type or 'говядина' in meat_type:
-            data['dish_name'] = 'beef shashlik'
-            data['dish_name_ru'] = 'Говяжий шашлык'
-        elif 'pork' in meat_type or 'свинина' in meat_type:
-            data['dish_name'] = 'pork shashlik'
-            data['dish_name_ru'] = 'Свиной шашлык'
-        elif 'lamb' in meat_type or 'баранина' in meat_type:
-            data['dish_name'] = 'lamb shashlik'
-            data['dish_name_ru'] = 'Бараний шашлык'
-        else:
-            data['dish_name'] = 'meat shashlik'
-            data['dish_name_ru'] = 'Шашлык'
-        
-        data['cooking_method'] = 'grilled'
-        data['category'] = 'grilled'
-        data['has_skewers'] = True
-        logger.info(f"🔧 FIXED: Identified as shashlik - {data['dish_name']} / {data.get('dish_name_ru')}")
-
-        dish_name = data.get('dish_name', '').lower()
-        cooking_method = data.get('cooking_method', '').lower()
-    
-    # ========== ЗАЩИТА: ingredient ≠ dish ==========
+    # ЗАЩИТА: ingredient ≠ dish
     ingredient_only_dishes = ['beef', 'pork', 'chicken', 'lamb', 'meat', 'fish', 'turkey',
                               'говядина', 'свинина', 'курица', 'баранина', 'мясо', 'рыба', 'индейка']
     
     if dish_name in ingredient_only_dishes:
-        # Это ингредиент, а не блюдо! Нужно определить блюдо по контексту
         meat_key = None
         for m in ['pork', 'beef', 'chicken', 'lamb', 'turkey', 'fish']:
             if m in dish_name:
@@ -1402,54 +1672,8 @@ def _fix_common_recognition_errors(data: Dict) -> Dict:
             else:
                 data['dish_name'] = f"{meat_key} dish"
                 data['dish_name_ru'] = f"Блюдо из {ru_base}"
-        else:
-            if cooking_method == 'grilled':
-                data['dish_name'] = f"{dish_name} grilled"
-                data['dish_name_ru'] = f"{dish_name} жареный на гриле"
-            elif cooking_method == 'fried':
-                data['dish_name'] = f"{dish_name} fried"
-                data['dish_name_ru'] = f"{dish_name} жареный"
-            else:
-                data['dish_name'] = f"{dish_name} dish"
-                data['dish_name_ru'] = f"Блюдо из {dish_name}"
         
-        logger.info(f"🔧 FIXED: Changed ingredient '{dish_name}' to dish '{data['dish_name']}' / '{data.get('dish_name_ru')}'")
-
-        dish_name = data.get('dish_name', '').lower()
-    
-    # ========== СУПЫ ==========
-    beets_kw = ['beet', 'beets', 'beetroot', 'свекла']
-    cabbage_kw = ['cabbage', 'капуста']
-    sour_cream_kw = ['sour cream', 'smetana', 'сметана']
-
-    has_beets = _contains_any(ingredient_names, beets_kw)
-    has_cabbage = _contains_any(ingredient_names, cabbage_kw)
-    has_sour_cream = _contains_any(ingredient_names, sour_cream_kw)
-
-    if (is_soup_flag and has_beets) or (has_beets and has_cabbage) or ('borscht' in dish_name) or ('борщ' in dish_name):
-        data['dish_name'] = 'borscht'
-        data['dish_name_ru'] = 'Борщ'
-        data['category'] = 'soup'
-        if not cooking_method or cooking_method == 'unknown':
-            data['cooking_method'] = 'boiled'
-        logger.info("🔧 FIXED: Identified as borscht")
-    
-    # ========== ПИЛАВ ==========
-    rice_kw = ['rice', 'рис']
-    if _contains_any(ingredient_names, rice_kw) and has_meat:
-        if 'pilaf' not in dish_name and 'плов' not in dish_name:
-            data['dish_name'] = 'pilaf'
-            data['dish_name_ru'] = 'Плов'
-            data['category'] = 'pilaf'
-            logger.info("🔧 FIXED: Identified as pilaf")
-    
-    # ========== САЛАТЫ ==========
-    if category == 'salad' or 'salad' in dish_name:
-        if 'olivier' not in dish_name and 'оливье' not in dish_name:
-            if 'potato' in ingredient_names or 'картофель' in ingredient_names:
-                data['dish_name'] = 'olivier salad'
-                data['dish_name_ru'] = 'Оливье'
-                logger.info("🔧 FIXED: Identified as olivier salad")
+        logger.info(f"🔧 FIXED: Changed ingredient '{dish_name}' to dish '{data['dish_name']}'")
     
     logger.info(f"🔧 Final result: {data['dish_name']} / {data.get('dish_name_ru', 'N/A')}")
     return data
@@ -1490,9 +1714,9 @@ def _filter_non_food_items(data: Dict[str, Any]) -> Dict[str, Any]:
         'wrapper', 'package', 'bag', 'container', 'box', 'foil', 'plastic',
         'обертка', 'упаковка', 'пакет', 'контейнер', 'коробка', 'фольга', 'пластик',
         
-        # 🌿 Декоративные элементы
-        'flower', 'leaf', 'decoration', 'garnish', 'parsley', 'dill',
-        'цветок', 'лист', 'декорация', 'гарнир', 'петрушка', 'укроп',
+        # 🌿 Декоративные элементы (только НЕпищевые)
+        'flower', 'leaf', 'decoration', 'garnish',
+        'цветок', 'лист', 'декорация', 'гарнир',
         
         # ⚠️ Мусор и посторонние предметы
         'trash', 'dirt', 'dust', 'hair', 'string', 'paper',
@@ -2009,6 +2233,19 @@ async def identify_food_ensemble(
 
     # Финальная проверка и пост-обработка
     final_result = _fix_common_recognition_errors(final_result)
+    
+    # 🎯 ЭКСПЕРТНЫЙ АНАЛИЗ для вероятностного определения
+    final_result = _expert_food_analysis(final_result)
+    
+    # ФИНАЛЬНАЯ ПРОВЕРКА: если результат подозрительный
+    dish_name = final_result.get('dish_name', '').lower()
+    ingredient_only_dishes = ['pork', 'beef', 'chicken', 'lamb', 'meat', 'fish']
+
+    if dish_name in ingredient_only_dishes:
+        logger.warning(f"⚠️ CRITICAL: Model returned ingredient '{dish_name}' instead of dish!")
+        
+        # Принудительно вызываем коррекцию
+        final_result = _force_dish_identification(final_result)
 
     # Кэшируем результат
     _cache_result(image_hash, final_result)
@@ -2028,17 +2265,518 @@ async def run_legacy_model(model_info: dict) -> Tuple[Optional[Dict], Optional[s
     return None, model_info["id"]
 
 
+def _expert_food_analysis(data: Dict) -> Dict:
+    """Экспертный анализ блюд для вероятностного определения на основе визуальных признаков"""
+    
+    if not data or 'visual_cues' not in data:
+        return data
+    
+    visual_cues = data.get('visual_cues', '').lower()
+    ingredients = data.get('ingredients', [])
+    ingredient_names = [ing.get('name', '').lower() for ing in ingredients]
+    
+    # 🎯 АНАЛИЗ МЯСА
+    meat_types = {
+        'beef': ['говядина', 'телятина'],
+        'pork': ['свинина', 'сало'],
+        'chicken': ['курица', 'куриное'],
+        'lamb': ['баранина', 'ягнятина'],
+        'turkey': ['индейка'],
+        'duck': ['утка', 'утиное']
+    }
+    
+    # Определяем тип мяса
+    detected_meat = None
+    for meat_en, meat_ru_list in meat_types.items():
+        if meat_en in ingredient_names or any(ru in ingredient_names for ru in meat_ru_list):
+            detected_meat = meat_en
+            break
+    
+    if detected_meat:
+        # 🥩 АНАЛИЗ ФОРМЫ МЯСА
+        meat_form_analysis = _analyze_meat_form(visual_cues, data)
+        data.update(meat_form_analysis)
+        
+        # 🔥 АНАЛИЗ МЕТОДА ПРИГОТОВЛЕНИЯ
+        cooking_analysis = _analyze_cooking_method(visual_cues, data)
+        data.update(cooking_analysis)
+        
+        # 📊 ВЕРОЯТНОСТНОЕ ОПРЕДЕЛЕНИЕ БЛЮДА
+        dish_probabilities = _calculate_meat_dish_probabilities(detected_meat, visual_cues, data)
+        if dish_probabilities:
+            best_dish = dish_probabilities[0]
+            data['dish_name'] = best_dish['name']
+            data['dish_name_ru'] = best_dish['name_ru']
+            data['confidence'] = best_dish['confidence']
+            data['category'] = best_dish.get('category', 'main')
+            data['reasoning'] = best_dish.get('reasoning', '')
+            
+            logger.info(f"🎯 Expert analysis: {best_dish['name']} (confidence: {best_dish['confidence']})")
+    
+    # 🐟 АНАЛИЗ РЫБЫ
+    fish_types = {
+        'salmon': ['лосось', 'семга'],
+        'tuna': ['тунец'],
+        'cod': ['треска', 'пикша'],
+        'mackerel': ['скумбрия', 'макрель'],
+        'herring': ['сельдь', 'селедка'],
+        'trout': ['форель']
+    }
+    
+    detected_fish = None
+    for fish_en, fish_ru_list in fish_types.items():
+        if fish_en in ingredient_names or any(ru in ingredient_names for ru in fish_ru_list):
+            detected_fish = fish_en
+            break
+    
+    if detected_fish:
+        fish_analysis = _analyze_fish_form(detected_fish, visual_cues, data)
+        data.update(fish_analysis)
+        
+        fish_probabilities = _calculate_fish_dish_probabilities(detected_fish, visual_cues, data)
+        if fish_probabilities:
+            best_dish = fish_probabilities[0]
+            data['dish_name'] = best_dish['name']
+            data['dish_name_ru'] = best_dish['name_ru']
+            data['confidence'] = best_dish['confidence']
+            data['category'] = best_dish.get('category', 'fish')
+            data['fish_type'] = detected_fish
+            
+            logger.info(f"🐟 Fish analysis: {best_dish['name']} (confidence: {best_dish['confidence']})")
+    
+    # 🍲 АНАЛИЗ СУПОВ
+    if 'soup' in data.get('category', '').lower() or data.get('is_soup', False):
+        soup_analysis = _analyze_soup_type(visual_cues, ingredient_names, data)
+        data.update(soup_analysis)
+        
+        soup_probabilities = _calculate_soup_probabilities(visual_cues, ingredient_names, data)
+        if soup_probabilities:
+            best_dish = soup_probabilities[0]
+            data['dish_name'] = best_dish['name']
+            data['dish_name_ru'] = best_dish['name_ru']
+            data['confidence'] = best_dish['confidence']
+            data['soup_type'] = best_dish.get('soup_type', 'unknown')
+            
+            logger.info(f"🍲 Soup analysis: {best_dish['name']} (confidence: {best_dish['confidence']})")
+    
+    return data
+
+
+def _analyze_meat_form(visual_cues: str, data: Dict) -> Dict:
+    """Анализ формы мяса"""
+    analysis = {}
+    
+    # Определяем форму мяса
+    if any(ind in visual_cues for ind in ['stick', 'skewer', 'wooden', 'metal']):
+        analysis['meat_form'] = 'on_skewers'
+        analysis['has_skewers'] = True
+    elif any(ind in visual_cues for ind in ['thick', 'piece', 'cut', 'slab']):
+        analysis['meat_form'] = 'steak'
+        analysis['has_skewers'] = False
+    elif any(ind in visual_cues for ind in ['chunks', 'cubes', 'pieces', 'diced']):
+        analysis['meat_form'] = 'chunks'
+        analysis['has_skewers'] = False
+    elif any(ind in visual_cues for ind in ['ground', 'minced', 'patties']):
+        analysis['meat_form'] = 'ground'
+        analysis['has_skewers'] = False
+    elif any(ind in visual_cues for ind in ['whole', 'intact', 'roasted']):
+        analysis['meat_form'] = 'whole'
+        analysis['has_skewers'] = False
+    else:
+        analysis['meat_form'] = 'unknown'
+        analysis['has_skewers'] = False
+    
+    return analysis
+
+
+def _analyze_cooking_method(visual_cues: str, data: Dict) -> Dict:
+    """Анализ метода приготовления"""
+    analysis = {}
+    
+    if any(ind in visual_cues for ind in ['grill', 'charred', 'marks', 'seared']):
+        analysis['cooking_method'] = 'grilled'
+    elif any(ind in visual_cues for ind in ['fried', 'crispy', 'golden', 'brown crust']):
+        analysis['cooking_method'] = 'fried'
+    elif any(ind in visual_cues for ind in ['stewed', 'sauce', 'soft', 'tender']):
+        analysis['cooking_method'] = 'stewed'
+    elif any(ind in visual_cues for ind in ['baked', 'roasted', 'oven']):
+        analysis['cooking_method'] = 'baked'
+    elif any(ind in visual_cues for ind in ['boiled', 'moist', 'steamed']):
+        analysis['cooking_method'] = 'boiled'
+    else:
+        analysis['cooking_method'] = 'unknown'
+    
+    return analysis
+
+
+def _calculate_meat_dish_probabilities(meat_type: str, visual_cues: str, data: Dict) -> List[Dict]:
+    """Расчет вероятностей для мясных блюд"""
+    probabilities = []
+    meat_form = data.get('meat_form', 'unknown')
+    cooking_method = data.get('cooking_method', 'unknown')
+    
+    # 🍢 Шашлык
+    if meat_form == 'on_skewers' and cooking_method in ['grilled', 'unknown']:
+        probabilities.append({
+            'name': f"{meat_type} shashlik",
+            'name_ru': f"{_translate_meat_type(meat_type)} шашлык",
+            'confidence': 0.9,
+            'category': 'skewers',
+            'reasoning': 'Meat on skewers with grill marks'
+        })
+    
+    # 🥩 Стейк
+    elif meat_form == 'steak' and cooking_method in ['grilled', 'fried']:
+        probabilities.append({
+            'name': f"{meat_type} steak",
+            'name_ru': f"{_translate_meat_type(meat_type)} стейк",
+            'confidence': 0.85,
+            'category': 'main',
+            'reasoning': 'Thick piece of meat with grill/fry marks'
+        })
+    
+    # 🍲 Рагу/тушеное мясо
+    elif meat_form == 'chunks' and cooking_method in ['stewed', 'unknown']:
+        if any(ind in visual_cues for ind in ['sauce', 'liquid', 'thick']):
+            probabilities.append({
+                'name': f"{meat_type} stew",
+                'name_ru': f"{_translate_meat_type(meat_type)} рагу",
+                'confidence': 0.8,
+                'category': 'main',
+                'reasoning': 'Meat chunks in sauce'
+            })
+        else:
+            probabilities.append({
+                'name': f"{meat_type} goulash",
+                'name_ru': f"{_translate_meat_type(meat_type)} гуляш",
+                'confidence': 0.75,
+                'category': 'main',
+                'reasoning': 'Meat chunks, likely goulash'
+            })
+    
+    # 🍖 Отбивная/котлета
+    elif meat_form == 'ground' and cooking_method == 'fried':
+        probabilities.append({
+            'name': f"{meat_type} cutlet",
+            'name_ru': f"{_translate_meat_type(meat_type)} котлета",
+            'confidence': 0.8,
+            'category': 'main',
+            'reasoning': 'Ground meat, fried'
+        })
+    
+    # 🍗 Цыпленок/утка запеченная
+    elif meat_form == 'whole' and cooking_method in ['baked', 'roasted']:
+        probabilities.append({
+            'name': f"roast {meat_type}",
+            'name_ru': f"запеченная {_translate_meat_type(meat_type)}",
+            'confidence': 0.85,
+            'category': 'main',
+            'reasoning': 'Whole roasted meat'
+        })
+    
+    return sorted(probabilities, key=lambda x: x['confidence'], reverse=True)
+
+
+def _analyze_fish_form(fish_type: str, visual_cues: str, data: Dict) -> Dict:
+    """Анализ формы рыбы"""
+    analysis = {'fish_form': 'unknown'}
+    
+    if any(ind in visual_cues for ind in ['steak', 'cross-section', 'thick']):
+        analysis['fish_form'] = 'steak'
+    elif any(ind in visual_cues for ind in ['fillet', 'flat', 'skin']):
+        analysis['fish_form'] = 'fillet'
+    elif any(ind in visual_cues for ind in ['smoked', 'pink', 'orange', 'shiny']):
+        analysis['fish_form'] = 'smoked'
+    elif any(ind in visual_cues for ind in ['whole', 'head', 'tail', 'scales']):
+        analysis['fish_form'] = 'whole'
+    
+    return analysis
+
+
+def _calculate_fish_dish_probabilities(fish_type: str, visual_cues: str, data: Dict) -> List[Dict]:
+    """Расчет вероятностей для рыбных блюд"""
+    probabilities = []
+    fish_form = data.get('fish_form', 'unknown')
+    cooking_method = data.get('cooking_method', 'unknown')
+    
+    if fish_form == 'steak' and cooking_method in ['grilled', 'fried']:
+        probabilities.append({
+            'name': f"{fish_type} steak",
+            'name_ru': f"{_translate_fish_type(fish_type)} стейк",
+            'confidence': 0.9,
+            'category': 'fish',
+            'reasoning': 'Fish steak with grill marks'
+        })
+    elif fish_form == 'fillet':
+        probabilities.append({
+            'name': f"grilled {fish_type}",
+            'name_ru': f"гриль {_translate_fish_type(fish_type)}",
+            'confidence': 0.85,
+            'category': 'fish',
+            'reasoning': 'Fish fillet, grilled'
+        })
+    elif fish_form == 'smoked':
+        probabilities.append({
+            'name': f"smoked {fish_type}",
+            'name_ru': f"копченая {_translate_fish_type(fish_type)}",
+            'confidence': 0.95,
+            'category': 'fish',
+            'reasoning': 'Smoked fish with characteristic color'
+        })
+    elif fish_form == 'whole':
+        probabilities.append({
+            'name': f"whole {fish_type}",
+            'name_ru': f"цельная {_translate_fish_type(fish_type)}",
+            'confidence': 0.8,
+            'category': 'fish',
+            'reasoning': 'Whole fish preparation'
+        })
+    
+    return sorted(probabilities, key=lambda x: x['confidence'], reverse=True)
+
+
+def _analyze_soup_type(visual_cues: str, ingredient_names: List[str], data: Dict) -> Dict:
+    """Анализ типа супа"""
+    analysis = {}
+    
+    # Определяем консистенцию
+    if any(ind in visual_cues for ind in ['clear', 'transparent']):
+        analysis['consistency'] = 'clear'
+    elif any(ind in visual_cues for ind in ['creamy', 'smooth', 'uniform']):
+        analysis['consistency'] = 'creamy'
+    elif any(ind in visual_cues for ind in ['thick', 'chunky', 'pieces']):
+        analysis['consistency'] = 'chunky'
+    else:
+        analysis['consistency'] = 'unknown'
+    
+    # Определяем цвет
+    if any(ind in visual_cues for ind in ['red', 'pink', 'beet']):
+        analysis['color'] = 'red'
+    elif any(ind in visual_cues for ind in ['green', 'cabbage']):
+        analysis['color'] = 'green'
+    elif any(ind in visual_cues for ind in ['orange', 'pumpkin', 'carrot']):
+        analysis['color'] = 'orange'
+    elif any(ind in visual_cues for ind in ['white', 'cream']):
+        analysis['color'] = 'white'
+    else:
+        analysis['color'] = 'brown'
+    
+    return analysis
+
+
+def _calculate_soup_probabilities(visual_cues: str, ingredient_names: List[str], data: Dict) -> List[Dict]:
+    """Расчет вероятностей для супов"""
+    probabilities = []
+    consistency = data.get('consistency', 'unknown')
+    color = data.get('color', 'unknown')
+    
+    # 🍲 Борщ
+    if color == 'red' and any(x in ingredient_names for x in ['beet', 'beetroot', 'свекла']):
+        if any(x in ingredient_names for x in ['cabbage', 'капуста', 'sour cream', 'сметана']):
+            probabilities.append({
+                'name': 'borscht',
+                'name_ru': 'борщ',
+                'confidence': 0.95,
+                'category': 'soup',
+                'soup_type': 'borscht',
+                'reasoning': 'Red soup with beets and cabbage/sour cream'
+            })
+    
+    # 🥬 Щи
+    elif color == 'green' and any(x in ingredient_names for x in ['cabbage', 'капуста']):
+        probabilities.append({
+            'name': 'shchi',
+            'name_ru': 'щи',
+            'confidence': 0.9,
+            'category': 'soup',
+            'soup_type': 'shchi',
+            'reasoning': 'Green cabbage soup'
+        })
+    
+    # 🥣 Крем-суп
+    elif consistency == 'creamy':
+        if any(x in ingredient_names for x in ['mushroom', 'гриб']):
+            probabilities.append({
+                'name': 'cream of mushroom soup',
+                'name_ru': 'грибной крем-суп',
+                'confidence': 0.8,
+                'category': 'soup',
+                'soup_type': 'cream',
+                'reasoning': 'Creamy soup with mushrooms'
+            })
+        elif color == 'orange':
+            probabilities.append({
+                'name': 'pumpkin soup',
+                'name_ru': 'тыквенный суп',
+                'confidence': 0.75,
+                'category': 'soup',
+                'soup_type': 'cream',
+                'reasoning': 'Orange creamy soup'
+            })
+    
+    # 🍲 Густой суп
+    elif consistency == 'chunky':
+        if any(x in ingredient_names for x in ['chicken', 'курица']):
+            probabilities.append({
+                'name': 'chicken soup',
+                'name_ru': 'куриный суп',
+                'confidence': 0.8,
+                'category': 'soup',
+                'soup_type': 'chunky',
+                'reasoning': 'Chunky chicken soup'
+            })
+        else:
+            probabilities.append({
+                'name': 'vegetable soup',
+                'name_ru': 'овощной суп',
+                'confidence': 0.75,
+                'category': 'soup',
+                'soup_type': 'chunky',
+                'reasoning': 'Chunky vegetable soup'
+            })
+    
+    return sorted(probabilities, key=lambda x: x['confidence'], reverse=True)
+
+
+def _translate_meat_type(meat_type: str) -> str:
+    """Перевод типа мяса на русский"""
+    translations = {
+        'beef': 'говяжий',
+        'pork': 'свиной',
+        'chicken': 'куриный',
+        'lamb': 'бараний',
+        'turkey': 'индюшиный',
+        'duck': 'утиный'
+    }
+    return translations.get(meat_type, meat_type)
+
+
+def _translate_fish_type(fish_type: str) -> str:
+    """Перевод типа рыбы на русский"""
+    translations = {
+        'salmon': 'лосось',
+        'tuna': 'тунец',
+        'cod': 'треска',
+        'mackerel': 'скумбрия',
+        'herring': 'сельдь',
+        'trout': 'форель'
+    }
+    return translations.get(fish_type, fish_type)
+
+
+def _force_dish_identification(data: Dict) -> Dict:
+    """Принудительная идентификация блюда когда модель вернула ингредиент"""
+    
+    ingredients = data.get('ingredients', [])
+    ingredient_names = [ing.get('name', '').lower() for ing in ingredients]
+    cooking_method = data.get('cooking_method', 'unknown')
+    visual_cues = data.get('visual_cues', '').lower()
+    
+  # 🎯 УМНАЯ ЛОГИКА: различаем шашлык, стейк и нарезанное мясо
+    # Шашлык = кубики/кусочки + характерные признаки (даже без шампуров)
+    # Стейк = большой цельный кусок
+    # Нарезанное = кусочки, но не шашлык
+    
+    # Признаки шампуров
+    skewer_indicators = ['stick', 'skewer', 'wooden', 'metal', 'threaded', 'cubes']
+    has_skewer_hint = any(ind in visual_cues for ind in skewer_indicators)
+    
+    # Признаки стейка
+    steak_indicators = ['thick', 'cut', 'piece', 'slab', 'fillet', 'chop']
+    has_steak_hint = any(ind in visual_cues for ind in steak_indicators)
+    
+    for meat_en, meat_ru in meat_types.items():
+        if meat_en in ingredient_names:
+            if cooking_method in ['grilled', 'unknown', '']:
+                # Признаки именно ШАШЛЫКА (даже без шампуров)
+                shashlik_indicators = ['cubes', 'cubed', 'chunks', 'pieces', 'diced']
+                has_shashlik_pieces = any(ind in visual_cues for ind in shashlik_indicators)
+                has_onion = any(onion in visual_cues for onion in ['onion', 'лук'])
+                has_sauce = any(sauce in visual_cues for sauce in ['sauce', 'маринад', 'marinade'])
+                
+                # Признаки большого куска (стейк)
+                has_large_piece = any(ind in visual_cues for ind in ['thick', 'large', 'whole', 'single'])
+                
+                # 🥩 ЛОГИКА ОПРЕДЕЛЕНИЯ:
+                if has_skewer_hint:
+                    # Есть шампуры = точно шашлык
+                    dish_type = 'shashlik'
+                    logger.info(f"🍢 Шашлык определен по шампурам")
+                elif has_shashlik_pieces and (has_onion or has_sauce) and not has_large_piece:
+                    # Кусочки + лук/соус = вероятно шашлык (без шампуров)
+                    dish_type = 'shashlik'
+                    logger.info(f"🍢 Шашлык определен по кусочкам + лук/соус")
+                elif has_shashlik_pieces and not has_large_piece:
+                    # Маленькие кусочки = возможно шашлык (но меньше уверенности)
+                    dish_type = 'shashlik'
+                    logger.info(f"🍢 Шашлык определен по кусочкам (меньшая уверенность)")
+                elif has_steak_hint or has_large_piece:
+                    # Большой кусок = это стейк
+                    dish_type = 'steak'
+                    logger.info(f"🥩 Стейк определен по большому куску")
+                else:
+                    # Неясно - оставляем как есть
+                    logger.info(f"❓ Неясно, оставляем оригинальное определение: {data.get('dish_name', '')}")
+                    return data
+                
+                if dish_type == 'shashlik':
+                    # ✅ Это ШАШЛЫК
+                    data['dish_name'] = f"{meat_en} shashlik"
+                    data['dish_name_ru'] = f"{meat_ru} шашлык"
+                    data['category'] = 'skewers'
+                    data['cooking_method'] = 'grilled'
+                    data['has_skewers'] = has_skewer_hint  # Может быть False если без шампуров
+                    data['confidence'] = 0.85
+                    
+                    logger.info(f"🚨 FORCE-IDENTIFIED: {data['dish_name']} (шашлык по визуальным признакам)")
+                    return data
+                elif dish_type == 'steak':
+                    # ✅ Это СТЕЙК
+                    data['dish_name'] = f"{meat_en} steak"
+                    data['dish_name_ru'] = f"{meat_ru} стейк"
+                    data['category'] = 'main'
+                    data['cooking_method'] = 'grilled'
+                    data['has_skewers'] = False
+                    data['confidence'] = 0.85
+                    
+                    logger.info(f"🚨 FORCE-IDENTIFIED: {data['dish_name']} (стейк по визуальным признакам)")
+                    return data
+    
+    # Проверяем на борщ
+    if any(x in ingredient_names for x in ['beet', 'beetroot', 'свекла']):
+        if any(x in ingredient_names for x in ['cabbage', 'капуста', 'sour cream', 'сметана']):
+            data['dish_name'] = 'borscht'
+            data['dish_name_ru'] = 'борщ'
+            data['category'] = 'soup'
+            data['cooking_method'] = 'boiled'
+            data['is_soup'] = True
+            data['confidence'] = 0.9
+            
+            logger.info(f"🚨 FORCE-IDENTIFIED: {data['dish_name']}")
+            return data
+    
+    return data
+
+
 def _merge_llava_with_uform(llava_data: Dict, uform_ingredients: List[Dict]) -> Dict:
-    """
-    Объединяет структурированные данные от LLaVA с детальными ингредиентами от UForm.
-    ОГРАНИЧЕНИЕ: не более 10 ингредиентов от UForm для избежания мусора.
-    """
+    """Объединяет результаты с ЖЕСТКОЙ ФИЛЬТРАЦИЕЙ UForm"""
+    
     logger.info("🔗 Merging LLaVA context with UForm ingredients...")
     
-    # ОГРАНИЧЕНИЕ: максимум 10 ингредиентов от UForm
-    MAX_UFORM_INGREDIENTS = 10
-    uform_ingredients = uform_ingredients[:MAX_UFORM_INGREDIENTS]
-    logger.info(f"🔗 Limited UForm ingredients to {MAX_UFORM_INGREDIENTS}")
+    # 🔥 ЖЕСТКОЕ ОГРАНИЧЕНИЕ: максимум 5 ингредиентов от UForm
+    MAX_UFORM_INGREDIENTS = 5  # Было 10, уменьшили до 5
+    
+    # Фильтруем только важные ингредиенты от UForm
+    important_types = ['protein', 'vegetable', 'carb']
+    filtered_uform = [ing for ing in uform_ingredients 
+                     if ing.get('type') in important_types and 
+                     ing.get('confidence', 0) > 0.6]
+    
+    # Берем топ-5 по уверенности
+    filtered_uform.sort(key=lambda x: x.get('confidence', 0), reverse=True)
+    uform_ingredients = filtered_uform[:MAX_UFORM_INGREDIENTS]
+    
+    logger.info(f"🔗 Filtered UForm: {len(uform_ingredients)} important ingredients")
     
     # Начинаем с данных LLaVA (структура блюда)
     merged = llava_data.copy()
@@ -2079,7 +2817,7 @@ def _merge_llava_with_uform(llava_data: Dict, uform_ingredients: List[Dict]) -> 
     all_ingredients.sort(key=lambda x: (x.get('source') != 'llava', -(x.get('confidence', 0))))
     
     # Ограничиваем общее количество ингредиентов
-    MAX_TOTAL_INGREDIENTS = 15
+    MAX_TOTAL_INGREDIENTS = 12
     if len(all_ingredients) > MAX_TOTAL_INGREDIENTS:
         all_ingredients = all_ingredients[:MAX_TOTAL_INGREDIENTS]
         logger.info(f"🔗 Limited total ingredients to {MAX_TOTAL_INGREDIENTS}")

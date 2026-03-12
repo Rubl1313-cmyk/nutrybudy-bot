@@ -38,73 +38,37 @@ _CACHE_TTL = 3600  # 1 час
 # ========== СПЕЦИАЛИЗИРОВАННЫЕ ПРОМПТЫ ДЛЯ АНСАМБЛЯ ==========
 
 # Улучшенный промпт для LLaVA на основе исследований 2024-2025
-ENHANCED_FOOD_RECOGNITION_PROMPT = """You are an expert food recognition AI specialized in detailed food analysis. Analyze this image and return structured JSON with precise classification.
+ENHANCED_FOOD_RECOGNITION_PROMPT = """You are a food recognition AI.
 
-PRECISE CLASSIFICATION RULES:
+TASK:
+1) Identify the COMPLETE DISH (not an ingredient).
+2) List visible food ingredients.
 
-1. PROTEIN IDENTIFICATION:
-   - RED MEAT: beef, pork, lamb, veal → specify cut (steak, chop, ground, shashlik)
-   - POULTRY: chicken, turkey, duck → specify part (breast, thigh, wing, whole)
-   - FISH: salmon, tuna, cod, trout, herring → specify fresh/salted/smoked
-   - SEAFOOD: shrimp, crab, squid, mussels, clams
-   - PLANT PROTEIN: tofu, beans, lentils, chickpeas, tempeh
+CRITICAL RULES:
+- dish_name must be a prepared dish: never just "meat", "beef", "pork", "fish".
+- If you see meat pieces on wooden/metal sticks OR clear skewers → dish_name MUST be "pork shashlik" / "beef shashlik" / "chicken shashlik".
+- If you see a deep bowl/plate with liquid broth + submerged ingredients → this is a soup. If beets + cabbage (+ often sour cream) → dish_name MUST be "borscht".
+- If you see a fish fillet:
+  - pink/orange flesh → salmon
+  - white flaky flesh → cod/white fish
+- Prefer specific meat type when visible: pork vs beef vs chicken.
 
-2. SOUP CLASSIFICATION:
-   - CLEAR BROTHS: chicken broth, beef broth, vegetable broth, fish broth
-   - CREAM SOUPS: cream of mushroom, cream of chicken, tomato cream
-   - VEGETABLE SOUPS: borscht (beetroot), shchi (cabbage), minestrone
-   - BEAN/LENTIL SOUPS: lentil soup, bean soup, split pea soup
-   - NOODLE SOUPS: chicken noodle, ramen, pho, udon
-
-3. COOKING METHODS:
-   - DRY HEAT: grilled, fried, roasted, baked, sautéed, seared
-   - MOIST HEAT: boiled, steamed, stewed, braised, poached
-   - COMBINATION: stir-fried, curried, casseroled
-   - RAW: fresh, cured, smoked, pickled
-
-4. FOOD CATEGORIES:
-   - PROTEINS: meat, poultry, fish, seafood, eggs, legumes
-   - CARBOHYDRATES: grains, pasta, rice, potatoes, bread
-   - VEGETABLES: leafy greens, root vegetables, nightshades, cruciferous
-   - FRUITS: citrus, berries, tropical, stone fruits
-   - DAIRY: milk, cheese, yogurt, butter
-   - FATS/OILS: olive oil, vegetable oil, butter, lard
-   - SAUCES: tomato-based, cream-based, oil-based, vinegar-based
-
-VISUAL IDENTIFICATION GUIDELINES:
-
-- MEAT ON SKEWERS → "shashlik/kebab" (not just "meat")
-- LIQUID IN BOWL WITH VEGETABLES → "soup" (specify type)
-- THICK CUT WITH GRILL MARKS → "steak" (specify meat type)
-- PINK FISH FLESH → "salmon/tuna" (specify cooking)
-- WHITE FLAKY FISH → "cod/tilapia/sea bass"
-- RED LIQUID WITH BEETS → "borscht"
-- GREEN LEAFY VEGETABLES → "salad" (specify type)
-- CREAMY WHITE LIQUID → "cream soup" (specify base)
-
-REQUIRED JSON FORMAT:
+OUTPUT: Return ONLY strict JSON (no markdown, no extra text):
 {
-  "dish_name": "specific dish name (e.g., 'beef shashlik', 'creamy mushroom soup', 'grilled salmon steak')",
-  "dish_name_ru": "название блюда на русском",
-  "category": "main_course|soup|salad|side_dish|appetizer|dessert",
-  "subcategory": "meat_dish|poultry_dish|fish_dish|vegetable_dish|grain_dish|soup_type",
-  "protein_type": "red_meat|poultry|fish|seafood|plant_protein|none",
-  "cooking_method": "grilled|fried|boiled|baked|steamed|stewed|raw|sautéed",
+  "dish_name": "specific dish name (e.g., pork shashlik, borscht, grilled salmon)",
+  "dish_name_ru": "название на русском (if known)",
+  "cooking_method": "grilled|fried|boiled|steamed|baked|raw|stewed",
+  "meal_type": "breakfast|lunch|dinner|snack",
+  "portion_size": "small|medium|large",
+  "is_soup": true,
+  "has_skewers": false,
+  "meat_type": "pork|beef|chicken|lamb|fish|none",
   "ingredients": [
-    {
-      "name": "ingredient name",
-      "type": "protein|carb|vegetable|fruit|dairy|fat|sauce",
-      "subtype": "specific subtype (e.g., 'root_vegetable', 'leafy_green', 'citrus_fruit')",
-      "estimated_weight_grams": 100,
-      "confidence": 0.9
-    }
+    {"name": "ingredient", "type": "protein|vegetable|carb|fat|sauce|other", "estimated_weight_grams": 100, "confidence": 0.9}
   ],
-  "confidence": 0.85,
-  "visual_cues": ["key visual features identified"],
-  "cooking_level": "rare|medium_rare|medium|medium_well|well_done|N/A"
+  "confidence": 0.0
 }
-
-CRITICAL: Return ONLY valid JSON. No explanations outside JSON structure."""
+"""
 
 # Промпт для LLaVA - "шеф-повар" (контекст и структура блюда)
 LLAVA_ENSEMBLE_PROMPT = ENHANCED_FOOD_RECOGNITION_PROMPT  # Используем улучшенную версию на основе исследований
@@ -1252,6 +1216,12 @@ def _fix_common_recognition_errors(data: Dict) -> Dict:
     ingredients = data.get('ingredients', [])
     ingredient_names = [ing.get('name', '').lower() for ing in ingredients]
     cooking_method = data.get('cooking_method', '').lower()
+    has_skewers_flag = bool(data.get('has_skewers', False))
+    is_soup_flag = bool(data.get('is_soup', False))
+    meat_type_flag = (data.get('meat_type', '') or '').lower().strip()
+
+    def _contains_any(name_list: List[str], keywords: List[str]) -> bool:
+        return any(any(kw in (name or '') for kw in keywords) for name in name_list)
     
     logger.info(f"🔧 Starting error correction for: {dish_name}")
     
@@ -1269,9 +1239,11 @@ def _fix_common_recognition_errors(data: Dict) -> Dict:
     has_meat = any(meat in ingredient_names for meat in meat_types)
     is_grilled = cooking_method == 'grilled'
     
-    if has_meat and (has_skewer_hint or is_grilled):
+    if (has_meat or meat_type_flag in {'pork', 'beef', 'chicken', 'lamb'}) and (has_skewers_flag or has_skewer_hint or is_grilled):
         # Определяем тип мяса
         meat_type = 'meat'
+        if meat_type_flag in {'pork', 'beef', 'chicken', 'lamb'}:
+            meat_type = meat_type_flag
         for meat in meat_types:
             if meat in ingredient_names or meat in dish_name:
                 meat_type = meat
@@ -1291,6 +1263,9 @@ def _fix_common_recognition_errors(data: Dict) -> Dict:
         
         data['cooking_method'] = 'grilled'
         logger.info(f"🔧 FIXED: Identified as shashlik - {data['dish_name']}")
+
+        dish_name = data.get('dish_name', '').lower()
+        cooking_method = data.get('cooking_method', '').lower()
     
     # ========== ЗАЩИТА: ingredient ≠ dish ==========
     # Если dish_name совпадает с ingredient - это ошибка!
@@ -1309,12 +1284,25 @@ def _fix_common_recognition_errors(data: Dict) -> Dict:
             data['dish_name'] = f"{dish_name} dish"
         
         logger.info(f"🔧 FIXED: Changed ingredient '{dish_name}' to dish '{data['dish_name']}'")
+
+        dish_name = data.get('dish_name', '').lower()
     
     # ========== СУПЫ ==========
-    if ('beets' in ingredient_names or 'свекла' in ingredient_names) and \
-       ('cabbage' in ingredient_names or 'капуста' in ingredient_names):
+    beets_kw = ['beet', 'beets', 'beetroot', 'свекла']
+    cabbage_kw = ['cabbage', 'капуста']
+    sour_cream_kw = ['sour cream', 'smetana', 'сметана']
+
+    has_beets = _contains_any(ingredient_names, beets_kw)
+    has_cabbage = _contains_any(ingredient_names, cabbage_kw)
+    has_sour_cream = _contains_any(ingredient_names, sour_cream_kw)
+
+    if (is_soup_flag and has_beets) or (has_beets and has_cabbage) or ('borscht' in dish_name) or ('борщ' in dish_name):
         data['dish_name'] = 'borscht'
         data['category'] = 'soup'
+        if not cooking_method or cooking_method == 'unknown':
+            data['cooking_method'] = 'boiled'
+        if has_sour_cream:
+            data['dish_name_ru'] = data.get('dish_name_ru') or 'борщ'
         logger.info("🔧 FIXED: Identified as borscht")
     
     logger.info(f"🔧 Final result: {data['dish_name']}")
@@ -1452,14 +1440,25 @@ def _parse_uform_response(response_text: str) -> List[Dict[str, Any]]:
     
     # Очищаем текст от лишних символов
     cleaned_text = response_text.strip().lower()
+
+    # UForm часто возвращает буллет-листы/строки. Нормализуем в список токенов.
+    cleaned_text = cleaned_text.replace('\n', ',')
+    cleaned_text = cleaned_text.replace(';', ',')
     
     # Разделяем по запятым
     items = [item.strip() for item in cleaned_text.split(',') if item.strip()]
     
     for item in items:
-        if ':' in item:
+        # Убираем буллеты/нумерацию типа "- beef", "* beef", "1. beef"
+        name_candidate = item.strip()
+        while name_candidate.startswith(('-', '*')):
+            name_candidate = name_candidate[1:].strip()
+        if len(name_candidate) > 2 and name_candidate[0].isdigit() and name_candidate[1] in {'.', ')'}:
+            name_candidate = name_candidate[2:].strip()
+
+        if ':' in name_candidate:
             # Формат с типами: "beef:protein"
-            name, ingredient_type = item.split(':', 1)
+            name, ingredient_type = name_candidate.split(':', 1)
             name = name.strip()
             ingredient_type = ingredient_type.strip()
             
@@ -1469,8 +1468,10 @@ def _parse_uform_response(response_text: str) -> List[Dict[str, Any]]:
                 ingredient_type = 'other'  # тип по умолчанию
         else:
             # Простой формат: "beef"
-            name = item.strip()
+            name = name_candidate.strip()
             ingredient_type = _guess_ingredient_type(name)
+
+        name = name.strip(' \t\r\n-•*')
         
         if name and len(name) > 1:  # фильтруем пустые и слишком короткие
             ingredients.append({
@@ -1896,28 +1897,29 @@ def _merge_llava_with_uform(llava_data: Dict, uform_ingredients: List[Dict]) -> 
     # Добавляем основные ингредиенты от LLaVA
     llava_ingredients = llava_data.get('ingredients', [])
     for ing in llava_ingredients:
-        ing['source'] = 'llava'
-        all_ingredients.append(ing)
+        ing_copy = ing.copy()
+        ing_copy['source'] = 'llava'
+        all_ingredients.append(ing_copy)
     
-    # Добавляем детальные ингредиенты от UForm
+    existing_names = {ing.get('name', '').lower().strip() for ing in all_ingredients if ing.get('name')}
     for uform_ing in uform_ingredients:
-        # Проверяем, нет ли такого ингредиента от LLaVA
-        existing_names = [ing.get('name', '').lower() for ing in all_ingredients]
-        uform_name = uform_ing.get('name', '').lower()
-        
+        uform_name = (uform_ing.get('name', '') or '').lower().strip()
+        if not uform_name:
+            continue
+
         if uform_name not in existing_names:
-            # Нового ингредиента нет у LLaVA - добавляем
-            uform_ing['source'] = 'uform'
-            all_ingredients.append(uform_ing)
-        else:
-            # Ингредиент уже есть - возможно, объединяем данные
-            for existing in all_ingredients:
-                if existing.get('name', '').lower() == uform_name:
-                    # Усредняем уверенность
-                    avg_confidence = (existing.get('confidence', 0.7) + uform_ing.get('confidence', 0.7)) / 2
-                    existing['confidence'] = avg_confidence
-                    existing['source'] = 'both'
-                    break
+            uform_copy = uform_ing.copy()
+            uform_copy['source'] = 'uform'
+            all_ingredients.append(uform_copy)
+            existing_names.add(uform_name)
+            continue
+
+        for existing in all_ingredients:
+            if (existing.get('name', '') or '').lower().strip() == uform_name:
+                avg_confidence = (existing.get('confidence', 0.7) + uform_ing.get('confidence', 0.7)) / 2
+                existing['confidence'] = avg_confidence
+                existing['source'] = 'both'
+                break
     
     # Сортируем ингредиенты по уверенности
     all_ingredients.sort(key=lambda x: x.get('confidence', 0), reverse=True)

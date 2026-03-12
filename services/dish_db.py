@@ -559,6 +559,243 @@ COMPOSITE_DISHES = {
         ],
         "keywords": ["овсянка", "каша", "oatmeal", "oats", "porridge"]
     },
+    "блины": {
+        "name": "Блины",
+        "name_en": ["blini", "russian pancakes", "crepes"],
+        "category": "breakfast",
+        "default_weight": 200,
+        "nutrition_per_100": {"calories": 220, "protein": 6.0, "fat": 8.0, "carbs": 32.0},
+        "ingredients": [
+            {"name": "мука", "type": "carb", "percent": 40},
+            {"name": "молоко", "type": "dairy", "percent": 35},
+            {"name": "яйцо куриное", "type": "protein", "percent": 10},
+            {"name": "масло растительное", "type": "fat", "percent": 10},
+            {"name": "сахар", "type": "carb", "percent": 5}
+        ],
+        "keywords": ["блины", "blini", "pancakes", "блинчики", "crepes"]
+    },
+    "драники": {
+        "name": "Драники",
+        "name_en": ["dranniki", "potato pancakes", "latkes"],
+        "category": "main",
+        "default_weight": 250,
+        "nutrition_per_100": {"calories": 210, "protein": 4.0, "fat": 10.0, "carbs": 28.0},
+        "ingredients": [
+            {"name": "картофель", "type": "carb", "percent": 70},
+            {"name": "лук", "type": "vegetable", "percent": 10},
+            {"name": "яйцо куриное", "type": "protein", "percent": 8},
+            {"name": "мука", "type": "carb", "percent": 7},
+            {"name": "масло растительное", "type": "fat", "percent": 5}
+        ],
+        "keywords": ["драники", "dranniki", "картофель", "оладьи", "potato pancakes"]
+    },
+    "запеканка творожная": {
+        "name": "Запеканка творожная",
+        "name_en": ["cottage cheese casserole", "cheesecake bake"],
+        "category": "breakfast",
+        "default_weight": 200,
+        "nutrition_per_100": {"calories": 180, "protein": 14.0, "fat": 6.0, "carbs": 16.0},
+        "ingredients": [
+            {"name": "творог", "type": "dairy", "percent": 60},
+            {"name": "яйцо куриное", "type": "protein", "percent": 15},
+            {"name": "сахар", "type": "carb", "percent": 10},
+            {"name": "мука", "type": "carb", "percent": 10},
+            {"name": "сметана", "type": "dairy", "percent": 5}
+        ],
+        "keywords": ["запеканка", "творожная", "casserole", "cottage cheese"]
+    },
+    "бефстроганов": {
+        "name": "Бефстроганов",
+        "name_en": ["beef stroganoff", "stroganoff"],
+        "category": "main",
+        "default_weight": 300,
+        "nutrition_per_100": {"calories": 230, "protein": 18.0, "fat": 14.0, "carbs": 8.0},
+        "ingredients": [
+            {"name": "говядина", "type": "protein", "percent": 50},
+            {"name": "сметана", "type": "dairy", "percent": 20},
+            {"name": "лук", "type": "vegetable", "percent": 10},
+            {"name": "мука", "type": "carb", "percent": 5},
+            {"name": "масло сливочное", "type": "fat", "percent": 10},
+            {"name": "горчица", "type": "sauce", "percent": 5}
+        ],
+        "keywords": ["бефстроганов", "beef stroganoff", "говядина", "сметана"]
+    },
+    "гуляш": {
+        "name": "Гуляш",
+        "name_en": ["goulash", "hungarian goulash"],
+        "category": "main",
+        "default_weight": 350,
+        "nutrition_per_100": {"calories": 180, "protein": 15.0, "fat": 10.0, "carbs": 8.0},
+        "ingredients": [
+            {"name": "свинина", "type": "protein", "percent": 45},
+            {"name": "лук", "type": "vegetable", "percent": 15},
+            {"name": "морковь", "type": "vegetable", "percent": 10},
+            {"name": "томатная паста", "type": "sauce", "percent": 10},
+            {"name": "мука", "type": "carb", "percent": 5},
+            {"name": "масло растительное", "type": "fat", "percent": 10},
+            {"name": "вода", "type": "liquid", "percent": 5}
+        ],
+        "keywords": ["гуляш", "goulash", "мясо", "томат"]
+    },
+    "овощное рагу": {
+        "name": "Овощное рагу",
+        "name_en": ["vegetable stew", "ratatouille", "mixed vegetables"],
+        "category": "main",
+        "default_weight": 350,
+        "nutrition_per_100": {"calories": 65, "protein": 2.5, "fat": 3.0, "carbs": 8.0},
+        "ingredients": [
+            {"name": "кабачок", "type": "vegetable", "percent": 25},
+            {"name": "баклажан", "type": "vegetable", "percent": 20},
+            {"name": "помидор", "type": "vegetable", "percent": 20},
+            {"name": "перец болгарский", "type": "vegetable", "percent": 15},
+            {"name": "лук", "type": "vegetable", "percent": 10},
+            {"name": "морковь", "type": "vegetable", "percent": 10}
+        ],
+        "keywords": ["рагу", "овощное", "vegetable stew", "овощи", "тушеные"]
+    },
+    "плов с курицей": {
+        "name": "Плов с курицей",
+        "name_en": ["pilaf with chicken", "chicken pilaf"],
+        "category": "main",
+        "default_weight": 350,
+        "nutrition_per_100": {"calories": 180, "protein": 12.0, "fat": 7.0, "carbs": 20.0},
+        "ingredients": [
+            {"name": "рис", "type": "carb", "percent": 40},
+            {"name": "курица", "type": "protein", "percent": 30},
+            {"name": "морковь", "type": "vegetable", "percent": 15},
+            {"name": "лук", "type": "vegetable", "percent": 8},
+            {"name": "масло растительное", "type": "fat", "percent": 7}
+        ],
+        "keywords": ["плов", "курица", "pilaf", "рис", "мясо"]
+    },
+    "тефтели": {
+        "name": "Тефтели",
+        "name_en": ["meatballs", "meatballs in sauce"],
+        "category": "main",
+        "default_weight": 300,
+        "nutrition_per_100": {"calories": 200, "protein": 14.0, "fat": 12.0, "carbs": 10.0},
+        "ingredients": [
+            {"name": "фарш мясной", "type": "protein", "percent": 50},
+            {"name": "рис", "type": "carb", "percent": 20},
+            {"name": "лук", "type": "vegetable", "percent": 10},
+            {"name": "яйцо куриное", "type": "protein", "percent": 5},
+            {"name": "томатная паста", "type": "sauce", "percent": 10},
+            {"name": "мука", "type": "carb", "percent": 5}
+        ],
+        "keywords": ["тефтели", "meatballs", "котлеты", "фарш"]
+    },
+    "перец фаршированный": {
+        "name": "Перец фаршированный",
+        "name_en": ["stuffed peppers", "filled peppers"],
+        "category": "main",
+        "default_weight": 350,
+        "nutrition_per_100": {"calories": 150, "protein": 10.0, "fat": 6.0, "carbs": 14.0},
+        "ingredients": [
+            {"name": "перец болгарский", "type": "vegetable", "percent": 35},
+            {"name": "фарш мясной", "type": "protein", "percent": 30},
+            {"name": "рис", "type": "carb", "percent": 15},
+            {"name": "лук", "type": "vegetable", "percent": 8},
+            {"name": "томатная паста", "type": "sauce", "percent": 7},
+            {"name": "морковь", "type": "vegetable", "percent": 5}
+        ],
+        "keywords": ["перец", "фаршированный", "stuffed peppers", "голубцы"]
+    },
+    "лагман": {
+        "name": "Лапша лагман",
+        "name_en": ["lagman", "uzbek noodles", "hand-pulled noodles"],
+        "category": "main",
+        "default_weight": 400,
+        "nutrition_per_100": {"calories": 160, "protein": 10.0, "fat": 6.0, "carbs": 18.0},
+        "ingredients": [
+            {"name": "лапша", "type": "carb", "percent": 35},
+            {"name": "мясо", "type": "protein", "percent": 25},
+            {"name": "морковь", "type": "vegetable", "percent": 12},
+            {"name": "перец болгарский", "type": "vegetable", "percent": 10},
+            {"name": "помидор", "type": "vegetable", "percent": 10},
+            {"name": "лук", "type": "vegetable", "percent": 8}
+        ],
+        "keywords": ["лагман", "lagman", "лапша", "узбекский", "noodles"]
+    },
+    "шурпа": {
+        "name": "Шурпа",
+        "name_en": ["shurpa", "uzbek soup", "meat soup"],
+        "category": "soup",
+        "default_weight": 400,
+        "nutrition_per_100": {"calories": 85, "protein": 8.0, "fat": 4.0, "carbs": 6.0},
+        "ingredients": [
+            {"name": "мясо", "type": "protein", "percent": 25},
+            {"name": "картофель", "type": "carb", "percent": 20},
+            {"name": "морковь", "type": "vegetable", "percent": 12},
+            {"name": "помидор", "type": "vegetable", "percent": 10},
+            {"name": "лук", "type": "vegetable", "percent": 8},
+            {"name": "перец болгарский", "type": "vegetable", "percent": 8},
+            {"name": "вода", "type": "liquid", "percent": 17}
+        ],
+        "keywords": ["шурпа", "shurpa", "суп", "узбекский", "мясной"]
+    },
+    "манты": {
+        "name": "Манты",
+        "name_en": ["manti", "steamed dumplings", "uzbek dumplings"],
+        "category": "main",
+        "default_weight": 350,
+        "nutrition_per_100": {"calories": 200, "protein": 12.0, "fat": 9.0, "carbs": 18.0},
+        "ingredients": [
+            {"name": "мука", "type": "carb", "percent": 30},
+            {"name": "мясо", "type": "protein", "percent": 30},
+            {"name": "лук", "type": "vegetable", "percent": 15},
+            {"name": "картофель", "type": "carb", "percent": 15},
+            {"name": "масло растительное", "type": "fat", "percent": 5},
+            {"name": "яйцо куриное", "type": "protein", "percent": 5}
+        ],
+        "keywords": ["манты", "manti", "пельмени", "dumplings", "узбекский"]
+    },
+    "чебуреки": {
+        "name": "Чебуреки",
+        "name_en": ["cheburek", "fried dough with meat", "crimean pastry"],
+        "category": "main",
+        "default_weight": 250,
+        "nutrition_per_100": {"calories": 280, "protein": 10.0, "fat": 16.0, "carbs": 26.0},
+        "ingredients": [
+            {"name": "мука", "type": "carb", "percent": 40},
+            {"name": "мясо", "type": "protein", "percent": 30},
+            {"name": "лук", "type": "vegetable", "percent": 12},
+            {"name": "масло растительное", "type": "fat", "percent": 13},
+            {"name": "вода", "type": "liquid", "percent": 5}
+        ],
+        "keywords": ["чебуреки", "cheburek", "жареный", "пирожок", "мясо"]
+    },
+    "беляши": {
+        "name": "Беляши",
+        "name_en": ["belyashi", "meat pies", "fried buns"],
+        "category": "main",
+        "default_weight": 250,
+        "nutrition_per_100": {"calories": 260, "protein": 11.0, "fat": 14.0, "carbs": 24.0},
+        "ingredients": [
+            {"name": "мука", "type": "carb", "percent": 35},
+            {"name": "мясо", "type": "protein", "percent": 30},
+            {"name": "лук", "type": "vegetable", "percent": 15},
+            {"name": "масло растительное", "type": "fat", "percent": 12},
+            {"name": "дрожжи", "type": "other", "percent": 3},
+            {"name": "вода", "type": "liquid", "percent": 5}
+        ],
+        "keywords": ["беляши", "belyashi", "пирожки", "мясо", "жареные"]
+    },
+    "пирожки печеные": {
+        "name": "Пирожки печеные",
+        "name_en": ["baked pies", "pirozhki"],
+        "category": "bakery",
+        "default_weight": 150,
+        "nutrition_per_100": {"calories": 220, "protein": 6.0, "fat": 8.0, "carbs": 32.0},
+        "ingredients": [
+            {"name": "мука", "type": "carb", "percent": 50},
+            {"name": "мясо", "type": "protein", "percent": 20},
+            {"name": "лук", "type": "vegetable", "percent": 10},
+            {"name": "масло растительное", "type": "fat", "percent": 10},
+            {"name": "дрожжи", "type": "other", "percent": 5},
+            {"name": "вода", "type": "liquid", "percent": 5}
+        ],
+        "keywords": ["пирожки", "pirozhki", "выпечка", "печеные", "пирог"]
+    },
     # ==================== ФАСТФУД ====================
     "гамбургер": {
         "name": "Гамбургер",

@@ -2268,50 +2268,69 @@ async def run_legacy_model(model_info: dict) -> Tuple[Optional[Dict], Optional[s
 def _expert_food_analysis(data: Dict) -> Dict:
     """Экспертный анализ блюд для вероятностного определения на основе визуальных признаков"""
     
-    if not data or 'visual_cues' not in data:
+    if not data:
         return data
     
     visual_cues = data.get('visual_cues', '').lower()
     ingredients = data.get('ingredients', [])
     ingredient_names = [ing.get('name', '').lower() for ing in ingredients]
+    dish_name = data.get('dish_name', '').lower()
     
-    # 🎯 АНАЛИЗ МЯСА
-    meat_types = {
-        'beef': ['говядина', 'телятина'],
-        'pork': ['свинина', 'сало'],
-        'chicken': ['курица', 'куриное'],
-        'lamb': ['баранина', 'ягнятина'],
-        'turkey': ['индейка'],
-        'duck': ['утка', 'утиное']
-    }
-    
-    # Определяем тип мяса
-    detected_meat = None
-    for meat_en, meat_ru_list in meat_types.items():
-        if meat_en in ingredient_names or any(ru in ingredient_names for ru in meat_ru_list):
-            detected_meat = meat_en
-            break
-    
-    if detected_meat:
-        # 🥩 АНАЛИЗ ФОРМЫ МЯСА
-        meat_form_analysis = _analyze_meat_form(visual_cues, data)
-        data.update(meat_form_analysis)
+    # 🚨 КРИТИЧЕСКАЯ ПРОВЕРКА: если название общее - анализируем ингредиенты
+    if dish_name in ['mixed dish', 'food dish', 'dish', 'unknown']:
+        logger.info(f"🎯 Expert analysis TRIGGERED for generic dish: '{dish_name}'")
+        logger.info(f"🎯 Available ingredients: {ingredient_names}")
+        logger.info(f"🎯 Visual cues: '{visual_cues}'")
         
-        # 🔥 АНАЛИЗ МЕТОДА ПРИГОТОВЛЕНИЯ
-        cooking_analysis = _analyze_cooking_method(visual_cues, data)
-        data.update(cooking_analysis)
+        # 🎯 АНАЛИЗ МЯСА
+        meat_types = {
+            'beef': ['говядина', 'телятина'],
+            'pork': ['свинина', 'сало'],
+            'chicken': ['курица', 'куриное'],
+            'lamb': ['баранина', 'ягнятина'],
+            'turkey': ['индейка'],
+            'duck': ['утка', 'утиное']
+        }
         
-        # 📊 ВЕРОЯТНОСТНОЕ ОПРЕДЕЛЕНИЕ БЛЮДА
-        dish_probabilities = _calculate_meat_dish_probabilities(detected_meat, visual_cues, data)
-        if dish_probabilities:
-            best_dish = dish_probabilities[0]
-            data['dish_name'] = best_dish['name']
-            data['dish_name_ru'] = best_dish['name_ru']
-            data['confidence'] = best_dish['confidence']
-            data['category'] = best_dish.get('category', 'main')
-            data['reasoning'] = best_dish.get('reasoning', '')
+        # Определяем тип мяса
+        detected_meat = None
+        for meat_en, meat_ru_list in meat_types.items():
+            if meat_en in ingredient_names or any(ru in ingredient_names for ru in meat_ru_list):
+                detected_meat = meat_en
+                logger.info(f"🥩 DETECTED MEAT TYPE: {meat_en}")
+                break
+        
+        if detected_meat:
+            # 🥩 АНАЛИЗ ФОРМЫ МЯСА - по ингредиентам и визуальным признакам
+            meat_form_analysis = _analyze_meat_form(visual_cues, data)
+            data.update(meat_form_analysis)
             
-            logger.info(f"🎯 Expert analysis: {best_dish['name']} (confidence: {best_dish['confidence']})")
+            # 🔥 АНАЛИЗ МЕТОДА ПРИГОТОВЛЕНИЯ
+            cooking_analysis = _analyze_cooking_method(visual_cues, data)
+            data.update(cooking_analysis)
+            
+            # 📊 ВЕРОЯТНОСТНОЕ ОПРЕДЕЛЕНИЕ БЛЮДА
+            dish_probabilities = _calculate_meat_dish_probabilities(detected_meat, visual_cues, data)
+            logger.info(f"🎯 CALCULATED PROBABILITIES: {len(dish_probabilities)} options")
+            for i, prob in enumerate(dish_probabilities):
+                logger.info(f"🎯   Option {i+1}: {prob['name']} (confidence: {prob['confidence']}) - {prob.get('reasoning', '')}")
+            
+            if dish_probabilities:
+                best_dish = dish_probabilities[0]
+                data['dish_name'] = best_dish['name']
+                data['dish_name_ru'] = best_dish['name_ru']
+                data['confidence'] = best_dish['confidence']
+                data['category'] = best_dish.get('category', 'main')
+                data['reasoning'] = best_dish.get('reasoning', '')
+                
+                logger.info(f"🎯 Expert analysis FIXED: {best_dish['name']} (confidence: {best_dish['confidence']})")
+                logger.info(f"🎯 Reasoning: {best_dish.get('reasoning', '')}")
+                logger.info(f"🎯 Category: {best_dish.get('category', 'main')}")
+                return data
+        else:
+            logger.info(f"🎯 No meat detected in ingredients: {ingredient_names}")
+    else:
+        logger.info(f"🎯 Expert analysis SKIPPED - dish name is specific: '{dish_name}'")
     
     # 🐟 АНАЛИЗ РЫБЫ
     fish_types = {
@@ -2365,11 +2384,40 @@ def _expert_food_analysis(data: Dict) -> Dict:
 def _analyze_meat_form(visual_cues: str, data: Dict) -> Dict:
     """Анализ формы мяса"""
     analysis = {}
+    ingredients = data.get('ingredients', [])
+    ingredient_names = [ing.get('name', '').lower() for ing in ingredients]
+    dish_name = data.get('dish_name', '').lower()
+    
+    # 🚨 ПРОВЕРКА НА ШАШЛЫК по множеству признаков
+    shashlik_indicators = 0
+    
+    # Визуальные признаки
+    if any(ind in visual_cues for ind in ['stick', 'skewer', 'wooden', 'metal']):
+        shashlik_indicators += 3  # Самый сильный признак
+        logger.info("🍢 Found skewer indicators in visual cues")
+    
+    # Признаки из ингредиентов (лук часто с шашлыком)
+    if any(onion in ingredient_names for onion in ['onion', 'лук']):
+        shashlik_indicators += 1
+        logger.info("🧅 Found onion - typical for shashlik")
+    
+    # Если блюд называется "mixed dish" + есть мясо = вероятно шашлык
+    if dish_name in ['mixed dish', 'food dish'] and any(meat in ingredient_names for meat in ['pork', 'beef', 'chicken', 'lamb']):
+        shashlik_indicators += 2
+        logger.info("🎯 Mixed dish with meat - likely shashlik")
+    
+    # Множество типов мяса = вероятно шашлык (ассорти)
+    meat_count = sum(1 for name in ingredient_names if name in ['pork', 'beef', 'chicken', 'lamb', 'salmon'])
+    if meat_count >= 2:
+        shashlik_indicators += 1
+        logger.info(f"🥩 Multiple meat types ({meat_count}) - likely shashlik assortment")
     
     # Определяем форму мяса
-    if any(ind in visual_cues for ind in ['stick', 'skewer', 'wooden', 'metal']):
+    if shashlik_indicators >= 3:
         analysis['meat_form'] = 'on_skewers'
         analysis['has_skewers'] = True
+        analysis['shashlik_confidence'] = min(shashlik_indicators * 0.2, 0.9)
+        logger.info(f"🍢 SHASHLIK DETECTED: confidence {analysis['shashlik_confidence']}")
     elif any(ind in visual_cues for ind in ['thick', 'piece', 'cut', 'slab']):
         analysis['meat_form'] = 'steak'
         analysis['has_skewers'] = False
@@ -2383,8 +2431,15 @@ def _analyze_meat_form(visual_cues: str, data: Dict) -> Dict:
         analysis['meat_form'] = 'whole'
         analysis['has_skewers'] = False
     else:
-        analysis['meat_form'] = 'unknown'
-        analysis['has_skewers'] = False
+        # Если нет визуальных признаков, используем эвристику
+        if dish_name in ['mixed dish', 'food dish'] and meat_count >= 1:
+            analysis['meat_form'] = 'on_skewers'  # Наиболее вероятно для шашлыка
+            analysis['has_skewers'] = True
+            analysis['shashlik_confidence'] = 0.7
+            logger.info("🎯 Defaulting to shashlik for mixed dish with meat")
+        else:
+            analysis['meat_form'] = 'unknown'
+            analysis['has_skewers'] = False
     
     return analysis
 
@@ -2414,16 +2469,23 @@ def _calculate_meat_dish_probabilities(meat_type: str, visual_cues: str, data: D
     probabilities = []
     meat_form = data.get('meat_form', 'unknown')
     cooking_method = data.get('cooking_method', 'unknown')
+    shashlik_confidence = data.get('shashlik_confidence', 0)
     
-    # 🍢 Шашлык
-    if meat_form == 'on_skewers' and cooking_method in ['grilled', 'unknown']:
+    # 🍢 Шашлык - УЛУЧШЕННАЯ ЛОГИКА
+    if meat_form == 'on_skewers':
+        # Базовая уверенность для шашлыка на шампурах
+        base_confidence = 0.9
+        if shashlik_confidence > 0:
+            base_confidence = max(base_confidence, shashlik_confidence)
+        
         probabilities.append({
             'name': f"{meat_type} shashlik",
             'name_ru': f"{_translate_meat_type(meat_type)} шашлык",
-            'confidence': 0.9,
+            'confidence': base_confidence,
             'category': 'skewers',
-            'reasoning': 'Meat on skewers with grill marks'
+            'reasoning': f'Meat on skewers detected (confidence: {shashlik_confidence:.2f})'
         })
+        logger.info(f"🍢 SHASHLIK PROBABILITY: {base_confidence} (indicators: {shashlik_confidence:.2f})")
     
     # 🥩 Стейк
     elif meat_form == 'steak' and cooking_method in ['grilled', 'fried']:
@@ -2473,6 +2535,28 @@ def _calculate_meat_dish_probabilities(meat_type: str, visual_cues: str, data: D
             'category': 'main',
             'reasoning': 'Whole roasted meat'
         })
+    
+    # 🚨 FALLBACK: Если ничего не подошло, но есть мясо
+    elif meat_form == 'unknown' and meat_type:
+        # Проверяем индикаторы шашлыка даже при unknown форме
+        if shashlik_confidence >= 0.5:
+            probabilities.append({
+                'name': f"{meat_type} shashlik",
+                'name_ru': f"{_translate_meat_type(meat_type)} шашлык",
+                'confidence': shashlik_confidence,
+                'category': 'skewers',
+                'reasoning': f'Mixed dish with meat indicators - likely shashlik (confidence: {shashlik_confidence:.2f})'
+            })
+            logger.info(f"🚨 FALLBACK SHASHLIK: {shashlik_confidence} from indicators")
+        else:
+            # Общее grilled meat
+            probabilities.append({
+                'name': f"grilled {meat_type}",
+                'name_ru': f"гриль {_translate_meat_type(meat_type)}",
+                'confidence': 0.6,
+                'category': 'main',
+                'reasoning': 'Mixed meat dish, grilled preparation assumed'
+            })
     
     return sorted(probabilities, key=lambda x: x['confidence'], reverse=True)
 

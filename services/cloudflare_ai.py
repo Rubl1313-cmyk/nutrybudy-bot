@@ -2323,7 +2323,7 @@ def _expert_food_analysis(data: Dict) -> Dict:
                 data['category'] = best_dish.get('category', 'main')
                 data['reasoning'] = best_dish.get('reasoning', '')
                 
-                logger.info(f"🎯 Expert analysis FIXED: {best_dish['name']} (confidence: {best_dish['confidence']})")
+                logger.info(f"🎯 Expert analysis FIXED: {best_dish['name']} → {best_dish['name_ru']} (confidence: {best_dish['confidence']})")
                 logger.info(f"🎯 Reasoning: {best_dish.get('reasoning', '')}")
                 logger.info(f"🎯 Category: {best_dish.get('category', 'main')}")
                 return data
@@ -2361,7 +2361,9 @@ def _expert_food_analysis(data: Dict) -> Dict:
             data['category'] = best_dish.get('category', 'fish')
             data['fish_type'] = detected_fish
             
-            logger.info(f"🐟 Fish analysis: {best_dish['name']} (confidence: {best_dish['confidence']})")
+            logger.info(f"🐟 Fish analysis FIXED: {best_dish['name']} → {best_dish['name_ru']} (confidence: {best_dish['confidence']})")
+            logger.info(f"🐟 Fish type: {detected_fish}")
+            return data
     
     # 🍲 АНАЛИЗ СУПОВ
     if 'soup' in data.get('category', '').lower() or data.get('is_soup', False):
@@ -2371,19 +2373,6 @@ def _expert_food_analysis(data: Dict) -> Dict:
         soup_probabilities = _calculate_soup_probabilities(visual_cues, ingredient_names, data)
         if soup_probabilities:
             best_dish = soup_probabilities[0]
-            data['dish_name'] = best_dish['name']
-            data['dish_name_ru'] = best_dish['name_ru']
-            data['confidence'] = best_dish['confidence']
-            data['soup_type'] = best_dish.get('soup_type', 'unknown')
-            
-            logger.info(f"🍲 Soup analysis: {best_dish['name']} (confidence: {best_dish['confidence']})")
-    
-    return data
-
-
-def _analyze_meat_form(visual_cues: str, data: Dict) -> Dict:
-    """Анализ формы мяса"""
-    analysis = {}
     ingredients = data.get('ingredients', [])
     ingredient_names = [ing.get('name', '').lower() for ing in ingredients]
     dish_name = data.get('dish_name', '').lower()

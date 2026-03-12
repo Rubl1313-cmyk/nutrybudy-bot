@@ -38,33 +38,88 @@ _CACHE_TTL = 3600  # 1 час
 # ========== СПЕЦИАЛИЗИРОВАННЫЕ ПРОМПТЫ ДЛЯ АНСАМБЛЯ ==========
 
 # Улучшенный промпт для LLaVA на основе исследований 2024-2025
-ENHANCED_FOOD_RECOGNITION_PROMPT = """You are a food recognition AI.
+ENHANCED_FOOD_RECOGNITION_PROMPT = """You are an expert food recognition AI specialized in Russian and international cuisine.
 
-TASK:
-1) Identify the COMPLETE DISH (not an ingredient).
-2) List visible food ingredients.
+TASK: Analyze this food image and identify:
+1) The COMPLETE DISH with specific name (not just an ingredient)
+2) All visible food ingredients with accurate names
 
-CRITICAL RULES:
-- dish_name must be a prepared dish: never just "meat", "beef", "pork", "fish".
-- If you see meat pieces on wooden/metal sticks OR clear skewers → dish_name MUST be "pork shashlik" / "beef shashlik" / "chicken shashlik".
-- If you see a deep bowl/plate with liquid broth + submerged ingredients → this is a soup. If beets + cabbage (+ often sour cream) → dish_name MUST be "borscht".
-- If you see a fish fillet:
-  - pink/orange flesh → salmon
-  - white flaky flesh → cod/white fish
-- Prefer specific meat type when visible: pork vs beef vs chicken.
+CRITICAL RULE #1 - NEVER RETURN INGREDIENTS AS DISH:
+- ❌ WRONG: "meat", "beef", "pork", "chicken", "fish", "rice", "potato" - these are INGREDIENTS!
+- ✅ RIGHT: "grilled pork", "beef stew", "chicken soup", "fried fish", "pilaf", "potato pancakes"
+
+CRITICAL RULE #2 - DISH NAME MUST INCLUDE COOKING METHOD:
+- "grilled pork" not just "pork"
+- "fried chicken" not just "chicken"
+- "baked fish" not just "fish"
+- "boiled rice" not just "rice"
+
+CRITICAL RULE #3 - IDENTIFY DISH CATEGORY BY VISUAL CUES:
+
+SOUPS (liquid in bowl, steam, broth):
+- With beets + cabbage → "borscht" (борщ)
+- With cabbage only → "shchi" (щи)
+- With pickles → "rassolnik" (рассольник)
+- With fish → "ukha" (уха)
+- Clear broth + meat/vegetables → "soup" (суп)
+
+GRILLED/SKEWERED (visible skewers, grill marks, charred marks):
+- Meat on wooden/metal sticks → "pork shashlik" / "beef shashlik" / "chicken shashlik" (шашлык)
+- Multiple small pieces on skewer → "kebab" (кебаб)
+
+FRIED DISHES (golden color, oil, pan visible):
+- Meat in pan → "fried pork" / "fried beef"
+- Potatoes in pan → "fried potatoes" / "home fries"
+- Eggs in pan → "fried eggs" / "scrambled eggs"
+
+BAKED (oven dish, casserole, golden top):
+- Meat with vegetables in oven dish → "baked meat" / "baked chicken"
+- With cheese topping → "casserole" (запеканка)
+
+STEAMED/DUMPLINGS (folded dough, steam):
+- Small folded dough → "dumplings" (пельмени, манты, хинкали)
+- With soup → "dumplings in broth"
+
+SALADS (fresh vegetables, bowl, no heat):
+- Mixed vegetables → "salad" (салат)
+- With herring → "herring salad" (селедка под шубой)
+- With potatoes + eggs → "olivier salad" (оливье)
+
+PILAF/RICE DISHES (rice with meat/vegetables, large pot):
+- Rice with meat → "pilaf" (плов)
+- Rice with vegetables → "vegetable rice"
+
+CRITICAL RULE #4 - MEAT TYPE IDENTIFICATION:
+- White meat → chicken/turkey
+- Red meat → beef/pork/lamb
+- Pink pork → pork
+- Dark red → beef
+- Fish: pink/orange → salmon, white flaky → cod/whitefish
+
+CRITICAL RULE #5 - ACCURATE INGREDIENT NAMING:
+- White crystals on surface → salt (соль), NOT rice
+- Green herb sprigs → parsley/dill/rosemary (петрушка/укроп/розмарин), NOT onion
+- Brown particles → pepper/spices (перец/специи), NOT bell pepper
+- Orange/red flakes → paprika, NOT tomato
+- Dark liquid → soy sauce (соевый соус), NOT just "sauce"
+
+CRITICAL RULE #6 - RUSSIAN NAMES (MUST INCLUDE):
+- Always provide both English and Russian dish names
+- Use Russian cuisine terminology: борщ, щи, шашлык, плов, пельмени, оливье, etc.
 
 OUTPUT: Return ONLY strict JSON (no markdown, no extra text):
 {
-  "dish_name": "specific dish name (e.g., pork shashlik, borscht, grilled salmon)",
-  "dish_name_ru": "название на русском (if known)",
+  "dish_name": "specific dish name with cooking method (e.g., grilled pork shashlik)",
+  "dish_name_ru": "название на русском с методом приготовления (e.g., свиной шашлык)",
+  "category": "soup|grilled|fried|baked|steamed|salad|pilaf|dumplings|other",
   "cooking_method": "grilled|fried|boiled|steamed|baked|raw|stewed",
   "meal_type": "breakfast|lunch|dinner|snack",
   "portion_size": "small|medium|large",
-  "is_soup": true,
-  "has_skewers": false,
-  "meat_type": "pork|beef|chicken|lamb|fish|none",
+  "is_soup": false,
+  "has_skewers": true,
+  "meat_type": "pork|beef|chicken|lamb|fish|turkey|none",
   "ingredients": [
-    {"name": "ingredient", "type": "protein|vegetable|carb|fat|sauce|other", "estimated_weight_grams": 100, "confidence": 0.9}
+    {"name": "ingredient", "type": "protein|vegetable|carb|fat|sauce|herb|spice|other", "estimated_weight_grams": 100, "confidence": 0.9}
   ],
   "confidence": 0.0
 }
@@ -74,29 +129,44 @@ OUTPUT: Return ONLY strict JSON (no markdown, no extra text):
 LLAVA_ENSEMBLE_PROMPT = ENHANCED_FOOD_RECOGNITION_PROMPT  # Используем улучшенную версию на основе исследований
 
 # Промпт для UForm - "помощник по ингредиентам" (детальное перечисление)
-UFORM_INGREDIENTS_PROMPT = """List all the food ingredients you see in this image. 
+UFORM_INGREDIENTS_PROMPT = """You are an expert at identifying food ingredients from images.
 
-Focus on every visible food item including:
+CRITICAL RULES FOR ACCURATE IDENTIFICATION:
+1. White crystals on food surface → SALT (соль), NOT rice
+2. Green herb sprigs/leaves → PARSLEY (петрушка), DILL (укроп), or ROSEMARY (розмарин), NOT onion
+3. Brown/red particles → PEPPER (перец) or SPICES (специи), NOT bell pepper
+4. Dark liquid → SOY SAUCE (соевый соус), not just "sauce"
+5. Orange/red flakes → PAPRIKA (паприка), NOT tomato
+6. Small green leaves → BASIL (базилик), NOT lettuce
+
+List ALL visible food ingredients:
 - Main ingredients (meat, fish, vegetables, grains)
-- Garnishes and herbs
+- Garnishes and herbs (parsley, dill, rosemary, basil)
 - Sauces and dressings
 - Seasonings and spices
 
-Return only the ingredient names as a comma-separated list.
-Examples: beef, onion, bell pepper, tomato, parsley, garlic
-Do not include non-food items like plates, forks, or napkins.
+Return only ingredient names as comma-separated list.
+Examples: pork, salt, rosemary, black pepper, vegetable oil
+Do NOT include: plates, forks, napkins, table, hands
 
 Ingredient names:"""
 
 # Промпт для UForm - расширенная детализация
-UFORM_DETAILED_PROMPT = """Analyze this food image and list all ingredients with their estimated types.
+UFORM_DETAILED_PROMPT = """You are an expert at identifying food ingredients from images.
 
-Format: ingredient1:type1, ingredient2:type2, ingredient3:type3
-Types: protein, carb, vegetable, fat, sauce, spice
+CRITICAL RULES:
+- White crystals on surface → salt (соль), NOT rice
+- Green herb sprigs → parsley/dill/rosemary (петрушка/укроп/розмарин), NOT onion
+- Brown particles → pepper/spices (перец/специи)
+- Dark liquid → soy sauce (соевый соус)
+- Small green leaves → basil (базилик)
+
+Format: ingredient1:type1, ingredient2:type2
+Types: protein, carb, vegetable, fat, sauce, herb, spice, other
 
 Examples:
-- beef:protein, onion:vegetable, bell pepper:vegetable
-- salmon:protein, rice:carb, soy sauce:sauce
+- pork:protein, salt:spice, rosemary:herb, black pepper:spice
+- salmon:protein, rice:carb, soy sauce:sauce, cucumber:vegetable
 
 List all visible food ingredients:"""
 
@@ -1207,7 +1277,7 @@ async def identify_food(
 
 def _fix_common_recognition_errors(data: Dict) -> Dict:
     """
-    Исправляет типичные ошибки распознавания, особенно для шашлыка
+    Исправляет типичные ошибки распознавания и генерирует правильные названия блюд на русском и английском
     """
     if not data or 'dish_name' not in data:
         return data
@@ -1219,9 +1289,30 @@ def _fix_common_recognition_errors(data: Dict) -> Dict:
     has_skewers_flag = bool(data.get('has_skewers', False))
     is_soup_flag = bool(data.get('is_soup', False))
     meat_type_flag = (data.get('meat_type', '') or '').lower().strip()
+    category = data.get('category', '').lower()
 
     def _contains_any(name_list: List[str], keywords: List[str]) -> bool:
         return any(any(kw in (name or '') for kw in keywords) for name in name_list)
+    
+    # Словарь для генерации русских названий
+    meat_translations = {
+        'pork': ('свинина', 'свиной'),
+        'beef': ('говядина', 'говяжий'),
+        'chicken': ('курица', 'куриный'),
+        'lamb': ('баранина', 'бараний'),
+        'turkey': ('индейка', 'индейка'),
+        'fish': ('рыба', 'рыбный'),
+        'salmon': ('лосось', 'лосось'),
+    }
+    
+    cooking_translations = {
+        'grilled': ('шашлык', 'жареный на гриле'),
+        'fried': ('жареный', 'жареный'),
+        'baked': ('запеченный', 'запеченный'),
+        'boiled': ('отварной', 'вареный'),
+        'steamed': ('на пару', 'приготовленный на пару'),
+        'stewed': ('тушеный', 'тушеный'),
+    }
     
     logger.info(f"🔧 Starting error correction for: {dish_name}")
     
@@ -1230,60 +1321,99 @@ def _fix_common_recognition_errors(data: Dict) -> Dict:
         'grilled', 'stick', 'skewer', 'kebab', 'shashlik',
         'шашлык', 'шампур', 'на палочке', 'на шпажке'
     ]
-    meat_types = ['beef', 'pork', 'chicken', 'lamb', 'meat', 
-                  'говядина', 'свинина', 'курица', 'баранина', 'мясо']
+    meat_types = ['beef', 'pork', 'chicken', 'lamb', 'meat', 'turkey',
+                  'говядина', 'свинина', 'курица', 'баранина', 'мясо', 'индейка']
     
-    # Если есть признаки шампуров + мясо = это шашлык!
     has_skewer_hint = any(ind in dish_name or ind in ' '.join(ingredient_names) 
                           for ind in skewer_indicators)
     has_meat = any(meat in ingredient_names for meat in meat_types)
     is_grilled = cooking_method == 'grilled'
     
-    if (has_meat or meat_type_flag in {'pork', 'beef', 'chicken', 'lamb'}) and (has_skewers_flag or has_skewer_hint or is_grilled):
+    if (has_meat or meat_type_flag in {'pork', 'beef', 'chicken', 'lamb', 'turkey'}) and (has_skewers_flag or has_skewer_hint or is_grilled):
         # Определяем тип мяса
         meat_type = 'meat'
-        if meat_type_flag in {'pork', 'beef', 'chicken', 'lamb'}:
+        meat_key = None
+        if meat_type_flag in {'pork', 'beef', 'chicken', 'lamb', 'turkey'}:
             meat_type = meat_type_flag
-        for meat in meat_types:
-            if meat in ingredient_names or meat in dish_name:
-                meat_type = meat
-                break
+            meat_key = meat_type_flag
+        else:
+            for meat in meat_types:
+                if meat in ingredient_names or meat in dish_name:
+                    meat_type = meat
+                    if meat in ['pork', 'beef', 'chicken', 'lamb', 'turkey']:
+                        meat_key = meat
+                    break
         
-        # Выбираем название блюда
-        if 'chicken' in meat_type or 'курица' in meat_type:
+        # Выбираем название блюда с русским переводом
+        if meat_key and meat_key in meat_translations:
+            ru_name, _ = meat_translations[meat_key]
+            data['dish_name'] = f"{meat_key} shashlik"
+            data['dish_name_ru'] = f"{ru_name} шашлык"
+        elif 'chicken' in meat_type or 'курица' in meat_type:
             data['dish_name'] = 'chicken shashlik'
+            data['dish_name_ru'] = 'Куриный шашлык'
         elif 'beef' in meat_type or 'говядина' in meat_type:
             data['dish_name'] = 'beef shashlik'
+            data['dish_name_ru'] = 'Говяжий шашлык'
         elif 'pork' in meat_type or 'свинина' in meat_type:
             data['dish_name'] = 'pork shashlik'
+            data['dish_name_ru'] = 'Свиной шашлык'
         elif 'lamb' in meat_type or 'баранина' in meat_type:
             data['dish_name'] = 'lamb shashlik'
+            data['dish_name_ru'] = 'Бараний шашлык'
         else:
             data['dish_name'] = 'meat shashlik'
+            data['dish_name_ru'] = 'Шашлык'
         
         data['cooking_method'] = 'grilled'
-        logger.info(f"🔧 FIXED: Identified as shashlik - {data['dish_name']}")
+        data['category'] = 'grilled'
+        data['has_skewers'] = True
+        logger.info(f"🔧 FIXED: Identified as shashlik - {data['dish_name']} / {data.get('dish_name_ru')}")
 
         dish_name = data.get('dish_name', '').lower()
         cooking_method = data.get('cooking_method', '').lower()
     
     # ========== ЗАЩИТА: ingredient ≠ dish ==========
-    # Если dish_name совпадает с ingredient - это ошибка!
-    ingredient_only_dishes = ['beef', 'pork', 'chicken', 'lamb', 'meat', 'fish', 
-                              'говядина', 'свинина', 'курица', 'баранина', 'мясо', 'рыба']
+    ingredient_only_dishes = ['beef', 'pork', 'chicken', 'lamb', 'meat', 'fish', 'turkey',
+                              'говядина', 'свинина', 'курица', 'баранина', 'мясо', 'рыба', 'индейка']
     
     if dish_name in ingredient_only_dishes:
         # Это ингредиент, а не блюдо! Нужно определить блюдо по контексту
-        if cooking_method == 'grilled':
-            data['dish_name'] = f"{dish_name} grilled"
-        elif cooking_method == 'fried':
-            data['dish_name'] = f"{dish_name} fried"
-        elif cooking_method == 'baked':
-            data['dish_name'] = f"{dish_name} baked"
-        else:
-            data['dish_name'] = f"{dish_name} dish"
+        meat_key = None
+        for m in ['pork', 'beef', 'chicken', 'lamb', 'turkey', 'fish']:
+            if m in dish_name:
+                meat_key = m
+                break
         
-        logger.info(f"🔧 FIXED: Changed ingredient '{dish_name}' to dish '{data['dish_name']}'")
+        if meat_key and meat_key in meat_translations:
+            ru_base, _ = meat_translations[meat_key]
+            if cooking_method == 'grilled':
+                data['dish_name'] = f"{meat_key} grilled"
+                data['dish_name_ru'] = f"{ru_base} жареный на гриле"
+            elif cooking_method == 'fried':
+                data['dish_name'] = f"{meat_key} fried"
+                data['dish_name_ru'] = f"{ru_base} жареный"
+            elif cooking_method == 'baked':
+                data['dish_name'] = f"{meat_key} baked"
+                data['dish_name_ru'] = f"{ru_base} запеченный"
+            elif cooking_method == 'boiled':
+                data['dish_name'] = f"{meat_key} boiled"
+                data['dish_name_ru'] = f"{ru_base} отварной"
+            else:
+                data['dish_name'] = f"{meat_key} dish"
+                data['dish_name_ru'] = f"Блюдо из {ru_base}"
+        else:
+            if cooking_method == 'grilled':
+                data['dish_name'] = f"{dish_name} grilled"
+                data['dish_name_ru'] = f"{dish_name} жареный на гриле"
+            elif cooking_method == 'fried':
+                data['dish_name'] = f"{dish_name} fried"
+                data['dish_name_ru'] = f"{dish_name} жареный"
+            else:
+                data['dish_name'] = f"{dish_name} dish"
+                data['dish_name_ru'] = f"Блюдо из {dish_name}"
+        
+        logger.info(f"🔧 FIXED: Changed ingredient '{dish_name}' to dish '{data['dish_name']}' / '{data.get('dish_name_ru')}'")
 
         dish_name = data.get('dish_name', '').lower()
     
@@ -1298,14 +1428,30 @@ def _fix_common_recognition_errors(data: Dict) -> Dict:
 
     if (is_soup_flag and has_beets) or (has_beets and has_cabbage) or ('borscht' in dish_name) or ('борщ' in dish_name):
         data['dish_name'] = 'borscht'
+        data['dish_name_ru'] = 'Борщ'
         data['category'] = 'soup'
         if not cooking_method or cooking_method == 'unknown':
             data['cooking_method'] = 'boiled'
-        if has_sour_cream:
-            data['dish_name_ru'] = data.get('dish_name_ru') or 'борщ'
         logger.info("🔧 FIXED: Identified as borscht")
     
-    logger.info(f"🔧 Final result: {data['dish_name']}")
+    # ========== ПИЛАВ ==========
+    rice_kw = ['rice', 'рис']
+    if _contains_any(ingredient_names, rice_kw) and has_meat:
+        if 'pilaf' not in dish_name and 'плов' not in dish_name:
+            data['dish_name'] = 'pilaf'
+            data['dish_name_ru'] = 'Плов'
+            data['category'] = 'pilaf'
+            logger.info("🔧 FIXED: Identified as pilaf")
+    
+    # ========== САЛАТЫ ==========
+    if category == 'salad' or 'salad' in dish_name:
+        if 'olivier' not in dish_name and 'оливье' not in dish_name:
+            if 'potato' in ingredient_names or 'картофель' in ingredient_names:
+                data['dish_name'] = 'olivier salad'
+                data['dish_name_ru'] = 'Оливье'
+                logger.info("🔧 FIXED: Identified as olivier salad")
+    
+    logger.info(f"🔧 Final result: {data['dish_name']} / {data.get('dish_name_ru', 'N/A')}")
     return data
 
 

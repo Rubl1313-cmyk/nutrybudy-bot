@@ -2031,8 +2031,14 @@ async def run_legacy_model(model_info: dict) -> Tuple[Optional[Dict], Optional[s
 def _merge_llava_with_uform(llava_data: Dict, uform_ingredients: List[Dict]) -> Dict:
     """
     Объединяет структурированные данные от LLaVA с детальными ингредиентами от UForm.
+    ОГРАНИЧЕНИЕ: не более 10 ингредиентов от UForm для избежания мусора.
     """
     logger.info("🔗 Merging LLaVA context with UForm ingredients...")
+    
+    # ОГРАНИЧЕНИЕ: максимум 10 ингредиентов от UForm
+    MAX_UFORM_INGREDIENTS = 10
+    uform_ingredients = uform_ingredients[:MAX_UFORM_INGREDIENTS]
+    logger.info(f"🔗 Limited UForm ingredients to {MAX_UFORM_INGREDIENTS}")
     
     # Начинаем с данных LLaVA (структура блюда)
     merged = llava_data.copy()
@@ -2040,7 +2046,7 @@ def _merge_llava_with_uform(llava_data: Dict, uform_ingredients: List[Dict]) -> 
     # Собираем все ингредиенты
     all_ingredients = []
     
-    # Добавляем основные ингредиенты от LLaVA
+    # Добавляем основные ингредиенты от LLaVA (приоритет!)
     llava_ingredients = llava_data.get('ingredients', [])
     for ing in llava_ingredients:
         ing_copy = ing.copy()
@@ -2048,9 +2054,11 @@ def _merge_llava_with_uform(llava_data: Dict, uform_ingredients: List[Dict]) -> 
         all_ingredients.append(ing_copy)
     
     existing_names = {ing.get('name', '').lower().strip() for ing in all_ingredients if ing.get('name')}
+    
+    # Добавляем ингредиенты от UForm только если их нет от LLaVA
     for uform_ing in uform_ingredients:
         uform_name = (uform_ing.get('name', '') or '').lower().strip()
-        if not uform_name:
+        if not uform_name or len(uform_name) < 2:
             continue
 
         if uform_name not in existing_names:
@@ -2067,8 +2075,14 @@ def _merge_llava_with_uform(llava_data: Dict, uform_ingredients: List[Dict]) -> 
                 existing['source'] = 'both'
                 break
     
-    # Сортируем ингредиенты по уверенности
-    all_ingredients.sort(key=lambda x: x.get('confidence', 0), reverse=True)
+    # Сортируем: сначала LLaVA (высокий приоритет), затем по уверенности
+    all_ingredients.sort(key=lambda x: (x.get('source') != 'llava', -(x.get('confidence', 0))))
+    
+    # Ограничиваем общее количество ингредиентов
+    MAX_TOTAL_INGREDIENTS = 15
+    if len(all_ingredients) > MAX_TOTAL_INGREDIENTS:
+        all_ingredients = all_ingredients[:MAX_TOTAL_INGREDIENTS]
+        logger.info(f"🔗 Limited total ingredients to {MAX_TOTAL_INGREDIENTS}")
     
     # Обновляем результат
     merged['ingredients'] = all_ingredients

@@ -3,7 +3,6 @@ Cloudflare Workers AI Integration for NutriBuddy
 УЛУЧШЕНО: Progressive loading, надёжное извлечение JSON, кэширование
 Добавлено: Retry-логика, валидация, fallback-механизмы, прогресс-бар
 """
-
 import aiohttp
 import asyncio
 import hashlib
@@ -36,7 +35,7 @@ VISION_MODELS = [
 _RECOGNITION_CACHE: Dict[str, Tuple[Dict, datetime]] = {}
 _CACHE_TTL = 3600  # 1 час
 
-# ========== ЕДИНЫЙ УЛУЧШЕННЫЙ ПРОМПТ ДЛЯ LLAVA ==========
+# ========== УЛУЧШЕННЫЙ ПРОМПТ ДЛЯ LLAVA ==========
 LLAVA_ENSEMBLE_PROMPT = """You are an expert food recognition AI. Analyze the image and return a JSON with the following fields:
 - dish_name: The FULL NAME of the dish (e.g., "beef shashlik", "chicken soup", "borscht"). NEVER return a single ingredient like "beef" or "chicken" here.
 - dish_name_ru: The Russian name of the dish (e.g., "шашлык из говядины", "куриный суп", "борщ").
@@ -55,7 +54,7 @@ CRITICAL RULES:
 
 Return ONLY valid JSON, no extra text."""
 
-# Промпт для UForm (оставляем для детального перечисления ингредиентов)
+# ========== УЛУЧШЕННЫЙ ПРОМПТ ДЛЯ UFORM ==========
 UFORM_DETAILED_PROMPT = """You are an expert at identifying food ingredients from images. Your task is to list ONLY the main visible food ingredients in this specific dish.
 
 CRITICAL RULES:
@@ -318,8 +317,6 @@ def _fix_protein_identification(data: Dict) -> Dict:
     logger.info(f"🔄 Converted AI result: {len(converted_ingredients)} ingredients, dish: {old_format_data['dish_name']}")
 
     return old_format_data
-    
-# ========== УДАЛЁН ДУБЛИРУЮЩИЙСЯ СЛОВАРЬ known_dishes И ФУНКЦИЯ _identify_known_dish ==========
 
 def _validate_food_data(data: Dict) -> Tuple[bool, str]:
     """Валидация данных о еде для нового формата."""
@@ -821,19 +818,17 @@ def _parse_uform_response(response_text: str) -> List[Dict[str, Any]]:
         return []
 
     ingredients = []
+    seen = set()  # для удаления дубликатов
 
     # Очищаем текст от лишних символов
     cleaned_text = response_text.strip().lower()
-
-    # UForm часто возвращает буллет-листы/строки. Нормализуем в список токенов.
-    cleaned_text = cleaned_text.replace('\n', ',')
-    cleaned_text = cleaned_text.replace(';', ',')
+    cleaned_text = cleaned_text.replace('\n', ',').replace(';', ',')
 
     # Разделяем по запятым
     items = [item.strip() for item in cleaned_text.split(',') if item.strip()]
 
     for item in items:
-        # Убираем буллеты/нумерацию типа "- beef", "* beef", "1. beef"
+        # Убираем буллеты/нумерацию
         name_candidate = item.strip()
         while name_candidate.startswith(('-', '*')):
             name_candidate = name_candidate[1:].strip()
@@ -849,7 +844,7 @@ def _parse_uform_response(response_text: str) -> List[Dict[str, Any]]:
             # Валидация типа
             valid_types = ['protein', 'carb', 'vegetable', 'fat', 'sauce', 'spice']
             if ingredient_type not in valid_types:
-                ingredient_type = 'other'  # тип по умолчанию
+                ingredient_type = 'other'
         else:
             # Простой формат: "beef"
             name = name_candidate.strip()
@@ -857,15 +852,21 @@ def _parse_uform_response(response_text: str) -> List[Dict[str, Any]]:
 
         name = name.strip(' \t\r\n-•*')
 
-        if name and len(name) > 1:  # фильтруем пустые и слишком короткие
+        if name and len(name) > 1 and name not in seen:
+            seen.add(name)
             ingredients.append({
                 'name': name,
                 'type': ingredient_type,
-                'confidence': 0.7,  # базовая уверенность для UForm
+                'confidence': 0.7,
                 'source': 'uform_text'
             })
 
-    logger.info(f"📝 Parsed {len(ingredients)} ingredients from UForm text response")
+    # Ограничиваем количество ингредиентов (максимум 15)
+    if len(ingredients) > 15:
+        ingredients = ingredients[:15]
+        logger.info(f"📝 UForm response truncated to 15 ingredients (was {len(ingredients)} total)")
+
+    logger.info(f"📝 Parsed {len(ingredients)} unique ingredients from UForm")
     return ingredients
 
 def _guess_ingredient_type(ingredient_name: str) -> str:
@@ -885,7 +886,7 @@ def _guess_ingredient_type(ingredient_name: str) -> str:
     # Углеводы
     carb_keywords = [
         'rice', 'pasta', 'bread', 'potato', 'noodles', 'couscous', 'quinoa',
-        'flour', 'oats', 'barley', 'bulgur', 'rice', 'macaroni',
+        'flour', 'oats', 'barley', 'bulgur', 'macaroni',
         'рис', 'паста', 'хлеб', 'картошка', 'картофель', 'лапша', 'мука'
     ]
 
@@ -894,7 +895,7 @@ def _guess_ingredient_type(ingredient_name: str) -> str:
         'tomato', 'onion', 'garlic', 'carrot', 'bell pepper', 'cucumber',
         'lettuce', 'spinach', 'broccoli', 'cauliflower', 'cabbage', 'mushroom',
         'zucchini', 'eggplant', 'pumpkin', 'beetroot', 'corn', 'peas',
-        'tomato', 'помидор', 'лук', 'чеснок', 'морковь', 'перец', 'огурец', 'салат',
+        'помидор', 'лук', 'чеснок', 'морковь', 'перец', 'огурец', 'салат',
         'капуста', 'грибы', 'кабачок', 'баклажан', 'тыква', 'свекла', 'кукуруза'
     ]
 
@@ -946,8 +947,7 @@ def _merge_ensemble_results(valid_results: List[Tuple[Dict, str, float]]) -> Dic
         return valid_results[0][0]  # fallback
 
     # 2. Собираем все ингредиенты от всех моделей
-    all_ingredients = []
-    ingredient_map = {}  # name -> [ingredient_data, sources]
+    ingredient_map = {}
 
     for data, model_name, weight in valid_results:
         ingredients = data.get('ingredients', [])
@@ -958,64 +958,49 @@ def _merge_ensemble_results(valid_results: List[Tuple[Dict, str, float]]) -> Dic
             if not ing_name:
                 continue
 
-            # Нормализуем название ингредиента
-            normalized_name = ing_name.lower()
-
-            if normalized_name not in ingredient_map:
-                ingredient_map[normalized_name] = {
+            if ing_name not in ingredient_map:
+                ingredient_map[ing_name] = {
                     'data': ing.copy(),
                     'sources': [],
                     'total_confidence': 0,
                     'detection_count': 0
                 }
 
-            # Добавляем информацию о детекции
-            ingredient_map[normalized_name]['sources'].append({
+            ingredient_map[ing_name]['sources'].append({
                 'model': model_name,
                 'confidence': ing.get('confidence', 0),
                 'weight': weight,
                 'model_confidence': model_confidence
             })
 
-            # Суммируем взвешенную уверенность
             weighted_conf = ing.get('confidence', 0) * weight * model_confidence
-            ingredient_map[normalized_name]['total_confidence'] += weighted_conf
-            ingredient_map[normalized_name]['detection_count'] += 1
+            ingredient_map[ing_name]['total_confidence'] += weighted_conf
+            ingredient_map[ing_name]['detection_count'] += 1
 
-            # Обновляем данные лучшим вариантом
             current_weighted = ing.get('confidence', 0) * weight
-            best_weighted = ingredient_map[normalized_name]['data'].get('confidence', 0) * 1.0
-
+            best_weighted = ingredient_map[ing_name]['data'].get('confidence', 0) * 1.0
             if current_weighted > best_weighted:
-                ingredient_map[normalized_name]['data'] = ing.copy()
+                ingredient_map[ing_name]['data'] = ing.copy()
 
     # 3. Фильтруем и объединяем ингредиенты
     merged_ingredients = []
 
     for name, info in ingredient_map.items():
-        # Усредняем уверенность по всем моделям
         avg_confidence = info['total_confidence'] / info['detection_count']
-
-        # Учитываем количество моделей, которые обнаружили ингредиент
-        detection_bonus = 0.1 * (info['detection_count'] - 1)  # +0.1 за каждую дополнительную модель
+        detection_bonus = 0.1 * (info['detection_count'] - 1)
         final_confidence = min(avg_confidence + detection_bonus, 1.0)
 
-        # Берем ингредиент только если уверенность достаточно высока
-        if final_confidence >= 0.3:  # Порог можно настроить
+        if final_confidence >= 0.3:
             ingredient = info['data'].copy()
             ingredient['confidence'] = final_confidence
-
-            # Добавляем мета-информацию
             ingredient['detected_by'] = [s['model'] for s in info['sources']]
             ingredient['detection_count'] = info['detection_count']
-
             merged_ingredients.append(ingredient)
             logger.info(f"🔗 Merged ingredient: {name} (confidence: {final_confidence:.2f}, models: {info['detection_count']})")
 
-    # 4. Сортируем ингредиенты по уверенности
     merged_ingredients.sort(key=lambda x: x['confidence'], reverse=True)
 
-    # 5. Создаем финальный результат
+    # 4. Создаём финальный результат
     result = best_dish_data.copy()
     result['ingredients'] = merged_ingredients
     result['ensemble_info'] = {
@@ -1024,15 +1009,13 @@ def _merge_ensemble_results(valid_results: List[Tuple[Dict, str, float]]) -> Dic
         'source_models': [name for _, name, _ in valid_results]
     }
 
-    # Усредняем общую уверенность
     total_confidence = sum(data.get('confidence', 0) for data, _, _ in valid_results) / len(valid_results)
     result['confidence'] = total_confidence
 
-    # Финальная фильтрация объединенных результатов
+    # Финальная фильтрация
     result = _filter_non_food_items(result)
     if result.get('success') == False:
         logger.warning(f"⚠️ Ensemble detected non-food items: {result.get('error')}")
-        # Возвращаем лучший результат без фильтрации как fallback
         result = best_dish_data.copy()
         result['ingredients'] = merged_ingredients
         result['confidence'] = total_confidence
@@ -1089,7 +1072,7 @@ async def identify_food_ensemble(
             payload = {
                 "image": image_array,
                 "prompt": LLAVA_ENSEMBLE_PROMPT,
-                "max_tokens": 1200,  # Увеличили с 800 до 1200 для более подробных ответов
+                "max_tokens": 1200,
                 "temperature": 0.1
             }
 
@@ -1118,13 +1101,11 @@ async def identify_food_ensemble(
                         logger.warning(f"⚠️ LLaVA model {model} validation failed: {reason}")
                         return None, model
 
-                    # Фильтрация бытовых предметов
                     data = _filter_non_food_items(data)
                     if data.get('success') == False:
                         logger.warning(f"⚠️ LLaVA model {model} detected non-food items")
                         return None, model
 
-                    # Пост-обработка
                     portion_size = data.get('portion_size', 'medium')
                     if 'ingredients' in data:
                         data['ingredients'] = _calibrate_weights(data['ingredients'], portion_size)
@@ -1144,9 +1125,8 @@ async def identify_food_ensemble(
             url = f"{BASE_URL}{model}"
             payload = {
                 "image": image_array,
-                "prompt": UFORM_DETAILED_PROMPT,  # Используем детальный промпт
-                "max_tokens": 500  # Увеличили с 300 до 500 для более подробных списков
-                # UForm не поддерживает temperature
+                "prompt": UFORM_DETAILED_PROMPT,
+                "max_tokens": 500
             }
 
             logger.info(f"🥘 Starting UForm model: {model}")
@@ -1163,14 +1143,12 @@ async def identify_food_ensemble(
                         logger.warning(f"⚠️ UForm model {model} empty description")
                         return None, model
 
-                    # Парсим текстовый ответ UForm
                     ingredients = _parse_uform_response(description)
                     logger.info(f"📝 Parsed {len(ingredients)} ingredients from UForm text response")
                     if not ingredients:
                         logger.warning(f"⚠️ UForm model {model} failed to parse ingredients")
                         return None, model
 
-                    # Фильтрация бытовых предметов для ингредиентов UForm
                     filtered_data = {'ingredients': ingredients}
                     filtered_data = _filter_non_food_items(filtered_data)
                     if filtered_data.get('success') == False:
@@ -1184,7 +1162,6 @@ async def identify_food_ensemble(
             logger.warning(f"❌ UForm model {model} error: {type(e).__name__}: {e}")
             return None, model
 
-    # Запускаем модели параллельно
     tasks = []
     for model_info in models_to_use:
         if "llava" in model_info["id"].lower():
@@ -1192,12 +1169,10 @@ async def identify_food_ensemble(
         elif "uform" in model_info["id"].lower():
             tasks.append(run_uform_model(model_info))
         else:
-            # Для других моделей используем старый подход
             tasks.append(run_legacy_model(model_info))
 
     results = await asyncio.gather(*tasks, return_exceptions=True)
 
-    # Обрабатываем результаты
     llava_result = None
     uform_ingredients = []
     used_models = []
@@ -1224,19 +1199,15 @@ async def identify_food_ensemble(
     if progress_callback:
         await progress_callback(stage=3, progress=80)
 
-    # --- Умная агрегация результатов ---
     if llava_result and uform_ingredients:
-        # Идеальный случай: есть данные от обеих моделей
         final_result = _merge_llava_with_uform(llava_result, uform_ingredients)
         ensemble_model = f"ensemble(LLaVA+UForm)"
         logger.info(f"🎯 Perfect ensemble: LLaVA context + UForm ingredients")
     elif llava_result:
-        # Fallback: только LLaVA
         final_result = llava_result
         ensemble_model = f"ensemble(LLaVA-only)"
         logger.info(f"🔄 Fallback to LLaVA only")
     elif uform_ingredients:
-        # Fallback: только UForm, пытаемся реконструировать блюдо
         final_result = _reconstruct_dish_from_ingredients(uform_ingredients)
         ensemble_model = f"ensemble(UForm-only)"
         logger.info(f"🔄 Fallback to UForm ingredients only")
@@ -1244,23 +1215,15 @@ async def identify_food_ensemble(
         logger.error("❌ All ensemble models failed")
         return None, None
 
-    # Финальная проверка и пост-обработка
     final_result = _fix_common_recognition_errors(final_result)
-
-    # 🎯 ЭКСПЕРТНЫЙ АНАЛИЗ для вероятностного определения
     final_result = _expert_food_analysis(final_result)
 
-    # ФИНАЛЬНАЯ ПРОВЕРКА: если результат подозрительный
     dish_name = final_result.get('dish_name', '').lower()
     ingredient_only_dishes = ['pork', 'beef', 'chicken', 'lamb', 'meat', 'fish']
-
     if dish_name in ingredient_only_dishes:
         logger.warning(f"⚠️ CRITICAL: Model returned ingredient '{dish_name}' instead of dish!")
-
-        # Принудительно вызываем коррекцию
         final_result = _force_dish_identification(final_result)
 
-    # Кэшируем результат
     _cache_result(image_hash, final_result)
 
     if progress_callback:
@@ -1982,10 +1945,9 @@ async def identify_food_cascade(
     Использует ансамбль моделей для повышения точности.
     """
     try:
-        # Используем новый ансамбль моделей
         data, used_model = await identify_food_ensemble(
             image_bytes,
-            model_indices=[0, 1],  # LLaVA + UForm
+            model_indices=[0, 1],
             progress_callback=progress_callback
         )
 
@@ -2013,7 +1975,7 @@ async def get_simple_ingredients(image_bytes: bytes) -> Optional[List[str]]:
     """Быстрое извлечение списка ингредиентов (fallback)."""
     data, _ = await identify_food_ensemble(
         image_bytes,
-        model_indices=[1],  # Используем только UForm для скорости
+        model_indices=[1],
         progress_callback=None
     )
 
@@ -2028,7 +1990,6 @@ async def get_simple_ingredients(image_bytes: bytes) -> Optional[List[str]]:
 
     return None
 
-# ========== ТРАНСКРИБАЦИЯ АУДИО ==========
 async def transcribe_audio(audio_bytes: bytes, language: str = "ru") -> Optional[str]:
     """Распознавание голоса через Cloudflare Whisper."""
     if not BASE_URL:
@@ -2066,12 +2027,11 @@ async def transcribe_audio(audio_bytes: bytes, language: str = "ru") -> Optional
         logger.exception(f"❌ Transcription error: {e}")
         return None
 
-# ========== БЭКВАРД-СОВМЕСТИМОСТЬ ==========
 async def identify_dish_from_image(image_bytes: bytes) -> Optional[str]:
     """Возвращает только название блюда."""
     data, _ = await identify_food_ensemble(
         image_bytes,
-        model_indices=[0],  # Используем только LLaVA для скорости
+        model_indices=[0],
         progress_callback=None
     )
     return data.get("dish_name") if data else None

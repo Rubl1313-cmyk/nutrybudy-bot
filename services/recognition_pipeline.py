@@ -1,3 +1,5 @@
+# services/recognition_pipeline.py
+
 """
 Сервис для обработки результата распознавания AI.
 Собирает воедино: исправление ошибок, перевод, поиск готовых блюд.
@@ -45,9 +47,9 @@ async def process_ai_result(ai_data: dict) -> dict:
     
     # 5. Если ничего не нашли, пробуем поиск по ингредиентам
     if not dish_matches and ingredients_ru:
-        # Собираем названия ингредиентов (русские)
-        ingredient_names = [ing.get('name_ru', ing.get('name', '')) for ing in ingredients_ru]
-        dish_matches = find_matching_dishes_by_ingredients(ingredient_names, threshold=0.4)
+        # Собираем английские названия ингредиентов (для поиска по базе)
+        ingredient_names_en = [ing.get('name', '') for ing in fixed.get('ingredients', [])]
+        dish_matches = find_matching_dishes_by_ingredients(ingredient_names_en, threshold=0.4)
         if dish_matches:
             logger.info(f"🔍 Found {len(dish_matches)} dishes by ingredients: {[m['name'] for m in dish_matches]}")
     

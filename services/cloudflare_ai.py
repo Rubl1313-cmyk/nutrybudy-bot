@@ -100,67 +100,61 @@ def _cache_result(image_hash: str, result: Dict):
 def _extract_json_from_text(text: str) -> Optional[Dict]:
     """
     Извлекает JSON из текста с улучшенной обработкой экранирований.
-    ✅ ИСПРАВЛЕНО: обработка _ → _, " → "
     """
     if not text or not isinstance(text, str):
         return None
 
-    original_text = text.strip()
-
-    # 1. Убираем markdown блоки кода
+    # Убираем markdown и лишний текст до и после JSON
+    text = text.strip()
     for marker in ['```json', '```JSON', '```']:
         if marker in text:
             parts = text.split(marker, 1)
             if len(parts) > 1:
                 text = parts[1].split('```', 1)[0].strip()
 
-    # 2. Находим границы JSON объекта
+    # Находим первый '{' и последний '}'
     start = text.find('{')
     end = text.rfind('}')
-
     if start == -1 or end == -1 or end <= start:
+        # Попробуем найти массив
         start_arr = text.find('[')
         end_arr = text.rfind(']')
         if start_arr != -1 and end_arr != -1 and end_arr > start_arr:
             start, end = start_arr, end_arr
         else:
-            logger.warning(f"❌ No JSON structure found")
+            logger.warning("❌ No JSON structure found")
             return None
 
     json_str = text[start:end+1]
 
-    # 3. 🔥 ИСПРАВЛЕНИЕ: Убираем неправильные экранирования
-    json_str = json_str.replace('\\_', '_')  # \_ → _
-    json_str = json_str.replace('\\"', '"')  # \" → "
-    json_str = re.sub(r'\\(["\\])', r'\1', json_str)
-    json_str = json_str.replace('\n', ' ').replace('\r', ' ').replace('\t', ' ')
+    # Агрессивная очистка: убираем лишние пробелы, экранирования
+    json_str = re.sub(r'\s+', ' ', json_str)
+    json_str = json_str.replace('\\_', '_').replace('\\"', '"')
+    json_str = re.sub(r'\\(.)', r'\1', json_str)  # убираем все обратные слеши, кроме управляющих
 
-    # 4. Исправляем одинарные кавычки → двойные
-    if "'dish_name'" in json_str or "'ingredients'" in json_str:
-        json_str = re.sub(r"'([^']*)':", r'"\1":', json_str)
-        json_str = re.sub(r":\s*'([^']*)'", r': "\1"', json_str)
+    # Исправляем одинарные кавычки
+    json_str = re.sub(r"'([^']*)':", r'"\1":', json_str)
+    json_str = re.sub(r":\s*'([^']*)'", r': "\1"', json_str)
 
-    # 5. Убираем trailing commas
+    # Убираем trailing commas
     json_str = re.sub(r',\s*([}\]])', r'\1', json_str)
 
-    # 6. Попытка парсинга
     try:
         data = json.loads(json_str)
-        if isinstance(data, dict):
-            return data
-        elif isinstance(data, list) and len(data) > 0:
-            return {"ingredients": data, "dish_name": "Mixed dish", "confidence": 0.7}
-        return None
+        return data if isinstance(data, dict) else None
     except json.JSONDecodeError as e:
         logger.warning(f"⚠️ JSON decode failed: {e}")
-
-        # 7. Последняя попытка: ручное исправление
-        try:
-            json_str = re.sub(r'([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)(\s*:)', r'\1"\2"\3', json_str)
-            data = json.loads(json_str)
-            return data if isinstance(data, dict) else None
-        except:
-            return None
+        # Последняя попытка: найти JSON с помощью регулярки (грубо)
+        import re
+        json_pattern = r'\{[^{}]*\}'
+        matches = re.findall(json_pattern, json_str)
+        for match in matches:
+            try:
+                data = json.loads(match)
+                return data
+            except:
+                continue
+        return None
 
 # ========== ВАЛИДАЦИЯ ДАННЫХ ==========
 def _validate_ingredient(ing: Any) -> bool:
@@ -811,42 +805,42 @@ def _parse_uform_response(response_text: str) -> List[Dict[str, Any]]:
     """
     Парсит ответ UForm модели в формате текста.
     Поддерживает два формата:
-    1. "ingredient1, ingredient2, ingredient3" - простой список
-    2. "ingredient1:type1, ingredient2:type2" - с типами
+    1. "ingredient1:type1, ingredient2:type2" - с типами
+    2. "ingredient1, ingredient2, ingredient3" - простой список
+    Также обрабатывает варианты с пояснениями в скобках, например "meat (pork)" → "meat"
     """
     if not response_text:
         return []
 
     ingredients = []
-    seen = set()  # для удаления дубликатов
+    seen = set()
 
-    # Очищаем текст от лишних символов
+    # Очищаем текст
     cleaned_text = response_text.strip().lower()
     cleaned_text = cleaned_text.replace('\n', ',').replace(';', ',')
 
-    # Разделяем по запятым
     items = [item.strip() for item in cleaned_text.split(',') if item.strip()]
 
     for item in items:
-        # Убираем буллеты/нумерацию
+        # Убираем буллеты
         name_candidate = item.strip()
         while name_candidate.startswith(('-', '*')):
             name_candidate = name_candidate[1:].strip()
         if len(name_candidate) > 2 and name_candidate[0].isdigit() and name_candidate[1] in {'.', ')'}:
             name_candidate = name_candidate[2:].strip()
 
+        # Извлекаем основное название до скобок, если есть
+        if '(' in name_candidate:
+            name_candidate = name_candidate.split('(')[0].strip()
+
         if ':' in name_candidate:
-            # Формат с типами: "beef:protein"
             name, ingredient_type = name_candidate.split(':', 1)
             name = name.strip()
             ingredient_type = ingredient_type.strip()
-
-            # Валидация типа
-            valid_types = ['protein', 'carb', 'vegetable', 'fat', 'sauce', 'spice']
+            valid_types = ['protein', 'carb', 'vegetable', 'fat', 'sauce', 'herb', 'spice', 'other']
             if ingredient_type not in valid_types:
                 ingredient_type = 'other'
         else:
-            # Простой формат: "beef"
             name = name_candidate.strip()
             ingredient_type = _guess_ingredient_type(name)
 
@@ -861,10 +855,10 @@ def _parse_uform_response(response_text: str) -> List[Dict[str, Any]]:
                 'source': 'uform_text'
             })
 
-    # Ограничиваем количество ингредиентов (максимум 15)
+    # Ограничиваем количество
     if len(ingredients) > 15:
         ingredients = ingredients[:15]
-        logger.info(f"📝 UForm response truncated to 15 ingredients (was {len(ingredients)} total)")
+        logger.info(f"📝 UForm response truncated to 15 ingredients")
 
     logger.info(f"📝 Parsed {len(ingredients)} unique ingredients from UForm")
     return ingredients

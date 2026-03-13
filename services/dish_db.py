@@ -5703,3 +5703,52 @@ def identify_known_dish_by_ingredients(ingredient_names_en: List[str], prep_styl
         return best_match
 
     return None
+
+def find_matching_dishes_by_ingredients(ingredient_names_en: List[str], threshold: float = 0.4) -> List[Dict]:
+    """
+    Ищет блюда, которые содержат указанные ингредиенты (названия даны на английском).
+    Возвращает список блюд с оценкой совпадения.
+    """
+    from services.translator import AI_TO_DB_MAPPING
+
+    # Переводим английские названия в русские
+    ingredient_names_ru = set()
+    for name_en in ingredient_names_en:
+        name_clean = name_en.lower().replace('grilled ', '').replace('fried ', '').replace('boiled ', '')
+        name_clean = name_clean.replace('baked ', '').replace('roasted ', '').replace('steamed ', '')
+        name_clean = name_clean.replace('raw ', '').replace('fresh ', '')
+        # Ищем перевод
+        ru = AI_TO_DB_MAPPING.get(name_clean)
+        if ru:
+            ingredient_names_ru.add(ru.lower())
+        else:
+            # Если нет перевода, добавляем как есть (возможно, уже русское)
+            ingredient_names_ru.add(name_clean)
+
+    logger.info(f"🔍 Поиск блюд по ингредиентам (рус): {ingredient_names_ru}")
+
+    matches = []
+    for dish_key, dish_data in COMPOSITE_DISHES.items():
+        dish_ingredients = dish_data.get('ingredients', [])
+        dish_ingredient_names = {ing['name'].lower() for ing in dish_ingredients}
+
+        # Жаккаровское сходство: пересечение / объединение
+        intersection = ingredient_names_ru & dish_ingredient_names
+        union = ingredient_names_ru | dish_ingredient_names
+        if not union:
+            continue
+        score = len(intersection) / len(union)
+
+        if score >= threshold:
+            matches.append({
+                'name': dish_data['name'],
+                'score': round(score, 2),
+                'dish_key': dish_key,
+                'nutrition_per_100': dish_data.get('nutrition_per_100', {}),
+                'default_weight': dish_data.get('default_weight', 300),
+                'matched_ingredients': list(intersection)
+            })
+
+    matches.sort(key=lambda x: x['score'], reverse=True)
+    logger.info(f"🔍 Найдено {len(matches)} совпадений по ингредиентам")
+    return matches

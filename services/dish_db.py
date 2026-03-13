@@ -5657,102 +5657,49 @@ def identify_known_dish_by_ingredients(ingredient_names_en: List[str], prep_styl
     Использует базу COMPOSITE_DISHES и переводчик AI_TO_DB_MAPPING.
     Возвращает название блюда (на русском) или None.
     """
-    # Переводим английские названия ингредиентов в русские, используя существующий маппинг
-    ingredient_names_ru = []
+    from services.translator import AI_TO_DB_MAPPING
+
+    # Переводим английские названия в русские
+    ingredient_names_ru = set()
     for name_en in ingredient_names_en:
-        # Убираем модификаторы приготовления
-        name_clean = name_en.replace('grilled ', '').replace('fried ', '').replace('boiled ', '')
-        name_clean = name_clean.replace('baked ', '').replace('roasted ', '').replace('steamed ', '')
-        name_clean = name_clean.replace('raw ', '').replace('fresh ', '')
-        # Ищем перевод в AI_TO_DB_MAPPING (ключи в нижнем регистре)
-        ru = AI_TO_DB_MAPPING.get(name_clean.lower())
-        if ru:
-            ingredient_names_ru.append(ru)
-        else:
-            # Если нет точного перевода, оставляем как есть (надеемся на совпадение)
-            ingredient_names_ru.append(name_clean)
-
-    logger.info(f"🔍 Поиск блюда по ингредиентам (рус): {ingredient_names_ru}")
-
-    best_match = None
-    best_score = 0
-    best_priority = 0
-
-    for dish_key, dish_data in COMPOSITE_DISHES.items():
-        # Проверяем соответствие стиля приготовления (если задано)
-        dish_prep = dish_data.get('prep_style', 'mixed')
-        if dish_prep != prep_style and dish_prep != 'mixed':
-            continue
-
-        # Получаем ингредиенты блюда (на русском)
-        dish_ingredients = dish_data.get('ingredients', [])
-        dish_ingredient_names = [ing['name'].lower() for ing in dish_ingredients]
-
-        # Считаем совпадения
-        matches = sum(1 for ing in ingredient_names_ru if ing in dish_ingredient_names)
-        if matches == 0:
-            continue
-
-        # Вычисляем оценку (доля совпавших ингредиентов от общего числа в блюде)
-        score = matches / len(dish_ingredient_names) if dish_ingredient_names else 0
-        priority = dish_data.get('priority', 50)  # можно добавить поле priority в COMPOSITE_DISHES, иначе 50
-        final_score = score * 100 + (priority / 10)  # приоритет как бонус
-
-        if final_score > best_score and final_score >= 50:  # минимальный порог 50%
-            best_score = final_score
-            best_priority = priority
-            best_match = dish_data['name']  # русское название блюда
-
-    if best_match:
-        logger.info(f"🎯 Идентифицировано блюдо по ингредиентам: {best_match} (score: {best_score:.1f})")
-        return best_match
-
-    return None
-def find_matching_dishes_by_ingredients(ingredient_names: List[str], threshold: float = 0.4) -> List[Dict]:
-    """
-    Ищет блюда, которые содержат указанные ингредиенты (названия даны на английском).
-    Возвращает список блюд с оценкой совпадения.
-    """
-    # Переводим английские названия в русские, чтобы сравнивать с ингредиентами из COMPOSITE_DISHES
-    ingredient_names_ru = []
-    for name_en in ingredient_names:
-        # Убираем модификаторы приготовления
-        name_clean = name_en.replace('grilled ', '').replace('fried ', '').replace('boiled ', '')
+        name_clean = name_en.lower().replace('grilled ', '').replace('fried ', '').replace('boiled ', '')
         name_clean = name_clean.replace('baked ', '').replace('roasted ', '').replace('steamed ', '')
         name_clean = name_clean.replace('raw ', '').replace('fresh ', '')
         # Ищем перевод
-        ru = AI_TO_DB_MAPPING.get(name_clean.lower())
+        ru = AI_TO_DB_MAPPING.get(name_clean)
         if ru:
-            ingredient_names_ru.append(ru.lower())
+            ingredient_names_ru.add(ru)
         else:
-            # Если нет перевода, оставляем как есть (на всякий случай)
-            ingredient_names_ru.append(name_clean.lower())
+            # Если нет перевода, добавляем оригинал (возможно, он уже на русском)
+            ingredient_names_ru.add(name_clean)
 
-    logger.info(f"🔍 Поиск блюд по ингредиентам (рус): {ingredient_names_ru}")
+    logger.info(f"🔍 Поиск блюда по ингредиентам: {ingredient_names_ru}")
 
-    matches = []
+    best_match = None
+    best_score = 0.0
+
     for dish_key, dish_data in COMPOSITE_DISHES.items():
         dish_ingredients = dish_data.get('ingredients', [])
-        dish_ingredient_names = [ing['name'].lower() for ing in dish_ingredients]
+        dish_names = [ing['name'].lower() for ing in dish_ingredients]
+        dish_set = set(dish_names)
 
-        # Считаем пересечение
-        common = set(ingredient_names_ru) & set(dish_ingredient_names)
-        if not common:
+        # Жаккаровское сходство: пересечение / объединение
+        intersection = ingredient_names_ru & dish_set
+        union = ingredient_names_ru | dish_set
+        if not union:
             continue
+        score = len(intersection) / len(union)
 
-        # Оценка: доля совпавших ингредиентов от общего числа в блюде
-        score = len(common) / len(dish_ingredient_names) if dish_ingredient_names else 0
+        # Небольшой бонус за совпадение стиля приготовления
+        if dish_data.get('prep_style') == prep_style:
+            score += 0.05
 
-        if score >= threshold:
-            matches.append({
-                'name': dish_data['name'],
-                'score': round(score, 2),
-                'dish_key': dish_key,
-                'nutrition_per_100': dish_data.get('nutrition_per_100', {}),
-                'default_weight': dish_data.get('default_weight', 300),
-                'matched_ingredients': list(common)
-            })
+        if score > best_score and score >= 0.3:  # порог 30%
+            best_score = score
+            best_match = dish_data['name']
 
-    matches.sort(key=lambda x: x['score'], reverse=True)
-    logger.info(f"🔍 Найдено {len(matches)} совпадений по ингредиентам")
-    return matches
+    if best_match:
+        logger.info(f"🎯 Идентифицировано блюдо по ингредиентам: {best_match} (score: {best_score:.2f})")
+        return best_match
+
+    return None

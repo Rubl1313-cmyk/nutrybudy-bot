@@ -106,20 +106,20 @@ def _extract_json_from_text(text: str) -> Optional[Dict]:
     """
     if not text or not isinstance(text, str):
         return None
-    
+
     original_text = text.strip()
-    
+
     # 1. Убираем markdown блоки кода
     for marker in ['```json', '```JSON', '```']:
         if marker in text:
             parts = text.split(marker, 1)
             if len(parts) > 1:
                 text = parts[1].split('```', 1)[0].strip()
-    
+
     # 2. Находим границы JSON объекта
     start = text.find('{')
     end = text.rfind('}')
-    
+
     if start == -1 or end == -1 or end <= start:
         start_arr = text.find('[')
         end_arr = text.rfind(']')
@@ -128,23 +128,23 @@ def _extract_json_from_text(text: str) -> Optional[Dict]:
         else:
             logger.warning(f"❌ No JSON structure found")
             return None
-    
+
     json_str = text[start:end+1]
-    
+
     # 3. 🔥 ИСПРАВЛЕНИЕ: Убираем неправильные экранирования
     json_str = json_str.replace('\\_', '_')  # \_ → _
     json_str = json_str.replace('\\"', '"')  # \" → "
     json_str = re.sub(r'\\(["\\])', r'\1', json_str)
     json_str = json_str.replace('\n', ' ').replace('\r', ' ').replace('\t', ' ')
-    
+
     # 4. Исправляем одинарные кавычки → двойные
     if "'dish_name'" in json_str or "'ingredients'" in json_str:
         json_str = re.sub(r"'([^']*)':", r'"\1":', json_str)
         json_str = re.sub(r":\s*'([^']*)'", r': "\1"', json_str)
-    
+
     # 5. Убираем trailing commas
     json_str = re.sub(r',\s*([}\]])', r'\1', json_str)
-    
+
     # 6. Попытка парсинга
     try:
         data = json.loads(json_str)
@@ -155,7 +155,7 @@ def _extract_json_from_text(text: str) -> Optional[Dict]:
         return None
     except json.JSONDecodeError as e:
         logger.warning(f"⚠️ JSON decode failed: {e}")
-        
+
         # 7. Последняя попытка: ручное исправление
         try:
             json_str = re.sub(r'([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)(\s*:)', r'\1"\2"\3', json_str)
@@ -169,12 +169,12 @@ def _validate_ingredient(ing: Any) -> bool:
     """Проверяет валидность одного ингредиента для нового формата."""
     if not isinstance(ing, dict):
         return False
-    
+
     # Проверяем обязательные поля для нового формата
     name = ing.get('name', '')
     if not name or not isinstance(name, str) or len(name.strip()) < 2:
         return False
-    
+
     # Проверяем category
     valid_categories = {'protein', 'carb', 'vegetable', 'fruit', 'fat', 'sauce', 'other'}
     category = ing.get('category', '')
@@ -186,16 +186,16 @@ def _validate_ingredient(ing: Any) -> bool:
             ing['type'] = 'other'
         else:
             ing['category'] = type_field
-    
+
     weight = ing.get('estimated_weight_grams')
     if weight is not None:
         if not isinstance(weight, (int, float)) or weight < 1 or weight > 2000:
             ing['estimated_weight_grams'] = 100
-    
+
     conf = ing.get('confidence')
     if conf is None or not isinstance(conf, (int, float)) or not 0 <= conf <= 1:
         ing['confidence'] = 0.7
-    
+
     return True
 
 def _convert_food_expert_format(data: Dict) -> Dict:
@@ -204,7 +204,7 @@ def _convert_food_expert_format(data: Dict) -> Dict:
     """
     if not data:
         return data
-    
+
     # Конвертируем основные поля
     converted_data = {
         'dish_name': data.get('dish_name', 'unknown dish'),
@@ -215,11 +215,11 @@ def _convert_food_expert_format(data: Dict) -> Dict:
         'meal_type': data.get('meal_context', 'lunch'),
         'cuisine': data.get('cuisine', 'other')
     }
-    
+
     # Конвертируем ингредиенты
     ingredients = data.get('ingredients', [])
     converted_ingredients = []
-    
+
     for ing in ingredients:
         converted_ing = {
             'name': ing.get('name', ''),
@@ -231,16 +231,16 @@ def _convert_food_expert_format(data: Dict) -> Dict:
             'weight_calibrated': True
         }
         converted_ingredients.append(converted_ing)
-    
+
     converted_data['ingredients'] = converted_ingredients
-    
+
     # Добавляем дополнительные поля
     if 'allergens_detected' in data:
         converted_data['allergens'] = data['allergens_detected']
-    
+
     if 'reasoning_summary' in data:
         converted_data['reasoning'] = data['reasoning_summary']
-    
+
     logger.info(f"🔄 Converted FoodExpert-AI format: {len(converted_ingredients)} ingredients, dish: {converted_data['dish_name']}")
     return converted_data
 
@@ -251,12 +251,12 @@ def _fix_protein_identification(data: Dict) -> Dict:
     """
     if not data or 'ingredients' not in data:
         return data
-    
+
     ingredients = data.get('ingredients', [])
-    
+
     # Конвертируем новый формат в старый для совместимости
     converted_ingredients = []
-    
+
     for ing in ingredients:
         # Конвертируем category в type
         category_map = {
@@ -268,30 +268,30 @@ def _fix_protein_identification(data: Dict) -> Dict:
             'sauce': 'sauce',
             'other': 'other'
         }
-        
+
         converted_ing = {
             'name': ing.get('name', ''),
             'type': category_map.get(ing.get('category', 'other'), 'other'),
             'estimated_weight_grams': ing.get('estimated_weight_grams', 100),
             'confidence': ing.get('confidence', 0.8)
         }
-        
+
         # Добавляем весовую калибровку если нужно
         if 'weight_calibrated' not in converted_ing:
             converted_ing['weight_calibrated'] = True
-            
+
         converted_ingredients.append(converted_ing)
-    
+
     # Создаем старый формат для совместимости
     old_format_data = {
         'ingredients': converted_ingredients,
         'confidence': data.get('overall_confidence', 0.8),
         'meal_type': data.get('meal_type', 'lunch')
     }
-    
+
     # Умное определение известных блюд
     dish_name = _identify_known_dish(converted_ingredients, data.get('preparation_style', 'mixed'))
-    
+
     if dish_name:
         old_format_data['dish_name'] = dish_name
         logger.info(f"🎯 Identified known dish: {dish_name}")
@@ -300,7 +300,7 @@ def _fix_protein_identification(data: Dict) -> Dict:
         prep_style = data.get('preparation_style', 'mixed')
         protein_names = [ing['name'] for ing in converted_ingredients if ing['type'] == 'protein']
         carb_names = [ing['name'] for ing in converted_ingredients if ing['type'] == 'carb']
-        
+
         if protein_names and carb_names:
             if prep_style == 'salad':
                 old_format_data['dish_name'] = f"{protein_names[0]} with {carb_names[0]} salad"
@@ -312,9 +312,9 @@ def _fix_protein_identification(data: Dict) -> Dict:
             old_format_data['dish_name'] = carb_names[0]
         else:
             old_format_data['dish_name'] = 'mixed dish'
-    
+
     logger.info(f"🔄 Converted AI result: {len(converted_ingredients)} ingredients, dish: {old_format_data['dish_name']}")
-    
+
     return old_format_data
 
 def _identify_known_dish(ingredients: List[Dict], prep_style: str = 'mixed') -> Optional[str]:
@@ -330,7 +330,7 @@ def _identify_known_dish(ingredients: List[Dict], prep_style: str = 'mixed') -> 
         name = name.replace('baked ', '').replace('roasted ', '').replace('steamed ', '')
         name = name.replace('raw ', '').replace('fresh ', '')
         ingredient_names.append(name)
-    
+
     # Расширенная база известных блюд с их сигнатурами
     known_dishes = {
         # Русские блюда
@@ -390,7 +390,7 @@ def _identify_known_dish(ingredients: List[Dict], prep_style: str = 'mixed') -> 
             'min_match': 2,
             'priority': 70
         },
-        
+
         # Салаты
         'салат цезарь': {
             'ingredients': ['lettuce', 'chicken', 'parmesan', 'croutons', 'caesar dressing'],
@@ -420,7 +420,7 @@ def _identify_known_dish(ingredients: List[Dict], prep_style: str = 'mixed') -> 
             'min_match': 3,
             'priority': 80
         },
-        
+
         # Итальянские блюда
         'спагетти болоньезе': {
             'ingredients': ['spaghetti', 'beef', 'tomato', 'onion'],
@@ -450,7 +450,7 @@ def _identify_known_dish(ingredients: List[Dict], prep_style: str = 'mixed') -> 
             'min_match': 3,
             'priority': 85
         },
-        
+
         # Азиатские блюда
         'жареный рис': {
             'ingredients': ['rice', 'egg', 'vegetables', 'soy sauce'],
@@ -466,14 +466,14 @@ def _identify_known_dish(ingredients: List[Dict], prep_style: str = 'mixed') -> 
             'min_match': 2,
             'priority': 85
         },
-        'суші': {
+        'суши': {
             'ingredients': ['rice', 'fish', 'seaweed', 'cucumber'],
             'required': ['rice', 'fish', 'seaweed'],
             'prep_style': 'mixed',
             'min_match': 3,
             'priority': 85
         },
-        
+
         # Американские блюда
         'гамбургер': {
             'ingredients': ['beef patty', 'bun', 'lettuce', 'tomato', 'cheese'],
@@ -489,16 +489,16 @@ def _identify_known_dish(ingredients: List[Dict], prep_style: str = 'mixed') -> 
             'min_match': 1,
             'priority': 75
         },
-        'картофель фрі': {
+        'картофель фри': {
             'ingredients': ['potato'],
             'required': ['potato'],
             'prep_style': 'fried',
             'min_match': 1,
             'priority': 70
         },
-        
+
         # Закуски и гарниры
-        'картофельне пюре': {
+        'картофельное пюре': {
             'ingredients': ['potato', 'milk', 'butter'],
             'required': ['potato'],
             'prep_style': 'boiled',
@@ -519,69 +519,69 @@ def _identify_known_dish(ingredients: List[Dict], prep_style: str = 'mixed') -> 
             'min_match': 1,
             'priority': 60
         },
-        'макарони': {
+        'макароны': {
             'ingredients': ['pasta', 'spaghetti'],
             'required': ['pasta'],
             'prep_style': 'boiled',
             'min_match': 1,
             'priority': 60
         },
-        
+
         # Супы (дополнительные)
-        'куриний суп': {
+        'куриный суп': {
             'ingredients': ['chicken', 'vegetables', 'noodles'],
             'required': ['chicken'],
             'prep_style': 'soup',
             'min_match': 2,
             'priority': 80
         },
-        'грибний суп': {
+        'грибной суп': {
             'ingredients': ['mushrooms', 'potato', 'onion'],
             'required': ['mushrooms'],
             'prep_style': 'soup',
             'min_match': 2,
             'priority': 80
         },
-        'гороховий суп': {
+        'гороховый суп': {
             'ingredients': ['peas', 'potato', 'carrot'],
             'required': ['peas'],
             'prep_style': 'soup',
             'min_match': 2,
             'priority': 75
         },
+
         
-        # Мясні страви
-        'курка гриль': {
+        'курица гриль': {
             'ingredients': ['chicken'],
             'required': ['chicken'],
             'prep_style': 'grilled',
             'min_match': 1,
             'priority': 75
         },
-        'жарена риба': {
+        'жареная рыба': {
             'ingredients': ['fish'],
             'required': ['fish'],
             'prep_style': 'fried',
             'min_match': 1,
             'priority': 75
         },
-        'запечена риба': {
+        'запеченая рыба': {
             'ingredients': ['fish'],
             'required': ['fish'],
             'prep_style': 'baked',
             'min_match': 1,
             'priority': 75
         },
-        
-        # Овочеві страви
-        'овочевий салат': {
+
+       
+        'овощной салат': {
             'ingredients': ['vegetables', 'lettuce', 'tomato', 'cucumber'],
             'required': ['vegetables'],
             'prep_style': 'salad',
             'min_match': 2,
             'priority': 70
         },
-        'тушені овочі': {
+        'тушеные овощи': {
             'ingredients': ['vegetables', 'carrot', 'onion', 'potato'],
             'required': ['vegetables'],
             'prep_style': 'stewed',
@@ -589,119 +589,117 @@ def _identify_known_dish(ingredients: List[Dict], prep_style: str = 'mixed') -> 
             'priority': 70
         }
     }
-    
+
     # Улучшенный алгоритм сопоставления с приоритетами
     best_match = None
     best_score = 0
     best_priority = 0
-    
+
     for dish_name, dish_info in known_dishes.items():
         # Проверяем соответствие стиля приготовления
         if dish_info['prep_style'] != prep_style and dish_info['prep_style'] != 'mixed':
             continue
-        
+
         # Считаем совпадения ингредиентов
         matches = 0
         required_matches = 0
-        
+
         for ingredient in ingredient_names:
             if ingredient in dish_info['ingredients']:
                 matches += 1
                 if ingredient in dish_info['required']:
                     required_matches += 1
-        
+
         # Проверяем минимальные требования
         if matches < dish_info['min_match']:
             continue
-        
+
         if required_matches < len(dish_info['required']):
             continue
-        
+
         # Вычисляем score с учетом приоритета
         score = (matches / len(dish_info['ingredients'])) * 100
         priority_bonus = dish_info.get('priority', 50)
         final_score = score + (priority_bonus / 10)
-        
+
         # Логирование для отладки
         if final_score > best_score:
             logger.info(f"🔍 {dish_name}: matches={matches}/{len(dish_info['ingredients'])}, score={final_score:.1f}")
-        
+
         if final_score > best_score and final_score >= 50:  # Минимальный порог 50%
             best_score = final_score
             best_priority = dish_info.get('priority', 50)
             best_match = dish_name
-    
+
     if best_match:
         logger.info(f"🎯 Identified known dish: {best_match} (score: {best_score:.1f}, priority: {best_priority})")
         return best_match
-    
-    return None
 
+    return None
 
 def _validate_food_data(data: Dict) -> Tuple[bool, str]:
     """Валидация данных о еде для нового формата."""
     if not isinstance(data, dict):
         return False, "Not a dictionary"
-    
+
     # Новый формат - проверяем ingredients
     if 'ingredients' in data:
         ingredients = data.get('ingredients', [])
         if not isinstance(ingredients, list) or len(ingredients) == 0:
             return False, "Empty ingredients list"
-        
+
         # Проверяем каждый ингредиент
         valid_count = 0
         for ing in ingredients:
             if _validate_ingredient(ing):
                 valid_count += 1
-        
+
         if valid_count == 0:
             return False, "No valid ingredients"
-        
+
         return True, "OK"
-    
+
     # Старый формат - для совместимости
     dish = data.get('dish_name', '')
     if not dish or not isinstance(dish, str) or len(dish.strip()) < 3:
         return False, "Invalid dish_name"
-    
+
     ingredients = data.get('ingredients', [])
     if not isinstance(ingredients, list) or len(ingredients) == 0:
         return False, "Empty ingredients"
-    
+
     valid_count = sum(1 for ing in ingredients if _validate_ingredient(ing))
     if valid_count == 0:
         return False, "No valid ingredients"
-    
-    return True, "OK"
 
+    return True, "OK"
 
 # ========== КАЛИБРОВКА ВЕСОВ ==========
 def _calibrate_weights(ingredients: List[Dict], portion_size: str) -> List[Dict]:
     """Калибрует веса ингредиентов на основе размера порции."""
     if not ingredients:
         return ingredients
-    
+
     TARGETS = {
         'small': {'total': 200, 'protein': 80, 'carb': 70, 'vegetable': 40, 'fat': 10},
         'medium': {'total': 350, 'protein': 120, 'carb': 130, 'vegetable': 80, 'fat': 20},
         'large': {'total': 500, 'protein': 180, 'carb': 200, 'vegetable': 100, 'fat': 20},
     }
-    
+
     target = TARGETS.get(portion_size, TARGETS['medium'])
-    
+
     by_type: Dict[str, List[Dict]] = {}
     for ing in ingredients:
         ing_type = ing.get('type', 'other')
         if ing_type not in by_type:
             by_type[ing_type] = []
         by_type[ing_type].append(ing)
-    
+
     for ing_type, items in by_type.items():
         target_weight = target.get(ing_type, target['vegetable'])
         if not items:
             continue
-        
+
         current_total = sum(ing.get('estimated_weight_grams', 0) for ing in items)
         if current_total < 50 or current_total > target_weight * 2:
             weight_per_item = target_weight / len(items)
@@ -714,9 +712,8 @@ def _calibrate_weights(ingredients: List[Dict], portion_size: str) -> List[Dict]
                 old_weight = ing.get('estimated_weight_grams', 100)
                 ing['estimated_weight_grams'] = int(old_weight * scale)
                 ing['weight_calibrated'] = True
-    
-    return ingredients
 
+    return ingredients
 
 # ========== ПРОГРЕСС-КОЛЛБЭК ==========
 async def _send_progress_update(
@@ -736,17 +733,17 @@ async def _send_progress_update(
             "📊 Обработка результатов",
             "✅ Готово"
         ]
-        
+
         current_stage = min(stage, len(stages) - 1)
         progress_bar = "█" * (progress // 10) + "░" * (10 - progress // 10)
-        
+
         text = (
             f"🔄 <b>Анализ изображения</b>\n"
             f"{progress_bar} {progress}%\n\n"
             f"<i>{stages[current_stage]}</i>\n"
             f"Шаг {current_stage + 1} из {total_stages}"
         )
-        
+
         await bot.edit_message_text(
             text,
             chat_id=chat_id,
@@ -755,7 +752,6 @@ async def _send_progress_update(
         )
     except Exception as e:
         logger.warning(f"⚠️ Progress update failed: {e}")
-
 
 # ========== ОСНОВНЫЕ ФУНКЦИИ ==========
 async def identify_food(
@@ -772,17 +768,17 @@ async def identify_food(
             model_indices=[0, 1],  # LLaVA + UForm
             progress_callback=progress_callback
         )
-        
+
         if data and used_model:
             # Пост-обработка: исправляем типичные ошибки
             logger.info("🔧 Applying post-processing error fixes...")
             original_dish = data.get('dish_name', 'unknown')
             data = _fix_common_recognition_errors(data)
             final_dish = data.get('dish_name', 'unknown')
-            
+
             if original_dish != final_dish:
                 logger.info(f"🔧 Fixed dish name: {original_dish} → {final_dish}")
-            
+
             return {
                 "success": True,
                 "data": data,
@@ -793,7 +789,7 @@ async def identify_food(
             }
     except Exception as e:
         logger.error(f"❌ Enhanced recognition error: {e}", exc_info=True)
-    
+
     return {
         "success": False,
         "data": None,
@@ -803,43 +799,53 @@ async def identify_food(
         "error": "All models failed"
     }
 
-
 def _fix_common_recognition_errors(data: Dict) -> Dict:
     """Исправляет типичные ошибки с ПРИОРИТЕТОМ на шашлык и борщ"""
     if not data or 'dish_name' not in data:
         return data
-    
+
     dish_name = data.get('dish_name', '').lower()
     ingredients = data.get('ingredients', [])
     ingredient_names = [ing.get('name', '').lower() for ing in ingredients]
     cooking_method = data.get('cooking_method', '').lower()
-    
+
+    # ========== НОВАЯ ПРОВЕРКА: если dish_name – это просто ингредиент ==========
+    ingredient_only = {'beef', 'pork', 'chicken', 'lamb', 'meat', 'fish', 'turkey',
+                       'говядина', 'свинина', 'курица', 'баранина', 'мясо', 'рыба'}
+    if dish_name in ingredient_only:
+        # Пытаемся определить блюдо по ингредиентам и визуальным признакам
+        logger.info(f"⚠️ dish_name is ingredient '{dish_name}', calling expert analysis")
+        expert_result = _expert_food_analysis(data)
+        if expert_result.get('dish_name') and expert_result['dish_name'].lower() != dish_name:
+            data = expert_result
+            logger.info(f"🔧 Fixed ingredient dish: {dish_name} → {data['dish_name']}")
+
     # ========== ПРИОРИТЕТ 1: ПРОВЕРКА НА ШАШЛЫК vs СТЕЙК ==========
     # Проверяем визуальные признаки ДАЖЕ если cooking_method = "unknown"
-    
+
     has_meat_protein = any(meat in ingredient_names for meat in 
                           ['pork', 'beef', 'chicken', 'lamb', 'turkey', 
                            'свинина', 'говядина', 'курица', 'баранина'])
-    
+
     # Ищем признаки шампуров/шашлыка в visual_cues
     visual_cues = data.get('visual_cues', '').lower()
     skewer_indicators = ['stick', 'skewer', 'wooden', 'metal', 'threaded', 'cubes']
     has_skewer_hint = any(ind in visual_cues for ind in skewer_indicators)
-    
+
     # Ищем признаки стейка
     steak_indicators = ['thick', 'cut', 'piece', 'slab', 'fillet', 'chop']
     has_steak_hint = any(ind in visual_cues for ind in steak_indicators)
-    
+
     # Ищем признаки гриля
     grill_indicators = ['grilled', 'grill', 'charred', 'brown', 'seared']
     has_grill_hint = any(ind in dish_name or ind in ' '.join(ingredient_names) 
                         for ind in grill_indicators)
-    
+
     # 🎯 УМНАЯ ЛОГИКА: Шашлык vs Стейк vs Нарезанное мясо
     # Шашлык = кубики мяса + характерные признаки (даже без шампуров)
     # Стейк = цельный кусок мяса
     # Нарезанное мясо = кусочки, но не шашлык
-    
+
     if has_meat_protein and (cooking_method in ['grilled', 'unknown', '']):
         if data.get('confidence', 0) > 0.7:
             # Признаки именно ШАШЛЫКА (даже без шампуров)
@@ -851,10 +857,10 @@ def _fix_common_recognition_errors(data: Dict) -> Dict:
             has_shashlik_pieces = any(ind in visual_cues for ind in shashlik_indicators)
             has_onion = any(onion in visual_cues for onion in ['onion', 'лук'])
             has_sauce = any(sauce in visual_cues for sauce in ['sauce', 'маринад', 'marinade'])
-            
+
             # Признаки СТЕЙКА (большой цельный кусок)
             has_large_piece = any(ind in visual_cues for ind in ['thick', 'large', 'whole', 'single'])
-            
+
             # 🥩 ЛОГИКА ОПРЕДЕЛЕНИЯ:
             if has_skewer_hint:
                 # Есть шампуры = точно шашлык
@@ -876,12 +882,12 @@ def _fix_common_recognition_errors(data: Dict) -> Dict:
                 # Неясно - оставляем как есть или определяем как grilled meat
                 logger.info(f"❓ Неясно, оставляем оригинальное определение: {dish_name}")
                 return data
-            
+
             if dish_type == 'shashlik':
                 # ✅ Это ШАШЛЫК
                 meat_type = 'pork'  # по умолчанию
                 meat_type_ru = 'свиной'
-                
+
                 if 'beef' in ingredient_names or 'говядина' in ingredient_names:
                     meat_type = 'beef'
                     meat_type_ru = 'говяжий'
@@ -894,7 +900,7 @@ def _fix_common_recognition_errors(data: Dict) -> Dict:
                 elif 'pork' in ingredient_names or 'свинина' in ingredient_names:
                     meat_type = 'pork'
                     meat_type_ru = 'свиной'
-                
+
                 # УСТАНАВЛИВАЕМ ШАШЛЫК
                 data['dish_name'] = f"{meat_type} shashlik"
                 data['dish_name_ru'] = f"{meat_type_ru} шашлык"
@@ -902,15 +908,15 @@ def _fix_common_recognition_errors(data: Dict) -> Dict:
                 data['cooking_method'] = 'grilled'
                 data['has_skewers'] = has_skewer_hint  # Может быть False если без шампуров
                 data['confidence'] = max(data.get('confidence', 0.8), 0.85)
-                
+
                 logger.info(f"🔧 FORCE-FIXED to shashlik: {data['dish_name']} / {data['dish_name_ru']}")
                 return data
-            
+
             elif dish_type == 'steak':
                 # ✅ Это СТЕЙК (не трогаем, но можем улучшить)
                 meat_type = 'pork'  # по умолчанию
                 meat_type_ru = 'свиной'
-                
+
                 if 'beef' in ingredient_names or 'говядина' in ingredient_names:
                     meat_type = 'beef'
                     meat_type_ru = 'говяжий'
@@ -920,7 +926,7 @@ def _fix_common_recognition_errors(data: Dict) -> Dict:
                 elif 'lamb' in ingredient_names or 'баранина' in ingredient_names:
                     meat_type = 'lamb'
                     meat_type_ru = 'бараний'
-                
+
                 # Улучшаем определение стейка
                 data['dish_name'] = f"{meat_type} steak"
                 data['dish_name_ru'] = f"{meat_type_ru} стейк"
@@ -928,10 +934,10 @@ def _fix_common_recognition_errors(data: Dict) -> Dict:
                 data['cooking_method'] = 'grilled'
                 data['has_skewers'] = False
                 data['confidence'] = max(data.get('confidence', 0.8), 0.85)
-                
+
                 logger.info(f"🥩 FORCE-FIXED to steak: {data['dish_name']} / {data['dish_name_ru']}")
                 return data
-    
+
     # ========== ПРИОРИТЕТ 2: ПРОВЕРКА НА БОРЩ ==========
     has_beets = any(beet in ingredient_names for beet in 
                    ['beet', 'beetroot', 'beets', 'свекла', 'свёкла'])
@@ -941,7 +947,7 @@ def _fix_common_recognition_errors(data: Dict) -> Dict:
                         ['sour cream', 'smetana', 'сметана'])
     is_red_soup = data.get('visual_cues', '').lower()
     is_red_soup = is_red_soup and ('red' in is_red_soup or 'pink' in is_red_soup)
-    
+
     if (has_beets and (has_cabbage or has_sour_cream)) or \
        (has_beets and data.get('is_soup')) or \
        ('borscht' in dish_name) or ('борщ' in dish_name):
@@ -951,10 +957,10 @@ def _fix_common_recognition_errors(data: Dict) -> Dict:
         data['cooking_method'] = 'boiled'
         data['is_soup'] = True
         data['confidence'] = max(data.get('confidence', 0.8), 0.9)
-        
+
         logger.info(f"🔧 FORCE-FIXED to borscht: {data['dish_name']}")
         return data
-    
+
     # ========== СТАРАЯ ЛОГИКА ДЛЯ ДРУГИХ СЛУЧАЕВ ==========
     # Категории и переводы
     meat_translations = {
@@ -966,21 +972,21 @@ def _fix_common_recognition_errors(data: Dict) -> Dict:
         'fish': ('рыба', 'рыбный'),
         'salmon': ('лосось', 'лосось'),
     }
-    
+
     def _contains_any(name_list: List[str], keywords: List[str]) -> bool:
         return any(any(kw in (name or '') for kw in keywords) for name in name_list)
-    
+
     # ЗАЩИТА: ingredient ≠ dish
     ingredient_only_dishes = ['beef', 'pork', 'chicken', 'lamb', 'meat', 'fish', 'turkey',
                               'говядина', 'свинина', 'курица', 'баранина', 'мясо', 'рыба', 'индейка']
-    
+
     if dish_name in ingredient_only_dishes:
         meat_key = None
         for m in ['pork', 'beef', 'chicken', 'lamb', 'turkey', 'fish']:
             if m in dish_name:
                 meat_key = m
                 break
-        
+
         if meat_key and meat_key in meat_translations:
             ru_base, _ = meat_translations[meat_key]
             if cooking_method == 'grilled':
@@ -998,12 +1004,11 @@ def _fix_common_recognition_errors(data: Dict) -> Dict:
             else:
                 data['dish_name'] = f"{meat_key} dish"
                 data['dish_name_ru'] = f"Блюдо из {ru_base}"
-        
+
         logger.info(f"🔧 FIXED: Changed ingredient '{dish_name}' to dish '{data['dish_name']}'")
-    
+
     logger.info(f"🔧 Final result: {data['dish_name']} / {data.get('dish_name_ru', 'N/A')}")
     return data
-
 
 def _filter_non_food_items(data: Dict[str, Any]) -> Dict[str, Any]:
     """
@@ -1012,79 +1017,79 @@ def _filter_non_food_items(data: Dict[str, Any]) -> Dict[str, Any]:
     """
     if not data or 'ingredients' not in data:
         return data
-    
+
     # Список бытовых предметов и непищевых объектов
     NON_FOOD_ITEMS = {
         # 🍽️ Столовые приборы
         'fork', 'spoon', 'knife', 'chopsticks', 'forks', 'spoons', 'knives',
         'вилка', 'ложка', 'нож', 'палочки', 'вилки', 'ложки', 'ножи',
-        
+
         # 🍽️ Посуда
         'plate', 'bowl', 'cup', 'glass', 'mug', 'saucer', 'platter', 'tray',
         'тарелка', 'миска', 'чашка', 'стакан', 'кружка', 'блюдце', 'поднос', 'лоток',
         'plates', 'bowls', 'cups', 'glasses', 'mugs', 'тарелки', 'миски', 'чашки',
-        
+
         # 🔪 Кухонные принадлежности
         'cutting board', 'board', 'napkin', 'tissue', 'paper towel',
         'разделочная доска', 'доска', 'салфетка', 'бумажное полотенце',
-        
+
         # 🕯️ Другие непищевые объекты
         'table', 'chair', 'menu', 'book', 'phone', 'bottle cap',
         'стол', 'стул', 'меню', 'книга', 'телефон', 'крышка бутылки',
-        
+
         # 🧼 Чистящие средства
         'soap', 'detergent', 'sponge', 'cloth', 'towel',
         'мыло', 'моющее средство', 'губка', 'ткань', 'полотенце',
-        
+
         # 📦 Упаковка
         'wrapper', 'package', 'bag', 'container', 'box', 'foil', 'plastic',
         'обертка', 'упаковка', 'пакет', 'контейнер', 'коробка', 'фольга', 'пластик',
-        
+
         # 🌿 Декоративные элементы (только НЕпищевые)
         'flower', 'leaf', 'decoration', 'garnish',
         'цветок', 'лист', 'декорация', 'гарнир',
-        
+
         # ⚠️ Мусор и посторонние предметы
         'trash', 'dirt', 'dust', 'hair', 'string', 'paper',
         'мусор', 'грязь', 'пыль', 'волос', 'нить', 'бумага'
     }
-    
+
     # Также фильтруем названия блюд, которые являются бытовыми предметами
     NON_FOOD_DISHES = {
         'plate', 'bowl', 'cup', 'glass', 'fork', 'spoon', 'knife',
         'тарелка', 'миска', 'чашка', 'стакан', 'вилка', 'ложка', 'нож'
     }
-    
+
     original_ingredients = data.get('ingredients', [])
     filtered_ingredients = []
     removed_items = []
-    
+
     for ingredient in original_ingredients:
         ingredient_name = ingredient.get('name', '').lower().strip()
-        
+
         # Проверяем, является ли ингредиент бытовым предметом
         is_non_food = False
-        
+
         # Прямое совпадение
         if ingredient_name in NON_FOOD_ITEMS:
             is_non_food = True
-        
+
         # Проверка на вхождение ключевых слов
         elif any(non_food in ingredient_name for non_food in NON_FOOD_ITEMS):
             is_non_food = True
-        
+
         # Дополнительные проверки для составных слов
         elif any(keyword in ingredient_name for keyword in ['plastic', 'metal', 'wood', 'glass', 'paper']):
             # Исключаем случаи, когда это может быть пищей (например, "wood ear mushrooms")
             if not any(food_word in ingredient_name for food_word in ['mushroom', 'vegetable', 'food']):
                 is_non_food = True
-        
+
         if is_non_food:
             removed_items.append(ingredient_name)
             logger.info(f"🚫 Filtered non-food item: {ingredient_name}")
         else:
             filtered_ingredients.append(ingredient)
-    
+
     # Фильтруем название блюда
     dish_name = data.get('dish_name', '').lower().strip()
     if dish_name in NON_FOOD_DISHES:
@@ -1096,31 +1101,30 @@ def _filter_non_food_items(data: Dict[str, Any]) -> Dict[str, Any]:
             'filtered_items': removed_items,
             'original_dish': dish_name
         }
-    
+
     # Обновляем данные
     result = data.copy()
     result['ingredients'] = filtered_ingredients
-    
+
     # Логируем результаты фильтрации
     if removed_items:
         logger.info(f"🧹 Filtered {len(removed_items)} non-food items: {', '.join(removed_items)}")
         logger.info(f"✅ Kept {len(filtered_ingredients)} food ingredients")
-    
+
     # Если после фильтрации не осталось ингредиентов, помечаем как подозрительный результат
     if len(filtered_ingredients) == 0 and len(original_ingredients) > 0:
         logger.warning(f"⚠️ All ingredients were filtered as non-food items")
         result['suspicious'] = True
         result['warning'] = 'All detected items appear to be non-food objects'
-    
+
     # Добавляем информацию о фильтрации
     result['filter_info'] = {
         'original_count': len(original_ingredients),
         'filtered_count': len(filtered_ingredients),
         'removed_items': removed_items
     }
-    
-    return result
 
+    return result
 
 def _parse_uform_response(response_text: str) -> List[Dict[str, Any]]:
     """
@@ -1131,19 +1135,19 @@ def _parse_uform_response(response_text: str) -> List[Dict[str, Any]]:
     """
     if not response_text:
         return []
-    
+
     ingredients = []
-    
+
     # Очищаем текст от лишних символов
     cleaned_text = response_text.strip().lower()
 
     # UForm часто возвращает буллет-листы/строки. Нормализуем в список токенов.
     cleaned_text = cleaned_text.replace('\n', ',')
     cleaned_text = cleaned_text.replace(';', ',')
-    
+
     # Разделяем по запятым
     items = [item.strip() for item in cleaned_text.split(',') if item.strip()]
-    
+
     for item in items:
         # Убираем буллеты/нумерацию типа "- beef", "* beef", "1. beef"
         name_candidate = item.strip()
@@ -1157,7 +1161,7 @@ def _parse_uform_response(response_text: str) -> List[Dict[str, Any]]:
             name, ingredient_type = name_candidate.split(':', 1)
             name = name.strip()
             ingredient_type = ingredient_type.strip()
-            
+
             # Валидация типа
             valid_types = ['protein', 'carb', 'vegetable', 'fat', 'sauce', 'spice']
             if ingredient_type not in valid_types:
@@ -1168,7 +1172,7 @@ def _parse_uform_response(response_text: str) -> List[Dict[str, Any]]:
             ingredient_type = _guess_ingredient_type(name)
 
         name = name.strip(' \t\r\n-•*')
-        
+
         if name and len(name) > 1:  # фильтруем пустые и слишком короткие
             ingredients.append({
                 'name': name,
@@ -1176,17 +1180,16 @@ def _parse_uform_response(response_text: str) -> List[Dict[str, Any]]:
                 'confidence': 0.7,  # базовая уверенность для UForm
                 'source': 'uform_text'
             })
-    
+
     logger.info(f"📝 Parsed {len(ingredients)} ingredients from UForm text response")
     return ingredients
-
 
 def _guess_ingredient_type(ingredient_name: str) -> str:
     """
     Определяет тип ингредиента по названию на основе эвристики.
     """
     name = ingredient_name.lower()
-    
+
     # Белковые продукты
     protein_keywords = [
         'beef', 'pork', 'chicken', 'turkey', 'lamb', 'veal', 'duck',
@@ -1194,14 +1197,14 @@ def _guess_ingredient_type(ingredient_name: str) -> str:
         'egg', 'cheese', 'tofu', 'beans', 'lentils', 'peas',
         'говядина', 'свинина', 'курица', 'индейка', 'баранина', 'рыба', 'яйцо', 'сыр'
     ]
-    
+
     # Углеводы
     carb_keywords = [
         'rice', 'pasta', 'bread', 'potato', 'noodles', 'couscous', 'quinoa',
         'flour', 'oats', 'barley', 'bulgur', 'rice', 'macaroni',
         'рис', 'паста', 'хлеб', 'картошка', 'картофель', 'лапша', 'мука'
     ]
-    
+
     # Овощи
     vegetable_keywords = [
         'tomato', 'onion', 'garlic', 'carrot', 'bell pepper', 'cucumber',
@@ -1210,21 +1213,21 @@ def _guess_ingredient_type(ingredient_name: str) -> str:
         'tomato', 'помидор', 'лук', 'чеснок', 'морковь', 'перец', 'огурец', 'салат',
         'капуста', 'грибы', 'кабачок', 'баклажан', 'тыква', 'свекла', 'кукуруза'
     ]
-    
+
     # Жиры и соусы
     fat_keywords = [
         'oil', 'butter', 'cream', 'mayonnaise', 'avocado', 'nuts', 'seeds',
         'olive', 'coconut', 'fat', 'grease',
         'масло', 'сливки', 'майонез', 'авокадо', 'орехи', 'жиры'
     ]
-    
+
     # Соусы и специи
     sauce_keywords = [
         'sauce', 'ketchup', 'mustard', 'soy sauce', 'vinegar', 'lemon',
         'herbs', 'spices', 'salt', 'pepper', 'paprika', 'cumin',
         'соус', 'кетчуп', 'горчица', 'уксус', 'лимон', 'травы', 'специи', 'соль'
     ]
-    
+
     if any(keyword in name for keyword in protein_keywords):
         return 'protein'
     elif any(keyword in name for keyword in carb_keywords):
@@ -1238,43 +1241,42 @@ def _guess_ingredient_type(ingredient_name: str) -> str:
     else:
         return 'other'
 
-
 def _merge_ensemble_results(valid_results: List[Tuple[Dict, str, float]]) -> Dict[str, Any]:
     """
     Умно объединяет результаты от нескольких моделей ансамбля.
     Приоритет: лучшее название блюда + объединенные ингредиенты
     """
     logger.info(f"🔄 Merging results from {len(valid_results)} models...")
-    
+
     # 1. Выбираем лучшее название блюда по взвешенной уверенности
     best_dish_data = None
     best_dish_score = -1
-    
+
     for data, model_name, weight in valid_results:
         dish_confidence = data.get('confidence', 0) * weight
         if dish_confidence > best_dish_score:
             best_dish_score = dish_confidence
             best_dish_data = data
-    
+
     if not best_dish_data:
         return valid_results[0][0]  # fallback
-    
+
     # 2. Собираем все ингредиенты от всех моделей
     all_ingredients = []
     ingredient_map = {}  # name -> [ingredient_data, sources]
-    
+
     for data, model_name, weight in valid_results:
         ingredients = data.get('ingredients', [])
         model_confidence = data.get('confidence', 0)
-        
+
         for ing in ingredients:
             ing_name = ing.get('name', '').lower().strip()
             if not ing_name:
                 continue
-                
+
             # Нормализуем название ингредиента
             normalized_name = ing_name.lower()
-            
+
             if normalized_name not in ingredient_map:
                 ingredient_map[normalized_name] = {
                     'data': ing.copy(),
@@ -1282,7 +1284,7 @@ def _merge_ensemble_results(valid_results: List[Tuple[Dict, str, float]]) -> Dic
                     'total_confidence': 0,
                     'detection_count': 0
                 }
-            
+
             # Добавляем информацию о детекции
             ingredient_map[normalized_name]['sources'].append({
                 'model': model_name,
@@ -1290,45 +1292,45 @@ def _merge_ensemble_results(valid_results: List[Tuple[Dict, str, float]]) -> Dic
                 'weight': weight,
                 'model_confidence': model_confidence
             })
-            
+
             # Суммируем взвешенную уверенность
             weighted_conf = ing.get('confidence', 0) * weight * model_confidence
             ingredient_map[normalized_name]['total_confidence'] += weighted_conf
             ingredient_map[normalized_name]['detection_count'] += 1
-            
+
             # Обновляем данные лучшим вариантом
             current_weighted = ing.get('confidence', 0) * weight
             best_weighted = ingredient_map[normalized_name]['data'].get('confidence', 0) * 1.0
-            
+
             if current_weighted > best_weighted:
                 ingredient_map[normalized_name]['data'] = ing.copy()
-    
+
     # 3. Фильтруем и объединяем ингредиенты
     merged_ingredients = []
-    
+
     for name, info in ingredient_map.items():
         # Усредняем уверенность по всем моделям
         avg_confidence = info['total_confidence'] / info['detection_count']
-        
+
         # Учитываем количество моделей, которые обнаружили ингредиент
         detection_bonus = 0.1 * (info['detection_count'] - 1)  # +0.1 за каждую дополнительную модель
         final_confidence = min(avg_confidence + detection_bonus, 1.0)
-        
+
         # Берем ингредиент только если уверенность достаточно высока
         if final_confidence >= 0.3:  # Порог можно настроить
             ingredient = info['data'].copy()
             ingredient['confidence'] = final_confidence
-            
+
             # Добавляем мета-информацию
             ingredient['detected_by'] = [s['model'] for s in info['sources']]
             ingredient['detection_count'] = info['detection_count']
-            
+
             merged_ingredients.append(ingredient)
             logger.info(f"🔗 Merged ingredient: {name} (confidence: {final_confidence:.2f}, models: {info['detection_count']})")
-    
+
     # 4. Сортируем ингредиенты по уверенности
     merged_ingredients.sort(key=lambda x: x['confidence'], reverse=True)
-    
+
     # 5. Создаем финальный результат
     result = best_dish_data.copy()
     result['ingredients'] = merged_ingredients
@@ -1337,11 +1339,11 @@ def _merge_ensemble_results(valid_results: List[Tuple[Dict, str, float]]) -> Dic
         'ingredients_merged': len(merged_ingredients),
         'source_models': [name for _, name, _ in valid_results]
     }
-    
+
     # Усредняем общую уверенность
     total_confidence = sum(data.get('confidence', 0) for data, _, _ in valid_results) / len(valid_results)
     result['confidence'] = total_confidence
-    
+
     # Финальная фильтрация объединенных результатов
     result = _filter_non_food_items(result)
     if result.get('success') == False:
@@ -1356,12 +1358,11 @@ def _merge_ensemble_results(valid_results: List[Tuple[Dict, str, float]]) -> Dic
             'source_models': [name for _, name, _ in valid_results],
             'filter_warning': 'Non-food items detected in ensemble result'
         }
-    
+
     logger.info(f"✅ Merged {len(merged_ingredients)} ingredients from {len(valid_results)} models")
     logger.info(f"🏆 Best dish: {result.get('dish_name', 'unknown')} (confidence: {total_confidence:.2f})")
-    
-    return result
 
+    return result
 
 async def identify_food_ensemble(
     image_bytes: bytes,
@@ -1408,7 +1409,7 @@ async def identify_food_ensemble(
                 "temperature": 0.1
             }
 
-            logger.info(f"👨‍🍳 Starting LLaVA model: {model}")
+            logger.info(f"👨🍳 Starting LLaVA model: {model}")
             async with aiohttp.ClientSession() as session:
                 async with session.post(url, headers=headers, json=payload, timeout=timeout) as resp:
                     if resp.status != 200:
@@ -1527,7 +1528,7 @@ async def identify_food_ensemble(
             data, _ = res
             if data:
                 llava_result = data
-                logger.info(f"👨‍🍳 LLaVA provided structured dish data")
+                logger.info(f"👨🍳 LLaVA provided structured dish data")
         elif "uform" in model_name.lower():
             ingredients, _ = res
             if ingredients:
@@ -1559,17 +1560,17 @@ async def identify_food_ensemble(
 
     # Финальная проверка и пост-обработка
     final_result = _fix_common_recognition_errors(final_result)
-    
+
     # 🎯 ЭКСПЕРТНЫЙ АНАЛИЗ для вероятностного определения
     final_result = _expert_food_analysis(final_result)
-    
+
     # ФИНАЛЬНАЯ ПРОВЕРКА: если результат подозрительный
     dish_name = final_result.get('dish_name', '').lower()
     ingredient_only_dishes = ['pork', 'beef', 'chicken', 'lamb', 'meat', 'fish']
 
     if dish_name in ingredient_only_dishes:
         logger.warning(f"⚠️ CRITICAL: Model returned ingredient '{dish_name}' instead of dish!")
-        
+
         # Принудительно вызываем коррекцию
         final_result = _force_dish_identification(final_result)
 
@@ -1585,29 +1586,27 @@ async def identify_food_ensemble(
 
     return final_result, ensemble_model
 
-
 async def run_legacy_model(model_info: dict) -> Tuple[Optional[Dict], Optional[str]]:
     """Заглушка для старых моделей - не используется в новом ансамбле"""
     return None, model_info["id"]
 
-
 def _expert_food_analysis(data: Dict) -> Dict:
     """Экспертный анализ блюд для вероятностного определения на основе визуальных признаков"""
-    
+
     if not data:
         return data
-    
+
     visual_cues = data.get('visual_cues', '').lower()
     ingredients = data.get('ingredients', [])
     ingredient_names = [ing.get('name', '').lower() for ing in ingredients]
     dish_name = data.get('dish_name', '').lower()
-    
+
     # 🚨 КРИТИЧЕСКАЯ ПРОВЕРКА: если название общее - анализируем ингредиенты
     if dish_name in ['mixed dish', 'food dish', 'dish', 'unknown']:
         logger.info(f"🎯 Expert analysis TRIGGERED for generic dish: '{dish_name}'")
         logger.info(f"🎯 Available ingredients: {ingredient_names}")
         logger.info(f"🎯 Visual cues: '{visual_cues}'")
-        
+
         # 🎯 АНАЛИЗ МЯСА
         meat_types = {
             'beef': ['говядина', 'телятина'],
@@ -1617,7 +1616,7 @@ def _expert_food_analysis(data: Dict) -> Dict:
             'turkey': ['индейка'],
             'duck': ['утка', 'утиное']
         }
-        
+
         # Определяем тип мяса
         detected_meat = None
         for meat_en, meat_ru_list in meat_types.items():
@@ -1625,22 +1624,22 @@ def _expert_food_analysis(data: Dict) -> Dict:
                 detected_meat = meat_en
                 logger.info(f"🥩 DETECTED MEAT TYPE: {meat_en}")
                 break
-        
+
         if detected_meat:
             # 🥩 АНАЛИЗ ФОРМЫ МЯСА - по ингредиентам и визуальным признакам
             meat_form_analysis = _analyze_meat_form(visual_cues, data)
             data.update(meat_form_analysis)
-            
+
             # 🔥 АНАЛИЗ МЕТОДА ПРИГОТОВЛЕНИЯ
             cooking_analysis = _analyze_cooking_method(visual_cues, data)
             data.update(cooking_analysis)
-            
+
             # 📊 ВЕРОЯТНОСТНОЕ ОПРЕДЕЛЕНИЕ БЛЮДА
             dish_probabilities = _calculate_meat_dish_probabilities(detected_meat, visual_cues, data)
             logger.info(f"🎯 CALCULATED PROBABILITIES: {len(dish_probabilities)} options")
             for i, prob in enumerate(dish_probabilities):
                 logger.info(f"🎯   Option {i+1}: {prob['name']} (confidence: {prob['confidence']}) - {prob.get('reasoning', '')}")
-            
+
             if dish_probabilities:
                 best_dish = dish_probabilities[0]
                 data['dish_name'] = best_dish['name']
@@ -1648,7 +1647,7 @@ def _expert_food_analysis(data: Dict) -> Dict:
                 data['confidence'] = best_dish['confidence']
                 data['category'] = best_dish.get('category', 'main')
                 data['reasoning'] = best_dish.get('reasoning', '')
-                
+
                 logger.info(f"🎯 Expert analysis FIXED: {best_dish['name']} → {best_dish['name_ru']} (confidence: {best_dish['confidence']})")
                 logger.info(f"🎯 Reasoning: {best_dish.get('reasoning', '')}")
                 logger.info(f"🎯 Category: {best_dish.get('category', 'main')}")
@@ -1657,7 +1656,7 @@ def _expert_food_analysis(data: Dict) -> Dict:
             logger.info(f"🎯 No meat detected in ingredients: {ingredient_names}")
     else:
         logger.info(f"🎯 Expert analysis SKIPPED - dish name is specific: '{dish_name}'")
-    
+
     # 🐟 АНАЛИЗ РЫБЫ
     fish_types = {
         'salmon': ['лосось', 'семга'],
@@ -1667,17 +1666,17 @@ def _expert_food_analysis(data: Dict) -> Dict:
         'herring': ['сельдь', 'селедка'],
         'trout': ['форель']
     }
-    
+
     detected_fish = None
     for fish_en, fish_ru_list in fish_types.items():
         if fish_en in ingredient_names or any(ru in ingredient_names for ru in fish_ru_list):
             detected_fish = fish_en
             break
-    
+
     if detected_fish:
         fish_analysis = _analyze_fish_form(detected_fish, visual_cues, data)
         data.update(fish_analysis)
-        
+
         fish_probabilities = _calculate_fish_dish_probabilities(detected_fish, visual_cues, data)
         if fish_probabilities:
             best_dish = fish_probabilities[0]
@@ -1686,16 +1685,16 @@ def _expert_food_analysis(data: Dict) -> Dict:
             data['confidence'] = best_dish['confidence']
             data['category'] = best_dish.get('category', 'fish')
             data['fish_type'] = detected_fish
-            
+
             logger.info(f"🐟 Fish analysis FIXED: {best_dish['name']} → {best_dish['name_ru']} (confidence: {best_dish['confidence']})")
             logger.info(f"🐟 Fish type: {detected_fish}")
             return data
-    
+
     # 🍲 АНАЛИЗ СУПОВ
     if 'soup' in data.get('category', '').lower() or data.get('is_soup', False):
         soup_analysis = _analyze_soup_type(visual_cues, ingredient_names, data)
         data.update(soup_analysis)
-        
+
         soup_probabilities = _calculate_soup_probabilities(visual_cues, ingredient_names, data)
         if soup_probabilities:
             best_dish = soup_probabilities[0]
@@ -1703,12 +1702,11 @@ def _expert_food_analysis(data: Dict) -> Dict:
             data['dish_name_ru'] = best_dish['name_ru']
             data['confidence'] = best_dish['confidence']
             data['soup_type'] = best_dish.get('soup_type', 'unknown')
-            
+
             logger.info(f"🍲 Soup analysis FIXED: {best_dish['name']} → {best_dish['name_ru']} (confidence: {best_dish['confidence']})")
             return data
-    
-    return data
 
+    return data
 
 def _analyze_meat_form(visual_cues: str, data: Dict) -> Dict:
     """Анализ формы мяса"""
@@ -1716,31 +1714,31 @@ def _analyze_meat_form(visual_cues: str, data: Dict) -> Dict:
     ingredients = data.get('ingredients', [])
     ingredient_names = [ing.get('name', '').lower() for ing in ingredients]
     dish_name = data.get('dish_name', '').lower()
-    
+
     # 🚨 ПРОВЕРКА НА ШАШЛЫК по множеству признаков
     shashlik_indicators = 0
-    
+
     # Визуальные признаки
     if any(ind in visual_cues for ind in ['stick', 'skewer', 'wooden', 'metal']):
         shashlik_indicators += 3  # Самый сильный признак
         logger.info("🍢 Found skewer indicators in visual cues")
-    
+
     # Признаки из ингредиентов (лук часто с шашлыком)
     if any(onion in ingredient_names for onion in ['onion', 'лук']):
         shashlik_indicators += 1
         logger.info("🧅 Found onion - typical for shashlik")
-    
+
     # Если блюд называется "mixed dish" + есть мясо = вероятно шашлык
     if dish_name in ['mixed dish', 'food dish'] and any(meat in ingredient_names for meat in ['pork', 'beef', 'chicken', 'lamb']):
         shashlik_indicators += 2
         logger.info("🎯 Mixed dish with meat - likely shashlik")
-    
+
     # Множество типов мяса = вероятно шашлык (ассорти)
     meat_count = sum(1 for name in ingredient_names if name in ['pork', 'beef', 'chicken', 'lamb', 'salmon'])
     if meat_count >= 2:
         shashlik_indicators += 1
         logger.info(f"🥩 Multiple meat types ({meat_count}) - likely shashlik assortment")
-    
+
     # Определяем форму мяса
     if shashlik_indicators >= 3:
         analysis['meat_form'] = 'on_skewers'
@@ -1769,14 +1767,13 @@ def _analyze_meat_form(visual_cues: str, data: Dict) -> Dict:
         else:
             analysis['meat_form'] = 'unknown'
             analysis['has_skewers'] = False
-    
-    return analysis
 
+    return analysis
 
 def _analyze_cooking_method(visual_cues: str, data: Dict) -> Dict:
     """Анализ метода приготовления"""
     analysis = {}
-    
+
     if any(ind in visual_cues for ind in ['grill', 'charred', 'marks', 'seared']):
         analysis['cooking_method'] = 'grilled'
     elif any(ind in visual_cues for ind in ['fried', 'crispy', 'golden', 'brown crust']):
@@ -1789,9 +1786,8 @@ def _analyze_cooking_method(visual_cues: str, data: Dict) -> Dict:
         analysis['cooking_method'] = 'boiled'
     else:
         analysis['cooking_method'] = 'unknown'
-    
-    return analysis
 
+    return analysis
 
 def _calculate_meat_dish_probabilities(meat_type: str, visual_cues: str, data: Dict) -> List[Dict]:
     """Расчет вероятностей для мясных блюд"""
@@ -1799,14 +1795,14 @@ def _calculate_meat_dish_probabilities(meat_type: str, visual_cues: str, data: D
     meat_form = data.get('meat_form', 'unknown')
     cooking_method = data.get('cooking_method', 'unknown')
     shashlik_confidence = data.get('shashlik_confidence', 0)
-    
+
     # 🍢 Шашлык - УЛУЧШЕННАЯ ЛОГИКА
     if meat_form == 'on_skewers':
         # Базовая уверенность для шашлыка на шампурах
         base_confidence = 0.9
         if shashlik_confidence > 0:
             base_confidence = max(base_confidence, shashlik_confidence)
-        
+
         probabilities.append({
             'name': f"{meat_type} shashlik",
             'name_ru': f"{_translate_meat_type(meat_type)} шашлык",
@@ -1815,7 +1811,7 @@ def _calculate_meat_dish_probabilities(meat_type: str, visual_cues: str, data: D
             'reasoning': f'Meat on skewers detected (confidence: {shashlik_confidence:.2f})'
         })
         logger.info(f"🍢 SHASHLIK PROBABILITY: {base_confidence} (indicators: {shashlik_confidence:.2f})")
-    
+
     # 🥩 Стейк
     elif meat_form == 'steak' and cooking_method in ['grilled', 'fried']:
         probabilities.append({
@@ -1825,7 +1821,7 @@ def _calculate_meat_dish_probabilities(meat_type: str, visual_cues: str, data: D
             'category': 'main',
             'reasoning': 'Thick piece of meat with grill/fry marks'
         })
-    
+
     # 🍲 Рагу/тушеное мясо
     elif meat_form == 'chunks' and cooking_method in ['stewed', 'unknown']:
         if any(ind in visual_cues for ind in ['sauce', 'liquid', 'thick']):
@@ -1844,7 +1840,7 @@ def _calculate_meat_dish_probabilities(meat_type: str, visual_cues: str, data: D
                 'category': 'main',
                 'reasoning': 'Meat chunks, likely goulash'
             })
-    
+
     # 🍖 Отбивная/котлета
     elif meat_form == 'ground' and cooking_method == 'fried':
         probabilities.append({
@@ -1854,7 +1850,7 @@ def _calculate_meat_dish_probabilities(meat_type: str, visual_cues: str, data: D
             'category': 'main',
             'reasoning': 'Ground meat, fried'
         })
-    
+
     # 🍗 Цыпленок/утка запеченная
     elif meat_form == 'whole' and cooking_method in ['baked', 'roasted']:
         probabilities.append({
@@ -1864,7 +1860,7 @@ def _calculate_meat_dish_probabilities(meat_type: str, visual_cues: str, data: D
             'category': 'main',
             'reasoning': 'Whole roasted meat'
         })
-    
+
     # 🚨 FALLBACK: Если ничего не подошло, но есть мясо
     elif meat_form == 'unknown' and meat_type:
         # Проверяем индикаторы шашлыка даже при unknown форме
@@ -1886,14 +1882,13 @@ def _calculate_meat_dish_probabilities(meat_type: str, visual_cues: str, data: D
                 'category': 'main',
                 'reasoning': 'Mixed meat dish, grilled preparation assumed'
             })
-    
-    return sorted(probabilities, key=lambda x: x['confidence'], reverse=True)
 
+    return sorted(probabilities, key=lambda x: x['confidence'], reverse=True)
 
 def _analyze_fish_form(fish_type: str, visual_cues: str, data: Dict) -> Dict:
     """Анализ формы рыбы"""
     analysis = {'fish_form': 'unknown'}
-    
+
     if any(ind in visual_cues for ind in ['steak', 'cross-section', 'thick']):
         analysis['fish_form'] = 'steak'
     elif any(ind in visual_cues for ind in ['fillet', 'flat', 'skin']):
@@ -1902,16 +1897,15 @@ def _analyze_fish_form(fish_type: str, visual_cues: str, data: Dict) -> Dict:
         analysis['fish_form'] = 'smoked'
     elif any(ind in visual_cues for ind in ['whole', 'head', 'tail', 'scales']):
         analysis['fish_form'] = 'whole'
-    
-    return analysis
 
+    return analysis
 
 def _calculate_fish_dish_probabilities(fish_type: str, visual_cues: str, data: Dict) -> List[Dict]:
     """Расчет вероятностей для рыбных блюд"""
     probabilities = []
     fish_form = data.get('fish_form', 'unknown')
     cooking_method = data.get('cooking_method', 'unknown')
-    
+
     if fish_form == 'steak' and cooking_method in ['grilled', 'fried']:
         probabilities.append({
             'name': f"{fish_type} steak",
@@ -1944,14 +1938,13 @@ def _calculate_fish_dish_probabilities(fish_type: str, visual_cues: str, data: D
             'category': 'fish',
             'reasoning': 'Whole fish preparation'
         })
-    
-    return sorted(probabilities, key=lambda x: x['confidence'], reverse=True)
 
+    return sorted(probabilities, key=lambda x: x['confidence'], reverse=True)
 
 def _analyze_soup_type(visual_cues: str, ingredient_names: List[str], data: Dict) -> Dict:
     """Анализ типа супа"""
     analysis = {}
-    
+
     # Определяем консистенцию
     if any(ind in visual_cues for ind in ['clear', 'transparent']):
         analysis['consistency'] = 'clear'
@@ -1961,7 +1954,7 @@ def _analyze_soup_type(visual_cues: str, ingredient_names: List[str], data: Dict
         analysis['consistency'] = 'chunky'
     else:
         analysis['consistency'] = 'unknown'
-    
+
     # Определяем цвет
     if any(ind in visual_cues for ind in ['red', 'pink', 'beet']):
         analysis['color'] = 'red'
@@ -1973,16 +1966,15 @@ def _analyze_soup_type(visual_cues: str, ingredient_names: List[str], data: Dict
         analysis['color'] = 'white'
     else:
         analysis['color'] = 'brown'
-    
-    return analysis
 
+    return analysis
 
 def _calculate_soup_probabilities(visual_cues: str, ingredient_names: List[str], data: Dict) -> List[Dict]:
     """Расчет вероятностей для супов"""
     probabilities = []
     consistency = data.get('consistency', 'unknown')
     color = data.get('color', 'unknown')
-    
+
     # 🍲 Борщ
     if color == 'red' and any(x in ingredient_names for x in ['beet', 'beetroot', 'свекла']):
         if any(x in ingredient_names for x in ['cabbage', 'капуста', 'sour cream', 'сметана']):
@@ -1994,7 +1986,7 @@ def _calculate_soup_probabilities(visual_cues: str, ingredient_names: List[str],
                 'soup_type': 'borscht',
                 'reasoning': 'Red soup with beets and cabbage/sour cream'
             })
-    
+
     # 🥬 Щи
     elif color == 'green' and any(x in ingredient_names for x in ['cabbage', 'капуста']):
         probabilities.append({
@@ -2005,7 +1997,7 @@ def _calculate_soup_probabilities(visual_cues: str, ingredient_names: List[str],
             'soup_type': 'shchi',
             'reasoning': 'Green cabbage soup'
         })
-    
+
     # 🥣 Крем-суп
     elif consistency == 'creamy':
         if any(x in ingredient_names for x in ['mushroom', 'гриб']):
@@ -2026,7 +2018,7 @@ def _calculate_soup_probabilities(visual_cues: str, ingredient_names: List[str],
                 'soup_type': 'cream',
                 'reasoning': 'Orange creamy soup'
             })
-    
+
     # 🍲 Густой суп
     elif consistency == 'chunky':
         if any(x in ingredient_names for x in ['chicken', 'курица']):
@@ -2047,9 +2039,8 @@ def _calculate_soup_probabilities(visual_cues: str, ingredient_names: List[str],
                 'soup_type': 'chunky',
                 'reasoning': 'Chunky vegetable soup'
             })
-    
-    return sorted(probabilities, key=lambda x: x['confidence'], reverse=True)
 
+    return sorted(probabilities, key=lambda x: x['confidence'], reverse=True)
 
 def _translate_meat_type(meat_type: str) -> str:
     """Перевод типа мяса на русский"""
@@ -2063,7 +2054,6 @@ def _translate_meat_type(meat_type: str) -> str:
     }
     return translations.get(meat_type, meat_type)
 
-
 def _translate_fish_type(fish_type: str) -> str:
     """Перевод типа рыбы на русский"""
     translations = {
@@ -2076,28 +2066,38 @@ def _translate_fish_type(fish_type: str) -> str:
     }
     return translations.get(fish_type, fish_type)
 
-
 def _force_dish_identification(data: Dict) -> Dict:
     """Принудительная идентификация блюда когда модель вернула ингредиент"""
-    
+
     ingredients = data.get('ingredients', [])
     ingredient_names = [ing.get('name', '').lower() for ing in ingredients]
     cooking_method = data.get('cooking_method', 'unknown')
     visual_cues = data.get('visual_cues', '').lower()
-    
-  # 🎯 УМНАЯ ЛОГИКА: различаем шашлык, стейк и нарезанное мясо
+
+    # 🎯 УМНАЯ ЛОГИКА: различаем шашлык, стейк и нарезанное мясо
     # Шашлык = кубики/кусочки + характерные признаки (даже без шампуров)
     # Стейк = большой цельный кусок
     # Нарезанное = кусочки, но не шашлык
-    
+
     # Признаки шампуров
     skewer_indicators = ['stick', 'skewer', 'wooden', 'metal', 'threaded', 'cubes']
     has_skewer_hint = any(ind in visual_cues for ind in skewer_indicators)
-    
+
     # Признаки стейка
     steak_indicators = ['thick', 'cut', 'piece', 'slab', 'fillet', 'chop']
     has_steak_hint = any(ind in visual_cues for ind in steak_indicators)
-    
+
+    # Список мясных ингредиентов на английском и русском
+    meat_types = {
+        'beef': 'говяжий',
+        'pork': 'свиной',
+        'chicken': 'куриный',
+        'lamb': 'бараний',
+        'turkey': 'индюшиный',
+        'fish': 'рыбный',
+        'salmon': 'лососевый'
+    }
+
     for meat_en, meat_ru in meat_types.items():
         if meat_en in ingredient_names:
             if cooking_method in ['grilled', 'unknown', '']:
@@ -2106,10 +2106,10 @@ def _force_dish_identification(data: Dict) -> Dict:
                 has_shashlik_pieces = any(ind in visual_cues for ind in shashlik_indicators)
                 has_onion = any(onion in visual_cues for onion in ['onion', 'лук'])
                 has_sauce = any(sauce in visual_cues for sauce in ['sauce', 'маринад', 'marinade'])
-                
+
                 # Признаки большого куска (стейк)
                 has_large_piece = any(ind in visual_cues for ind in ['thick', 'large', 'whole', 'single'])
-                
+
                 # 🥩 ЛОГИКА ОПРЕДЕЛЕНИЯ:
                 if has_skewer_hint:
                     # Есть шампуры = точно шашлык
@@ -2131,7 +2131,7 @@ def _force_dish_identification(data: Dict) -> Dict:
                     # Неясно - оставляем как есть
                     logger.info(f"❓ Неясно, оставляем оригинальное определение: {data.get('dish_name', '')}")
                     return data
-                
+
                 if dish_type == 'shashlik':
                     # ✅ Это ШАШЛЫК
                     data['dish_name'] = f"{meat_en} shashlik"
@@ -2140,7 +2140,7 @@ def _force_dish_identification(data: Dict) -> Dict:
                     data['cooking_method'] = 'grilled'
                     data['has_skewers'] = has_skewer_hint  # Может быть False если без шампуров
                     data['confidence'] = 0.85
-                    
+
                     logger.info(f"🚨 FORCE-IDENTIFIED: {data['dish_name']} (шашлык по визуальным признакам)")
                     return data
                 elif dish_type == 'steak':
@@ -2151,10 +2151,10 @@ def _force_dish_identification(data: Dict) -> Dict:
                     data['cooking_method'] = 'grilled'
                     data['has_skewers'] = False
                     data['confidence'] = 0.85
-                    
+
                     logger.info(f"🚨 FORCE-IDENTIFIED: {data['dish_name']} (стейк по визуальным признакам)")
                     return data
-    
+
     # Проверяем на борщ
     if any(x in ingredient_names for x in ['beet', 'beetroot', 'свекла']):
         if any(x in ingredient_names for x in ['cabbage', 'капуста', 'sour cream', 'сметана']):
@@ -2164,48 +2164,47 @@ def _force_dish_identification(data: Dict) -> Dict:
             data['cooking_method'] = 'boiled'
             data['is_soup'] = True
             data['confidence'] = 0.9
-            
+
             logger.info(f"🚨 FORCE-IDENTIFIED: {data['dish_name']}")
             return data
-    
-    return data
 
+    return data
 
 def _merge_llava_with_uform(llava_data: Dict, uform_ingredients: List[Dict]) -> Dict:
     """Объединяет результаты с ЖЕСТКОЙ ФИЛЬТРАЦИЕЙ UForm"""
-    
+
     logger.info("🔗 Merging LLaVA context with UForm ingredients...")
-    
+
     # 🔥 ЖЕСТКОЕ ОГРАНИЧЕНИЕ: максимум 5 ингредиентов от UForm
     MAX_UFORM_INGREDIENTS = 5  # Было 10, уменьшили до 5
-    
+
     # Фильтруем только важные ингредиенты от UForm
     important_types = ['protein', 'vegetable', 'carb']
     filtered_uform = [ing for ing in uform_ingredients 
                      if ing.get('type') in important_types and 
                      ing.get('confidence', 0) > 0.6]
-    
+
     # Берем топ-5 по уверенности
     filtered_uform.sort(key=lambda x: x.get('confidence', 0), reverse=True)
     uform_ingredients = filtered_uform[:MAX_UFORM_INGREDIENTS]
-    
+
     logger.info(f"🔗 Filtered UForm: {len(uform_ingredients)} important ingredients")
-    
+
     # Начинаем с данных LLaVA (структура блюда)
     merged = llava_data.copy()
-    
+
     # Собираем все ингредиенты
     all_ingredients = []
-    
+
     # Добавляем основные ингредиенты от LLaVA (приоритет!)
     llava_ingredients = llava_data.get('ingredients', [])
     for ing in llava_ingredients:
         ing_copy = ing.copy()
         ing_copy['source'] = 'llava'
         all_ingredients.append(ing_copy)
-    
+
     existing_names = {ing.get('name', '').lower().strip() for ing in all_ingredients if ing.get('name')}
-    
+
     # Добавляем ингредиенты от UForm только если их нет от LLaVA
     for uform_ing in uform_ingredients:
         uform_name = (uform_ing.get('name', '') or '').lower().strip()
@@ -2225,16 +2224,16 @@ def _merge_llava_with_uform(llava_data: Dict, uform_ingredients: List[Dict]) -> 
                 existing['confidence'] = avg_confidence
                 existing['source'] = 'both'
                 break
-    
+
     # Сортируем: сначала LLaVA (высокий приоритет), затем по уверенности
     all_ingredients.sort(key=lambda x: (x.get('source') != 'llava', -(x.get('confidence', 0))))
-    
+
     # Ограничиваем общее количество ингредиентов
     MAX_TOTAL_INGREDIENTS = 12
     if len(all_ingredients) > MAX_TOTAL_INGREDIENTS:
         all_ingredients = all_ingredients[:MAX_TOTAL_INGREDIENTS]
         logger.info(f"🔗 Limited total ingredients to {MAX_TOTAL_INGREDIENTS}")
-    
+
     # Обновляем результат
     merged['ingredients'] = all_ingredients
     merged['ensemble_info'] = {
@@ -2243,25 +2242,24 @@ def _merge_llava_with_uform(llava_data: Dict, uform_ingredients: List[Dict]) -> 
         'total_ingredients_count': len(all_ingredients),
         'merge_strategy': 'llava_context_plus_uform_ingredients'
     }
-    
+
     logger.info(f"✅ Merged: {len(llava_ingredients)} LLaVA + {len(uform_ingredients)} UForm = {len(all_ingredients)} total")
     return merged
-
 
 def _reconstruct_dish_from_ingredients(ingredients: List[Dict]) -> Dict:
     """
     Реконструирует блюдо из списка ингредиентов (когда нет данных от LLaVA).
     """
     logger.info("🔧 Reconstructing dish from ingredients only...")
-    
+
     # Анализируем ингредиенты для определения типа блюда
     protein_ingredients = [ing for ing in ingredients if ing.get('type') == 'protein']
     carb_ingredients = [ing for ing in ingredients if ing.get('type') == 'carb']
-    
+
     dish_name = "mixed dish"
     cooking_method = "unknown"
     category = "main"
-    
+
     # Простая эвристика для определения блюда
     if protein_ingredients:
         main_protein = protein_ingredients[0].get('name', 'meat')
@@ -2272,9 +2270,9 @@ def _reconstruct_dish_from_ingredients(ingredients: List[Dict]) -> Dict:
             dish_name = f"grilled {main_protein}"
             cooking_method = "grilled"
             category = "main"
-    
+
     confidence = 0.6  # ниже уверенность для реконструированного блюда
-    
+
     return {
         'dish_name': dish_name,
         'dish_name_ru': dish_name,
@@ -2288,131 +2286,6 @@ def _reconstruct_dish_from_ingredients(ingredients: List[Dict]) -> Dict:
             'reconstruction_strategy': 'ingredients_to_dish'
         }
     }
-
-
-async def identify_food_multimodel(
-    image_bytes: bytes,
-    prompt: str = None,
-    max_tokens: int = 800,
-    temperature: float = 0.1,
-    retry_count: int = 2,
-    progress_callback=None
-) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
-    """
-    Пробует несколько vision-моделей с retry-логикой.
-    ✅ Улучшено: валидация, пост-обработка, кэширование, прогресс
-    """
-    if not BASE_URL:
-        logger.error("❌ Cloudflare BASE_URL not configured")
-        return None, None
-    
-    # Проверка кэша
-    image_hash = _get_image_hash(image_bytes)
-    cached = _get_cached_result(image_hash)
-    if cached:
-        return cached, "cache"
-    
-    image_array = list(image_bytes)
-    headers = {
-        "Authorization": f"Bearer {CLOUDFLARE_API_TOKEN}",
-        "Content-Type": "application/json"
-    }
-    
-    if prompt is None:
-        prompt = FOOD_EXPERT_AI_PROMPT
-    
-    for attempt in range(retry_count):
-        for idx, model_info in enumerate(VISION_MODELS):
-            model = model_info["id"]
-            timeout = model_info["timeout"]
-            
-            try:
-                url = f"{BASE_URL}{model}"
-                payload = {
-                    "image": image_array,
-                    "prompt": prompt,
-                    "max_tokens": max_tokens,
-                }
-                
-                if model == "@cf/llava-hf/llava-1.5-7b-hf":
-                    payload["temperature"] = temperature
-                
-                logger.info(f"🤖 Trying vision model: {model} (attempt {attempt + 1})")
-                
-                # Обновление прогресса
-                if progress_callback:
-                    await progress_callback(stage=1, progress=30 + (idx * 20))
-                
-                async with aiohttp.ClientSession() as session:
-                    async with session.post(url, headers=headers, json=payload, timeout=timeout) as resp:
-                        if resp.status == 200:
-                            result = await resp.json()
-                            description = result.get("result", {}).get("description", "").strip()
-                            
-                            if not description:
-                                logger.warning(f"⚠️ Model {model} returned empty description")
-                                continue
-                            
-                            # Обновление прогресса
-                            if progress_callback:
-                                await progress_callback(stage=2, progress=60)
-                            
-                            # Извлечение и валидация JSON
-                            data = _extract_json_from_text(description)
-                            if not data:
-                                logger.warning(f"⚠️ Model {model}: failed to extract JSON")
-                                continue
-                            
-                            if progress_callback:
-                                await progress_callback(stage=3, progress=80)
-                            
-                            is_valid, reason = _validate_food_data(data)
-                            if not is_valid:
-                                logger.warning(f"⚠️ Model {model}: validation failed - {reason}")
-                                continue
-                            
-                            # Фильтрация бытовых предметов
-                            data = _filter_non_food_items(data)
-                            if data.get('success') == False:
-                                logger.warning(f"⚠️ Model {model} detected non-food items: {data.get('error')}")
-                                continue
-                            
-                            # Пост-обработка
-                            portion_size = data.get('portion_size', 'medium')
-                            if 'ingredients' in data:
-                                data['ingredients'] = _calibrate_weights(data['ingredients'], portion_size)
-                                data = _fix_protein_identification(data)
-                            
-                            # Кэширование результата
-                            _cache_result(image_hash, data)
-                            
-                            logger.info(f"✅ Model {model} returned valid data (confidence: {data.get('confidence', 'N/A')})")
-                            
-                            if progress_callback:
-                                await progress_callback(stage=4, progress=100)
-                            
-                            return data, model
-                        else:
-                            error_text = await resp.text()
-                            logger.warning(f"❌ Model {model} HTTP {resp.status}: {error_text[:200]}")
-                            
-            except asyncio.TimeoutError:
-                logger.warning(f"⏱️ Model {model} timeout after {timeout}s")
-                continue
-            except aiohttp.ClientError as e:
-                logger.warning(f"❌ Model {model} connection error: {e}")
-                continue
-            except Exception as e:
-                logger.warning(f"❌ Model {model} unexpected error: {type(e).__name__}: {e}")
-                continue
-        
-        # Если все модели failed, ждём перед retry
-        if attempt < retry_count - 1:
-            await asyncio.sleep(2 ** attempt)  # Exponential backoff
-    
-    logger.error("❌ All vision models failed after all attempts")
-    return None, None
-
 
 async def identify_food_cascade(
     image_bytes: bytes,
@@ -2429,18 +2302,18 @@ async def identify_food_cascade(
             model_indices=[0, 1],  # LLaVA + UForm
             progress_callback=progress_callback
         )
-        
+
         if data and used_model:
             return {
                 "success": True,
                 "data": data,
                 "model": used_model,
-                "consensus": True,  # Ансамбль обеспечивает консенсус
+                "consensus": True,
                 "confidence": data.get('confidence', 0.5)
             }
     except Exception as e:
         logger.error(f"❌ Cascade recognition error: {e}", exc_info=True)
-    
+
     return {
         "success": False,
         "data": None,
@@ -2450,7 +2323,6 @@ async def identify_food_cascade(
         "error": "All models failed"
     }
 
-
 async def get_simple_ingredients(image_bytes: bytes) -> Optional[List[str]]:
     """Быстрое извлечение списка ингредиентов (fallback)."""
     data, _ = await identify_food_ensemble(
@@ -2458,30 +2330,29 @@ async def get_simple_ingredients(image_bytes: bytes) -> Optional[List[str]]:
         model_indices=[1],  # Используем только UForm для скорости
         progress_callback=None
     )
-    
+
     if not data:
         return None
-    
+
     ingredients = data.get('ingredients', [])
     if ingredients and isinstance(ingredients[0], dict):
         return [ing.get('name', '') for ing in ingredients if ing.get('name')]
     if ingredients and isinstance(ingredients[0], str):
         return ingredients
-    
-    return None
 
+    return None
 
 # ========== ТРАНСКРИБАЦИЯ АУДИО ==========
 async def transcribe_audio(audio_bytes: bytes, language: str = "ru") -> Optional[str]:
     """Распознавание голоса через Cloudflare Whisper."""
     if not BASE_URL:
         return None
-    
+
     WHISPER_MODELS = [
         "@cf/openai/whisper-large-v3-turbo",
         "@cf/openai/whisper"
     ]
-    
+
     try:
         audio_array = list(audio_bytes)
         payload = {"audio": audio_array, "language": language}
@@ -2489,7 +2360,7 @@ async def transcribe_audio(audio_bytes: bytes, language: str = "ru") -> Optional
             "Authorization": f"Bearer {CLOUDFLARE_API_TOKEN}",
             "Content-Type": "application/json"
         }
-        
+
         for model in WHISPER_MODELS:
             try:
                 url = f"{BASE_URL}{model}"
@@ -2503,12 +2374,11 @@ async def transcribe_audio(audio_bytes: bytes, language: str = "ru") -> Optional
                                 return text
             except Exception:
                 continue
-        
+
         return None
     except Exception as e:
         logger.exception(f"❌ Transcription error: {e}")
         return None
-
 
 # ========== БЭКВАРД-СОВМЕСТИМОСТЬ ==========
 async def identify_dish_from_image(image_bytes: bytes) -> Optional[str]:
@@ -2520,14 +2390,12 @@ async def identify_dish_from_image(image_bytes: bytes) -> Optional[str]:
     )
     return data.get("dish_name") if data else None
 
-
 async def analyze_food_image(image_bytes: bytes, prompt: str = None) -> Optional[str]:
     """Возвращает строку ингредиентов."""
     if prompt is None:
-        prompt = SIMPLE_INGREDIENTS_PROMPT
-    
+        prompt = UFORM_DETAILED_PROMPT
+
     ingredients = await get_simple_ingredients(image_bytes)
     if ingredients:
         return ", ".join(ingredients)
     return None
-

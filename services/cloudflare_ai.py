@@ -98,25 +98,22 @@ def _cache_result(image_hash: str, result: Dict):
 
 # ========== УЛУЧШЕННОЕ ИЗВЛЕЧЕНИЕ JSON ==========
 def _extract_json_from_text(text: str) -> Optional[Dict]:
-    """
-    Извлекает JSON из текста с улучшенной обработкой экранирований.
-    """
+    import re
     if not text or not isinstance(text, str):
         return None
 
-    # Убираем markdown и лишний текст до и после JSON
-    text = text.strip()
+    # Убираем markdown блоки
     for marker in ['```json', '```JSON', '```']:
         if marker in text:
             parts = text.split(marker, 1)
             if len(parts) > 1:
                 text = parts[1].split('```', 1)[0].strip()
 
-    # Находим первый '{' и последний '}'
+    # Находим первую '{' и последнюю '}'
     start = text.find('{')
     end = text.rfind('}')
     if start == -1 or end == -1 or end <= start:
-        # Попробуем найти массив
+        # пробуем найти массив
         start_arr = text.find('[')
         end_arr = text.rfind(']')
         if start_arr != -1 and end_arr != -1 and end_arr > start_arr:
@@ -127,33 +124,32 @@ def _extract_json_from_text(text: str) -> Optional[Dict]:
 
     json_str = text[start:end+1]
 
-    # Агрессивная очистка: убираем лишние пробелы, экранирования
-    json_str = re.sub(r'\s+', ' ', json_str)
+    # Замены
     json_str = json_str.replace('\\_', '_').replace('\\"', '"')
-    json_str = re.sub(r'\\(.)', r'\1', json_str)  # убираем все обратные слеши, кроме управляющих
+    json_str = re.sub(r'\\(.)', r'\1', json_str)  # убираем экранирование
+    json_str = json_str.replace('\n', ' ').replace('\r', ' ').replace('\t', ' ')
 
     # Исправляем одинарные кавычки
     json_str = re.sub(r"'([^']*)':", r'"\1":', json_str)
     json_str = re.sub(r":\s*'([^']*)'", r': "\1"', json_str)
 
-    # Убираем trailing commas
+    # Убираем запятые перед закрывающими скобками
     json_str = re.sub(r',\s*([}\]])', r'\1', json_str)
 
+    # Пробуем распарсить
     try:
         data = json.loads(json_str)
         return data if isinstance(data, dict) else None
     except json.JSONDecodeError as e:
         logger.warning(f"⚠️ JSON decode failed: {e}")
-        # Последняя попытка: найти JSON с помощью регулярки (грубо)
-        import re
-        json_pattern = r'\{[^{}]*\}'
-        matches = re.findall(json_pattern, json_str)
-        for match in matches:
+        # последняя попытка: найти любой JSON в строке
+        match = re.search(r'(\{.*\})', json_str, re.DOTALL)
+        if match:
             try:
-                data = json.loads(match)
+                data = json.loads(match.group(1))
                 return data
             except:
-                continue
+                pass
         return None
 
 # ========== ВАЛИДАЦИЯ ДАННЫХ ==========

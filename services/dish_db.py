@@ -7,6 +7,7 @@
 from typing import Dict, List, Optional, Set
 import logging
 from difflib import SequenceMatcher
+from services.translator import AI_TO_DB_MAPPING
 
 logger = logging.getLogger(__name__)
 
@@ -5650,3 +5651,60 @@ def calculate_dish_nutrition(dish_name: str, total_weight: int = 300) -> Dict:
         'fat': round(total_fat, 1),
         'carbs': round(total_carbs, 1),
     }
+def identify_known_dish_by_ingredients(ingredient_names_en: List[str], prep_style: str = 'mixed') -> Optional[str]:
+    """
+    Определяет известное блюдо по списку ингредиентов (на английском) и стилю приготовления.
+    Использует базу COMPOSITE_DISHES и переводчик AI_TO_DB_MAPPING.
+    Возвращает название блюда (на русском) или None.
+    """
+    # Переводим английские названия ингредиентов в русские, используя существующий маппинг
+    ingredient_names_ru = []
+    for name_en in ingredient_names_en:
+        # Убираем модификаторы приготовления
+        name_clean = name_en.replace('grilled ', '').replace('fried ', '').replace('boiled ', '')
+        name_clean = name_clean.replace('baked ', '').replace('roasted ', '').replace('steamed ', '')
+        name_clean = name_clean.replace('raw ', '').replace('fresh ', '')
+        # Ищем перевод в AI_TO_DB_MAPPING (ключи в нижнем регистре)
+        ru = AI_TO_DB_MAPPING.get(name_clean.lower())
+        if ru:
+            ingredient_names_ru.append(ru)
+        else:
+            # Если нет точного перевода, оставляем как есть (надеемся на совпадение)
+            ingredient_names_ru.append(name_clean)
+
+    logger.info(f"🔍 Поиск блюда по ингредиентам (рус): {ingredient_names_ru}")
+
+    best_match = None
+    best_score = 0
+    best_priority = 0
+
+    for dish_key, dish_data in COMPOSITE_DISHES.items():
+        # Проверяем соответствие стиля приготовления (если задано)
+        dish_prep = dish_data.get('prep_style', 'mixed')
+        if dish_prep != prep_style and dish_prep != 'mixed':
+            continue
+
+        # Получаем ингредиенты блюда (на русском)
+        dish_ingredients = dish_data.get('ingredients', [])
+        dish_ingredient_names = [ing['name'].lower() for ing in dish_ingredients]
+
+        # Считаем совпадения
+        matches = sum(1 for ing in ingredient_names_ru if ing in dish_ingredient_names)
+        if matches == 0:
+            continue
+
+        # Вычисляем оценку (доля совпавших ингредиентов от общего числа в блюде)
+        score = matches / len(dish_ingredient_names) if dish_ingredient_names else 0
+        priority = dish_data.get('priority', 50)  # можно добавить поле priority в COMPOSITE_DISHES, иначе 50
+        final_score = score * 100 + (priority / 10)  # приоритет как бонус
+
+        if final_score > best_score and final_score >= 50:  # минимальный порог 50%
+            best_score = final_score
+            best_priority = priority
+            best_match = dish_data['name']  # русское название блюда
+
+    if best_match:
+        logger.info(f"🎯 Идентифицировано блюдо по ингредиентам: {best_match} (score: {best_score:.1f})")
+        return best_match
+
+    return None

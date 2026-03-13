@@ -5708,3 +5708,51 @@ def identify_known_dish_by_ingredients(ingredient_names_en: List[str], prep_styl
         return best_match
 
     return None
+def find_matching_dishes_by_ingredients(ingredient_names: List[str], threshold: float = 0.4) -> List[Dict]:
+    """
+    Ищет блюда, которые содержат указанные ингредиенты (названия даны на английском).
+    Возвращает список блюд с оценкой совпадения.
+    """
+    # Переводим английские названия в русские, чтобы сравнивать с ингредиентами из COMPOSITE_DISHES
+    ingredient_names_ru = []
+    for name_en in ingredient_names:
+        # Убираем модификаторы приготовления
+        name_clean = name_en.replace('grilled ', '').replace('fried ', '').replace('boiled ', '')
+        name_clean = name_clean.replace('baked ', '').replace('roasted ', '').replace('steamed ', '')
+        name_clean = name_clean.replace('raw ', '').replace('fresh ', '')
+        # Ищем перевод
+        ru = AI_TO_DB_MAPPING.get(name_clean.lower())
+        if ru:
+            ingredient_names_ru.append(ru.lower())
+        else:
+            # Если нет перевода, оставляем как есть (на всякий случай)
+            ingredient_names_ru.append(name_clean.lower())
+
+    logger.info(f"🔍 Поиск блюд по ингредиентам (рус): {ingredient_names_ru}")
+
+    matches = []
+    for dish_key, dish_data in COMPOSITE_DISHES.items():
+        dish_ingredients = dish_data.get('ingredients', [])
+        dish_ingredient_names = [ing['name'].lower() for ing in dish_ingredients]
+
+        # Считаем пересечение
+        common = set(ingredient_names_ru) & set(dish_ingredient_names)
+        if not common:
+            continue
+
+        # Оценка: доля совпавших ингредиентов от общего числа в блюде
+        score = len(common) / len(dish_ingredient_names) if dish_ingredient_names else 0
+
+        if score >= threshold:
+            matches.append({
+                'name': dish_data['name'],
+                'score': round(score, 2),
+                'dish_key': dish_key,
+                'nutrition_per_100': dish_data.get('nutrition_per_100', {}),
+                'default_weight': dish_data.get('default_weight', 300),
+                'matched_ingredients': list(common)
+            })
+
+    matches.sort(key=lambda x: x['score'], reverse=True)
+    logger.info(f"🔍 Найдено {len(matches)} совпадений по ингредиентам")
+    return matches

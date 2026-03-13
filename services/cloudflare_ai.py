@@ -289,7 +289,7 @@ def _fix_protein_identification(data: Dict) -> Dict:
         'meal_type': data.get('meal_type', 'lunch')
     }
 
-    # 🔧 ИЗМЕНЕНО: используем функцию из dish_db для определения блюда по ингредиентам
+    # 🔧 ИСПОЛЬЗУЕМ НОВУЮ ФУНКЦИЮ ИЗ dish_db ДЛЯ ОПРЕДЕЛЕНИЯ БЛЮДА ПО ИНГРЕДИЕНТАМ
     from services.dish_db import identify_known_dish_by_ingredients
     ingredient_names_en = [ing['name'] for ing in converted_ingredients]  # английские названия
     prep_style = data.get('preparation_style', 'mixed')
@@ -299,7 +299,7 @@ def _fix_protein_identification(data: Dict) -> Dict:
         old_format_data['dish_name'] = dish_name
         logger.info(f"🎯 Identified known dish: {dish_name}")
     else:
-        # Генерируем название на основе ингредиентов
+        # Генерируем название на основе ингредиентов (как раньше)
         prep_style = data.get('preparation_style', 'mixed')
         protein_names = [ing['name'] for ing in converted_ingredients if ing['type'] == 'protein']
         carb_names = [ing['name'] for ing in converted_ingredients if ing['type'] == 'carb']
@@ -319,7 +319,7 @@ def _fix_protein_identification(data: Dict) -> Dict:
     logger.info(f"🔄 Converted AI result: {len(converted_ingredients)} ingredients, dish: {old_format_data['dish_name']}")
 
     return old_format_data
-
+    
 # ========== УДАЛЁН ДУБЛИРУЮЩИЙСЯ СЛОВАРЬ known_dishes И ФУНКЦИЯ _identify_known_dish ==========
 
 def _validate_food_data(data: Dict) -> Tuple[bool, str]:

@@ -56,23 +56,21 @@ CRITICAL RULES:
 Return ONLY valid JSON, no extra text."""
 
 # Промпт для UForm (оставляем для детального перечисления ингредиентов)
-UFORM_DETAILED_PROMPT = """You are an expert at identifying food ingredients from images.
+UFORM_DETAILED_PROMPT = """You are an expert at identifying food ingredients from images. Your task is to list ONLY the main visible food ingredients in this specific dish.
 
 CRITICAL RULES:
-- White crystals on surface → salt (соль), NOT rice
-- Green herb sprigs → parsley/dill/rosemary (петрушка/укроп/розмарин), NOT onion
-- Brown particles → pepper/spices (перец/специи)
-- Dark liquid → soy sauce (соевый соус)
-- Small green leaves → basil (базилик)
-
-Format: ingredient1:type1, ingredient2:type2
-Types: protein, carb, vegetable, fat, sauce, herb, spice, other
+- List only ingredients that are clearly visible in the image.
+- Do NOT list generic categories or all possible ingredients – only what you see.
+- Limit your response to a maximum of 6 main ingredients.
+- Use the format: ingredient1:type1, ingredient2:type2, ...
+- Types: protein, carb, vegetable, fat, sauce, herb, spice, other.
 
 Examples:
-- pork:protein, salt:spice, rosemary:herb, black pepper:spice
-- salmon:protein, rice:carb, soy sauce:sauce, cucumber:vegetable
+- For a dish with pork, salt, rosemary, black pepper: "pork:protein, salt:spice, rosemary:herb, black pepper:spice"
+- For salmon with rice and soy sauce: "salmon:protein, rice:carb, soy sauce:sauce"
+- For a salad with lettuce, tomato, cucumber, olive oil: "lettuce:vegetable, tomato:vegetable, cucumber:vegetable, olive oil:fat"
 
-List all visible food ingredients:"""
+Now list the main visible ingredients in this dish:"""
 
 # ========== КЭШИРОВАНИЕ ==========
 def _get_image_hash(image_bytes: bytes) -> str:
@@ -1105,6 +1103,7 @@ async def identify_food_ensemble(
 
                     result = await resp.json()
                     description = result.get("result", {}).get("description", "").strip()
+                    logger.info(f"🔍 LLaVA raw response: {description[:500]}")  # ЛОГИРУЕМ
                     if not description:
                         logger.warning(f"⚠️ LLaVA model {model} empty description")
                         return None, model
@@ -1166,6 +1165,7 @@ async def identify_food_ensemble(
 
                     # Парсим текстовый ответ UForm
                     ingredients = _parse_uform_response(description)
+                    logger.info(f"📝 Parsed {len(ingredients)} ingredients from UForm text response")
                     if not ingredients:
                         logger.warning(f"⚠️ UForm model {model} failed to parse ingredients")
                         return None, model

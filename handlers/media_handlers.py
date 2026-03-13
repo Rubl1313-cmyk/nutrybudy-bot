@@ -40,6 +40,7 @@ from keyboards.improved_keyboards import (
     get_time_period_keyboard
 )
 from aiogram.filters import Command
+from services.recognition_pipeline import process_ai_result
 router = Router()
 logger = logging.getLogger(__name__)
 
@@ -818,9 +819,8 @@ async def handle_photo(message: Message, state: FSMContext):
     """
     ✅ ПОЛНОСТЬЮ ПЕРЕПИСАННЫЙ ОБРАБОТЧИК ФОТО
     1. Получаем результат AI
-    2. ИСПОЛЬЗУЕМ dish_name для поиска готового блюда
-    3. Если не найдено - разбираем на ингредиенты
-    4. НИКОГДА не используем ингредиенты как название блюд  
+    2. Используем process_ai_result для перевода, исправления и поиска
+    3. Если найдены совпадения блюд – показываем их, иначе ингредиенты
     """
     
     data = await state.get_data()
@@ -926,65 +926,14 @@ async def handle_photo(message: Message, state: FSMContext):
             total_stages=5
         )
 
-        # ✅ ИСПРАВЛЕНИЕ 1: Проверяем успех и наличие данных
         if result.get('success') and result.get('data'):
             dish_data = result['data']
             model_used = result.get('model', 'unknown')
             
-            # ✅ ИСПРАВЛЕНИЕ 2: Извлекаем dish_name и ingredients ОТДЕЛЬНО
-            dish_name_from_ai = dish_data.get('dish_name', '').strip()
-            confidence = dish_data.get('confidence', 0.5)
-            ingredients_from_ai = dish_data.get('ingredients', [])
+            # 🔧 ИЗМЕНЕНО: используем новый сервис для обработки результата
+            processed = await process_ai_result(dish_data)
             
-            logger.info(f"✅ AI determined:")
-            logger.info(f"   Dish: '{dish_name_from_ai}'")
-            logger.info(f"   Confidence: {confidence:.0%}")
-            logger.info(f"   Ingredients count: {len(ingredients_from_ai)}")
-            
-            # ✅ ИСПРАВЛЕНИЕ 3: Используем умный перевод для dish_name!
-            dish_name_ru = await translate_smart_dish_name(dish_name_from_ai) if dish_name_from_ai else "Неизвестное блюдо"
-            
-            logger.info(f"✅ Smart translated dish name: '{dish_name_from_ai}' → '{dish_name_ru}'")
-            
-            # ✅ ИСПРАВЛЕНИЕ 4: Переводим ингредиенты (но они НЕ станут названием блюда!)
-            ingredients_ru = []
-            for ing in ingredients_from_ai:
-                if isinstance(ing, dict):
-                    ing_name = ing.get('name', '')
-                    if ing_name:
-                        translated = await translate_to_russian(ing_name)
-                        ingredients_ru.append({
-                            **ing,
-                            'name': translated,
-                            'original_name': ing_name
-                        })
-                elif isinstance(ing, str):
-                    translated = await translate_to_russian(ing)
-                    ingredients_ru.append({
-                        'name': translated,
-                        'original_name': ing,
-                        'type': 'other',
-                        'estimated_weight_grams': 100,
-                        'confidence': 0.7
-                    })
-            
-            logger.info(f"✅ Translated ingredients: {[ing.get('name') for ing in ingredients_ru]}")
-            
-            # ✅ ИСПРАВЛЕНИЕ 5: Ищем готовое блюдо ПО НАЗВАНИЮ БЛЮДА, не по ингредиентам!
-            await _send_progress_update(
-                message.bot,
-                message.chat.id,
-                progress_msg.message_id,
-                stage=3,
-                progress=85,
-                total_stages=5
-            )
-
-            # Ищем готовое блюдо ПО dish_name_ru
-            matches = find_matching_dishes(dish_name_ru, threshold=0.5)
-            
-            if matches:
-                logger.info(f"✅ Found {len(matches)} matching dishes for '{dish_name_ru}'")
+            if processed['matches']:
                 await _send_progress_update(
                     message.bot,
                     message.chat.id,
@@ -1000,17 +949,15 @@ async def handle_photo(message: Message, state: FSMContext):
                 
                 await state.update_data(recognized_dish=dish_data, mode="photo_selection")
                 await _show_dish_selection(
-                    message, state, matches, 
+                    message, state, processed['matches'],
                     {
-                        'dish_name': dish_name_ru,
-                        'ingredients': ingredients_ru,
-                        'confidence': confidence,
+                        'dish_name': processed['dish_name_ru'],
+                        'ingredients': processed['ingredients'],
+                        'confidence': processed['confidence'],
                         'model': model_used
                     }
                 )
             else:
-                logger.warning(f"⚠️ No matching dishes found for '{dish_name_ru}'")
-                # ✅ ИСПРАВЛЕНИЕ 6: Если блюдо не найдено, показываем ингредиенты
                 await _send_progress_update(
                     message.bot,
                     message.chat.id,
@@ -1027,12 +974,11 @@ async def handle_photo(message: Message, state: FSMContext):
                 await state.update_data(recognized_dish=dish_data, mode="photo_recognition")
                 await _show_ingredients_from_ai(
                     message, state,
-                    dish_name_ru,
-                    ingredients_ru,
-                    confidence,
+                    processed['dish_name_ru'],
+                    processed['ingredients'],
+                    processed['confidence'],
                     model_used
                 )
-
         else:
             if progress_msg:
                 await progress_msg.delete()

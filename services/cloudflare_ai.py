@@ -3,6 +3,7 @@ Cloudflare Workers AI Integration for NutriBuddy
 УЛУЧШЕНО: Progressive loading, надёжное извлечение JSON, кэширование
 Добавлено: Retry-логика, валидация, fallback-механизмы, прогресс-бар
 """
+
 import aiohttp
 import asyncio
 import hashlib

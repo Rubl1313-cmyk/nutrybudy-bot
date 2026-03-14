@@ -142,7 +142,7 @@ DEFAULT_SYSTEM_PROMPT = (
 async def ask_worker_ai(
     prompt: str,
     system_prompt: str = DEFAULT_SYSTEM_PROMPT,
-    model: str = "@cf/meta/llama-3.1-8b-instruct",  # Используем Hermes (Llama) по умолчанию
+    model: str = "@cf/hermes-2-pro-mistral-7b",  # Используем Hermes 2 Pro по умолчанию
     temperature: float = 0.7,
     max_tokens: int = 3000   # увеличено до 3000 для рецептов
 ) -> Optional[Dict[str, Any]]:

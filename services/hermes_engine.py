@@ -24,7 +24,7 @@ class HermesEngine:
         # Cloudflare AI настройки
         self.cloudflare_account_id = os.getenv("CLOUDFLARE_ACCOUNT_ID")
         self.cloudflare_api_token = os.getenv("CLOUDFLARE_API_TOKEN")
-        self.hermes_model_id = os.getenv("HERMES_MODEL_ID", "@cf/meta/llama-3.1-8b-instruct")
+        self.hermes_model_id = os.getenv("HERMES_MODEL_ID", "@cf/hermes-2-pro-mistral-7b")
         
         logger.info(f"🧠 Hermes: инициализирован с моделью {self.hermes_model_id}")
         

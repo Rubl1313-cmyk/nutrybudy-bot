@@ -978,16 +978,40 @@ async def identify_food_ensemble(
         timeout = model_info["timeout"]
         try:
             url = f"{BASE_URL}{model}"
+            
+            # Конвертируем изображение в base64 для Llama 3.2 Vision
+            import base64
+            image_b64 = base64.b64encode(image_bytes).decode('utf-8')
+            
+            # Используем правильный формат messages для Llama 3.2 Vision
             payload = {
-                "image": image_array,
-                "prompt": LLAMA_VISION_PROMPT,
-                "max_tokens": 1200,
-                "temperature": 0.1
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": LLAMA_VISION_PROMPT
+                            },
+                            {
+                                "type": "image_url", 
+                                "image_url": f"data:image/jpeg;base64,{image_b64}"
+                            }
+                        ]
+                    }
+                ],
+                "max_tokens": 1024,
+                "temperature": 0.7
             }
+            
+            logger.info(f"🔍 Using messages format with base64 image")
 
-            logger.info(f"� Starting Llama 3.2 Vision model: {model}")
+            logger.info(f"🔍 Starting Llama 3.2 Vision model: {model}")
+            logger.info(f"🔍 Payload size: {len(str(payload))} bytes")
+            logger.info(f"🔍 Image bytes size: {len(image_bytes)} bytes")
             async with aiohttp.ClientSession() as session:
                 async with session.post(url, headers=headers, json=payload, timeout=timeout) as resp:
+                    logger.info(f"🔍 Response status: {resp.status}")
                     if resp.status != 200:
                         error_text = await resp.text()
                         logger.warning(f"❌ Llama 3.2 Vision model {model} HTTP {resp.status}: {error_text[:100]}")
@@ -996,6 +1020,7 @@ async def identify_food_ensemble(
                     result = await resp.json()
                     description = result.get("result", {}).get("description", "").strip()
                     logger.info(f"🔍 Llama 3.2 Vision raw response: {description[:500]}")
+                    
                     if not description:
                         logger.warning(f"⚠️ Llama 3.2 Vision model {model} empty description")
                         return None, model

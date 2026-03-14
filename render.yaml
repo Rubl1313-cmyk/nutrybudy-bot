@@ -36,7 +36,7 @@ services:
         sync: false
         description: "Cloudflare API Token for Hermes AI"
       - key: HERMES_MODEL_ID
-        value: "@cf/meta/llama-3.1-8b-instruct"
+        value: "@cf/hermes-2-pro-mistral-7b"
         description: "Hermes model ID"
       - key: LLAMA_VISION_MODEL_ID
         value: "@cf/meta/llama-3.2-11b-vision-instruct"

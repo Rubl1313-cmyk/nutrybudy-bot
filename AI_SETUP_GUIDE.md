@@ -61,9 +61,8 @@ python scripts/test_enhanced_ai.py
 
 ## 🎯 Модели AI которые используются:
 
-- **@cf/meta/llama-3.1-8b-instruct** - Основная модель для анализа
-- **@cf/meta/llama-3.1-8b-instruct** - Для JSON задач
-- **@cf/meta/llama-3.1-8b-instruct** - Для function calling
+- **@cf/meta/llama-3.2-11b-vision-instruct** - Для распознавания еды (vision)
+- **@cf/hermes-2-pro-mistral-7b** - Для ассистента и всех других задач
 
 ## 🔧 Что делает AI в боте:
 

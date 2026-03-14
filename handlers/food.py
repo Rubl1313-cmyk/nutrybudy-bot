@@ -13,7 +13,6 @@ from database.models import User
 from keyboards.inline import get_meal_type_keyboard
 from keyboards.reply import get_main_keyboard
 from utils.states import FoodStates
-from utils.parsers import parse_food_items
 
 router = Router()
 

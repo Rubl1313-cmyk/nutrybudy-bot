@@ -983,37 +983,37 @@ async def identify_food_ensemble(
             import base64
             image_b64 = base64.b64encode(image_bytes).decode('utf-8')
             
-            # Используем правильный формат messages для Llama 3.2 Vision
+            # Используем минимальный payload из официальной документации
             payload = {
                 "messages": [
                     {
                         "role": "user",
                         "content": [
-                            {
-                                "type": "text",
-                                "text": LLAMA_VISION_PROMPT
-                            },
-                            {
-                                "type": "image_url", 
-                                "image_url": f"data:image/jpeg;base64,{image_b64}"
-                            }
+                            {"type": "text", "text": "What food is in this image? Respond with JSON: {dish_name: string, ingredients: array}"},
+                            {"type": "image_url", "image_url": f"data:image/jpeg;base64,{image_b64}"}
                         ]
                     }
                 ],
-                "max_tokens": 1024,
-                "temperature": 0.7
+                "max_tokens": 512
             }
             
             logger.info(f"🔍 Using messages format with base64 image")
 
             logger.info(f"🔍 Starting Llama 3.2 Vision model: {model}")
+            logger.info(f"🔍 Full URL: {url}")
             logger.info(f"🔍 Payload size: {len(str(payload))} bytes")
             logger.info(f"🔍 Image bytes size: {len(image_bytes)} bytes")
+            logger.info(f"🔍 Image base64 size: {len(image_b64)} chars")
+            logger.info(f"🔍 Request headers: {dict((k, v if k != 'Authorization' else '***') for k, v in headers.items())}")
+            
             async with aiohttp.ClientSession() as session:
                 async with session.post(url, headers=headers, json=payload, timeout=timeout) as resp:
                     logger.info(f"🔍 Response status: {resp.status}")
+                    logger.info(f"🔍 Response headers: {dict(resp.headers)}")
+                    
                     if resp.status != 200:
                         error_text = await resp.text()
+                        logger.error(f"❌ Full error response: {error_text}")
                         logger.warning(f"❌ Llama 3.2 Vision model {model} HTTP {resp.status}: {error_text[:100]}")
                         return None, model
 

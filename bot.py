@@ -13,7 +13,7 @@ from aiohttp import web
 from database.db import init_db, close_db, engine
 from handlers import (
     common, profile, food, water, activity, progress, media_handlers, ai_assistant,
-    universal_text_handler, meal_plan, weight, steps  # Добавили steps
+    universal_text_handler, enhanced_universal_handler, meal_plan, weight, steps  # Добавили enhanced_universal_handler
 )
 from handlers.universal_text_handler import universal_router
 from handlers import meal_plan
@@ -196,7 +196,8 @@ async def main():
     dp.include_router(meal_plan.router)
     dp.include_router(food_search.router)
     dp.include_router(ai_assistant.router)          # диалоговый AI
-    dp.include_router(universal_text_handler.universal_router)  
+    dp.include_router(enhanced_universal_handler.router)  # AI обработчик текста
+    dp.include_router(universal_text_handler.universal_router)  # fallback обработчик  
     
     logging.info("✅ All routers included")
     

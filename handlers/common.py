@@ -210,15 +210,55 @@ async def show_profile_category(message: Message, state: FSMContext):
 
 # ========== ОБРАБОТЧИКИ ДЛЯ ГЛАВНОГО МЕНЮ ==========
 
-@router.callback_query(F.data == "manual_food")
-async def manual_food_main_callback(callback: CallbackQuery, state: FSMContext):
-    """🎨 Обработчик для добавления приема пищи из главного меню"""
+@router.callback_query(F.data == "photo_food")
+async def photo_food_callback(callback: CallbackQuery, state: FSMContext):
+    """🎨 Обработчик для фото еды"""
     await callback.answer()
     await callback.message.delete()
     
-    await state.clear()
-    from handlers.food import cmd_log_food
-    await cmd_log_food(callback.message, state, user_id=callback.from_user.id)
+    await callback.message.answer(
+        "📸 <b>Отправьте фото блюда</b>\n\n"
+        "🤖 <i>AI автоматически распознает продукты и рассчитает КБЖУ</i>\n\n"
+        "<b>Советы для лучшего распознавания:</b>\n"
+        "• Фотографируйте сверху\n"
+        "• Хорошее освещение\n"
+        "• Одинаковый ракурс",
+        parse_mode="HTML"
+    )
+
+@router.callback_query(F.data == "text_food")
+async def text_food_callback(callback: CallbackQuery, state: FSMContext):
+    """🎨 Обработчик для текстового ввода еды"""
+    await callback.answer()
+    await callback.message.delete()
+    
+    await callback.message.answer(
+        "✍️ <b>Напишите что вы съели или выпили</b>\n\n"
+        "🤖 <i>AI сам определит тип и распарсит информацию</i>\n\n"
+        "<b>Примеры:</b>\n"
+        "• Съел курицу с рисом на обед\n"
+        "• Выпил стакан воды\n"
+        "• Пробежал 5 километров\n"
+        "• Салат с тунцом на ужин",
+        parse_mode="HTML"
+    )
+
+@router.callback_query(F.data == "voice_food")
+async def voice_food_callback(callback: CallbackQuery, state: FSMContext):
+    """🎨 Обработчик для голосового ввода еды"""
+    await callback.answer()
+    await callback.message.delete()
+    
+    await callback.message.answer(
+        "🎙️ <b>Запишите голосовое сообщение</b>\n\n"
+        "🤖 <i>AI распознает речь и определит намерение</i>\n\n"
+        "<b>Что можно сказать:</b>\n"
+        "• Съел омлет на завтрак\n"
+        "• Выпил 200 мл воды\n"
+        "• Ходил в спортзал\n"
+        "• Вес 70 кг",
+        parse_mode="HTML"
+    )
 
 @router.callback_query(F.data == "show_progress")
 async def show_progress_main_callback(callback: CallbackQuery, state: FSMContext):

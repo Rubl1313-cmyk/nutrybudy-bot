@@ -718,7 +718,6 @@ async def _show_ingredients_from_ai(
     builder = InlineKeyboardBuilder()
     builder.button(text="✅ Использовать ингредиенты", callback_data="confirm_dish_as_is")
     builder.button(text="🔄 Перераспознать", callback_data="retry_photo")
-    builder.button(text="📝 Ввести вручную", callback_data="manual_food_entry")
     builder.adjust(1)
     
     await message.answer(text, reply_markup=builder.as_markup(), parse_mode="HTML")
@@ -805,9 +804,8 @@ async def _show_dish_selection(
     # Дополнительные действия
     builder.row(
         InlineKeyboardButton(text="🔍 Разобрать на ингредиенты", callback_data="use_ingredients_instead"),
-        InlineKeyboardButton(text="📝 Ввести вручную", callback_data="manual_food_entry")
+        InlineKeyboardButton(text=" Перераспознать", callback_data="retry_photo")
     )
-    builder.row(InlineKeyboardButton(text="🔄 Перераспознать", callback_data="retry_photo"))
     
     await message.answer(text, reply_markup=builder.as_markup(), parse_mode="HTML")
     await state.update_data(recognized_dish=dish_data, mode="photo_selection")
@@ -2208,26 +2206,6 @@ async def retry_photo_callback(callback: CallbackQuery, state: FSMContext):
         ]])
     )
 
-@router.callback_query(F.data == "manual_food")
-async def manual_food_callback(callback: CallbackQuery, state: FSMContext):
-    """🎨 Обработчик для добавления приема пищи из главного меню"""
-    await callback.answer()
-    await callback.message.delete()
-    
-    await state.clear()
-    from handlers.food import cmd_log_food
-    await cmd_log_food(callback.message, state, user_id=callback.from_user.id)
-
-@router.callback_query(F.data == "manual_food_entry")
-async def manual_food_entry_callback(callback: CallbackQuery, state: FSMContext):
-    """✅ Обработчик для ручного ввода"""
-    await callback.answer()
-    await callback.message.delete()
-    
-    await state.clear()
-    from handlers.food import cmd_log_food
-    await cmd_log_food(callback.message, state, user_id=callback.from_user.id)
-
 # ========== ОБРАБОТЧИК ГОЛОСОВЫХ СООБЩЕНИЙ ==========
 
 @router.message(F.voice)
@@ -2258,20 +2236,27 @@ async def handle_voice(message: Message, state: FSMContext):
         await message.answer("❌ Ошибка при обработке голоса.")
 
 async def _handle_recognition_failure(message: Message, state: FSMContext):
-    """Обработчик при неудаче распознавания"""
+    """Обработчик при неудаче распознавания с graceful degradation"""
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="✏️ Ввести продукты вручную", callback_data="food_manual")],
-        [InlineKeyboardButton(text="🔄 Попробовать ещё раз", callback_data="retry_photo")],
+        [InlineKeyboardButton(text="✏️ Ввести название блюда", callback_data="manual_dish_input")],
+        [InlineKeyboardButton(text="🧂 Ввести ингредиенты", callback_data="manual_ingredients_input")],
+        [InlineKeyboardButton(text="🔄 Попробовать другое фото", callback_data="retry_photo")],
         [InlineKeyboardButton(text="❌ Отмена", callback_data="action_cancel")]
     ])
+    
     await message.answer(
-        "❌ Не удалось распознать блюдо.\n"
-        "Возможные причины:\n"
-        "• Фото слишком тёмное/размытое\n"
-        "• Блюдо нестандартное или сложное\n"
-        "• На фото несколько блюд одновременно\n"
-        "Что делать:",
-        reply_markup=keyboard
+        "🤖 ⚠️ **Не удалось распознать фото автоматически**\n\n"
+        "📸 **Возможные причины:**\n"
+        "• Недостаточно освещение\n"
+        "• Слишком сложное блюдо\n"
+        "• Нестандартное ракурс\n\n"
+        "🔧 **Что можно сделать:**\n"
+        "• Ввести название блюда вручную\n"
+        "• Ввести ингредиенты по отдельности\n"
+        "• Попробовать другое фото\n\n"
+        "💡 **Совет:** Для лучшего распознавания фотографируйте блюдо сверху при хорошем освещении.",
+        reply_markup=keyboard,
+        parse_mode="HTML"
     )
     await state.update_data(last_photo_id=message.message_id)
 

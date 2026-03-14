@@ -2,7 +2,6 @@ from aiogram import Router, F
 from aiogram.types import Message
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
-from utils.parsers import parse_food_items
 from handlers.media_handlers import process_food_items
 
 router = Router()

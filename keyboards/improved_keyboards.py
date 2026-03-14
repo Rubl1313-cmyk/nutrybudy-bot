@@ -9,31 +9,31 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 def get_modern_main_menu() -> InlineKeyboardMarkup:
     """
-    🏠 Современное главное меню с категориями
+    🤖 Современное AI-меню NutriBuddy
     """
     builder = InlineKeyboardBuilder()
     
-    # Основные функции
+    # Основные AI-функции
     builder.row(
-        InlineKeyboardButton(text="🍽️ Добавить прием пищи", callback_data="manual_food"),
-        InlineKeyboardButton(text="📊 Прогресс", callback_data="show_progress")
+        InlineKeyboardButton(text="📸 Отправить фото", callback_data="photo_food"),
+        InlineKeyboardButton(text="🎙️ Голосовое сообщение", callback_data="voice_food")
     )
     
     builder.row(
-        InlineKeyboardButton(text="💧 Вода", callback_data="log_water"),
+        InlineKeyboardButton(text="✍️ Написать текстом", callback_data="text_food"),
+        InlineKeyboardButton(text="📊 Мой прогресс", callback_data="show_progress")
+    )
+    
+    # AI-инструменты
+    builder.row(
+        InlineKeyboardButton(text="🤖 AI Ассистент", callback_data="ai_assistant"),
+        InlineKeyboardButton(text="👤 Профиль", callback_data="show_profile")
+    )
+    
+    # Дополнительно
+    builder.row(
+        InlineKeyboardButton(text="� Вода", callback_data="log_water"),
         InlineKeyboardButton(text="🏋️ Активность", callback_data="log_activity")
-    )
-    
-    # Дополнительные функции
-    builder.row(
-        InlineKeyboardButton(text="👤 Профиль", callback_data="show_profile"),
-        InlineKeyboardButton(text="🤖 AI Помощник", callback_data="ai_assistant")
-    )
-    
-    # Инструменты
-    builder.row(
-        InlineKeyboardButton(text="📈 Статистика", callback_data="show_statistics"),
-        InlineKeyboardButton(text="⚙️ Настройки", callback_data="settings")
     )
     
     return builder.as_markup()

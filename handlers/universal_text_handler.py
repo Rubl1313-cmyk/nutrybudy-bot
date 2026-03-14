@@ -14,7 +14,6 @@ from services.smart_intent_classifier import classify
 from utils.water_parser import parse_water_amount
 from handlers.water import add_water_quick, cmd_water
 from handlers.activity import cmd_fitness
-from utils.parsers import parse_food_items
 from utils.states import ActivityStates
 from database.db import get_session
 from database.models import User, Activity, StepsEntry
@@ -76,27 +75,39 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
         if items:
             food_items = [{'name': item, 'weight': 100} for item in items]
         else:
-            parsed = parse_food_items(text)
-            if parsed:
-                food_items = [{'name': name, 'weight': 100} for name, _, _ in parsed]
-            else:
+            try:
+                ai_result = await ai_integration_manager.extract_food_from_text(text)
+                if ai_result and ai_result.get('success'):
+                    food_items = ai_result['data'].get('food_items', [])
+                else:
+                    cleaned_text = text.strip()
+                    if len(cleaned_text.split()) <= 3:
+                        food_items = [{'name': cleaned_text, 'weight': 100}]
+                    else:
+                        food_items = []
+            except Exception as e:
+                logger.error(f"AI food extraction failed: {e}")
                 cleaned_text = text.strip()
-                # Для сложных запросов типа "курица борщ" тоже обрабатываем как еду
-                if len(cleaned_text.split()) <= 5:
+                if len(cleaned_text.split()) <= 3:
                     food_items = [{'name': cleaned_text, 'weight': 100}]
-    
+                else:
+                    food_items = []
     if food_items:
         all_intents.append(("food", food_items))
 
     # Если intent = "unknown" но есть продукты в тексте - тоже обрабатываем как еду
     if intent == "unknown" and not food_items:
-        # Проверяем есть ли известные продукты в тексте
-        parsed = parse_food_items(text)
-        if parsed:
-            food_items = [{'name': name, 'weight': 100} for name, _, _ in parsed]
-            all_intents.append(("food", food_items))
-        else:
-            # Проверяем по ключевым словам еды
+        # Проверяем есть ли известные продукты в тексте через AI
+        try:
+            from services.ai_integration_manager import ai_integration_manager
+            ai_result = await ai_integration_manager.extract_food_from_text(text)
+            if ai_result and ai_result.get('success'):
+                food_items = ai_result['data'].get('food_items', [])
+                if food_items:
+                    all_intents.append(("food", food_items))
+        except Exception as e:
+            logger.error(f"AI food extraction failed: {e}")
+            # Fallback: проверяем по ключевым словам еды
             text_lower = text.lower()
             food_keywords = ['курица', 'борщ', 'суп', 'салат', 'мясо', 'рыба', 'гречка', 'картошка', 'макароны', 'рис', 'хлеб', 'яйцо', 'сыр', 'молоко', 'кефир', 'творог']
             if any(keyword in text_lower for keyword in food_keywords):
@@ -291,18 +302,29 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
         if items:
             food_items = [{'name': item, 'weight': 100} for item in items]
         else:
-            parsed = parse_food_items(text)
-            if not parsed:
-                # Если парсер не нашел продукты, пробуем простой подход
-                # Очищаем текст и используем его как название продукта
+            # Используем AI для извлечения продуктов
+            try:
+                from services.ai_integration_manager import ai_integration_manager
+                ai_result = await ai_integration_manager.extract_food_from_text(text)
+                if ai_result and ai_result.get('success'):
+                    food_items = ai_result['data'].get('food_items', [])
+                else:
+                    # Fallback: используем текст как название продукта
+                    cleaned_text = text.strip()
+                    if len(cleaned_text.split()) <= 3:
+                        food_items = [{'name': cleaned_text, 'weight': 100}]
+                    else:
+                        await show_unknown_keyboard(message, state, text)
+                        return
+            except Exception as e:
+                logger.error(f"AI food extraction failed: {e}")
+                # Fallback: используем текст как название продукта
                 cleaned_text = text.strip()
-                if len(cleaned_text.split()) <= 3:  # Не больше 3 слов
+                if len(cleaned_text.split()) <= 3:
                     food_items = [{'name': cleaned_text, 'weight': 100}]
                 else:
                     await show_unknown_keyboard(message, state, text)
                     return
-            else:
-                food_items = [{'name': name, 'weight': 100} for name, _, _ in parsed]
 
         await state.update_data(selected_foods=[], meal_type=meal_type)
         await process_food_items(message, state, food_items, meal_type)
@@ -340,29 +362,6 @@ async def handle_universal_text(message: Message, state: FSMContext, text: str =
     return
 
 # ----- ОБРАБОТЧИКИ КНОПОК ДЛЯ НЕОПРЕДЕЛЁННЫХ ТЕКСТОВ -----
-
-@universal_router.callback_query(lambda c: c.data == "choose_food")
-async def choose_food_callback(callback: CallbackQuery, state: FSMContext):
-    """Обработка выбора «Записать как приём пищи» для неопределённого текста."""
-    data = await state.get_data()
-    text = data.get('pending_text', '')
-    parsed = parse_food_items(text)  # ✅ исправлено
-    if not parsed:
-        await callback.answer("❌ Не удалось распознать продукты.", show_alert=True)
-        return
-    food_items = [{'name': name, 'weight': 100} for name, _, _ in parsed]
-    await state.update_data(selected_foods=[], meal_type='snack')
-    await process_food_items(callback.message, state, food_items, meal_type='snack')
-    await callback.answer()
-
-@universal_router.callback_query(lambda c: c.data == "choose_ai")
-async def choose_ai_callback(callback: CallbackQuery, state: FSMContext):
-    data = await state.get_data()
-    text = data.get('pending_text', '')
-    from handlers.ai_assistant import process_single_ai_query
-    await process_single_ai_query(callback.message, text)
-    await callback.message.delete()
-    await callback.answer()
 
 @universal_router.callback_query(lambda c: c.data == "action_cancel")
 async def action_cancel_callback(callback: CallbackQuery, state: FSMContext):
@@ -430,15 +429,16 @@ async def safe_edit(callback: CallbackQuery, text: str, reply_markup=None):
         else:
             raise e
 
-async def show_unknown_keyboard(message: Message, state: FSMContext, text: str):
+async def _show_undefined_text_keyboard(message: Message, state: FSMContext, text: str):
     """Показывает клавиатуру для неопределённого текста."""
     await state.update_data(pending_text=text)
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🍽️ Записать как приём пищи", callback_data="choose_food")],
-        [InlineKeyboardButton(text="🤖 Спросить AI", callback_data="choose_ai")],
         [InlineKeyboardButton(text="❌ Отмена", callback_data="action_cancel")]
     ])
     await message.answer(
-        f"📝 Вы написали:\n«{text}»\nКуда это добавить?",
-        reply_markup=keyboard
+        f"📝 Вы написали:\n«{text}»\n\n"
+        "🤖 <i>AI обрабатывает ваш запрос...</i>\n"
+        "Если ничего не происходит, попробуйте переформулировать.",
+        reply_markup=keyboard,
+        parse_mode="HTML"
     )

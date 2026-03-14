@@ -252,7 +252,16 @@ class HermesEngine:
             }
             
             payload = {
-                "prompt": full_prompt,
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": system_prompt or "You are a helpful assistant."
+                    },
+                    {
+                        "role": "user", 
+                        "content": prompt
+                    }
+                ],
                 "max_tokens": 1000,
                 "temperature": 0.7
             }
@@ -266,6 +275,12 @@ class HermesEngine:
                         
                         # Извлекаем ответ
                         content = result.get("result", {}).get("response", "")
+                        
+                        # Если response пустой, пробуем извлечь из messages
+                        if not content:
+                            messages = result.get("result", {}).get("messages", [])
+                            if messages and len(messages) > 0:
+                                content = messages[-1].get("content", "")
                         
                         if content:
                             logger.info(f"🧠 Hermes: получен ответ от Cloudflare AI")

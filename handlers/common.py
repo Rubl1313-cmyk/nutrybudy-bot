@@ -210,6 +210,7 @@ async def show_profile_category(message: Message, state: FSMContext):
 
 # ========== ОБРАБОТЧИКИ ДЛЯ ГЛАВНОГО МЕНЮ ==========
 
+# Inline кнопки
 @router.callback_query(F.data == "photo_food")
 async def photo_food_callback(callback: CallbackQuery, state: FSMContext):
     """🎨 Обработчик для фото еды"""
@@ -218,45 +219,7 @@ async def photo_food_callback(callback: CallbackQuery, state: FSMContext):
     
     await callback.message.answer(
         "📸 <b>Отправьте фото блюда</b>\n\n"
-        "🤖 <i>AI автоматически распознает продукты и рассчитает КБЖУ</i>\n\n"
-        "<b>Советы для лучшего распознавания:</b>\n"
-        "• Фотографируйте сверху\n"
-        "• Хорошее освещение\n"
-        "• Одинаковый ракурс",
-        parse_mode="HTML"
-    )
-
-@router.callback_query(F.data == "text_food")
-async def text_food_callback(callback: CallbackQuery, state: FSMContext):
-    """🎨 Обработчик для текстового ввода еды"""
-    await callback.answer()
-    await callback.message.delete()
-    
-    await callback.message.answer(
-        "✍️ <b>Напишите что вы съели или выпили</b>\n\n"
-        "🤖 <i>AI сам определит тип и распарсит информацию</i>\n\n"
-        "<b>Примеры:</b>\n"
-        "• Съел курицу с рисом на обед\n"
-        "• Выпил стакан воды\n"
-        "• Пробежал 5 километров\n"
-        "• Салат с тунцом на ужин",
-        parse_mode="HTML"
-    )
-
-@router.callback_query(F.data == "voice_food")
-async def voice_food_callback(callback: CallbackQuery, state: FSMContext):
-    """🎨 Обработчик для голосового ввода еды"""
-    await callback.answer()
-    await callback.message.delete()
-    
-    await callback.message.answer(
-        "🎙️ <b>Запишите голосовое сообщение</b>\n\n"
-        "🤖 <i>AI распознает речь и определит намерение</i>\n\n"
-        "<b>Что можно сказать:</b>\n"
-        "• Съел омлет на завтрак\n"
-        "• Выпил 200 мл воды\n"
-        "• Ходил в спортзал\n"
-        "• Вес 70 кг",
+        "🤖 <i>Автоматически распознаю продукты и калории</i>",
         parse_mode="HTML"
     )
 
@@ -268,6 +231,55 @@ async def show_progress_main_callback(callback: CallbackQuery, state: FSMContext
     
     from handlers.progress import cmd_progress
     await cmd_progress(callback.message, state, user_id=callback.from_user.id)
+
+@router.callback_query(F.data == "settings")
+async def settings_callback(callback: CallbackQuery, state: FSMContext):
+    """🎨 Обработчик для настроек"""
+    await callback.answer()
+    await callback.message.delete()
+    
+    await callback.message.answer(
+        "⚙️ <b>Настройки</b>\n\n"
+        "🔧 <i>В разработке...</i>\n\n"
+        "Сейчас доступны:\n"
+        "• /set_profile - настройка профиля\n"
+        "• /help - помощь по командам",
+        parse_mode="HTML"
+    )
+
+@router.callback_query(F.data == "none")
+async def none_callback(callback: CallbackQuery, state: FSMContext):
+    """Обработчик для визуального разделителя"""
+    await callback.answer()
+    # Ничего не делаем - это просто визуальный элемент
+
+# Reply кнопки (нижнее меню) - новый дизайн
+@router.message(F.text == "📸 Сделать фото еды")
+async def photo_food_message(message: Message, state: FSMContext):
+    """Обработчик главной кнопки с эмоциональным подходом"""
+    await message.answer(
+        "📸 <b>Сделайте фото еды</b>\n\n"
+        "🌿 <i>Я распознаю продукты и калории автоматически</i>\n\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        "💡 <b>Совет:</b> Фотографируйте сверху при хорошем освещении",
+        parse_mode="HTML"
+    )
+
+@router.message(F.text == "📊 Мой прогресс")
+async def progress_message(message: Message, state: FSMContext):
+    """Обработчик прогресса с мотивацией"""
+    from handlers.progress import cmd_progress
+    await cmd_progress(message, state, user_id=message.from_user.id)
+
+@router.message(F.text == "👤 Мой профиль")
+async def profile_message(message: Message, state: FSMContext):
+    """Обработчик профиля с персонализацией"""
+    await show_profile_category(message, state)
+
+@router.message(F.text == "❓ Помощь")
+async def help_message(message: Message, state: FSMContext):
+    """Обработчик помощи с дружелюбным подходом"""
+    await cmd_help(message, state)
 
 async def period_callback_internal(callback: CallbackQuery, state: FSMContext):
     """🎨 Внутренний обработчик выбора периода"""

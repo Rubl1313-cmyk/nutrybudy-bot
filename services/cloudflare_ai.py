@@ -989,12 +989,12 @@ async def identify_food_ensemble(
                     {
                         "role": "user",
                         "content": [
-                            {"type": "text", "text": "What food is in this image? Respond with JSON: {dish_name: string, ingredients: array}"},
+                            {"type": "text", "text": "What food is in this image?"},
                             {"type": "image_url", "image_url": f"data:image/jpeg;base64,{image_b64}"}
                         ]
                     }
                 ],
-                "max_tokens": 512
+                "max_tokens": 256
             }
             
             logger.info(f"🔍 Using messages format with base64 image")

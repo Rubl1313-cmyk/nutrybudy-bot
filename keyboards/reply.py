@@ -1,18 +1,23 @@
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 
 def get_main_keyboard():
-    """Главное меню с категориями и кнопкой AI ассистента."""
+    """
+    🌿 Революционное меню NutriBuddy 2024
+    Визуальная иерархия + эмоциональный дизайн
+    """
     kb = [
-        [KeyboardButton(text="🍽️ Питание")],
-        [KeyboardButton(text="💧 Вода и активность")],
-        [KeyboardButton(text="📊 Прогресс и статистика")],
-        [KeyboardButton(text="👤 Профиль и настройки")],
-        [KeyboardButton(text="❓ Помощь")],
-        [KeyboardButton(text="🤖 AI Помощник")]  # новая кнопка
+        # Главная функция - самый большой блок
+        [KeyboardButton(text="📸 Сделать фото еды")],
+        
+        # Второстепенные функции
+        [KeyboardButton(text="📊 Мой прогресс")],
+        [KeyboardButton(text="👤 Мой профиль")],
+        
+        # Вспомогательная функция
+        [KeyboardButton(text="❓ Помощь")]
     ]
     return ReplyKeyboardMarkup(keyboard=kb, resize_keyboard=True)
 
-# Остальные функции без изменений
 def get_cancel_keyboard():
     return ReplyKeyboardMarkup(
         keyboard=[[KeyboardButton(text="❌ Отмена")]],
@@ -22,7 +27,7 @@ def get_cancel_keyboard():
 def get_edit_profile_keyboard():
     kb = [
         [KeyboardButton(text="✏️ Изменить профиль")],
-        [KeyboardButton(text="📊 Прогресс")],
+        [KeyboardButton(text="📊 Мой прогресс")],
         [KeyboardButton(text="🏠 Главное меню")]
     ]
     return ReplyKeyboardMarkup(keyboard=kb, resize_keyboard=True)

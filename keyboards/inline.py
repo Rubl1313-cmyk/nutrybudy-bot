@@ -121,7 +121,7 @@ def get_water_activity_menu() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 def get_progress_menu() -> InlineKeyboardMarkup:
-    """Подменю «Прогресс»."""
+    """Простое меню прогресса."""
     buttons = [
         [InlineKeyboardButton(text="📈 За день", callback_data="progress_day")],
         [InlineKeyboardButton(text="📊 За неделю", callback_data="progress_week")],
@@ -130,9 +130,8 @@ def get_progress_menu() -> InlineKeyboardMarkup:
     ]
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
-
 def get_profile_menu() -> InlineKeyboardMarkup:
-    """Подменю «Профиль»."""
+    """Простое меню профиля."""
     buttons = [
         [InlineKeyboardButton(text="👤 Просмотр профиля", callback_data="menu_profile_view")],
         [InlineKeyboardButton(text="✏️ Редактировать профиль", callback_data="menu_profile_edit")],

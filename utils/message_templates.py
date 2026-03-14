@@ -11,38 +11,33 @@ class MessageTemplates:
                                days_active: int = 0, 
                                current_streak: int = 0) -> str:
         """
-        🤖 Современное AI-приветствие
+        🌟 Революционное приветствие NutriBuddy 2024
         """
-        # Персонализированное приветствие
-        greeting_emoji = "🤖" if days_active == 0 else "🎯" if current_streak >= 7 else "👋"
-        
-        # Статусы активности
-        if current_streak >= 30:
-            status = "🏆 AI-чемпион NutriBuddy!"
-        elif current_streak >= 14:
-            status = "🔥 На пути к цели с AI!"
+        # Персонализированное приветствие с эмоциями
+        if days_active == 0:
+            greeting_emoji = "🌟"
+            status_text = "Начнём ваше путешествие к здоровью!"
+            motivation_emoji = "🚀"
         elif current_streak >= 7:
-            status = "💪 Отличная мотивация!"
-        elif days_active > 0:
-            status = "🚀 Продолжайте двигаться!"
+            greeting_emoji = "🔥"
+            status_text = f"Вы на пути к цели уже {current_streak} дней!"
+            motivation_emoji = "💪"
         else:
-            status = "🌱 Начните свой AI-путь!"
+            greeting_emoji = "👋"
+            status_text = "Продолжаем наш путь к здоровью!"
+            motivation_emoji = "✨"
         
+        # Визуально структурированное сообщение
         text = (
-            f"{greeting_emoji} <b>Добро пожаловать, {user_name}!</b>\n\n"
-            f"🤖 <b>NutriBuddy AI</b> — ваш умный помощник по питанию\n\n"
-            f"{status}\n\n"
-            f"⚡ <b>AI-возможности:</b>\n"
-            f"📸 <b>Фото → AI</b> распознает блюдо\n"
-            f"🎙️ <b>Голос → AI</b> распознает речь\n"
-            f"✍️ <b>Текст → AI</b> определит намерение\n"
-            f"🤖 <b>AI-ассистент</b> для вопросов\n"
-            f"� <b>Умная аналитика</b> прогресса\n\n"
-            f"✨ <b>Как это работает:</b>\n"
-            f"📸 Отправьте фото блюда — AI распознает\n"
-            f"✍️ Напишите текст — AI поймет\n"
-            f"🎙️ Запишите голос — AI расшифрует\n\n"
-            f"🚀 <b>Начните прямо сейчас!</b>"
+            f"{greeting_emoji} <b>Привет, {user_name}!</b>\n\n"
+            f"🌿 <b>NutriBuddy</b>\n"
+            f"<i>{status_text}</i>\n\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            f"📸 <b>Фото еды</b> → я распознаю калории\n"
+            f"✍️ <b>Текстом</b> → я пойму и запишу\n"
+            f"📊 <b>Прогресс</b> → ваши достижения\n\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            f"{motivation_emoji} <i>Отправьте фото еды — начнём сейчас!</i>"
         )
         
         return text
@@ -52,8 +47,36 @@ class MessageTemplates:
                           protein: float, fat: float, carbs: float,
                           daily_progress: float = 0) -> str:
         """
-        🎨 Современное сообщение об успешном приеме пищи
+        � Эмоциональное сообщение об успехе 2024
         """
+        # Эмоциональные реакции на прогресс
+        if daily_progress >= 100:
+            emoji = "🎉"
+            message = "Отлично! Вы достигли дневной цели!"
+        elif daily_progress >= 75:
+            emoji = "🔥"
+            message = "Прекрасно! Почти у цели!"
+        elif daily_progress >= 50:
+            emoji = "💪"
+            message = "Хорошая работа! Продолжайте в том же духе!"
+        else:
+            emoji = "✨"
+            message = "Отличное начало дня!"
+        
+        text = (
+            f"{emoji} <b>Приём пищи сохранён!</b>\n\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            f"📊 <b>Питательность:</b>\n"
+            f"🔥 {calories:.0f} ккал\n"
+            f"🥩 {protein:.1f}г белки\n"
+            f"🥑 {fat:.1f}г жиры\n"
+            f"🍚 {carbs:.1f}г углеводы\n\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            f"{message}\n"
+            f"<i>Продолжайте в том же духе! 💚</i>"
+        )
+        
+        return text
         # Современные эмодзи для приемов пищи
         meal_emojis = {
             'breakfast': '🌅',

@@ -9,31 +9,48 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 def get_modern_main_menu() -> InlineKeyboardMarkup:
     """
-    🤖 Современное AI-меню NutriBuddy
+    🌿 Эмоциональное меню NutriBuddy 2024
+    Визуальная иерархия + мотивация
     """
     builder = InlineKeyboardBuilder()
     
-    # Основные AI-функции
+    # Главная CTA кнопка - самая заметная
     builder.row(
-        InlineKeyboardButton(text="📸 Отправить фото", callback_data="photo_food"),
-        InlineKeyboardButton(text="🎙️ Голосовое сообщение", callback_data="voice_food")
+        InlineKeyboardButton(text="📸 Сделать фото еды", callback_data="photo_food")
     )
     
+    # Разделитель для визуального отделения
     builder.row(
-        InlineKeyboardButton(text="✍️ Написать текстом", callback_data="text_food"),
+        InlineKeyboardButton(text="━━━━━━━━━━━━━", callback_data="none")
+    )
+    
+    # Второстепенные действия
+    builder.row(
         InlineKeyboardButton(text="📊 Мой прогресс", callback_data="show_progress")
     )
     
-    # AI-инструменты
     builder.row(
-        InlineKeyboardButton(text="🤖 AI Ассистент", callback_data="ai_assistant"),
-        InlineKeyboardButton(text="👤 Профиль", callback_data="show_profile")
+        InlineKeyboardButton(text="👤 Мой профиль", callback_data="show_profile")
     )
     
-    # Дополнительно
+    return builder.as_markup()
+
+def get_motivational_food_keyboard() -> InlineKeyboardMarkup:
+    """
+    🌿 Мотивационная клавиатура для еды
+    Эмоциональный подход к выбору
+    """
+    builder = InlineKeyboardBuilder()
+    
+    # Основные приемы пищи с эмotions
     builder.row(
-        InlineKeyboardButton(text="� Вода", callback_data="log_water"),
-        InlineKeyboardButton(text="🏋️ Активность", callback_data="log_activity")
+        InlineKeyboardButton(text="🌅 Завтрак", callback_data="meal_breakfast"),
+        InlineKeyboardButton(text="☀️ Обед", callback_data="meal_lunch")
+    )
+    
+    builder.row(
+        InlineKeyboardButton(text="🌙 Ужин", callback_data="meal_dinner"),
+        InlineKeyboardButton(text="🍎 Перекус", callback_data="meal_snack")
     )
     
     return builder.as_markup()

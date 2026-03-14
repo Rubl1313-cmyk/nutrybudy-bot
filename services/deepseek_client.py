@@ -1,6 +1,6 @@
 """
 Клиент для обращения к собственному Cloudflare Worker.
-Worker использует модель qwen2.5-coder-32b-instruct.
+Worker использует модель Hermes (Llama 3.1-8b-instruct).
 """
 import aiohttp
 import os
@@ -142,7 +142,7 @@ DEFAULT_SYSTEM_PROMPT = (
 async def ask_worker_ai(
     prompt: str,
     system_prompt: str = DEFAULT_SYSTEM_PROMPT,
-    model: str = "@cf/qwen/qwen2.5-coder-32b-instruct",
+    model: str = "@cf/meta/llama-3.1-8b-instruct",  # Используем Hermes (Llama) по умолчанию
     temperature: float = 0.7,
     max_tokens: int = 3000   # увеличено до 3000 для рецептов
 ) -> Optional[Dict[str, Any]]:

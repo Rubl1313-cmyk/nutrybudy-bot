@@ -581,3 +581,34 @@ class HermesEngine:
 
 # Глобальный экземпляр
 hermes = HermesEngine()
+
+async def ask_hermes_ai(
+    prompt: str,
+    system_prompt: str = None,
+    model: str = None,
+    temperature: float = 0.7,
+    max_tokens: int = 3000
+) -> Optional[str]:
+    """
+    Удобная функция для вызова Hermes AI
+    
+    Args:
+        prompt: Запрос пользователя
+        system_prompt: Системный промпт
+        model: Модель (игнорируется, используется Hermes)
+        temperature: Температура (игнорируется)
+        max_tokens: Максимальное количество токенов (игнорируется)
+        
+    Returns:
+        Ответ от Hermes или None в случае ошибки
+    """
+    try:
+        result = await hermes.process_text(prompt, system_prompt, "text_generation")
+        if result.get("success"):
+            return result.get("data", {}).get("content", "")
+        else:
+            logger.error(f"🧠 Hermes: ошибка в ask_hermes_ai: {result.get('error')}")
+            return None
+    except Exception as e:
+        logger.error(f"🧠 Hermes: исключение в ask_hermes_ai: {e}")
+        return None

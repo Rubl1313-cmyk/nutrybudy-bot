@@ -47,7 +47,7 @@ async def process_single_ai_query(message: Message, query: str):
         response = await ask_worker_ai(
             prompt=query,
             system_prompt=DEFAULT_SYSTEM_PROMPT,
-            model="@cf/qwen/qwen2.5-coder-32b-instruct",
+            model="@cf/meta/llama-3.1-8b-instruct",  # Используем Hermes (Llama) для ассистента
             max_tokens=3000
         )
 
@@ -123,7 +123,7 @@ async def process_dialog_query(message: Message, state: FSMContext, query: str):
         response = await ask_worker_ai(
             prompt=query,
             system_prompt=system_prompt,
-            model="@cf/qwen/qwen2.5-coder-32b-instruct",
+            model="@cf/meta/llama-3.1-8b-instruct",  # Используем Hermes (Llama) для ассистента
             max_tokens=3000
         )
 

@@ -10,6 +10,9 @@ from typing import Dict, List, Any, Optional
 from datetime import datetime
 from pathlib import Path
 
+# Импортируем AI движки
+from services.hermes_engine import ask_hermes_ai
+
 logger = logging.getLogger(__name__)
 
 class AIBenchmarkSuite:
@@ -47,7 +50,7 @@ class AIBenchmarkSuite:
                 "accuracy_score": 0,
                 "details": []
             },
-            "current_ensemble": {
+            "current_hermes": {
                 "success_rate": 0,
                 "avg_confidence": 0,
                 "avg_time": 0,
@@ -112,10 +115,10 @@ class AIBenchmarkSuite:
                 }
                 
                 if result_current["success"]:
-                    results["current_ensemble"]["success_rate"] += 1
-                    results["current_ensemble"]["avg_confidence"] += result_current["confidence"]
-                    results["current_ensemble"]["accuracy_score"] += self._calculate_accuracy_score_current(result_current["data"], test_case)
-                    results["current_ensemble"]["details"].append({
+                    results["current_hermes"]["success_rate"] += 1
+                    results["current_hermes"]["avg_confidence"] += result_current["confidence"]
+                    results["current_hermes"]["accuracy_score"] += self._calculate_accuracy_score_current(result_current["data"], test_case)
+                    results["current_hermes"]["details"].append({
                         "test": test_case,
                         "success": True,
                         "confidence": result_current["confidence"],
@@ -123,8 +126,8 @@ class AIBenchmarkSuite:
                     })
                 
             except Exception as e:
-                logger.error(f"❌ Current ensemble vision test {i} failed: {e}")
-                results["current_ensemble"]["details"].append({
+                logger.error(f"❌ Current hermes vision test {i} failed: {e}")
+                results["current_hermes"]["details"].append({
                     "test": test_case,
                     "success": False,
                     "error": str(e)
@@ -132,7 +135,7 @@ class AIBenchmarkSuite:
         
         # Вычисляем средние значения
         num_tests_actual = min(num_tests, len(test_cases))
-        for engine in ["llama_32", "current_ensemble"]:
+        for engine in ["llama_32", "current_hermes"]:
             if results[engine]["details"]:
                 successful = [d for d in results[engine]["details"] if d.get("success")]
                 if successful:
@@ -143,11 +146,11 @@ class AIBenchmarkSuite:
         
         # Определяем победителя
         llama_score = results["llama_32"]["success_rate"] * results["llama_32"]["avg_confidence"] * results["llama_32"]["accuracy_score"]
-        current_score = results["current_ensemble"]["success_rate"] * results["current_ensemble"]["avg_confidence"] * results["current_ensemble"]["accuracy_score"]
+        hermes_score = results["current_hermes"]["success_rate"] * results["current_hermes"]["avg_confidence"] * results["current_hermes"]["accuracy_score"]
         
-        results["winner"] = "llama_32" if llama_score > current_score else "current_ensemble"
+        results["winner"] = "llama_32" if llama_score > hermes_score else "current_hermes"
         results["llama_score"] = llama_score
-        results["current_score"] = current_score
+        results["hermes_score"] = hermes_score
         
         logger.info(f"📊 Vision benchmark completed: {results['winner']} wins")
         return results
@@ -176,7 +179,7 @@ class AIBenchmarkSuite:
                 "relevance_score": 0,
                 "details": []
             },
-            "current_qwen": {
+            "current_hermes": {
                 "avg_response_time": 0,
                 "avg_quality_score": 0,
                 "relevance_score": 0,
@@ -215,37 +218,37 @@ class AIBenchmarkSuite:
                     "error": str(e)
                 })
             
-            # Тестируем Qwen
+            # Тестируем Hermes (Llama)
             try:
                 start_time = time.time()
-                # result_qwen = await ask_worker_ai(query, ...)
+                result_hermes = await ask_hermes_ai(query, system_prompt="Ты - полезный помощник по питанию и здоровью NutriBuddy.")
                 
                 # Симуляция
                 await asyncio.sleep(0.3)
-                qwen_time = time.time() - start_time
-                qwen_quality = 0.8 + (i * 0.015)
-                qwen_relevance = 0.85 - (i * 0.01)
+                hermes_time = time.time() - start_time
+                hermes_quality = 0.8 + (i * 0.015)
+                hermes_relevance = 0.85 - (i * 0.01)
                 
-                results["current_qwen"]["avg_response_time"] += qwen_time
-                results["current_qwen"]["avg_quality_score"] += qwen_quality
-                results["current_qwen"]["relevance_score"] += qwen_relevance
-                results["current_qwen"]["details"].append({
+                results["current_hermes"]["avg_response_time"] += hermes_time
+                results["current_hermes"]["avg_quality_score"] += hermes_quality
+                results["current_hermes"]["relevance_score"] += hermes_relevance
+                results["current_hermes"]["details"].append({
                     "query": query,
-                    "response_time": qwen_time,
-                    "quality_score": qwen_quality,
-                    "relevance_score": qwen_relevance
+                    "response_time": hermes_time,
+                    "quality_score": hermes_quality,
+                    "relevance_score": hermes_relevance
                 })
                 
             except Exception as e:
-                logger.error(f"❌ Qwen assistant test {i} failed: {e}")
-                results["current_qwen"]["details"].append({
+                logger.error(f"❌ Hermes assistant test {i} failed: {e}")
+                results["current_hermes"]["details"].append({
                     "query": query,
                     "error": str(e)
                 })
         
         # Вычисляем средние значения
         num_queries_actual = min(num_queries, len(test_queries))
-        for engine in ["llama_32", "current_qwen"]:
+        for engine in ["llama_32", "current_hermes"]:
             successful = [d for d in results[engine]["details"] if "error" not in d]
             if successful:
                 results[engine]["avg_response_time"] = sum(d["response_time"] for d in successful) / len(successful)
@@ -254,11 +257,11 @@ class AIBenchmarkSuite:
         
         # Определяем победителя
         llama_score = results["llama_32"]["avg_quality_score"] * results["llama_32"]["relevance_score"]
-        qwen_score = results["current_qwen"]["avg_quality_score"] * results["current_qwen"]["relevance_score"]
+        hermes_score = results["current_hermes"]["avg_quality_score"] * results["current_hermes"]["relevance_score"]
         
-        results["winner"] = "llama_32" if llama_score > qwen_score else "current_qwen"
+        results["winner"] = "llama_32" if llama_score > hermes_score else "current_hermes"
         results["llama_score"] = llama_score
-        results["qwen_score"] = qwen_score
+        results["hermes_score"] = hermes_score
         
         logger.info(f"📊 Assistant benchmark completed: {results['winner']} wins")
         return results
@@ -283,10 +286,10 @@ class AIBenchmarkSuite:
             full_results["summary"]["reason"] = "Llama 3.2 превосходит в обеих категориях"
         elif vision_winner == "llama_32":
             full_results["summary"]["recommendation"] = "hybrid_vision"
-            full_results["summary"]["reason"] = "Llama 3.2 для распознавания, Qwen для ассистента"
+            full_results["summary"]["reason"] = "Llama 3.2 для распознавания, Hermes для ассистента"
         elif assistant_winner == "llama_32":
             full_results["summary"]["recommendation"] = "hybrid_assistant"
-            full_results["summary"]["reason"] = "Qwen для распознавания, Llama 3.2 для ассистента"
+            full_results["summary"]["reason"] = "Hermes для распознавания, Llama 3.2 для ассистента"
         else:
             full_results["summary"]["recommendation"] = "current_ensemble"
             full_results["summary"]["reason"] = "Текущая система остается лучшей"
@@ -416,7 +419,7 @@ async def run_ai_benchmark_command():
 🤖 **AI Assistant:**
    Winner: {results['assistant']['winner']}
    Llama 3.2: {results['assistant'].get('llama_score', 0):.3f}
-   Qwen: {results['assistant'].get('qwen_score', 0):.3f}
+   Hermes: {results['assistant'].get('hermes_score', 0):.3f}
 
 🎯 **Overall Recommendation:**
    {results['summary']['recommendation']}

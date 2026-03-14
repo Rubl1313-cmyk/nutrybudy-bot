@@ -25,10 +25,10 @@ if not CLOUDFLARE_ACCOUNT_ID or not CLOUDFLARE_API_TOKEN:
 else:
     BASE_URL = f"https://api.cloudflare.com/client/v4/accounts/{CLOUDFLARE_ACCOUNT_ID}/ai/run/"
 
-# Модели с приоритетами (от лучших к быстрым)
+# Модели с приоритетами (ТОЛЬКО Llama для vision)
 VISION_MODELS = [
     {"id": "@cf/llava-hf/llava-1.5-7b-hf", "priority": 1, "timeout": 120, "weight": 0.6},
-    {"id": "@cf/unum/uform-gen2-qwen-500m", "priority": 2, "timeout": 90, "weight": 0.4},
+    {"id": "@cf/meta/llama-3.2-11b-vision-instruct", "priority": 2, "timeout": 150, "weight": 0.8}
 ]
 
 # Кэш результатов (hash изображения → результат)

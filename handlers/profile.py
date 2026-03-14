@@ -12,7 +12,8 @@ from aiogram.fsm.context import FSMContext
 from sqlalchemy import select
 from database.db import get_session
 from database.models import User
-from services.ai_nutrition_calculator_enhanced import enhanced_nutrition_calculator as ai_calculator
+from services.calculator import calculate_water_goal, calculate_calorie_goal
+from services.weather import get_temperature
 from keyboards.reply import get_cancel_keyboard, get_main_keyboard, get_edit_profile_keyboard
 from utils.states import ProfileStates
 
@@ -44,30 +45,6 @@ async def display_profile(target: Message | CallbackQuery, user_id: int, state: 
         user = result.scalar_one_or_none()
 
         if user and await is_profile_complete(user):
-            # 🧠 AI-усиленный расчет норм
-            try:
-                ai_calculation = await ai_calculator.calculate_personalized_norms(user.telegram_id)
-                
-                # Используем AI данные
-                calories_goal = ai_calculation.get('daily_calories', 2000)
-                protein_goal = ai_calculation.get('protein_g', 80)
-                fat_goal = ai_calculation.get('fat_g', 70)
-                carbs_goal = ai_calculation.get('carbs_g', 250)
-                water_goal = ai_calculation.get('water_ml', 2000)
-                
-                # Добавляем AI инсайты
-                ai_insights = ai_calculation.get('recommendations', [])
-                
-            except Exception as e:
-                logger.error(f"🧠 AI calculation failed: {e}")
-                # Fallback на стандартные значения
-                calories_goal = 2000
-                protein_goal = 80
-                fat_goal = 70
-                carbs_goal = 250
-                water_goal = 2000
-                ai_insights = ["Используются стандартные расчеты"]
-            
             # Профиль полностью заполнен — показываем данные
             gender_emoji = "♂️" if user.gender == "male" else "♀️"
             goal_emoji = {"lose": "⬇️", "maintain": "➡️", "gain": "⬆️"}.get(user.goal, "🎯")
@@ -81,14 +58,12 @@ async def display_profile(target: Message | CallbackQuery, user_id: int, state: 
                 f"🏃 Активность: {user.activity_level}\n"
                 f"🎯 Цель: {goal_emoji} {user.goal}\n"
                 f"🌆 Город: {user.city}\n\n"
-                f"🧠 <b>AI-нормы:</b>\n"
-                f"🔥 Калории: {calories_goal:.0f} ккал\n"
-                f"🥩 Белки: {protein_goal:.1f} г\n"
-                f"🥑 Жиры: {fat_goal:.1f} г\n"
-                f"🍚 Углеводы: {carbs_goal:.1f} г\n"
-                f"💧 Вода: {water_goal:.0f} мл\n\n"
-                f"💡 <b>AI-рекомендации:</b>\n"
-                f"{' • '.join(ai_insights[:3])}"
+                f"📊 <b>Нормы:</b>\n"
+                f"🔥 Калории: {user.daily_calorie_goal:.0f} ккал\n"
+                f"🥩 Белки: {user.daily_protein_goal:.1f} г\n"
+                f"🥑 Жиры: {user.daily_fat_goal:.1f} г\n"
+                f"🍚 Углеводы: {user.daily_carbs_goal:.1f} г\n"
+                f"💧 Вода: {user.daily_water_goal:.0f} мл"
             )
 
             keyboard = ReplyKeyboardMarkup(
@@ -283,67 +258,57 @@ async def process_city(message: Message, state: FSMContext):
     """Сохранение профиля с обработкой ошибок"""
     city = message.text.strip()
     data = await state.get_data()
-    user_id = message.from_user.id
 
     # Проверяем, что все необходимые данные есть
     required_fields = ['weight', 'height', 'age', 'gender', 'activity', 'goal']
     missing = [field for field in required_fields if field not in data]
-    
     if missing:
-        await message.answer(f"❌ Пропущены данные: {', '.join(missing)}")
+        logger.error(f"Missing fields in state: {missing}")
+        await message.answer(
+            "❌ Произошла ошибка: не все данные профиля были заполнены. Начните заново.",
+            reply_markup=get_main_keyboard()
+        )
+        await state.clear()
         return
 
     try:
-        # Объединяем сохранение профиля и расчёт норм в одной сессии
+        # Получаем температуру (всегда число, даже при ошибке)
+        temp = await get_temperature(city)
+
+        # Рассчитываем нормы
+        water_goal = calculate_water_goal(data['weight'], data['activity'], temp)
+        calorie_goal, protein, fat, carbs = calculate_calorie_goal(
+            data['weight'], data['height'], data['age'],
+            data['gender'], data['activity'], data['goal']
+        )
+
+        # Сохраняем в БД
         async with get_session() as session:
-            result = await session.execute(select(User).where(User.telegram_id == user_id))
+            result = await session.execute(
+                select(User).where(User.telegram_id == message.from_user.id)
+            )
             user = result.scalar_one_or_none()
-            
-            if user:
-                # Обновляем существующего пользователя
-                user.weight = data['weight']
-                user.height = data['height']
-                user.age = data['age']
-                user.gender = data['gender']
-                user.activity_level = data['activity']
-                user.goal = data['goal']
-                user.city = city
-                await session.commit()
-                await session.refresh(user)
-            else:
-                # Создаем нового пользователя
-                user = User(
-                    telegram_id=user_id,
-                    weight=data['weight'],
-                    height=data['height'],
-                    age=data['age'],
-                    gender=data['gender'],
-                    activity_level=data['activity'],
-                    goal=data['goal'],
-                    city=city
-                )
+
+            if not user:
+                user = User(telegram_id=message.from_user.id)
                 session.add(user)
-                await session.commit()
-                await session.refresh(user)
 
-            # Используем AI калькулятор с уже полученным user_id
-            ai_calculation = await ai_calculator.calculate_personalized_norms(user_id)
-            
-            # Используем значения напрямую с fallback, так как calculate_personalized_norms возвращает словарь с нормами
-            water_goal = ai_calculation.get("water_ml", 2000)
-            calorie_goal = ai_calculation.get("daily_calories", 2000)
-            protein = ai_calculation.get("protein_g", 150)
-            fat = ai_calculation.get("fat_g", 70)
-            carbs = ai_calculation.get("carbs_g", 250)
-
-            # Обновляем нормы в той же сессии
+            user.weight = data['weight']
+            user.height = data['height']
+            user.age = data['age']
+            user.gender = data['gender']
+            user.activity_level = data['activity']
+            user.goal = data['goal']
+            user.city = city
             user.daily_water_goal = water_goal
             user.daily_calorie_goal = calorie_goal
             user.daily_protein_goal = protein
             user.daily_fat_goal = fat
             user.daily_carbs_goal = carbs
+
             await session.commit()
-        
+            logger.info(f"✅ Profile saved for user {message.from_user.id}")
+
         await state.clear()
 
         gender_emoji = "♂️" if data['gender'] == "male" else "♀️"
@@ -354,7 +319,7 @@ async def process_city(message: Message, state: FSMContext):
             f"👤 {gender_emoji} {data['gender'].capitalize()}, {data['age']} лет\n"
             f"⚖️ {data['weight']} кг | 📏 {data['height']} см\n"
             f"🏃 {data['activity']} | 🎯 {goal_emoji} {data['goal']}\n"
-            f"🌆 {city}\n\n"
+            f"🌆 {city} ({temp}°C)\n\n"
             f"📊 <b>Твои нормы:</b>\n"
             f"🔥 Калории: <b>{calorie_goal} ккал</b>\n"
             f"🥩 Белки: {protein} г | 🥑 Жиры: {fat} г | 🍚 Углеводы: {carbs} г\n"

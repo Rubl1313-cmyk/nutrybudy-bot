@@ -14,7 +14,6 @@ class FoodStates(StatesGroup):
     editing_weight = State()      # редактирование веса (в сводке)
     adding_name = State()         # добавление нового продукта (название)
     adding_weight = State()       # добавление нового продукта (вес)
-    waiting_for_food_confirmation = State()  # подтверждение распознанной еды
 
 class WaterStates(StatesGroup):
     """Состояния для записи воды."""

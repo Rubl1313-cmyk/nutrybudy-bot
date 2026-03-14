@@ -225,7 +225,7 @@ class MessageTemplates:
         motivations = []
         
         # Мотивация по калориям
-        if stats['avg_calories'] <= user.daily_calorie_goal:
+        if stats['avg_cal_consumed'] <= user.daily_calorie_goal:
             motivations.append("🎯 Отличная работа с калориями!")
         else:
             motivations.append("💪 Сосредоточьтесь на калорийности завтра!")

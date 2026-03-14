@@ -120,21 +120,14 @@ async def init_db():
             await _ensure_bigint_columns(conn)
 
             # Проверяем список таблиц для отладки (только для PostgreSQL)
-            if 'postgresql' in str(engine.url):
-                result = await conn.execute(text(
-                    "SELECT table_name FROM information_schema.tables WHERE table_schema='public'"
-                ))
-                tables = [row[0] for row in result]
-                logger.info(f"✅ Tables in DB: {tables}")
-            else:
-                # Для SQLite используем sqlite_master
-                result = await conn.execute(text(
-                    "SELECT name FROM sqlite_master WHERE type='table'"
-                ))
-                tables = [row[0] for row in result]
-                logger.info(f"✅ Tables in SQLite DB: {tables}")
+            result = await conn.execute(text(
+                "SELECT table_name FROM information_schema.tables WHERE table_schema='public'"
+            ))
+            tables = [row[0] for row in result]
+            logger.info(f"✅ Tables in DB: {tables}")
             
         logger.info("✅ Database initialized successfully")
+        await engine.dispose()
         logger.info("💾 Database ready")
         return True
 

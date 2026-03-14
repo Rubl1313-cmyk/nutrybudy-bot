@@ -16,8 +16,7 @@ from typing import Dict
 from database.db import get_session
 from database.models import User
 from services.meal_planner import distribute_calories
-from services.ai_integration_manager import ai_integration_manager
-from services.climate_manager_enhanced import enhanced_climate_manager as ai_climate_manager
+from services.deepseek_client import ask_worker_ai
 from keyboards.reply import get_main_keyboard
 
 router = Router()
@@ -93,43 +92,50 @@ def postprocess_menu(menu_text: str) -> str:
 
     return '\n'.join(result)
 
-async def generate_full_meal_plan(user_data: Dict, distribution: Dict, user_id: int) -> str:
+async def generate_full_meal_plan(user_data: Dict, distribution: Dict) -> str:
     """
     Генерирует полное меню на день одним запросом к AI.
     """
     prompt = (
-        f"Составь меню на день для пользователя с параметрами:\n"
-        f"👤 Пол: {user_data['gender']}, Возраст: {user_data['age']}, Вес: {user_data['weight']} кг, Рост: {user_data['height']} см\n"
-        f"🎯 Цель: {user_data['goal']}, Активность: {user_data['activity_level']}\n"
-        f"🔥 Калории: {user_data['daily_calories']:.0f} ккал\n\n"
-        f"Распределение калорий:\n"
-    )
-    
-    # Добавляем информацию о каждом приеме пищи
-    meal_plan = distribution.get("data", {}).get("meal_plan", {})
-    for meal_type, meal_data in meal_plan.items():
-        calories = meal_data.get("calories", 0)
-        prompt += f"🍽️ {meal_data.get('name', meal_type)}: {calories:.0f} ккал\n"
-    
-    prompt += (
-        f"4. В конце каждого приёма добавь строку с общей калорийностью\n\n"
+        f"Ты диетолог. Составь разнообразное меню на один день для человека со следующими параметрами:\n"
+        f"Цель: {user_data['goal']}\n"
+        f"Пол: {user_data['gender']}, возраст: {user_data['age']}, вес: {user_data['weight']} кг, рост: {user_data['height']} см.\n"
+        f"Активность: {user_data['activity_level']}\n"
+        f"Дневная норма калорий: {user_data['daily_calories']:.0f} ккал.\n\n"
+        f"Распределение калорий по приёмам:\n"
+        f"- Завтрак: {distribution['breakfast']:.0f} ккал\n"
+        f"- Обед: {distribution['lunch']:.0f} ккал\n"
+        f"- Ужин: {distribution['dinner']:.0f} ккал\n"
+        f"- Перекус: {distribution['snack']:.0f} ккал\n\n"
+        f"ВАЖНО: Составь меню так, чтобы блюда были максимально разнообразными и не повторялись по типу в один день. "
+        f"Например, если на обед суп, то на ужин должно быть второе блюдо (не суп). Если на обед салат, то на ужин горячее блюдо. "
+        f"Избегай повторения одних и тех же ингредиентов в разных приёмах пищи.\n\n"
+        f"Обращайся к пользователю на «ты», не используй фразы «ваш клиент».\n\n"
+        f"Для каждого приёма пищи укажи:\n"
+        f"1. Название блюда\n"
+        f"2. Список ингредиентов с калорийностью каждого (на порцию). Например: «Овсянка — 350 ккал».\n"
+        f"3. Краткое описание приготовления (опционально)\n"
+        f"4. В конце каждого приёма добавь строку с общей калорийностью, например: «🔥 Всего: 450 ккал». Убедись, что общая калорийность равна сумме калорий всех ингредиентов.\n\n"
         f"Старайся, чтобы блюда были полезными, вкусными и соответствовали указанной калорийности. "
-        f"Используй русский язык и эмодзи. Заверши ответ обязательно."
+        f"Используй русский язык, обычный текст и эмодзи. Заверши ответ обязательно."
     )
 
-    response = await ai_integration_manager.process_user_input(
-        text=prompt,
-        user_id=user_id,
-        task_type="meal_plan"
+    response = await ask_worker_ai(
+        prompt=prompt,
+        system_prompt="Ты полезный ассистент-диетолог. Отвечай на русском. Составляй разнообразные, не повторяющиеся рецепты.",
+        max_tokens=AI_MAX_TOKENS
     )
 
-    if not response.get("success"):
-        return f"❌ Ошибка генерации меню: {response.get('error', 'Unknown error')}"
+    if "error" in response:
+        return f"❌ Ошибка генерации меню: {response['error']}"
 
-    content = response.get("response", "")
-    # Постобработка: добавляем суммарные калории, если их нет, убираем дубли
-    content = postprocess_menu(content)
-    return content
+    if response.get("choices"):
+        content = response["choices"][0]["message"]["content"]
+        # Постобработка: добавляем суммарные калории, если их нет, убираем дубли
+        content = postprocess_menu(content)
+        return content
+    else:
+        return "❌ Не удалось сгенерировать меню."
 
 @router.message(Command("meal_plan"))
 @router.message(F.text == "🍽️ План питания")
@@ -150,49 +156,12 @@ async def cmd_meal_plan(message: Message, state: FSMContext, user_id: int = None
             )
             return
 
-    # Расчет базовых КБЖУ на основе профиля
-    protein_ratio = 0.3 if user.goal == 'muscle_gain' else 0.25
-    fat_ratio = 0.25
-    carbs_ratio = 0.45 if user.goal == 'muscle_gain' else 0.5
-    
-    daily_protein = user.daily_calorie_goal * protein_ratio / 4
-    daily_fat = user.daily_calorie_goal * fat_ratio / 9
-    daily_carbs = user.daily_calorie_goal * carbs_ratio / 4
-    
-    distribution = await distribute_calories(
-        daily_calories=user.daily_calorie_goal,
-        daily_protein=daily_protein,
-        daily_fat=daily_fat,
-        daily_carbs=daily_carbs,
-        preferences={
-            'goal': user.goal,
-            'activity_level': user.activity_level,
-            'include_snacks': True
-        }
-    )
-    
-    # Извлекаем распределение из результата
-    if distribution.get("success"):
-        meal_plan = distribution.get("meal_plan", {})
-        # Создаем плоское распределение для отображения
-        flat_distribution = {}
-        for meal_type in MEAL_TYPES:
-            meal_data = meal_plan.get(meal_type["key"], {})
-            flat_distribution[meal_type["key"]] = meal_data.get("calories", 0)
-    else:
-        # Fallback распределение
-        total = user.daily_calorie_goal
-        flat_distribution = {
-            "breakfast": total * 0.25,
-            "lunch": total * 0.35, 
-            "dinner": total * 0.30,
-            "snack": total * 0.10
-        }
+    distribution = distribute_calories(user.daily_calorie_goal)
 
     text = f"🍽️ <b>Рекомендуемое распределение калорий на день</b>\n\n"
     text += f"🔥 Дневная норма: {user.daily_calorie_goal:.0f} ккал\n\n"
     for meal in MEAL_TYPES:
-        text += f"{meal['name']}: <b>{flat_distribution[meal['key']]:.0f} ккал</b>\n"
+        text += f"{meal['name']}: <b>{distribution[meal['key']]:.0f} ккал</b>\n"
     text += f"\n<i>Это примерное распределение. Вы можете менять его под свои предпочтения.</i>"
 
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
@@ -220,36 +189,18 @@ async def generate_full_menu_callback(callback: CallbackQuery, state: FSMContext
             return
 
     user_data = {
-        "weight": user.weight,
-        "height": user.height,
-        "age": user.age,
+        "daily_calories": user.daily_calorie_goal,
         "goal": user.goal,
         "activity_level": user.activity_level,
-        "city": user.city
+        "age": user.age,
+        "gender": user.gender,
+        "weight": user.weight,
+        "height": user.height
     }
 
-    # Рассчитываем распределение калорий
-    protein_ratio = 0.3
-    fat_ratio = 0.25
-    carbs_ratio = 0.45
-    
-    daily_protein = user.daily_calorie_goal * protein_ratio / 4
-    daily_fat = user.daily_calorie_goal * fat_ratio / 9
-    daily_carbs = user.daily_calorie_goal * carbs_ratio / 4
-    
-    distribution = await distribute_calories(
-        daily_calories=user.daily_calorie_goal,
-        daily_protein=daily_protein,
-        daily_fat=daily_fat,
-        daily_carbs=daily_carbs,
-        preferences={
-            'goal': user.goal,
-            'activity_level': user.activity_level,
-            'include_snacks': True
-        }
-    )
+    distribution = distribute_calories(user.daily_calorie_goal)
 
-    full_menu = await generate_full_meal_plan(user_data, distribution, user_id)
+    full_menu = await generate_full_meal_plan(user_data, distribution)
     full_menu = f"🍽️ <b>Меню на день ({user.daily_calorie_goal:.0f} ккал)</b>\n\n{full_menu}"
 
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
@@ -289,48 +240,11 @@ async def back_to_distribution_callback(callback: CallbackQuery, state: FSMConte
             await callback.answer("❌ Профиль не найден", show_alert=True)
             return
 
-    # Рассчитываем базовое распределение калорий
-    protein_ratio = 0.3
-    fat_ratio = 0.25
-    carbs_ratio = 0.45
-    
-    daily_protein = user.daily_calorie_goal * protein_ratio / 4
-    daily_fat = user.daily_calorie_goal * fat_ratio / 9
-    daily_carbs = user.daily_calorie_goal * carbs_ratio / 4
-    
-    distribution = await distribute_calories(
-        daily_calories=user.daily_calorie_goal,
-        daily_protein=daily_protein,
-        daily_fat=daily_fat,
-        daily_carbs=daily_carbs,
-        preferences={
-            'goal': user.goal,
-            'activity_level': user.activity_level,
-            'include_snacks': True
-        }
-    )
-    
-    # Извлекаем распределение из результата
-    if distribution.get("success"):
-        meal_plan = distribution.get("meal_plan", {})
-        flat_distribution = {}
-        for meal_type in MEAL_TYPES:
-            meal_data = meal_plan.get(meal_type["key"], {})
-            flat_distribution[meal_type["key"]] = meal_data.get("calories", 0)
-    else:
-        # Fallback распределение
-        total = user.daily_calorie_goal
-        flat_distribution = {
-            "breakfast": total * 0.25,
-            "lunch": total * 0.35, 
-            "dinner": total * 0.30,
-            "snack": total * 0.10
-        }
-    
+    distribution = distribute_calories(user.daily_calorie_goal)
     text = f"🍽️ <b>Рекомендуемое распределение калорий на день</b>\n\n"
     text += f"🔥 Дневная норма: {user.daily_calorie_goal:.0f} ккал\n\n"
     for meal in MEAL_TYPES:
-        text += f"{meal['name']}: <b>{flat_distribution[meal['key']]:.0f} ккал</b>\n"
+        text += f"{meal['name']}: <b>{distribution[meal['key']]:.0f} ккал</b>\n"
     text += f"\n<i>Это примерное распределение. Вы можете менять его под свои предпочтения.</i>"
 
     keyboard = InlineKeyboardMarkup(inline_keyboard=[

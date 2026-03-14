@@ -1,7 +1,6 @@
 import asyncio
 import logging
 import os
-import signal
 import sys
 from datetime import datetime
 from dotenv import load_dotenv
@@ -13,13 +12,14 @@ from aiogram.types import Update, BotCommand
 from aiohttp import web
 from database.db import init_db, close_db, engine
 from handlers import (
-    common, profile, progress, media_handlers,
-    meal_plan, smart_ai_handler, enhanced_universal_handler
+    common, profile, food, water, activity, progress, media_handlers, ai_assistant,
+    universal_text_handler, meal_plan, weight, steps  # Добавили steps
 )
-# Убираем дублирующий импорт register_ai_handlers
-# from handlers.smart_ai_handler import register_ai_handlers
+from handlers.universal_text_handler import universal_router
+from handlers import meal_plan
 from sqlalchemy import text
 from aiogram.fsm.strategy import FSMStrategy
+from handlers import food_search
 
 load_dotenv()
 
@@ -48,12 +48,12 @@ async def set_bot_commands(bot: Bot):
         BotCommand(command="start", description="🚀 Запустить бота"),
         BotCommand(command="help", description="📚 Помощь"),
         BotCommand(command="set_profile", description="👤 Профиль"),
+        BotCommand(command="log_food", description="🍽️ Еда"),
+        BotCommand(command="log_water", description="💧 Вода"),
+        BotCommand(command="steps", description="👞 Шаги"),
+        BotCommand(command="fitness", description="🏋️ Активность"),
         BotCommand(command="progress", description="📊 Прогресс"),
-        BotCommand(command="ask", description="💬 Умный помощник"),
-        BotCommand(command="analytics", description="🔮 Аналитика и прогнозы"),
-        BotCommand(command="challenge", description="🎮 Челленджи"),
-        BotCommand(command="level", description="🏆 Уровень и награды"),
-        BotCommand(command="meal_plan", description="🍽️ План питания"),
+        BotCommand(command="ask", description="💬 AI Помощник"),
         BotCommand(command="cancel", description="❌ Отмена")
     ]
     await bot.set_my_commands(commands)
@@ -70,7 +70,7 @@ async def send_startup_notification(bot: Bot):
             f"🤖 Бот: @{bot_info.username}\n"
             f"📅 Время: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} UTC\n"
             f"🌐 Railway: {os.getenv('RAILWAY_ENVIRONMENT', 'development')}\n"
-            f"✅ Статус: готов к работе с умными функциями"
+            f"✅ Статус: готов к работе"
         )
         await bot.send_message(chat_id=int(ADMIN_ID), text=startup_message, parse_mode="HTML")
         logger.info(f"📬 Startup notification sent to admin {ADMIN_ID}")
@@ -143,11 +143,6 @@ async def on_startup(app):
 
         await set_bot_commands(bot)
         
-        # Роутеры уже подключены в main()
-        logger.info("💬 All handlers registered")
-        
-        await send_startup_notification(bot)
-        
         
     except Exception as e:
         logger.error(f"❌ Startup error: {e}", exc_info=True)
@@ -191,11 +186,17 @@ async def main():
     # Подключение роутеров (ПОРЯДОК ВАЖЕН!)
     dp.include_router(common.router)
     dp.include_router(profile.router)
-    dp.include_router(progress.router)
+    dp.include_router(food.router)
+    dp.include_router(water.router)
+    dp.include_router(activity.router)
+    dp.include_router(steps.router)  # Добавили трекер шагов
+    # dp.include_router(progress.router)  # УБРАЛИ - логика перенесена в common.py
+    dp.include_router(weight.router)     
     dp.include_router(media_handlers.router)
     dp.include_router(meal_plan.router)
-    dp.include_router(smart_ai_handler.router)
-    dp.include_router(enhanced_universal_handler.router)  # enhanced AI обработчик
+    dp.include_router(food_search.router)
+    dp.include_router(ai_assistant.router)          # диалоговый AI
+    dp.include_router(universal_text_handler.universal_router)  
     
     logging.info("✅ All routers included")
     
@@ -210,27 +211,13 @@ async def main():
     logging.info(f"🚀 Server started on port {PORT}")
     logging.info(f"🌐 Railway environment: {os.getenv('RAILWAY_ENVIRONMENT', 'development')}")
     
-    # Создаём событие для graceful shutdown
-    shutdown_event = asyncio.Event()
-    
-    # Обработчики сигналов
-    def signal_handler(signum, frame):
-        logging.info(f"📡 Received signal {signum}")
-        shutdown_event.set()
-    
-    # Регистрируем обработчики сигналов
-    signal.signal(signal.SIGTERM, signal_handler)
-    signal.signal(signal.SIGINT, signal_handler)
-    
     try:
-        while not shutdown_event.is_set():
-            await asyncio.sleep(1)
+        while True:
+            await asyncio.sleep(3600)
     except asyncio.CancelledError:
         logging.info("⏹️ Server stopped")
     finally:
         await runner.cleanup()
-        await close_db()
-        logging.info("👋 Graceful shutdown completed")
 
 if __name__ == "__main__":
     try:

@@ -6,25 +6,12 @@ services/food_api.py
    которые не употребляются сырыми)
 ✅ Синонимы и варианты (поле aliases)
 ✅ Кэширование результатов
-✅ Семантический поиск по эмбеддингам
 """
 import logging
 import time
 from typing import List, Dict, Optional, Tuple
 
 logger = logging.getLogger(__name__)
-
-# Импорт семантического поиска
-try:
-    from .semantic_search import semantic_search_products, initialize_semantic_search
-    SEMANTIC_SEARCH_AVAILABLE = True
-    logger.info("🔍 Семантический поиск доступен")
-except ImportError:
-    SEMANTIC_SEARCH_AVAILABLE = False
-    logger.warning("🔍 Семантический поиск недоступен (установите sentence-transformers)")
-
-# Флаг инициализации семантического поиска
-_SEMANTIC_INITIALIZED = False
 
 # ========== КЭШИРОВАНИЕ ==========
 _SEARCH_CACHE: Dict[str, Tuple[List[Dict], float]] = {}
@@ -3239,21 +3226,11 @@ LOCAL_FOOD_DB: Dict[str, Dict] = {
 def get_product_variants(base_name: str) -> List[Dict]:
     """
     Возвращает список вариантов продукта по базовому названию.
-    Учитывает основное название, синонимы (aliases) и семантическое сходство.
+    Учитывает основное название и синонимы (aliases).
     """
-    global _SEMANTIC_INITIALIZED
-    
     base_name_lower = base_name.lower().strip()
     variants = []
     seen_keys = set()
-    
-    # Инициализируем семантический поиск при первом использовании
-    if SEMANTIC_SEARCH_AVAILABLE and not _SEMANTIC_INITIALIZED:
-        try:
-            _SEMANTIC_INITIALIZED = initialize_semantic_search(LOCAL_FOOD_DB)
-        except Exception as e:
-            logger.error(f"🔍 Ошибка инициализации семантического поиска: {e}")
-            _SEMANTIC_INITIALIZED = False
 
     # ✅ УЛУЧШЕНИЕ: Очистка кэша для базовых продуктов
     base_products = ['курица', 'говядина', 'свинина', 'индейка', 'телятина', 'баранина', 
@@ -3335,32 +3312,6 @@ def get_product_variants(base_name: str) -> List[Dict]:
                 seen_keys.add(key)
                 if len(variants) >= 10:
                     break
-
-    # Если мало вариантов, попробуем семантический поиск
-    if len(variants) < 3 and SEMANTIC_SEARCH_AVAILABLE and _SEMANTIC_INITIALIZED:
-        try:
-            semantic_results = semantic_search_products(base_name, top_k=5, threshold=0.6)
-            logger.info(f"🔍 Семантический поиск для '{base_name}': найдено {len(semantic_results)} результатов")
-            
-            for product_name, similarity in semantic_results:
-                # Ищем продукт в базе по названию
-                for key, item in LOCAL_FOOD_DB.items():
-                    if key in seen_keys:
-                        continue
-                    
-                    # Проверяем точное совпадение или совпадение с name
-                    if (product_name.lower() == key.lower() or 
-                        product_name.lower() == item.get('name', '').lower()):
-                        
-                        variants.append({**item, 'key': key, 'semantic_similarity': similarity})
-                        seen_keys.add(key)
-                        logger.info(f"✅ Семантический вариант: {item['name']} (сходство: {similarity:.2f})")
-                        
-                        if len(variants) >= 10:
-                            break
-                            
-        except Exception as e:
-            logger.error(f"🔍 Ошибка семантического поиска: {e}")
 
     logger.info(f"🔍 get_product_variants для '{base_name_lower}': найдено {len(variants)} вариантов")
     return variants

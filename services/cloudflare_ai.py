@@ -27,16 +27,15 @@ else:
 
 # Модели с приоритетами (ТОЛЬКО Llama для vision)
 VISION_MODELS = [
-    {"id": "@cf/llava-hf/llava-1.5-7b-hf", "priority": 1, "timeout": 120, "weight": 0.6},
-    {"id": "@cf/meta/llama-3.2-11b-vision-instruct", "priority": 2, "timeout": 150, "weight": 0.8}
+    {"id": "@cf/meta/llama-3.2-11b-vision-instruct", "priority": 1, "timeout": 150, "weight": 1.0}
 ]
 
 # Кэш результатов (hash изображения → результат)
 _RECOGNITION_CACHE: Dict[str, Tuple[Dict, datetime]] = {}
 _CACHE_TTL = 3600  # 1 час
 
-# ========== УЛУЧШЕННЫЙ ПРОМПТ ДЛЯ LLAVA ==========
-LLAVA_ENSEMBLE_PROMPT = """You are an expert food recognition AI. Analyze the image and return a JSON with the following fields:
+# ========== УЛУЧШЕННЫЙ ПРОМПТ ДЛЯ LLAMA VISION ==========
+LLAMA_VISION_PROMPT = """You are an expert food recognition AI. Analyze the image and return a JSON with the following fields:
 - dish_name: The FULL NAME of the dish (e.g., "beef shashlik", "chicken soup", "borscht"). NEVER return a single ingredient like "beef" or "chicken" here.
 - dish_name_ru: The Russian name of the dish (e.g., "шашлык из говядины", "куриный суп", "борщ").
 - category: one of ["soup", "main", "salad", "skewers", "side", "dessert", "other"].
@@ -54,24 +53,7 @@ CRITICAL RULES:
 
 Return ONLY valid JSON, no extra text."""
 
-# ========== УЛУЧШЕННЫЙ ПРОМПТ ДЛЯ UFORM ==========
-UFORM_DETAILED_PROMPT = """You are an expert at identifying food ingredients from images. Your task is to list ONLY the main visible food ingredients in this specific dish.
-
-CRITICAL RULES:
-- List only ingredients that are clearly visible in the image.
-- Do NOT list generic categories or all possible ingredients – only what you see.
-- Limit your response to a maximum of 6 main ingredients.
-- Use the format: ingredient1:type1, ingredient2:type2, ...
-- Types: protein, carb, vegetable, fat, sauce, herb, spice, other.
-
-Examples:
-- For a dish with pork, salt, rosemary, black pepper: "pork:protein, salt:spice, rosemary:herb, black pepper:spice"
-- For salmon with rice and soy sauce: "salmon:protein, rice:carb, soy sauce:sauce"
-- For a salad with lettuce, tomato, cucumber, olive oil: "lettuce:vegetable, tomato:vegetable, cucumber:vegetable, olive oil:fat"
-
-Now list the main visible ingredients in this dish:"""
-
-# ========== КЭШИРОВАНИЕ ==========
+# ========== ОСНОВНЫЕ ФУНКЦИИ ==========
 def _get_image_hash(image_bytes: bytes) -> str:
     """Создаёт hash изображения для кэширования."""
     return hashlib.md5(image_bytes).hexdigest()
@@ -433,10 +415,10 @@ async def identify_food(
     Улучшенное каскадное распознавание с пост-обработкой
     """
     try:
-        # Используем новый ансамбль моделей
+        # Используем единственную модель Llama 3.2 Vision
         data, used_model = await identify_food_ensemble(
             image_bytes,
-            model_indices=[0, 1],  # LLaVA + UForm
+            model_indices=[0],  # Только Llama 3.2 Vision
             progress_callback=progress_callback
         )
 
@@ -797,68 +779,6 @@ def _filter_non_food_items(data: Dict[str, Any]) -> Dict[str, Any]:
 
     return result
 
-def _parse_uform_response(response_text: str) -> List[Dict[str, Any]]:
-    """
-    Парсит ответ UForm модели в формате текста.
-    Поддерживает два формата:
-    1. "ingredient1:type1, ingredient2:type2" - с типами
-    2. "ingredient1, ingredient2, ingredient3" - простой список
-    Также обрабатывает варианты с пояснениями в скобках, например "meat (pork)" → "meat"
-    """
-    if not response_text:
-        return []
-
-    ingredients = []
-    seen = set()
-
-    # Очищаем текст
-    cleaned_text = response_text.strip().lower()
-    cleaned_text = cleaned_text.replace('\n', ',').replace(';', ',')
-
-    items = [item.strip() for item in cleaned_text.split(',') if item.strip()]
-
-    for item in items:
-        # Убираем буллеты
-        name_candidate = item.strip()
-        while name_candidate.startswith(('-', '*')):
-            name_candidate = name_candidate[1:].strip()
-        if len(name_candidate) > 2 and name_candidate[0].isdigit() and name_candidate[1] in {'.', ')'}:
-            name_candidate = name_candidate[2:].strip()
-
-        # Извлекаем основное название до скобок, если есть
-        if '(' in name_candidate:
-            name_candidate = name_candidate.split('(')[0].strip()
-
-        if ':' in name_candidate:
-            name, ingredient_type = name_candidate.split(':', 1)
-            name = name.strip()
-            ingredient_type = ingredient_type.strip()
-            valid_types = ['protein', 'carb', 'vegetable', 'fat', 'sauce', 'herb', 'spice', 'other']
-            if ingredient_type not in valid_types:
-                ingredient_type = 'other'
-        else:
-            name = name_candidate.strip()
-            ingredient_type = _guess_ingredient_type(name)
-
-        name = name.strip(' \t\r\n-•*')
-
-        if name and len(name) > 1 and name not in seen:
-            seen.add(name)
-            ingredients.append({
-                'name': name,
-                'type': ingredient_type,
-                'confidence': 0.7,
-                'source': 'uform_text'
-            })
-
-    # Ограничиваем количество
-    if len(ingredients) > 15:
-        ingredients = ingredients[:15]
-        logger.info(f"📝 UForm response truncated to 15 ingredients")
-
-    logger.info(f"📝 Parsed {len(ingredients)} unique ingredients from UForm")
-    return ingredients
-
 def _guess_ingredient_type(ingredient_name: str) -> str:
     """
     Определяет тип ингредиента по названию на основе эвристики.
@@ -1027,19 +947,18 @@ async def identify_food_ensemble(
     progress_callback=None
 ) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
     """
-    Умный ансамбль: LLaVA (шеф-повар) + UForm (помощник по ингредиентам).
-    LLaVA отвечает за контекст блюда, UForm - за детальное перечисление ингредиентов.
+    Распознавание с использованием модели Llama 3.2 Vision.
     """
     if not BASE_URL:
         logger.error("❌ Cloudflare BASE_URL not configured")
         return None, None
 
     if model_indices is None:
-        model_indices = [0, 1]  # LLaVA + UForm
+        model_indices = [0]  # Только Llama 3.2 Vision
 
     models_to_use = [VISION_MODELS[i] for i in model_indices if i < len(VISION_MODELS)]
     if not models_to_use:
-        logger.error("❌ No valid models selected for ensemble")
+        logger.error("❌ No valid models selected")
         return None, None
 
     image_hash = _get_image_hash(image_bytes)
@@ -1053,177 +972,114 @@ async def identify_food_ensemble(
         "Content-Type": "application/json"
     }
 
-    async def run_llava_model(model_info: dict) -> Tuple[Optional[Dict], Optional[str]]:
-        """LLaVA - шеф-повар: определяет блюдо и основные ингредиенты"""
+    async def run_llama_model(model_info: dict) -> Tuple[Optional[Dict], Optional[str]]:
+        """Llama 3.2 Vision - распознавание еды"""
         model = model_info["id"]
         timeout = model_info["timeout"]
         try:
             url = f"{BASE_URL}{model}"
             payload = {
                 "image": image_array,
-                "prompt": LLAVA_ENSEMBLE_PROMPT,
+                "prompt": LLAMA_VISION_PROMPT,
                 "max_tokens": 1200,
                 "temperature": 0.1
             }
 
-            logger.info(f"👨🍳 Starting LLaVA model: {model}")
+            logger.info(f"� Starting Llama 3.2 Vision model: {model}")
             async with aiohttp.ClientSession() as session:
                 async with session.post(url, headers=headers, json=payload, timeout=timeout) as resp:
                     if resp.status != 200:
                         error_text = await resp.text()
-                        logger.warning(f"❌ LLaVA model {model} HTTP {resp.status}: {error_text[:100]}")
+                        logger.warning(f"❌ Llama 3.2 Vision model {model} HTTP {resp.status}: {error_text[:100]}")
                         return None, model
 
                     result = await resp.json()
                     description = result.get("result", {}).get("description", "").strip()
-                    logger.info(f"🔍 LLaVA raw response: {description[:500]}")  # ЛОГИРУЕМ
+                    logger.info(f"🔍 Llama 3.2 Vision raw response: {description[:500]}")
                     if not description:
-                        logger.warning(f"⚠️ LLaVA model {model} empty description")
+                        logger.warning(f"⚠️ Llama 3.2 Vision model {model} empty description")
                         return None, model
 
                     data = _extract_json_from_text(description)
                     if not data:
-                        logger.warning(f"⚠️ LLaVA model {model} failed to extract JSON")
+                        logger.warning(f"⚠️ Llama 3.2 Vision model {model} failed to extract JSON")
                         return None, model
 
                     is_valid, reason = _validate_food_data(data)
                     if not is_valid:
-                        logger.warning(f"⚠️ LLaVA model {model} validation failed: {reason}")
+                        logger.warning(f"⚠️ Llama 3.2 Vision model {model} validation failed: {reason}")
                         return None, model
 
                     data = _filter_non_food_items(data)
                     if data.get('success') == False:
-                        logger.warning(f"⚠️ LLaVA model {model} detected non-food items")
+                        logger.warning(f"⚠️ Llama 3.2 Vision model {model} detected non-food items")
                         return None, model
 
                     portion_size = data.get('portion_size', 'medium')
-                    if 'ingredients' in data:
+                    if portion_size in ['small', 'medium', 'large']:
                         data['ingredients'] = _calibrate_weights(data['ingredients'], portion_size)
                         data = _fix_protein_identification(data)
 
-                    logger.info(f"✅ LLaVA model {model} succeeded, confidence: {data.get('confidence', 0)}")
+                    logger.info(f"✅ Llama 3.2 Vision model {model} succeeded, confidence: {data.get('confidence', 0)}")
                     return data, model
         except Exception as e:
-            logger.warning(f"❌ LLaVA model {model} error: {type(e).__name__}: {e}")
+            logger.warning(f"❌ Llama 3.2 Vision model {model} error: {type(e).__name__}: {e}")
             return None, model
 
-    async def run_uform_model(model_info: dict) -> Tuple[Optional[List[Dict]], Optional[str]]:
-        """UForm - помощник по ингредиентам: подробно перечисляет все ингредиенты"""
-        model = model_info["id"]
-        timeout = model_info["timeout"]
-        try:
-            url = f"{BASE_URL}{model}"
-            payload = {
-                "image": image_array,
-                "prompt": UFORM_DETAILED_PROMPT,
-                "max_tokens": 500
-            }
-
-            logger.info(f"🥘 Starting UForm model: {model}")
-            async with aiohttp.ClientSession() as session:
-                async with session.post(url, headers=headers, json=payload, timeout=timeout) as resp:
-                    if resp.status != 200:
-                        error_text = await resp.text()
-                        logger.warning(f"❌ UForm model {model} HTTP {resp.status}: {error_text[:100]}")
-                        return None, model
-
-                    result = await resp.json()
-                    description = result.get("result", {}).get("description", "").strip()
-                    if not description:
-                        logger.warning(f"⚠️ UForm model {model} empty description")
-                        return None, model
-
-                    ingredients = _parse_uform_response(description)
-                    logger.info(f"📝 Parsed {len(ingredients)} ingredients from UForm text response")
-                    if not ingredients:
-                        logger.warning(f"⚠️ UForm model {model} failed to parse ingredients")
-                        return None, model
-
-                    filtered_data = {'ingredients': ingredients}
-                    filtered_data = _filter_non_food_items(filtered_data)
-                    if filtered_data.get('success') == False:
-                        logger.warning(f"⚠️ UForm model {model} detected non-food items")
-                        return None, model
-
-                    filtered_ingredients = filtered_data.get('ingredients', [])
-                    logger.info(f"✅ UForm model {model} found {len(filtered_ingredients)} ingredients")
-                    return filtered_ingredients, model
-        except Exception as e:
-            logger.warning(f"❌ UForm model {model} error: {type(e).__name__}: {e}")
-            return None, model
-
+    # Запускаем только Llama 3.2 Vision
     tasks = []
     for model_info in models_to_use:
-        if "llava" in model_info["id"].lower():
-            tasks.append(run_llava_model(model_info))
-        elif "uform" in model_info["id"].lower():
-            tasks.append(run_uform_model(model_info))
+        if "llama" in model_info["id"].lower() or "meta" in model_info["id"].lower():
+            tasks.append(run_llama_model(model_info))
         else:
-            tasks.append(run_legacy_model(model_info))
+            logger.warning(f"⚠️ Unknown model type: {model_info['id']}")
 
     results = await asyncio.gather(*tasks, return_exceptions=True)
 
-    llava_result = None
-    uform_ingredients = []
+    # Обрабатываем результаты
+    final_result = None
     used_models = []
 
     for i, res in enumerate(results):
         if isinstance(res, Exception):
-            logger.warning(f"🔥 Exception in ensemble task: {res}")
+            logger.warning(f"🔥 Exception in model task: {res}")
             continue
 
         model_name = models_to_use[i]["id"]
         used_models.append(model_name)
 
-        if "llava" in model_name.lower():
-            data, _ = res
-            if data:
-                llava_result = data
-                logger.info(f"👨🍳 LLaVA provided structured dish data")
-        elif "uform" in model_name.lower():
-            ingredients, _ = res
-            if ingredients:
-                uform_ingredients = ingredients
-                logger.info(f"🥘 UForm provided {len(ingredients)} detailed ingredients")
+        data, _ = res
+        if data:
+            final_result = data
+            logger.info(f"✅ Llama 3.2 Vision provided structured dish data")
 
     if progress_callback:
         await progress_callback(stage=3, progress=80)
 
-    if llava_result and uform_ingredients:
-        final_result = _merge_llava_with_uform(llava_result, uform_ingredients)
-        ensemble_model = f"ensemble(LLaVA+UForm)"
-        logger.info(f"🎯 Perfect ensemble: LLaVA context + UForm ingredients")
-    elif llava_result:
-        final_result = llava_result
-        ensemble_model = f"ensemble(LLaVA-only)"
-        logger.info(f"🔄 Fallback to LLaVA only")
-    elif uform_ingredients:
-        final_result = _reconstruct_dish_from_ingredients(uform_ingredients)
-        ensemble_model = f"ensemble(UForm-only)"
-        logger.info(f"🔄 Fallback to UForm ingredients only")
+    if final_result:
+        final_result = _fix_common_recognition_errors(final_result)
+        final_result = _expert_food_analysis(final_result)
+
+        dish_name = final_result.get('dish_name', '').lower()
+        ingredient_only_dishes = ['pork', 'beef', 'chicken', 'lamb', 'meat', 'fish']
+        if dish_name in ingredient_only_dishes:
+            logger.warning(f"⚠️ CRITICAL: Model returned ingredient '{dish_name}' instead of dish!")
+            final_result = _force_dish_identification(final_result)
+
+        _cache_result(image_hash, final_result)
+
+        if progress_callback:
+            await progress_callback(stage=4, progress=100)
+
+        ensemble_model = f"Llama 3.2 Vision"
+        logger.info(f"🏆 Model result: {ensemble_model}")
+        logger.info(f"📊 Final confidence: {final_result.get('confidence', 0):.2f}")
+        logger.info(f"🥘 Total ingredients: {len(final_result.get('ingredients', []))}")
+
+        return final_result, ensemble_model
     else:
-        logger.error("❌ All ensemble models failed")
+        logger.error("❌ Llama 3.2 Vision model failed")
         return None, None
-
-    final_result = _fix_common_recognition_errors(final_result)
-    final_result = _expert_food_analysis(final_result)
-
-    dish_name = final_result.get('dish_name', '').lower()
-    ingredient_only_dishes = ['pork', 'beef', 'chicken', 'lamb', 'meat', 'fish']
-    if dish_name in ingredient_only_dishes:
-        logger.warning(f"⚠️ CRITICAL: Model returned ingredient '{dish_name}' instead of dish!")
-        final_result = _force_dish_identification(final_result)
-
-    _cache_result(image_hash, final_result)
-
-    if progress_callback:
-        await progress_callback(stage=4, progress=100)
-
-    logger.info(f"🏆 Ensemble result: {ensemble_model}")
-    logger.info(f"📊 Final confidence: {final_result.get('confidence', 0):.2f}")
-    logger.info(f"🥘 Total ingredients: {len(final_result.get('ingredients', []))}")
-
-    return final_result, ensemble_model
 
 async def run_legacy_model(model_info: dict) -> Tuple[Optional[Dict], Optional[str]]:
     """Заглушка для старых моделей - не используется в новом ансамбле"""
@@ -1809,123 +1665,6 @@ def _force_dish_identification(data: Dict) -> Dict:
 
     return data
 
-def _merge_llava_with_uform(llava_data: Dict, uform_ingredients: List[Dict]) -> Dict:
-    """Объединяет результаты с ЖЕСТКОЙ ФИЛЬТРАЦИЕЙ UForm"""
-
-    logger.info("🔗 Merging LLaVA context with UForm ingredients...")
-
-    # 🔥 ЖЕСТКОЕ ОГРАНИЧЕНИЕ: максимум 5 ингредиентов от UForm
-    MAX_UFORM_INGREDIENTS = 5  # Было 10, уменьшили до 5
-
-    # Фильтруем только важные ингредиенты от UForm
-    important_types = ['protein', 'vegetable', 'carb']
-    filtered_uform = [ing for ing in uform_ingredients 
-                     if ing.get('type') in important_types and 
-                     ing.get('confidence', 0) > 0.6]
-
-    # Берем топ-5 по уверенности
-    filtered_uform.sort(key=lambda x: x.get('confidence', 0), reverse=True)
-    uform_ingredients = filtered_uform[:MAX_UFORM_INGREDIENTS]
-
-    logger.info(f"🔗 Filtered UForm: {len(uform_ingredients)} important ingredients")
-
-    # Начинаем с данных LLaVA (структура блюда)
-    merged = llava_data.copy()
-
-    # Собираем все ингредиенты
-    all_ingredients = []
-
-    # Добавляем основные ингредиенты от LLaVA (приоритет!)
-    llava_ingredients = llava_data.get('ingredients', [])
-    for ing in llava_ingredients:
-        ing_copy = ing.copy()
-        ing_copy['source'] = 'llava'
-        all_ingredients.append(ing_copy)
-
-    existing_names = {ing.get('name', '').lower().strip() for ing in all_ingredients if ing.get('name')}
-
-    # Добавляем ингредиенты от UForm только если их нет от LLaVA
-    for uform_ing in uform_ingredients:
-        uform_name = (uform_ing.get('name', '') or '').lower().strip()
-        if not uform_name or len(uform_name) < 2:
-            continue
-
-        if uform_name not in existing_names:
-            uform_copy = uform_ing.copy()
-            uform_copy['source'] = 'uform'
-            all_ingredients.append(uform_copy)
-            existing_names.add(uform_name)
-            continue
-
-        for existing in all_ingredients:
-            if (existing.get('name', '') or '').lower().strip() == uform_name:
-                avg_confidence = (existing.get('confidence', 0.7) + uform_ing.get('confidence', 0.7)) / 2
-                existing['confidence'] = avg_confidence
-                existing['source'] = 'both'
-                break
-
-    # Сортируем: сначала LLaVA (высокий приоритет), затем по уверенности
-    all_ingredients.sort(key=lambda x: (x.get('source') != 'llava', -(x.get('confidence', 0))))
-
-    # Ограничиваем общее количество ингредиентов
-    MAX_TOTAL_INGREDIENTS = 12
-    if len(all_ingredients) > MAX_TOTAL_INGREDIENTS:
-        all_ingredients = all_ingredients[:MAX_TOTAL_INGREDIENTS]
-        logger.info(f"🔗 Limited total ingredients to {MAX_TOTAL_INGREDIENTS}")
-
-    # Обновляем результат
-    merged['ingredients'] = all_ingredients
-    merged['ensemble_info'] = {
-        'llava_confidence': llava_data.get('confidence', 0),
-        'uform_ingredients_count': len(uform_ingredients),
-        'total_ingredients_count': len(all_ingredients),
-        'merge_strategy': 'llava_context_plus_uform_ingredients'
-    }
-
-    logger.info(f"✅ Merged: {len(llava_ingredients)} LLaVA + {len(uform_ingredients)} UForm = {len(all_ingredients)} total")
-    return merged
-
-def _reconstruct_dish_from_ingredients(ingredients: List[Dict]) -> Dict:
-    """
-    Реконструирует блюдо из списка ингредиентов (когда нет данных от LLaVA).
-    """
-    logger.info("🔧 Reconstructing dish from ingredients only...")
-
-    # Анализируем ингредиенты для определения типа блюда
-    protein_ingredients = [ing for ing in ingredients if ing.get('type') == 'protein']
-    carb_ingredients = [ing for ing in ingredients if ing.get('type') == 'carb']
-
-    dish_name = "mixed dish"
-    cooking_method = "unknown"
-    category = "main"
-
-    # Простая эвристика для определения блюда
-    if protein_ingredients:
-        main_protein = protein_ingredients[0].get('name', 'meat')
-        if carb_ingredients:
-            dish_name = f"{main_protein} with {carb_ingredients[0].get('name', 'grains')}"
-            category = "main"
-        else:
-            dish_name = f"grilled {main_protein}"
-            cooking_method = "grilled"
-            category = "main"
-
-    confidence = 0.6  # ниже уверенность для реконструированного блюда
-
-    return {
-        'dish_name': dish_name,
-        'dish_name_ru': dish_name,
-        'category': category,
-        'cooking_method': cooking_method,
-        'confidence': confidence,
-        'ingredients': ingredients,
-        'ensemble_info': {
-            'reconstruction': True,
-            'ingredients_only': True,
-            'reconstruction_strategy': 'ingredients_to_dish'
-        }
-    }
-
 async def identify_food_cascade(
     image_bytes: bytes,
     progress_callback=None
@@ -1937,7 +1676,7 @@ async def identify_food_cascade(
     try:
         data, used_model = await identify_food_ensemble(
             image_bytes,
-            model_indices=[0, 1],
+            model_indices=[0],
             progress_callback=progress_callback
         )
 
@@ -1965,7 +1704,7 @@ async def get_simple_ingredients(image_bytes: bytes) -> Optional[List[str]]:
     """Быстрое извлечение списка ингредиентов (fallback)."""
     data, _ = await identify_food_ensemble(
         image_bytes,
-        model_indices=[1],
+        model_indices=[0],
         progress_callback=None
     )
 
@@ -2029,9 +1768,20 @@ async def identify_dish_from_image(image_bytes: bytes) -> Optional[str]:
 async def analyze_food_image(image_bytes: bytes, prompt: str = None) -> Optional[str]:
     """Возвращает строку ингредиентов."""
     if prompt is None:
-        prompt = UFORM_DETAILED_PROMPT
+        prompt = LLAMA_VISION_PROMPT
 
-    ingredients = await get_simple_ingredients(image_bytes)
-    if ingredients:
+    data, _ = await identify_food_ensemble(
+        image_bytes,
+        model_indices=[0],
+        progress_callback=None
+    )
+    
+    if not data:
+        return None
+        
+    ingredients = data.get('ingredients', [])
+    if ingredients and isinstance(ingredients[0], dict):
+        return ", ".join([ing.get('name', '') for ing in ingredients if ing.get('name')])
+    if ingredients and isinstance(ingredients[0], str):
         return ", ".join(ingredients)
     return None

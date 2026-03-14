@@ -110,7 +110,7 @@ class AIBenchmarkSuite:
                 result_current = {
                     "success": True,
                     "confidence": 0.75 + (i * 0.03),
-                    "model": "llava-uform",
+                    "model": "llama-3.2-vision",
                     "data": {"dish_name": self._generate_mock_current_result(test_case)}
                 }
                 

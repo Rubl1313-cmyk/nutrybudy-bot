@@ -1,8 +1,291 @@
 """
-🎨 Современные UI шаблоны для NutriBuddy Bot
-✨ Стиль как в современных фитнес-приложениях
-🚀 Минималистичный дизайн с умными эмодзи
+UI Templates для NutriBuddy Bot
+Премиальные шаблоны интерфейсов, карточек, графиков
 """
+from datetime import datetime
+from typing import Dict, List, Optional
+import logging
+
+logger = logging.getLogger(__name__)
+
+class UITemplates:
+    """Премиальные UI шаблоны"""
+    
+    @staticmethod
+    def premium_profile_card(user, stats: Dict = None) -> str:
+        """Премиальная карточка профиля"""
+        lines = [
+            f"👤 <b>{user.first_name or 'Пользователь'}</b> · профиль",
+            "─────────────────────────────",
+            "📊 <b>Данные</b>",
+            f"   ⚖️ Вес: <code>{user.weight}</code> кг  |  📏 Рост: <code>{user.height}</code> см  |  🎂 Возраст: <code>{user.age}</code> лет",
+            f"   {('♂️' if user.gender=='male' else '♀️')} Пол: {user.gender}  |  🎯 Цель: {user.goal}",
+            f"   🏃 Активность: {user.activity_level}",
+            "",
+            "📈 <b>Ваши нормы</b>",
+            f"   🔥 Калории: <code>{user.daily_calorie_goal:,.0f}</code> ккал  ▰▰▰▰▰▰▰▰",
+            f"   🥩 Белки: <code>{user.daily_protein_goal:.0f}</code> г (30%)    ▰▰▰▰▱▱▱▱",
+            f"   🥑 Жиры: <code>{user.daily_fat_goal:.0f}</code> г (30%)      ▰▰▰▰▱▱▱▱",
+            f"   🍚 Углеводы: <code>{user.daily_carbs_goal:.0f}</code> г (40%) ▰▰▰▰▰▰▱▱",
+            f"   💧 Вода: <code>{user.daily_water_goal:,.0f}</code> мл        ▰▰▰▰▰▰▰▰▰▰"
+        ]
+        if stats:
+            lines.extend([
+                "",
+                f"✨ <i>Сегодня выполнено {stats['progress_percent']:.0f}% плана по калориям.</i>"
+            ])
+        return "\n".join(lines)
+    
+    @staticmethod
+    def premium_progress_card(stats: Dict, period: str) -> str:
+        """Премиальная карточка прогресса"""
+        period_icons = {'day': '📅', 'week': '📆', 'month': '📊'}
+        icon = period_icons.get(period, '📊')
+        period_names = {'day': 'сегодня', 'week': 'за неделю', 'month': 'за месяц'}
+        name = period_names.get(period, 'за период')
+        
+        # Прогресс-бары
+        calorie_progress = min((stats['calories_consumed'] / stats['calorie_goal']) * 100, 100) if stats['calorie_goal'] > 0 else 0
+        protein_progress = min((stats['protein_consumed'] / stats['protein_goal']) * 100, 100) if stats['protein_goal'] > 0 else 0
+        fat_progress = min((stats['fat_consumed'] / stats['fat_goal']) * 100, 100) if stats['fat_goal'] > 0 else 0
+        carbs_progress = min((stats['carbs_consumed'] / stats['carbs_goal']) * 100, 100) if stats['carbs_goal'] > 0 else 0
+        water_progress = min((stats['water_consumed'] / stats['water_goal']) * 100, 100) if stats['water_goal'] > 0 else 0
+        
+        lines = [
+            f"{icon} <b>Ваш прогресс {name}:</b>",
+            "─────────────────────────────",
+            f"🔥 <b>Калории:</b>",
+            f"   {UITemplates.create_progress_bar(stats['calories_consumed'], stats['calorie_goal'])}",
+            f"   <code>{stats['calories_consumed']:.0f}</code> / <code>{stats['calorie_goal']:.0f}</code> ккал ({calorie_progress:.0f}%)",
+            "",
+            f"🥩 <b>Белки:</b>",
+            f"   {UITemplates.create_progress_bar(stats['protein_consumed'], stats['protein_goal'])}",
+            f"   <code>{stats['protein_consumed']:.1f}</code> / <code>{stats['protein_goal']:.1f}</code> г ({protein_progress:.0f}%)",
+            "",
+            f"🥑 <b>Жиры:</b>",
+            f"   {UITemplates.create_progress_bar(stats['fat_consumed'], stats['fat_goal'])}",
+            f"   <code>{stats['fat_consumed']:.1f}</code> / <code>{stats['fat_goal']:.1f}</code> г ({fat_progress:.0f}%)",
+            "",
+            f"🍚 <b>Углеводы:</b>",
+            f"   {UITemplates.create_progress_bar(stats['carbs_consumed'], stats['carbs_goal'])}",
+            f"   <code>{stats['carbs_consumed']:.1f}</code> / <code>{stats['carbs_goal']:.1f}</code> г ({carbs_progress:.0f}%)",
+            "",
+            f"💧 <b>Вода:</b>",
+            f"   {UITemplates.create_progress_bar(stats['water_consumed'], stats['water_goal'])}",
+            f"   <code>{stats['water_consumed']:.0f}</code> / <code>{stats['water_goal']:.0f}</code> мл ({water_progress:.0f}%)",
+            "",
+            f"💬 <i>{UITemplates._get_progress_motivation(calorie_progress)}</i>"
+        ]
+        
+        return "\n".join(lines)
+    
+    @staticmethod
+    def create_progress_bar(current: float, total: float, length: int = 12) -> str:
+        """Создает современный прогресс-бар"""
+        if total <= 0:
+            percentage = 0
+        else:
+            percentage = min((current / total) * 100, 100)
+        
+        filled = int(length * percentage / 100)
+        empty = length - filled
+        
+        # Градиент от синего к золотому
+        bar = '🟦' * filled + '⬜' * empty
+        
+        # Добавляем звездочку если прогресс > 90%
+        if percentage >= 90 and filled > 0:
+            bar = bar[:-1] + '⭐'
+        
+        return f"{bar} <code>{percentage:.0f}%</code>"
+    
+    @staticmethod
+    def _get_progress_motivation(calorie_progress: float) -> str:
+        """Мотивация по прогрессу калорий"""
+        if calorie_progress >= 95:
+            return "Отличная работа! Вы почти достигли цели! 🎯"
+        elif calorie_progress >= 80:
+            return "Прекрасный результат! Так держать! ⚡"
+        elif calorie_progress >= 60:
+            return "Хороший прогресс! Продолжайте в том же духе. ✨"
+        elif calorie_progress >= 40:
+            return "Вы на верном пути! Не останавливайтесь. 🌱"
+        elif calorie_progress >= 20:
+            return "Хорошее начало! День еще в самом разгаре. 💪"
+        else:
+            return "День только начинается! У вас всё получится. 🌅"
+    
+    @staticmethod
+    def premium_meal_card(meal_type: str, items: List[Dict], totals: Dict, progress: float) -> str:
+        """Премиальная карточка приема пищи"""
+        meal_icons = {'breakfast': '🍳', 'lunch': '🍲', 'dinner': '🍽️', 'snack': '🍎'}
+        icon = meal_icons.get(meal_type, '🍽️')
+        meal_names = {'breakfast': 'Завтрак', 'lunch': 'Обед', 'dinner': 'Ужин', 'snack': 'Перекус'}
+        name = meal_names.get(meal_type, 'Приём пищи')
+
+        items_text = "\n".join([f"   {item['name']} – {item.get('weight', 0)}г · {item.get('calories', 0)} ккал" for item in items])
+
+        progress_bar = UITemplates.create_progress_bar(progress, 100)
+
+        return (
+            f"{icon} <b>{name} записан</b>\n"
+            f"─────────────────────────────\n"
+            f"{items_text}\n"
+            f"─────────────────────────────\n"
+            f"🔥 <b>Итого:</b> <code>{totals['calories']:.0f}</code> ккал | "
+            f"🥩<code>{totals['protein']:.1f}</code> | 🥑<code>{totals['fat']:.1f}</code> | 🍚<code>{totals['carbs']:.1f}</code>\n\n"
+            f"📊 <b>Прогресс дня:</b> {progress:.0f}%\n"
+            f"{progress_bar}\n\n"
+            f"💬 <i>{UITemplates._get_meal_motivation(progress)}</i>"
+        )
+    
+    @staticmethod
+    def _get_meal_motivation(progress: float) -> str:
+        """Мотивация после приема пищи"""
+        if progress >= 100:
+            return "Цель на сегодня достигнута! Отличная работа! 🎯"
+        elif progress >= 75:
+            return "Прекрасный темп! Осталось совсем немного. ⚡"
+        elif progress >= 50:
+            return "Хороший результат! Продолжайте в том же духе. ✨"
+        elif progress >= 25:
+            return "Вы на верном пути. Не останавливайтесь! 🌱"
+        else:
+            return "День только начинается! У вас всё получится. 💪"
+    
+    @staticmethod
+    def premium_ai_card(response: str, model_used: str, tokens_used: int) -> str:
+        """Премиальная карточка AI ответа"""
+        return (
+            f"🤖 <b>AI Ассистент:</b>\n"
+            f"─────────────────────────────\n"
+            f"{response}\n\n"
+            f"🔹 <i>Модель: {model_used}</i>\n"
+            f"🔹 <i>Токенов использовано: {tokens_used}</i>"
+        )
+    
+    @staticmethod
+    def premium_water_card(current: int, goal: int, recent_entries: List[Dict]) -> str:
+        """Премиальная карточка воды"""
+        progress = min((current / goal) * 100, 100) if goal > 0 else 0
+        progress_bar = UITemplates.create_progress_bar(current, goal)
+        
+        lines = [
+            "💧 <b>Водный баланс</b>",
+            "─────────────────────────────",
+            f"📊 <b>Сегодня выпито:</b>",
+            f"   {progress_bar}",
+            f"   <code>{current}</code> / <code>{goal}</code> мл ({progress:.0f}%)",
+            "",
+            f"📝 <b>Последние записи:</b>"
+        ]
+        
+        for entry in recent_entries[-3:]:  # Показываем последние 3 записи
+            time_str = entry['datetime'].strftime("%H:%M")
+            amount = entry['amount']
+            lines.append(f"   {time_str} · +{amount} мл")
+        
+        lines.extend([
+            "",
+            f"� <i>{UITemplates._get_water_motivation(progress)}</i>"
+        ])
+        
+        return "\n".join(lines)
+    
+    @staticmethod
+    def _get_water_motivation(progress: float) -> str:
+        """Мотивация по потреблению воды"""
+        if progress >= 100:
+            return "Отлично! Норма воды выполнена! 💧✨"
+        elif progress >= 75:
+            return "Почти достигли цели! Осталось немного! 💪"
+        elif progress >= 50:
+            return "Хорошая работа! Продолжайте пить воду! 💧"
+        elif progress >= 25:
+            return "Начало положено! Не забывайте про воду! 💦"
+        else:
+            return "Начинайте пить воду больше! Важно для здоровья! 💧"
+    
+    @staticmethod
+    def premium_activity_card(activities: List[Dict], total_calories: int) -> str:
+        """Премиальная карточка активности"""
+        lines = [
+            "🏃‍♂️ <b>Активность сегодня</b>",
+            "─────────────────────────────",
+            f"🔥 <b>Сожжено калорий:</b> <code>{total_calories}</code> ккал",
+            "",
+            f"📝 <b>Записи активности:</b>"
+        ]
+        
+        for activity in activities[-5:]:  # Показываем последние 5 записей
+            time_str = activity['datetime'].strftime("%H:%M")
+            name = activity['activity_name']
+            duration = activity['duration']
+            calories = activity['calories_burned']
+            lines.append(f"   {time_str} · {name} ({duration} мин) · {calories} ккал")
+        
+        if not activities:
+            lines.append("   Пока нет записей активности")
+        
+        lines.extend([
+            "",
+            f"💬 <i>Двигайтесь больше для достижения целей! 💪</i>"
+        ])
+        
+        return "\n".join(lines)
+    
+    @staticmethod
+    def premium_weight_card(current_weight: float, goal_weight: float, entries: List[Dict]) -> str:
+        """Премиальная карточка веса"""
+        difference = current_weight - goal_weight
+        progress = 0
+        
+        if goal_weight > 0:
+            if difference <= 0:  # Цель достигнута или перевыполнена
+                progress = 100
+            else:
+                # Для похудения: считаем прогресс как процент от исходного лишнего веса
+                # Это упрощенный расчет, в реальности нужен начальный вес
+                progress = max(0, min(100, 100 - (difference / abs(goal_weight)) * 100))
+        
+        lines = [
+            "⚖️ <b>Вес и прогресс</b>",
+            "─────────────────────────────",
+            f"📊 <b>Текущий вес:</b> <code>{current_weight:.1f}</code> кг",
+            f"🎯 <b>Целевой вес:</b> <code>{goal_weight:.1f}</code> кг",
+            f"📈 <b>Разница:</b> <code>{abs(difference):.1f}</code> кг {'до цели' if difference > 0 else 'перевыполнено' if difference < 0 else 'цель достигнута'}",
+            "",
+            f"📊 <b>Прогресс к цели:</b>",
+            f"   {UITemplates.create_progress_bar(progress, 100)}",
+            "",
+            f"📝 <b>Последние записи:</b>"
+        ]
+        
+        for entry in entries[-3:]:  # Показываем последние 3 записи
+            date_str = entry['datetime'].strftime("%d.%m")
+            weight = entry['weight']
+            lines.append(f"   {date_str} · {weight:.1f} кг")
+        
+        lines.extend([
+            "",
+            f"💬 <i>{UITemplates._get_weight_motivation(progress, difference)}</i>"
+        ])
+        
+        return "\n".join(lines)
+    
+    @staticmethod
+    def _get_weight_motivation(progress: float, difference: float) -> str:
+        """Мотивация по весу"""
+        if difference <= 0:
+            return "Поздравляем! Цель по весу достигнута! 🎉"
+        elif progress >= 80:
+            return "Отлично! Вы очень близко к цели! 💪"
+        elif progress >= 50:
+            return "Хорошая работа! Продолжайте в том же духе! ✨"
+        elif progress >= 25:
+            return "Вы на верном пути! Не останавливайтесь! 🌱"
+        else:
+            return "Начало положено! У вас всё получится! 💪"
 
 class ProgressBar:
     """🎯 Современные прогресс-бары с градиентами и анимацией"""

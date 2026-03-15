@@ -1,11 +1,236 @@
 """
-🎨 Современные клавиатуры для NutriBuddy Bot
-✨ Стиль как в современных фитнес-приложениях
-🚀 Умные эмодзи и интуитивная навигация
+Интеллектуальные клавиатуры для NutriBuddy Bot
+Адаптивные, контекстные, премиальные
 """
-
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
+from typing import List, Dict, Optional
+from datetime import datetime
+
+class SmartKeyboard:
+    """Интеллектуальные клавиатуры с адаптацией под контекст"""
+    
+    @staticmethod
+    def quick_actions(user_context: Dict) -> InlineKeyboardMarkup:
+        """Генерирует клавиатуру с предсказанными действиями на основе контекста."""
+        builder = InlineKeyboardBuilder()
+        hour = user_context.get('hour', datetime.now().hour)
+        last_actions = user_context.get('last_actions', [])
+
+        # Утренние действия
+        if 5 <= hour < 11:
+            builder.button(text="🍳 Записать завтрак", callback_data="quick_breakfast")
+            builder.button(text="💧 Выпить воды", callback_data="water_add_250")
+        # Дневные
+        elif 11 <= hour < 17:
+            builder.button(text="🍲 Записать обед", callback_data="quick_lunch")
+            builder.button(text="🏃‍♂️ Активность", callback_data="menu_activity")
+        # Вечерние
+        else:
+            builder.button(text="🍽️ Записать ужин", callback_data="quick_dinner")
+            builder.button(text="⚖️ Записать вес", callback_data="menu_log_weight")
+
+        # Если пользователь часто записывает воду, добавим кнопку воды
+        if last_actions.count('water') > 2:
+            builder.button(text="💧 +250 мл", callback_data="water_add_250")
+
+        builder.button(text="📊 Прогресс", callback_data="show_progress")
+        builder.adjust(2)
+        return builder.as_markup()
+
+    @staticmethod
+    def food_selection_with_recent(foods: List[Dict], recent: List[str]) -> InlineKeyboardMarkup:
+        """Клавиатура выбора продукта с учётом недавних."""
+        builder = InlineKeyboardBuilder()
+        # Сначала недавние
+        for name in recent[:3]:
+            builder.button(text=f"🔄 {name}", callback_data=f"food_recent_{name}")
+        # Затем результаты поиска
+        for i, food in enumerate(foods[:5]):
+            builder.button(
+                text=f"{food['name']} — {food.get('calories', 0):.0f} ккал",
+                callback_data=f"food_{i}"
+            )
+        builder.button(text="✍️ Ввести вручную", callback_data="food_manual")
+        builder.adjust(1)
+        return builder.as_markup()
+    
+    @staticmethod
+    def contextual_meal_suggestions(meal_type: str, user_preferences: Dict) -> InlineKeyboardMarkup:
+        """Контекстные предложения блюд на основе предпочтений"""
+        builder = InlineKeyboardBuilder()
+        
+        # Предложения на основе типа приема пищи
+        if meal_type == "breakfast":
+            suggestions = [
+                "🥞 Овсянка с ягодами",
+                "🍳 Яичница с тостами",
+                "🥛 Сырники",
+                "🥤 Смузи"
+            ]
+        elif meal_type == "lunch":
+            suggestions = [
+                "🍲 Куриный суп",
+                "🍛 Салат Цезарь",
+                "🍛 Гречка с котлетой",
+                "🍕 Пицца"
+            ]
+        elif meal_type == "dinner":
+            suggestions = [
+                "🍽️ Запеченная рыба",
+                "🥩 Стейк с овощами",
+                "🍛 Салат с тунцом",
+                "🍝 Паста"
+            ]
+        else:  # snack
+            suggestions = [
+                "🍎 Яблоко",
+                "🥛 Йогурт",
+                "🥜 Орехи",
+                "🍌 Банан"
+            ]
+        
+        for suggestion in suggestions:
+            builder.button(text=suggestion, callback_data=f"quick_select_{suggestion}")
+        
+        builder.button(text="✍️ Ввести вручную", callback_data="manual_food")
+        builder.button(text="📸 Сделать фото", callback_data="photo_food")
+        builder.adjust(2)
+        return builder.as_markup()
+    
+    @staticmethod
+    def premium_progress_options() -> InlineKeyboardMarkup:
+        """Премиальные опции прогресса"""
+        builder = InlineKeyboardBuilder()
+        builder.button(text="📅 Сегодня", callback_data="progress_day")
+        builder.button(text="📆 Неделя", callback_data="progress_week")
+        builder.button(text="📊 Месяц", callback_data="progress_month")
+        builder.button(text="🏆 Достижения", callback_data="achievements")
+        builder.button(text="📈 Графики", callback_data="show_charts")
+        builder.button(text="❌ Закрыть", callback_data="close")
+        builder.adjust(2)
+        return builder.as_markup()
+    
+    @staticmethod
+    def smart_water_suggestions(current_intake: int, daily_goal: int) -> InlineKeyboardMarkup:
+        """Умные предложения воды на основе текущего потребления"""
+        builder = InlineKeyboardBuilder()
+        
+        remaining = daily_goal - current_intake
+        
+        if remaining <= 0:
+            builder.button(text="🎯 Цель достигнута!", callback_data="water_goal_met")
+        elif remaining <= 250:
+            builder.button(text=f"💧 Допить {remaining} мл", callback_data=f"water_add_{remaining}")
+        else:
+            # Предлагаем стандартные порции
+            amounts = [200, 250, 300, 500]
+            for amount in amounts:
+                if amount <= remaining:
+                    builder.button(text=f"💧 +{amount} мл", callback_data=f"water_add_{amount}")
+        
+        builder.button(text="📊 Статистика воды", callback_data="water_stats")
+        builder.button(text="⚙️ Изменить цель", callback_data="edit_water_goal")
+        builder.button(text="❌ Закрыть", callback_data="close")
+        builder.adjust(2)
+        return builder.as_markup()
+    
+    @staticmethod
+    def contextual_main_menu(user_context: Dict) -> InlineKeyboardMarkup:
+        """Контекстное главное меню"""
+        builder = InlineKeyboardBuilder()
+        hour = user_context.get('hour', datetime.now().hour)
+        
+        # Адаптивные кнопки на основе времени
+        if 5 <= hour < 11:
+            builder.button(text="🍳 Завтрак", callback_data="meal_breakfast")
+            builder.button(text="📊 Прогресс", callback_data="show_progress")
+        elif 11 <= hour < 17:
+            builder.button(text="🍲 Обед", callback_data="meal_lunch")
+            builder.button(text="💧 Вода", callback_data="log_water")
+        else:
+            builder.button(text="🍽️ Ужин", callback_data="meal_dinner")
+            builder.button(text="📊 Прогресс", callback_data="show_progress")
+        
+        # Постоянные кнопки
+        builder.button(text="👤 Профиль", callback_data="show_profile")
+        builder.button(text="🤖 AI Ассистент", callback_data="ai_assistant")
+        builder.button(text="⚙️ Настройки", callback_data="settings")
+        
+        builder.adjust(2)
+        return builder.as_markup()
+
+class PremiumKeyboard:
+    """Премиальные стили клавиатур"""
+    
+    @staticmethod
+    def luxury_main_menu() -> InlineKeyboardMarkup:
+        """Роскошное главное меню"""
+        builder = InlineKeyboardBuilder()
+        
+        # Первая строка - основные действия
+        builder.button(text="📸 🍽️ Фото еды", callback_data="photo_food")
+        builder.button(text="📊 📈 Прогресс", callback_data="show_progress")
+        
+        # Вторая строка - питание
+        builder.button(text="🍳 🍽️ Питание", callback_data="food_menu")
+        builder.button(text="💧 💦 Вода", callback_data="water_menu")
+        
+        # Третья строка - активность
+        builder.button(text="🏃 🏃 Активность", callback_data="activity_menu")
+        builder.button(text="⚖️ ⚖️ Вес", callback_data="weight_menu")
+        
+        # Четвертая строка - аналитика
+        builder.button(text="👤 👤 Профиль", callback_data="show_profile")
+        builder.button(text="🤖 🤖 AI Помощь", callback_data="ai_assistant")
+        
+        # Пятая строка - настройки
+        builder.button(text="⚙️ ⚙️ Настройки", callback_data="settings")
+        
+        builder.adjust(2)
+        return builder.as_markup()
+    
+    @staticmethod
+    def gradient_progress_bar(current: float, total: float, length: int = 12) -> str:
+        """Градиентный прогресс-бар"""
+        if total <= 0:
+            percentage = 0
+        else:
+            percentage = min((current / total) * 100, 100)
+        
+        filled = int(length * percentage / 100)
+        empty = length - filled
+        
+        # Градиент от синего к золотому
+        gradient_chars = ['🟦', '🟦', '🟦', '🟦', '🟨', '🟩', '🟨', '🟦']
+        
+        bar = ""
+        for i in range(length):
+            if i < filled:
+                bar += gradient_chars[i % len(gradient_chars)]
+            else:
+                bar += '⬜'
+        
+        # Добавляем звездочку если прогресс высокий
+        if percentage >= 90:
+            bar = bar[:-1] + '⭐'
+        
+        return f"{bar} <code>{percentage:.0f}%</code>"
+    
+    @staticmethod
+    def animated_loading_button(text: str, callback_data: str) -> InlineKeyboardButton:
+        """Анимированная кнопка загрузки"""
+        return InlineKeyboardButton(text=f"⏳ {text}", callback_data=callback_data)
+    
+    @staticmethod
+    def success_button(text: str, callback_data: str) -> InlineKeyboardButton:
+        """Кнопка успеха"""
+        return InlineKeyboardButton(text=f"✅ {text}", callback_data=callback_data)
+    
+    @staticmethod
+    def warning_button(text: str, callback_data: str) -> InlineKeyboardButton:
+        """Кнопка предупреждения"""
+        return InlineKeyboardButton(text=f"⚠️ {text}", callback_data=callback_data)
 
 def get_modern_main_menu() -> InlineKeyboardMarkup:
     """

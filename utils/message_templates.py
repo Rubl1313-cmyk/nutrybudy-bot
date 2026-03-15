@@ -1,10 +1,44 @@
 """
-🎨 Современные шаблоны сообщений для NutriBuddy Bot
-✨ Стиль как в современных фитнес-приложениях
-🚀 Мотивирующие и красивые сообщения
+Премиальные шаблоны сообщений для NutriBuddy Bot
+Элегантные карточки, графики, контекстные подсказки, персонализация
 """
+from datetime import datetime
+from typing import Dict, List, Optional
+import logging
+
+logger = logging.getLogger(__name__)
 
 class MessageTemplates:
+    """Премиальные шаблоны сообщений"""
+    
+    @staticmethod
+    def premium_welcome_message(user_name: str) -> str:
+        """Современное премиальное приветствие"""
+        hour = datetime.now().hour
+        
+        if 5 <= hour < 12:
+            greeting = "Доброе утро"
+            emoji = "🌅"
+        elif 12 <= hour < 18:
+            greeting = "Добрый день"
+            emoji = "☀️"
+        else:
+            greeting = "Добрый вечер"
+            emoji = "🌙"
+        
+        return (
+            f"{emoji} <b>{greeting}, {user_name}!</b>\n\n"
+            f"🤖 <b>Добро пожаловать в NutriBuddy</b>\n"
+            f"Ваш персональный AI-ассистент по питанию и здоровью\n\n"
+            f"🎯 <b>Что я могу для вас сделать:</b>\n"
+            f"📸 Распознать еду по фото\n"
+            f"🤖 Ответить на вопросы о питании\n"
+            f"📊 Показать ваш прогресс\n"
+            f"🍽️ Составить план питания\n\n"
+            f"💡 <b>Начните с создания профиля</b>\n"
+            f"Команда: <code>/set_profile</code>\n\n"
+            f"Или просто отправьте фото еды! 📸"
+        )
     
     @staticmethod
     def modern_welcome_message(user_name: str = "Пользователь", 

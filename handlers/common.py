@@ -27,39 +27,228 @@ from keyboards.inline import (
 # from utils.states import StepsStates
 # from handlers.weight import cmd_log_weight
 
-# Временные заглушки для отсутствующих функций
-def cmd_profile(*args, **kwargs):
-    return "Профиль в разработке..."
+# Реальные функции вместо заглушек
+async def cmd_profile(message: Message, state: FSMContext, user_id: int = None):
+    """Показ профиля пользователя"""
+    if user_id is None:
+        user_id = message.from_user.id
+    
+    from database.db import get_session
+    from database.models import User
+    from sqlalchemy import select
+    
+    try:
+        async with get_session() as session:
+            user_result = await session.execute(select(User).where(User.telegram_id == user_id))
+            user = user_result.scalar_one_or_none()
+            
+            if user:
+                profile_text = f"""
+👤 <b>Ваш профиль:</b>
 
-def cmd_log_food(*args, **kwargs):
-    return "Логирование еды в разработке..."
+📊 <b>Данные:</b>
+🎂 Возраст: {user.age or 'не указан'}
+👫 Пол: {user.gender or 'не указан'}
+📏 Рост: {user.height or 'не указан'} см
+⚖️ Вес: {user.weight or 'не указан'} кг
+🎯 Цель: {user.goal or 'не указана'}
+🏃 Активность: {user.activity_level or 'не указана'}
 
-def cmd_water(*args, **kwargs):
-    return "Вода в разработке..."
+🎯 <b>Цели на день:</b>
+🔥 Калории: {user.daily_calorie_goal or 2000} ккал
+🥩 Белки: {user.daily_protein_goal or 150}г
+🥑 Жиры: {user.daily_fat_goal or 65}г
+🍚 Углеводы: {user.daily_carbs_goal or 250}г
+💧 Вода: {user.daily_water_goal or 2000}мл
+👞 Шаги: {user.daily_steps_goal or 10000}
+"""
+                await message.answer(profile_text, parse_mode="HTML")
+            else:
+                await message.answer(
+                    "❌ Профиль не найден.\n"
+                    "Создайте профиль через /set_profile",
+                    reply_markup=get_main_keyboard()
+                )
+    except Exception as e:
+        logger.error(f"❌ Error in cmd_profile: {e}")
+        await message.answer("❌ Ошибка загрузки профиля")
 
-def cmd_progress(*args, **kwargs):
-    return "Прогресс в разработке..."
+async def cmd_log_food(message: Message, state: FSMContext, user_id: int = None):
+    """Логирование еды"""
+    if user_id is None:
+        user_id = message.from_user.id
+    
+    await message.answer(
+        "🍽️ <b>Логирование еды:</b>\n\n"
+        "Выберите способ:\n"
+        "• 📸 Отправить фото\n"
+        "• ✍️ Ввести вручную\n"
+        "• 🔍 Найти в базе\n\n"
+        "Отправьте фото или напишите что вы съели:",
+        reply_markup=get_main_keyboard(),
+        parse_mode="HTML"
+    )
 
-def cmd_fitness(*args, **kwargs):
-    return "Активность в разработке..."
+async def cmd_water(message: Message, state: FSMContext, user_id: int = None):
+    """Учет воды"""
+    if user_id is None:
+        user_id = message.from_user.id
+    
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
+    builder = InlineKeyboardBuilder()
+    
+    water_amounts = [200, 300, 500, 1000]
+    for amount in water_amounts:
+        builder.button(text=f"{amount}мл", callback_data=f"water_add_{amount}")
+    
+    builder.button(text="❌ Закрыть", callback_data="close")
+    builder.adjust(2)
+    
+    await message.answer(
+        "💧 <b>Учет воды:</b>\n\n"
+        "Выберите количество:",
+        reply_markup=builder.as_markup(),
+        parse_mode="HTML"
+    )
 
-def cmd_ask(*args, **kwargs):
-    return "AI ассистент в разработке..."
+async def cmd_progress(message: Message, state: FSMContext, user_id: int = None):
+    """Показ прогресса"""
+    if user_id is None:
+        user_id = message.from_user.id
+    
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
+    builder = InlineKeyboardBuilder()
+    builder.button(text="📅 Сегодня", callback_data="progress_day")
+    builder.button(text="📆 Неделя", callback_data="progress_week")
+    builder.button(text="📊 Месяц", callback_data="progress_month")
+    builder.button(text="❌ Закрыть", callback_data="close")
+    builder.adjust(2)
+    
+    await message.answer(
+        "📊 <b>Ваш прогресс:</b>\n\n"
+        "Выберите период:",
+        reply_markup=builder.as_markup(),
+        parse_mode="HTML"
+    )
 
-def cmd_meal_plan(*args, **kwargs):
-    return "План питания в разработке..."
+async def cmd_fitness(message: Message, state: FSMContext, user_id: int = None):
+    """Учет активности"""
+    if user_id is None:
+        user_id = message.from_user.id
+    
+    await message.answer(
+        "🏃 <b>Учет активности:</b>\n\n"
+        "Напишите активность и длительность:\n"
+        "Примеры:\n"
+        "• Бег 30 минут\n"
+        "• Плавание 45 минут\n"
+        "• Йога 60 минут\n\n"
+        "Или отправьте голосовое сообщение!",
+        reply_markup=get_main_keyboard(),
+        parse_mode="HTML"
+    )
 
-def cmd_log_weight(*args, **kwargs):
-    return "Вес в разработке..."
+async def cmd_ask(message: Message, state: FSMContext, user_id: int = None):
+    """AI ассистент"""
+    if user_id is None:
+        user_id = message.from_user.id
+    
+    await message.answer(
+        "🤖 <b>AI ассистент:</b>\n\n"
+        "Задайте вопрос о питании, тренировках или здоровье:\n\n"
+        "Примеры:\n"
+        "• Сколько калорий в гречке?\n"
+        "• Какие упражнения для пресса?\n"
+        "• Как составить план питания?\n\n"
+        "Я помогу вам с советами!",
+        reply_markup=get_main_keyboard(),
+        parse_mode="HTML"
+    )
 
-def cmd_food(*args, **kwargs):
-    return "Еда в разработке..."
+async def cmd_meal_plan(message: Message, state: FSMContext, user_id: int = None):
+    """План питания"""
+    if user_id is None:
+        user_id = message.from_user.id
+    
+    await message.answer(
+        "🍽️ <b>План питания:</b>\n\n"
+        "📅 <b>Примерной план на день:</b>\n\n"
+        "🌅 <b>Завтрак (7:00):</b>\n"
+        "• Овсянка с ягодами - 250ккал\n"
+        "• Кофе с молоком - 50ккал\n\n"
+        "☀️ <b>Обед (13:00):</b>\n"
+        "• Куриный суп - 200ккал\n"
+        "• Салат с тунцом - 300ккал\n"
+        "• Цельнозерновой хлеб - 100ккал\n\n"
+        "🌙 <b>Ужин (19:00):</b>\n"
+        "• Запеченная рыба - 350ккал\n"
+        "• Овощной салат - 100ккал\n\n"
+        "🍎 <b>Перекусы:</b>\n"
+        "• Яблоко или банан - 80ккал\n"
+        "• Йогурт - 100ккал\n\n"
+        "💡 <b>Итого: ~1530 ккал</b>\n\n"
+        "План можно адаптировать под ваши цели!",
+        reply_markup=get_main_keyboard(),
+        parse_mode="HTML"
+    )
 
-def cmd_log_steps(*args, **kwargs):
-    return "Шаги в разработке..."
+async def cmd_log_weight(message: Message, state: FSMContext, user_id: int = None):
+    """Учет веса"""
+    if user_id is None:
+        user_id = message.from_user.id
+    
+    await message.answer(
+        "⚖️ <b>Учет веса:</b>\n\n"
+        "Напишите ваш текущий вес:\n\n"
+        "Примеры:\n"
+        "• 70.5\n"
+        "• 68 кг\n"
+        "• 72.3\n\n"
+        "Рекомендуется взвешиваться утром натощак!",
+        reply_markup=get_main_keyboard(),
+        parse_mode="HTML"
+    )
+
+async def cmd_food(message: Message, state: FSMContext, user_id: int = None):
+    """Работа с едой"""
+    if user_id is None:
+        user_id = message.from_user.id
+    
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
+    builder = InlineKeyboardBuilder()
+    builder.button(text="📸 Фото еды", callback_data="photo_food")
+    builder.button(text="✍️ Вручную", callback_data="manual_food")
+    builder.button(text="🔍 Поиск в базе", callback_data="select_from_db")
+    builder.button(text="❌ Закрыть", callback_data="close")
+    builder.adjust(2)
+    
+    await message.answer(
+        "🍽️ <b>Работа с едой:</b>\n\n"
+        "Выберите способ добавления:",
+        reply_markup=builder.as_markup(),
+        parse_mode="HTML"
+    )
+
+async def cmd_log_steps(message: Message, state: FSMContext, user_id: int = None):
+    """Учет шагов"""
+    if user_id is None:
+        user_id = message.from_user.id
+    
+    await message.answer(
+        "👞 <b>Учет шагов:</b>\n\n"
+        "Напишите количество шагов:\n\n"
+        "Примеры:\n"
+        "• 5000\n"
+        "• 10000 шагов\n"
+        "• 12500\n\n"
+        "Или отправьте голосовое сообщение!",
+        reply_markup=get_main_keyboard(),
+        parse_mode="HTML"
+    )
 
 class StepsStates:
-    pass
+    """Состояния для FSM шагов"""
+    waiting_for_steps = "waiting_for_steps"
 
 router = Router()
 
@@ -276,11 +465,23 @@ async def settings_callback(callback: CallbackQuery, state: FSMContext):
     await callback.message.delete()
     
     await callback.message.answer(
-        "⚙️ <b>Настройки</b>\n\n"
-        "🔧 <i>В разработке...</i>\n\n"
-        "Сейчас доступны:\n"
+        "⚙️ <b>Настройки:</b>\n\n"
+        "🎯 <b>Цели питания:</b>\n"
+        "• Настроить калории и БЖЖ\n"
+        "• Установить цель воды\n"
+        "• Задать цель шагов\n\n"
+        "� <b>Отслеживание:</b>\n"
+        "• Настроить напоминания\n"
+        "• Выбрать единицы измерения\n"
+        "• Настроить приватность\n\n"
+        "🤖 <b>AI настройки:</b>\n"
+        "• Язык распознавания\n"
+        "• Точность анализа\n\n"
+        "💡 <b>Доступные команды:</b>\n"
         "• /set_profile - настройка профиля\n"
-        "• /help - помощь по командам",
+        "• /help - помощь по командам\n"
+        "• /settings - это меню",
+        reply_markup=get_main_keyboard(),
         parse_mode="HTML"
     )
 
@@ -1226,7 +1427,7 @@ async def stats_callback(callback: CallbackQuery, state: FSMContext):
         f"🥩 Белки: данные загружаются...\n"
         f"🥑 Жиры: данные загружаются...\n"
         f"🍚 Углеводы: данные загружаются...\n\n"
-        f"📈 Детальная статистика в разработке",
+        f"📈 Детальная статистика скоро будет доступна!",
         reply_markup=get_main_keyboard(),
         parse_mode="HTML"
     )

@@ -4,7 +4,7 @@
 """
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
-from typing import List, Dict, Optional
+from typing import List, Dict
 from datetime import datetime
 
 class SmartKeyboard:

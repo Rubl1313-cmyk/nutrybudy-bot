@@ -3,7 +3,6 @@
 Элегантные карточки, графики, контекстные подсказки, персонализация
 """
 from datetime import datetime
-from typing import Dict, List, Optional
 import logging
 
 logger = logging.getLogger(__name__)
@@ -162,7 +161,7 @@ class MessageTemplates:
                      streak: int) -> str:
         """Дневная сводка с красивой визуализацией"""
         
-        from utils.ui_templates import ProgressBar, NutritionCard
+        from utils.ui_templates import ProgressBar
         
         cal_bar = ProgressBar.create_bar(total_cal, goal_cal, 12)
         water_bar = ProgressBar.create_bar(water_ml, water_goal, 12)

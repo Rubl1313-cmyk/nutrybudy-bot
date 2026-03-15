@@ -4,10 +4,8 @@
 ✅ Прямое маппирование AI → база
 ✅ Кэширование переводов
 """
-import aiohttp
 import logging
-import re
-from typing import Dict, List
+from typing import Dict
 
 logger = logging.getLogger(__name__)
 

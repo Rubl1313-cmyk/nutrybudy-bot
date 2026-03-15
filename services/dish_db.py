@@ -4,7 +4,7 @@
 ✅ Билингвальная поддержка (RU + EN)
 ✅ Улучшенный поиск с учётом синонимов и keywords
 """
-from typing import Dict, List, Optional, Set
+from typing import Dict, List, Optional
 import logging
 from difflib import SequenceMatcher
 from services.translator import AI_TO_DB_MAPPING
@@ -5657,8 +5657,6 @@ def identify_known_dish_by_ingredients(ingredient_names_en: List[str], prep_styl
     Использует базу COMPOSITE_DISHES и переводчик AI_TO_DB_MAPPING.
     Возвращает название блюда (на русском) или None.
     """
-    from services.translator import AI_TO_DB_MAPPING
-
     # Переводим английские названия в русские
     ingredient_names_ru = set()
     for name_en in ingredient_names_en:
@@ -5709,8 +5707,6 @@ def find_matching_dishes_by_ingredients(ingredient_names_en: List[str], threshol
     Ищет блюда, которые содержат указанные ингредиенты (названия даны на английском).
     Возвращает список блюд с оценкой совпадения.
     """
-    from services.translator import AI_TO_DB_MAPPING
-
     # Переводим английские названия в русские
     ingredient_names_ru = set()
     for name_en in ingredient_names_en:

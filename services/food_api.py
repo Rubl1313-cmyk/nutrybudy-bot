@@ -8,8 +8,7 @@ services/food_api.py
 ✅ Кэширование результатов
 """
 import logging
-import time
-from typing import List, Dict, Optional, Tuple
+from typing import List, Dict, Tuple
 
 logger = logging.getLogger(__name__)
 

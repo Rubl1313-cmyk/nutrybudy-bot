@@ -5,7 +5,7 @@
 """
 
 import asyncio
-from typing import List, Dict, Optional
+from typing import List, Dict
 from aiogram.types import Message
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from datetime import datetime

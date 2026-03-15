@@ -8,7 +8,7 @@ import asyncio
 import os
 import logging
 from datetime import date
-from typing import Optional, Dict
+from typing import Dict
 
 logger = logging.getLogger(__name__)
 

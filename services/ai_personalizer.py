@@ -4,7 +4,7 @@
 """
 import logging
 from datetime import datetime
-from typing import Dict, Optional
+from typing import Dict
 from database.db import get_session
 from database.models import User
 from sqlalchemy import select

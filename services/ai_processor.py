@@ -3,7 +3,7 @@ AI Processor - использует унифицированный Cloudflare AI
 Принимает пользовательский ввод, контекст и решает, какую модель вызвать
 """
 import logging
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional
 from services.cloudflare_manager import cf_manager
 from database.db import get_session
 from database.models import User

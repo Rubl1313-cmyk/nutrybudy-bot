@@ -538,13 +538,8 @@ async def period_callback_internal(callback: CallbackQuery, state: FSMContext):
         await state.clear()
 
         from database.db import get_session
-        from database.models import User, Meal, Activity, WaterEntry, WeightEntry
-        from services.plots import generate_weight_plot, generate_water_plot, generate_calorie_plot, generate_activity_plot
-        from utils.ui_templates import ProgressBar, NutritionCard
-        from utils.message_templates import MessageTemplates
-        from sqlalchemy import select, func
-        from datetime import datetime, timedelta
-        from aiogram.types import BufferedInputFile
+        from database.models import User
+        from sqlalchemy import select
 
         async with get_session() as session:
             # Получаем пользователя
@@ -873,9 +868,6 @@ async def handle_menu_callbacks(callback: CallbackQuery, state: FSMContext):
     from handlers.food import cmd_log_food
     from handlers.water import cmd_water
     from handlers.activity import cmd_fitness
-    from handlers.meal_plan import cmd_meal_plan
-    from handlers.ai_assistant import cmd_ask
-    from handlers.steps import cmd_log_steps
     from utils.states import StepsStates
     
     if callback.data == "menu_food_photo":

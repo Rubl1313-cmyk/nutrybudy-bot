@@ -122,29 +122,13 @@ class MigrationManager:
             "1.3.0",
             "Fix water_entries amount field",
             """
-            -- Переименовываем amount_ml в amount, если такая колонка существует
-            DO $$
-            BEGIN
-                IF EXISTS (
-                    SELECT 1 FROM information_schema.columns 
-                    WHERE table_name = 'water_entries' AND column_name = 'amount_ml'
-                ) THEN
-                    ALTER TABLE water_entries RENAME COLUMN amount_ml TO amount;
-                END IF;
-            END $$;
+-- Переименовываем amount_ml в amount, если такая колонка существует
+DO $$ BEGIN IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'water_entries' AND column_name = 'amount_ml') THEN ALTER TABLE water_entries RENAME COLUMN amount_ml TO amount; END IF; END $$;
 
-            -- Добавляем колонку amount, если её нет
-            DO $$
-            BEGIN
-                IF NOT EXISTS (
-                    SELECT 1 FROM information_schema.columns 
-                    WHERE table_name = 'water_entries' AND column_name = 'amount'
-                ) THEN
-                    ALTER TABLE water_entries ADD COLUMN amount FLOAT;
-                END IF;
-            END $$;
+-- Добавляем колонку amount, если её нет
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'water_entries' AND column_name = 'amount') THEN ALTER TABLE water_entries ADD COLUMN amount FLOAT; END IF; END $$;
             """,
-            None  # down_sql (можно оставить пустым или удалить)
+            None
         ))
         
         # Версия 1.4: Добавление поля бицепса для мужчин

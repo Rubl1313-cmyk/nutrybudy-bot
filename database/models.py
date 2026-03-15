@@ -50,6 +50,10 @@ class User(Base):
     weight_entries = relationship("WeightEntry", back_populates="user", cascade="all, delete-orphan")
     activities = relationship("Activity", back_populates="user", cascade="all, delete-orphan")
     steps_entries = relationship("StepsEntry", back_populates="user", cascade="all, delete-orphan")
+    
+    # Геймификация
+    achievements = relationship("UserAchievement", back_populates="user", cascade="all, delete-orphan")
+    gamification = relationship("UserGamification", back_populates="user", uselist=False, cascade="all, delete-orphan")
 
 class Meal(Base):
     __tablename__ = 'meals'

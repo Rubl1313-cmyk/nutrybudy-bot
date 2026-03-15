@@ -7,8 +7,8 @@ import asyncio
 import json
 import logging
 import os
-import base64
-from typing import Dict, Any, Optional, List
+from typing import Dict, List, Optional, Any
+from utils.retry_utils import with_timeout, with_retry, ai_circuit_breaker, TimeoutError, RetryError
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +40,8 @@ class CloudflareAIManager:
             "fallback": "@cf/hermes-2-pro-mistral-7b"
         }
 
+    @with_timeout(timeout_seconds=60)
+    @with_retry(max_attempts=3, delay_seconds=1.0)
     async def _call(
         self,
         model_key: str,

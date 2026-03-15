@@ -177,6 +177,10 @@ async def main():
     """Основная функция"""
     logging.info("Starting NutriBuddy Bot on Railway...")
     
+    # Запускаем миграции БД
+    from database.migrations import run_migrations
+    await run_migrations()
+    
     # Валидация токена только в production
     validate_token = os.getenv('RAILWAY_ENVIRONMENT') == 'production'
     

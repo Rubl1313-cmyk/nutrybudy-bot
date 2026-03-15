@@ -3,6 +3,7 @@ Rate limiting для защиты от спама
 """
 import time
 import asyncio
+import os
 from typing import Dict, Optional
 from collections import defaultdict, deque
 from datetime import datetime, timedelta
@@ -42,16 +43,34 @@ class RateLimiter:
             await asyncio.sleep(1)
 
 class UserRateLimiter(RateLimiter):
-    """Rate limiting для пользователей"""
+    """Rate limiting для пользователей с настраиваемыми лимитами"""
     
     def __init__(self):
-        # Разные лимиты для разных типов запросов
+        # Читаем лимиты из переменных окружения
         self.limits = {
-            'ai_requests': RateLimiter(max_requests=10, time_window=60),  # 10 запросов в минуту
-            'db_operations': RateLimiter(max_requests=100, time_window=60),  # 100 операций в минуту
-            'photo_upload': RateLimiter(max_requests=5, time_window=60),  # 5 фото в минуту
-            'profile_updates': RateLimiter(max_requests=3, time_window=60),  # 3 обновления профиля в минуту
+            'ai_requests': RateLimiter(
+                max_requests=int(os.getenv('RATE_LIMIT_AI_REQUESTS', '20')),  # 20 по умолчанию
+                time_window=int(os.getenv('RATE_LIMIT_AI_WINDOW', '60'))     # 60 секунд
+            ),
+            'db_operations': RateLimiter(
+                max_requests=int(os.getenv('RATE_LIMIT_DB_REQUESTS', '200')),
+                time_window=int(os.getenv('RATE_LIMIT_DB_WINDOW', '60'))
+            ),
+            'photo_upload': RateLimiter(
+                max_requests=int(os.getenv('RATE_LIMIT_PHOTO_REQUESTS', '10')),
+                time_window=int(os.getenv('RATE_LIMIT_PHOTO_WINDOW', '60'))
+            ),
+            'profile_updates': RateLimiter(
+                max_requests=int(os.getenv('RATE_LIMIT_PROFILE_REQUESTS', '5')),
+                time_window=int(os.getenv('RATE_LIMIT_PROFILE_WINDOW', '60'))
+            )
         }
+        
+        # Логируем установленные лимиты
+        logger.info(f"Rate limits configured: AI={self.limits['ai_requests'].max_requests}/min, "
+                   f"DB={self.limits['db_operations'].max_requests}/min, "
+                   f"Photo={self.limits['photo_upload'].max_requests}/min, "
+                   f"Profile={self.limits['profile_updates'].max_requests}/min")
     
     async def is_allowed(self, user_id: int, request_type: str) -> bool:
         """Проверка лимита для конкретного типа запроса"""

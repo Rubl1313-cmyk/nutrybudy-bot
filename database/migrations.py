@@ -5,6 +5,7 @@ import logging
 from typing import List, Dict, Any
 from datetime import datetime
 from sqlalchemy import text, inspect
+import re
 from database.db import get_session
 from database.models import Base
 from database.gamification_models import Base as GamificationBase
@@ -182,13 +183,21 @@ class MigrationManager:
             return [row[0] for row in result.fetchall()]
     
     async def apply_migration(self, migration: Migration):
-        """Применение миграции"""
+        """Применение миграции с поддержкой asyncpg"""
         logger.info(f"Applying migration {migration.version}: {migration.description}")
         
         async with get_session() as session:
             try:
                 if migration.up_sql:
-                    await session.execute(text(migration.up_sql))
+                    # Разделяем SQL на отдельные операторы для asyncpg
+                    statements = re.split(r';\s*\n', migration.up_sql)
+                    
+                    for stmt in statements:
+                        stmt = stmt.strip()
+                        # Пропускаем пустые строки и комментарии
+                        if stmt and not stmt.startswith('--'):
+                            logger.debug(f"Executing SQL: {stmt[:100]}...")
+                            await session.execute(text(stmt))
                 
                 # Записываем миграцию как примененную
                 await session.execute(text("""
@@ -203,12 +212,12 @@ class MigrationManager:
                 
                 await session.commit()
                 migration.applied_at = datetime.now()
-                
                 logger.info(f"Migration {migration.version} applied successfully")
                 
             except Exception as e:
                 await session.rollback()
                 logger.error(f"Failed to apply migration {migration.version}: {e}")
+                logger.error(f"SQL that failed: {migration.up_sql}")
                 raise
     
     async def migrate(self):

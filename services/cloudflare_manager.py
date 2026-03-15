@@ -208,12 +208,13 @@ class CloudflareAIManager:
     
     async def parse_food(self, text: str, user_context: Optional[Dict] = None) -> Dict[str, Any]:
         """Парсинг еды с помощью GLM-4.7-Flash (обязательно JSON)"""
-        system_prompt = """Ты - эксперт по анализу питания. Извлеки из текста информацию о еде.
+        system_prompt = """Ты — эксперт по анализу питания. Извлеки из текста информацию о еде.
+Если пользователь перечислил несколько блюд или продуктов, создай отдельный объект для каждого.
 Верни ТОЛЬКО JSON в следующем формате:
 {
   "food_items": [
     {
-      "name": "название продукта (на русском)",
+      "name": "название продукта или блюда (на русском)",
       "quantity": число,
       "unit": "г|мл|шт",
       "calories_per_100g": число (если неизвестно, поставь 0),
@@ -226,7 +227,7 @@ class CloudflareAIManager:
   "total_confidence": 0-100
 }
 
-Если информации недостаточно, верни:
+Если информации недостаточно для определения количества или состава блюда, верни:
 {
   "food_items": [],
   "needs_clarification": true,
@@ -245,7 +246,7 @@ class CloudflareAIManager:
             "food_parser", 
             messages, 
             response_format={"type": "json_object"}, 
-            temperature=0.2,
+            temperature=0.2,  # ← понижаем для более детерминированных ответов
             max_tokens=500
         )
         

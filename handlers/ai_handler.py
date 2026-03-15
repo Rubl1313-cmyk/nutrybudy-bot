@@ -59,7 +59,8 @@ async def send_achievement_notifications(message: types.Message, achievements: l
         notification_text += f"   {achievement.description}\n"
         notification_text += f"   +{achievement.points} очков\n\n"
     
-    notification_text += f"📊 Всего очков: {gamification.get_user_stats(message.from_user.id)['total_points']}"
+    stats = await gamification.get_user_stats(message.from_user.id)
+    notification_text += f"📊 Всего очков: {stats['total_points']}"
     
     await message.answer(notification_text, parse_mode="HTML")
 
@@ -86,10 +87,10 @@ async def save_food_and_respond(message: types.Message, food_data: dict):
             meal = Meal(
                 user_id=user.id,
                 ai_description=food_data.get("description", "Неизвестная еда"),
-                calories=food_data.get("calories", 0),
-                protein=food_data.get("protein", 0),
-                fat=food_data.get("fat", 0),
-                carbs=food_data.get("carbs", 0),
+                total_calories=food_data.get("calories", 0),      # ← было calories
+                total_protein=food_data.get("protein", 0),        # ← было protein
+                total_fat=food_data.get("fat", 0),                # ← было fat
+                total_carbs=food_data.get("carbs", 0),            # ← было carbs
                 meal_type=food_data.get("meal_type", "other"),  # Добавляем тип приема пищи
                 datetime=datetime.now()
             )

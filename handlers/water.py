@@ -11,7 +11,7 @@ from sqlalchemy import select, func
 
 from database.db import get_session
 from database.models import User, WaterEntry
-from keyboards.reply import get_main_keyboard
+from keyboards.reply_v2 import get_main_keyboard_v2
 from utils.water_parser import parse_water_amount
 
 logger = logging.getLogger(__name__)
@@ -65,7 +65,7 @@ async def process_water(message: Message, state: FSMContext):
             if not user:
                 await message.answer(
                     "❌ Сначала настройте профиль командой /set_profile",
-                    reply_markup=get_main_keyboard()
+                    reply_markup=get_main_keyboard_v2()
                 )
                 return
             
@@ -98,7 +98,7 @@ async def process_water(message: Message, state: FSMContext):
                 f"🎯 Цель: {user.daily_water_goal} мл\n"
                 f"📈 Прогресс: {progress:.1f}%\n\n"
                 f"{'🎉 Отлично!' if progress >= 100 else '💪 Продолжайте!'}",
-                reply_markup=get_main_keyboard(),
+                reply_markup=get_main_keyboard_v2(),
                 parse_mode="HTML"
             )
             
@@ -106,7 +106,7 @@ async def process_water(message: Message, state: FSMContext):
         logger.error(f"Ошибка при записи воды: {e}")
         await message.answer(
             "❌ Произошла ошибка. Попробуйте еще раз.",
-            reply_markup=get_main_keyboard()
+            reply_markup=get_main_keyboard_v2()
         )
 
 @router.message(Command("water"))
@@ -124,7 +124,7 @@ async def cmd_water(message: Message, state: FSMContext):
         if not user:
             await message.answer(
                 "❌ Сначала настройте профиль командой /set_profile",
-                reply_markup=get_main_keyboard()
+                reply_markup=get_main_keyboard_v2()
             )
             return
         
@@ -174,7 +174,7 @@ async def cmd_water(message: Message, state: FSMContext):
             f"📊 Неделя: {week_total} мл\n\n"
             f"{status}\n\n"
             f"Для записи воды используйте /log_water",
-            reply_markup=get_main_keyboard(),
+            reply_markup=get_main_keyboard_v2(),
             parse_mode="HTML"
         )
 

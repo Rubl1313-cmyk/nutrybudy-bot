@@ -13,7 +13,7 @@ from sqlalchemy import select
 from database.db import get_session
 from database.models import User
 from services.cloudflare_manager import cf_manager
-from keyboards.reply import get_main_keyboard
+from keyboards.reply_v2 import get_main_keyboard_v2
 
 logger = logging.getLogger(__name__)
 router = Router()
@@ -81,7 +81,7 @@ async def process_restrictions(message: Message, state: FSMContext):
         if not user:
             await message.answer(
                 "❌ Сначала настройте профиль командой /set_profile",
-                reply_markup=get_main_keyboard()
+                reply_markup=get_main_keyboard_v2()
             )
             return
         
@@ -144,7 +144,7 @@ async def process_restrictions(message: Message, state: FSMContext):
                 f"🍽️ <b>Ваш персональный план питания</b>\n\n{response}\n\n"
                 f"💡 <b>Сохраните этот план и следуйте ему!</b>\n\n"
                 f"Для нового плана используйте /meal_plan",
-                reply_markup=get_main_keyboard(),
+                reply_markup=get_main_keyboard_v2(),
                 parse_mode="HTML"
             )
             
@@ -152,7 +152,7 @@ async def process_restrictions(message: Message, state: FSMContext):
             logger.error(f"Ошибка при создании плана питания: {e}")
             await message.answer(
                 "❌ Не удалось создать план питания. Попробуйте позже.",
-                reply_markup=get_main_keyboard()
+                reply_markup=get_main_keyboard_v2()
             )
 
 @router.message(Command("diet"))
@@ -176,7 +176,7 @@ async def cmd_nutrition(message: Message, state: FSMContext):
             if not user:
                 await message.answer(
                     "❌ Сначала настройте профиль командой /set_profile",
-                    reply_markup=get_main_keyboard()
+                    reply_markup=get_main_keyboard_v2()
                 )
                 return
             
@@ -224,7 +224,7 @@ async def cmd_nutrition(message: Message, state: FSMContext):
             
             await message.answer(
                 f"🥗 <b>Рекомендации по питанию</b>\n\n{response}",
-                reply_markup=get_main_keyboard(),
+                reply_markup=get_main_keyboard_v2(),
                 parse_mode="HTML"
             )
             
@@ -232,7 +232,7 @@ async def cmd_nutrition(message: Message, state: FSMContext):
         logger.error(f"Ошибка при получении рекомендаций: {e}")
         await message.answer(
             "❌ Не удалось получить рекомендации. Попробуйте позже.",
-            reply_markup=get_main_keyboard()
+            reply_markup=get_main_keyboard_v2()
         )
 
 @router.callback_query(F.data == "meal_plan")

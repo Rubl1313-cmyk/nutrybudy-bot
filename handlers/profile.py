@@ -11,7 +11,7 @@ from sqlalchemy import select
 
 from database.db import get_session
 from database.models import User
-from keyboards.reply import get_main_keyboard
+from keyboards.reply_v2 import get_main_keyboard_v2
 from utils.states import ProfileStates
 
 logger = logging.getLogger(__name__)
@@ -34,81 +34,82 @@ async def cmd_set_profile(message: Message, state: FSMContext):
 
 @router.message(ProfileStates.weight)
 async def process_weight(message: Message, state: FSMContext):
-    """Обработка веса"""
-    try:
-        weight = float(message.text.replace(",", "."))
-        if weight < 30 or weight > 300:
-            await message.answer(
-                "❌ Вес должен быть от 30 до 300 кг. Попробуйте еще раз:"
-            )
-            return
-        
-        await state.update_data(weight=weight)
+    """Обработка веса с безопасным парсингом"""
+    from utils.safe_parser import safe_parse_float
+    
+    weight, error = safe_parse_float(message.text, "вес")
+    
+    if error:
         await message.answer(
-            "📏 <b>Ваш рост (в см):</b>\n"
-            "Например: 175",
+            f"❌ {error}\n\n"
+            "� <b>Примеры:</b>\n"
+            "• 75.5\n"
+            "• 80 кг\n"
+            "• 72,3",
             parse_mode="HTML"
         )
-        await state.set_state(ProfileStates.height)
-        
-    except ValueError:
-        await message.answer("❌ Введите корректное число. Попробуйте еще раз:")
+        return
+    
+    await state.update_data(weight=weight)
+    await message.answer(
+        "📏 <b>Ваш рост (в см):</b>\n"
+        "Например: 175",
+        parse_mode="HTML"
+    )
+    await state.set_state(ProfileStates.height)
 
 @router.message(ProfileStates.height)
 async def process_height(message: Message, state: FSMContext):
-    """Обработка роста"""
-    try:
-        height = int(message.text)
-        if height < 100 or height > 250:
-            await message.answer(
-                "❌ Рост должен быть от 100 до 250 см. Попробуйте еще раз:"
-            )
-            return
-        
-        await state.update_data(height=height)
+    """Обработка роста с безопасным парсингом"""
+    from utils.safe_parser import safe_parse_int
+    
+    height, error = safe_parse_int(message.text, "рост")
+    
+    if error:
         await message.answer(
-            "🎂 <b>Ваш возраст:</b>\n"
-            "Например: 25",
+            f"❌ {error}\n\n"
+            "💡 <b>Примеры:</b>\n"
+            "• 175\n"
+            "• 180 см\n"
+            "• 165",
             parse_mode="HTML"
         )
-        await state.set_state(ProfileStates.age)
-        
-    except ValueError:
-        await message.answer("❌ Введите корректное число. Попробуйте еще раз:")
+        return
+    
+    await state.update_data(height=height)
+    await message.answer(
+        "🎂 <b>Ваш возраст:</b>\n"
+        "Например: 25",
+        parse_mode="HTML"
+    )
+    await state.set_state(ProfileStates.age)
 
 @router.message(ProfileStates.age)
 async def process_age(message: Message, state: FSMContext):
-    """Обработка возраста"""
-    try:
-        age = int(message.text)
-        if age < 10 or age > 120:
-            await message.answer(
-                "❌ Возраст должен быть от 10 до 120 лет. Попробуйте еще раз:"
-            )
-            return
-        
-        await state.update_data(age=age)
-        
-        # Клавиатура для выбора пола
-        from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
-        
-        keyboard = ReplyKeyboardMarkup(
-            keyboard=[
-                [KeyboardButton(text="Мужской"), KeyboardButton(text="Женский")]
-            ],
-            resize_keyboard=True,
-            one_time_keyboard=True
-        )
-        
+    """Обработка возраста с безопасным парсингом"""
+    from utils.safe_parser import safe_parse_int
+    
+    age, error = safe_parse_int(message.text, "возраст")
+    
+    if error:
         await message.answer(
-            "⚧️ <b>Ваш пол:</b>",
-            reply_markup=keyboard,
+            f"❌ {error}\n\n"
+            "💡 <b>Примеры:</b>\n"
+            "• 25\n"
+            "• 30 лет\n"
+            "• 22",
             parse_mode="HTML"
         )
-        await state.set_state(ProfileStates.gender)
-        
-    except ValueError:
-        await message.answer("❌ Введите корректное число. Попробуйте еще раз:")
+        return
+    
+    await state.update_data(age=age)
+    await message.answer(
+        "⚧️ <b>Ваш пол:</b>\n\n"
+        "Выберите из кнопок ниже:",
+        parse_mode="HTML",
+        reply_markup=get_gender_keyboard()
+    )
+    await state.set_state(ProfileStates.gender)
 
 @router.message(ProfileStates.gender)
 async def process_gender(message: Message, state: FSMContext):
@@ -308,7 +309,7 @@ async def process_city(message: Message, state: FSMContext):
         f"🍞 Углеводы: {round(daily_carbs_goal)} г/день\n"
         f"💧 Вода: {round(daily_water_goal)} мл/день\n\n"
         f"Теперь вы можете использовать все функции бота!",
-        reply_markup=get_main_keyboard(),
+        reply_markup=get_main_keyboard_v2(),
         parse_mode="HTML"
     )
 
@@ -326,7 +327,7 @@ async def cmd_profile(message: Message, state: FSMContext):
         if not user:
             await message.answer(
                 "❌ Профиль не найден. Сначала настройте профиль командой /set_profile",
-                reply_markup=get_main_keyboard()
+                reply_markup=get_main_keyboard_v2()
             )
             return
         
@@ -345,6 +346,6 @@ async def cmd_profile(message: Message, state: FSMContext):
             f"🍞 Углеводы: {user.daily_carbs_goal} г/день\n"
             f"💧 Вода: {user.daily_water_goal} мл/день\n\n"
             f"Для изменения профиля используйте /set_profile",
-            reply_markup=get_main_keyboard(),
+            reply_markup=get_main_keyboard_v2(),
             parse_mode="HTML"
         )

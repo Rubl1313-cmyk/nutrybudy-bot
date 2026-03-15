@@ -11,7 +11,7 @@ from sqlalchemy import select, func
 
 from database.db import get_session
 from database.models import User, Meal, Activity, WaterEntry, WeightEntry
-from keyboards.reply import get_main_keyboard
+from keyboards.reply_v2 import get_main_keyboard_v2
 from keyboards.inline import get_progress_menu
 
 logger = logging.getLogger(__name__)
@@ -47,7 +47,7 @@ async def progress_callback(callback: CallbackQuery, state: FSMContext):
             if not user:
                 await callback.message.answer(
                     "❌ Пользователь не найден. Сначала настройте профиль командой /set_profile",
-                    reply_markup=get_main_keyboard()
+                    reply_markup=get_main_keyboard_v2()
                 )
                 return
             
@@ -76,7 +76,7 @@ async def progress_callback(callback: CallbackQuery, state: FSMContext):
             
             await callback.message.answer(
                 message_text,
-                reply_markup=get_main_keyboard(),
+                reply_markup=get_main_keyboard_v2(),
                 parse_mode="HTML"
             )
             
@@ -84,7 +84,7 @@ async def progress_callback(callback: CallbackQuery, state: FSMContext):
         logger.error(f"Ошибка при получении прогресса: {e}")
         await callback.message.answer(
             "❌ Произошла ошибка при загрузке статистики. Попробуйте еще раз.",
-            reply_markup=get_main_keyboard()
+            reply_markup=get_main_keyboard_v2()
         )
 
 @router.callback_query(F.data.startswith("period_"))
@@ -242,7 +242,7 @@ async def cmd_stats(message: Message, state: FSMContext):
         if not user:
             await message.answer(
                 "❌ Сначала настройте профиль командой /set_profile",
-                reply_markup=get_main_keyboard()
+                reply_markup=get_main_keyboard_v2()
             )
             return
         
@@ -263,6 +263,6 @@ async def cmd_stats(message: Message, state: FSMContext):
             f"🍞 Углеводы: {stats['total_carbs']:.1f}/{user.daily_carbs_goal:.0f} г\n\n"
             f"🍽️ Приемов пищи: {stats['meals_count']}\n"
             f"🏃 Активность: {stats['activities_count']} раз",
-            reply_markup=get_main_keyboard(),
+            reply_markup=get_main_keyboard_v2(),
             parse_mode="HTML"
         )

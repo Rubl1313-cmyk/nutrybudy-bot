@@ -31,25 +31,25 @@ class ToolCaller:
             logger.info(f"Calling tool for intent: {intent}")
             
             if intent == "log_food":
-                return await ToolCaller._handle_log_food(text, user_id, message, state)
+                return await ToolCaller.handle_log_food(text, user_id, message, state)
             
             elif intent == "log_water":
-                return await ToolCaller._handle_log_water(text, user_id, message, state)
+                return await ToolCaller.handle_log_water(text, user_id, message, state)
             
             elif intent == "log_weight":
-                return await ToolCaller._handle_log_weight(text, user_id, message, state)
+                return await ToolCaller.handle_log_weight(text, user_id, message, state)
             
             elif intent == "log_activity":
-                return await ToolCaller._handle_log_activity(text, user_id, message, state)
+                return await ToolCaller.handle_log_activity(text, user_id, message, state)
             
             elif intent == "show_progress":
-                return await ToolCaller._handle_show_progress(text, user_id, message, state)
+                return await ToolCaller.handle_show_progress(text, user_id, message, state)
             
             elif intent == "ask_ai":
-                return await ToolCaller._handle_ask_ai(text, user_id, message, state)
+                return await ToolCaller.handle_ask_ai(text, user_id, message, state)
             
             elif intent == "help":
-                return await ToolCaller._handle_help(text, user_id, message, state)
+                return await ToolCaller.handle_help(text, user_id, message, state)
             
             else:
                 logger.warning(f"Unknown intent: {intent}")
@@ -62,7 +62,7 @@ class ToolCaller:
             return False
     
     @staticmethod
-    async def _handle_log_food(text: str, user_id: int, message: Message, state: FSMContext) -> bool:
+    async def handle_log_food(text: str, user_id: int, message: Message, state: FSMContext) -> bool:
         """Обработка записи еды"""
         try:
             # Используем существующий AI процессор для парсинга еды
@@ -91,7 +91,7 @@ class ToolCaller:
             return False
     
     @staticmethod
-    async def _handle_log_water(text: str, user_id: int, message: Message, state: FSMContext) -> bool:
+    async def handle_log_water(text: str, user_id: int, message: Message, state: FSMContext) -> bool:
         """Обработка записи воды"""
         try:
             # Извлекаем количество воды
@@ -178,7 +178,7 @@ class ToolCaller:
             return False
     
     @staticmethod
-    async def _handle_log_weight(text: str, user_id: int, message: Message, state: FSMContext) -> bool:
+    async def handle_log_weight(text: str, user_id: int, message: Message, state: FSMContext) -> bool:
         """Обработка записи веса"""
         try:
             # Извлекаем вес
@@ -313,26 +313,24 @@ class ToolCaller:
             return False
     
     @staticmethod
-    async def _handle_log_activity(text: str, user_id: int, message: Message, state: FSMContext) -> bool:
+    async def handle_log_activity(text: str, user_id: int, message: Message, state: FSMContext) -> bool:
         """Обработка записи активности"""
         try:
-            # Извлекаем параметры активности
+            # Извлекаем данные активности
             from services.intent_classifier import IntentClassifier
             entities = IntentClassifier.extract_entities(text, "log_activity")
             
-            activity_type = entities.get('activity_type', 'other')
+            activity_type = entities.get('activity_type')
             duration_min = entities.get('duration_min')
             distance_km = entities.get('distance_km')
-            steps = entities.get('steps')
             
-            if not any([duration_min, distance_km, steps]):
+            if not activity_type:
                 await message.answer(
-                    "❌ Не удалось определить параметры активности.\n\n"
+                    "❌ Не удалось определить тип активности.\n\n"
                     "Примеры:\n"
-                    "• «Пробежал 5 км»\n"
-                    "• «Тренировка 45 минут»\n"
-                    "• «10000 шагов»\n"
-                    "• «Ходьба 30 минут»",
+                    "• «Пробежал 5 км за 30 минут»\n"
+                    "• «Ходил 1 час»\n"
+                    "• «Плавал 45 минут»",
                     parse_mode="HTML"
                 )
                 return False
@@ -420,7 +418,7 @@ class ToolCaller:
             return False
     
     @staticmethod
-    async def _handle_show_progress(text: str, user_id: int, message: Message, state: FSMContext) -> bool:
+    async def handle_show_progress(text: str, user_id: int, message: Message, state: FSMContext) -> bool:
         """Обработка запроса прогресса"""
         try:
             # Показываем меню выбора периода
@@ -438,7 +436,7 @@ class ToolCaller:
             return False
     
     @staticmethod
-    async def _handle_ask_ai(text: str, user_id: int, message: Message, state: FSMContext) -> bool:
+    async def handle_ask_ai(text: str, user_id: int, message: Message, state: FSMContext) -> bool:
         """Обработка вопроса к AI"""
         try:
             from handlers.ai_assistant import process_ai_question
@@ -450,7 +448,7 @@ class ToolCaller:
             return False
     
     @staticmethod
-    async def _handle_help(text: str, user_id: int, message: Message, state: FSMContext) -> bool:
+    async def handle_help(text: str, user_id: int, message: Message, state: FSMContext) -> bool:
         """Обработка запроса помощи"""
         try:
             from handlers.common import cmd_help

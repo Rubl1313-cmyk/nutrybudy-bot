@@ -12,7 +12,7 @@ from sqlalchemy import select, func
 
 from database.db import get_session
 from database.models import User, WeightEntry
-from keyboards.reply import get_main_keyboard
+from keyboards.reply_v2 import get_main_keyboard_v2
 
 logger = logging.getLogger(__name__)
 router = Router()
@@ -57,7 +57,7 @@ async def process_weight(message: Message, state: FSMContext):
             if not user:
                 await message.answer(
                     "❌ Сначала настройте профиль командой /set_profile",
-                    reply_markup=get_main_keyboard()
+                    reply_markup=get_main_keyboard_v2()
                 )
                 return
             
@@ -116,7 +116,7 @@ async def process_weight(message: Message, state: FSMContext):
         logger.error(f"Ошибка при записи веса: {e}")
         await message.answer(
             "❌ Произошла ошибка. Попробуйте еще раз.",
-            reply_markup=get_main_keyboard()
+            reply_markup=get_main_keyboard_v2()
         )
 
 async def send_weight_statistics(message: Message, user, session, current_weight):
@@ -210,7 +210,7 @@ async def send_weight_statistics(message: Message, user, session, current_weight
     
     await message.answer(
         message_text,
-        reply_markup=get_main_keyboard(),
+        reply_markup=get_main_keyboard_v2(),
         parse_mode="HTML"
     )
 
@@ -229,7 +229,7 @@ async def cmd_weight(message: Message, state: FSMContext):
         if not user:
             await message.answer(
                 "❌ Сначала настройте профиль командой /set_profile",
-                reply_markup=get_main_keyboard()
+                reply_markup=get_main_keyboard_v2()
             )
             return
         
@@ -250,7 +250,7 @@ async def cmd_weight(message: Message, state: FSMContext):
                 "⚖️ <b>Статистика веса</b>\n\n"
                 "У вас еще нет записей веса.\n\n"
                 "Для добавления веса используйте /log_weight",
-                reply_markup=get_main_keyboard(),
+                reply_markup=get_main_keyboard_v2(),
                 parse_mode="HTML"
             )
             return
@@ -271,7 +271,7 @@ async def cmd_weight(message: Message, state: FSMContext):
         
         await message.answer(
             message_text,
-            reply_markup=get_main_keyboard(),
+            reply_markup=get_main_keyboard_v2(),
             parse_mode="HTML"
         )
 

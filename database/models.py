@@ -30,6 +30,18 @@ class User(Base):
     daily_carbs_goal = Column(Float)
     daily_steps_goal = Column(Integer, default=10000)  # Цель по шагам по умолчанию
     reminder_enabled = Column(Boolean, default=True)
+    
+    # Поля антропометрии для расширенного анализа
+    neck_cm = Column(Float, nullable=True)          # Обхват шеи
+    waist_cm = Column(Float, nullable=True)         # Обхват талии
+    hip_cm = Column(Float, nullable=True)           # Обхват бедер
+    wrist_cm = Column(Float, nullable=True)         # Обхват запястья
+    
+    # Кешированные расчеты композиции тела
+    last_bodyfat = Column(Float, nullable=True)     # Последний % жира
+    last_muscle_mass = Column(Float, nullable=True) # Последняя мышечная масса
+    last_body_water = Column(Float, nullable=True)  # Последняя расчетная вода
+    
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

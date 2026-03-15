@@ -14,7 +14,7 @@ from database.db import init_db, close_db, engine
 from sqlalchemy import text
 from aiogram.fsm.strategy import FSMStrategy
 
-load_dotenv()
+load_dotenv('.env')
 
 # Настройка логирования
 logging.basicConfig(
@@ -175,11 +175,12 @@ def create_app():
 
 async def main():
     """Основная функция"""
-    logging.info("🔵 Starting NutriBuddy Bot on Railway...")
+    logging.info("Starting NutriBuddy Bot on Railway...")
     
     bot = Bot(
         token=TOKEN,
-        default=DefaultBotProperties(parse_mode=ParseMode.HTML)
+        default=DefaultBotProperties(parse_mode=ParseMode.HTML),
+        validate_token=False  # Временно отключаем валидацию для теста
     )
     
     storage = MemoryStorage()
@@ -192,34 +193,21 @@ async def main():
     # 2. AI ассистент для диалогов
     # 3. Базовые команды (/start, /help)
     
-    from handlers import ai_handler      # Основной AI обработчик для всего
-    dp.include_router(ai_handler.router)
+    from handlers import dialog, ai_handler, common, profile, water, progress, activity, weight, meal_plan, ai_assistant, reply_handlers
+
+    dp.include_router(dialog.router)          # Перехватывает все текстовые сообщения
+    dp.include_router(ai_handler.router)      # Фото и другие медиа
+    dp.include_router(common.router)           # Команды /start, /help и т.д.
+    dp.include_router(reply_handlers.router)  # Reply-кнопки
+    dp.include_router(profile.router)          # /set_profile, /profile
+    dp.include_router(water.router)            # /log_water, /water
+    dp.include_router(progress.router)         # /progress, /stats
+    dp.include_router(activity.router)         # /fitness, /activity
+    dp.include_router(weight.router)           # /log_weight, /weight
+    dp.include_router(meal_plan.router)        # /meal_plan, /diet
+    dp.include_router(ai_assistant.router)     # /ask, /ai, /weather
     
-    from handlers import ai_assistant    # Диалоговый AI ассистент
-    dp.include_router(ai_assistant.router)
-    
-    from handlers import common          # Базовые команды
-    dp.include_router(common.router)
-    
-    from handlers import profile         # Профиль пользователя
-    dp.include_router(profile.router)
-    
-    from handlers import water           # Учет воды
-    dp.include_router(water.router)
-    
-    from handlers import progress        # Статистика и прогресс
-    dp.include_router(progress.router)
-    
-    from handlers import activity        # Учет активности
-    dp.include_router(activity.router)
-    
-    from handlers import weight          # Учет веса
-    dp.include_router(weight.router)
-    
-    from handlers import meal_plan       # Планирование питания
-    dp.include_router(meal_plan.router)
-    
-    logging.info("✅ All routers included in correct order for FSM")
+    logging.info("All routers included in correct order for FSM")
     
     app = create_app()
     app['bot'] = bot
@@ -229,14 +217,14 @@ async def main():
     site = web.TCPSite(runner, "0.0.0.0", PORT)
     await site.start()
     
-    logging.info(f"🚀 Server started on port {PORT}")
-    logging.info(f"🌐 Railway environment: {os.getenv('RAILWAY_ENVIRONMENT', 'development')}")
+    logging.info(f"Server started on port {PORT}")
+    logging.info(f"Railway environment: {os.getenv('RAILWAY_ENVIRONMENT', 'development')}")
     
     try:
         while True:
             await asyncio.sleep(3600)
     except asyncio.CancelledError:
-        logging.info("⏹️ Server stopped")
+        logging.info("Server stopped")
     finally:
         await runner.cleanup()
 
@@ -244,7 +232,7 @@ if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        logging.info("👋 Keyboard interrupt")
+        logging.info("Keyboard interrupt")
     except Exception as e:
-        logging.error(f"💥 Fatal error: {e}", exc_info=True)
+        logging.error(f"Fatal error: {e}", exc_info=True)
         exit(1)

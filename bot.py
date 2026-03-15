@@ -217,9 +217,11 @@ async def main():
     # Медиа и AI обработчики
     dp.include_router(ai_handler.router)       # Фото и другие медиа
     
-    # Универсальный обработчик текста – должен быть последним
-    dp.include_router(dialog.router)           # Все остальные текстовые сообщения
+    # Обработчики reply-кнопок – ДО универсального!
     dp.include_router(reply_handlers.router)   # Reply-кнопки
+    
+    # Универсальный обработчик текста – ПОСЛЕДНИМ
+    dp.include_router(dialog.router)           # Все остальные текстовые сообщения
     
     logging.info("All routers included in correct order for FSM")
     

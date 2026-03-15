@@ -73,7 +73,7 @@ async def process_ai_question(message: Message, state: FSMContext):
             
             # Формируем профиль пользователя для AI
             user_profile = None
-            if user:
+            if user and user.weight and user.height and user.age:
                 user_profile = {
                     'name': user.first_name or 'Anonymous',
                     'weight': user.weight,

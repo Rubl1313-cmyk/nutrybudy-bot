@@ -40,8 +40,8 @@ class CloudflareAIManager:
             "fallback": "@cf/hermes-2-pro-mistral-7b"
         }
 
-    @with_timeout(timeout_seconds=60)
-    @with_retry(max_attempts=3, delay_seconds=1.0)
+    @with_timeout(timeout_seconds=90)
+    @with_retry(max_attempts=5, delay_seconds=1.0)
     async def _call(
         self,
         model_key: str,
@@ -82,6 +82,7 @@ class CloudflareAIManager:
                     ) as resp:
                         if resp.status == 200:
                             result = await resp.json()
+                            logger.info(f"Raw response from {model_key}: {result}")
                             
                             # Извлечение текста ответа
                             content = result.get("result", {}).get("response")

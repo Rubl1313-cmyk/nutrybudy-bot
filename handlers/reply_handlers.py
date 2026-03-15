@@ -12,74 +12,44 @@ router = Router()
 
 # Обработчики для основных кнопок
 
-@router.message(F.text.contains("🍽️ Записать приём пищи"))
+@router.message(F.text == "🍽️ Записать приём пищи")
 async def food_button_handler(message: Message, state: FSMContext):
-    """Обработчик кнопки записи еды"""
     await state.clear()
     await message.answer(
         "🍽️ <b>Запись приема пищи</b>\n\n"
-        "💡 <b>Как это работает:</b>\n"
-        "• Отправьте фото блюда — я распознаю продукты\n"
-        "• Или опишите еду текстом\n\n"
-        "📝 <b>Примеры:</b>\n"
-        "• «200г куриной грудки с гречкой»\n"
-        "• «Овсянка на молоке с бананом»\n"
-        "• «Салат с тунцом и овощами»\n\n"
-        "📸 <b>Отправьте фото или напишите что съели:</b>",
+        "Опишите, что вы съели, или отправьте фото блюда.",
         parse_mode="HTML"
     )
 
-@router.message(F.text.contains("💧 Записать воду"))
+@router.message(F.text == "💧 Записать воду")
 async def water_button_handler(message: Message, state: FSMContext):
-    """Обработчик кнопки записи воды"""
     await state.clear()
     await message.answer(
-        "💧 <b>Запись потребления воды</b>\n\n"
-        "💡 <b>Напишите сколько выпили:</b>\n\n"
-        "📝 <b>Примеры:</b>\n"
-        "• «250 мл»\n"
-        "• «2 стакана»\n"
-        "• «1.5 литра»\n"
-        "• «500 мл»\n\n"
-        "🔍 <b>Или выберите быстрый вариант:</b>",
-        parse_mode="HTML"
-    )
-    
-    # Показываем быстрые варианты
-    from keyboards.reply_v2 import get_water_keyboard
-    await message.answer(
-        "⚡ <b>Быстрые варианты:</b>",
-        reply_markup=get_water_keyboard(),
+        "💧 <b>Запись воды</b>\n\n"
+        "Напишите, сколько вы выпили (например, «250 мл» или «2 стакана»).",
         parse_mode="HTML"
     )
 
-@router.message(F.text.contains("🤖 Спросить AI"))
+@router.message(F.text == "🤖 Спросить AI")
 async def ai_button_handler(message: Message, state: FSMContext):
-    """Обработчик кнопки AI ассистента"""
+    await state.clear()
     from handlers.ai_assistant import cmd_ask
     await cmd_ask(message, state)
 
-@router.message(F.text.contains("📊 Прогресс"))
+@router.message(F.text == "📊 Прогресс")
 async def progress_button_handler(message: Message, state: FSMContext):
-    """Обработчик кнопки прогресса"""
     await state.clear()
-    from keyboards.inline import get_progress_menu
-    await message.answer(
-        "📊 <b>Выберите период для статистики:</b>",
-        reply_markup=get_progress_menu(),
-        parse_mode="HTML"
-    )
+    from handlers.progress import cmd_progress
+    await cmd_progress(message, state)
 
-@router.message(F.text.contains("Профиль"))
+@router.message(F.text == "👤 Профиль")
 async def profile_button_handler(message: Message, state: FSMContext):
-    """Обработчик кнопки профиля"""
     await state.clear()
     from handlers.profile import cmd_profile
     await cmd_profile(message, state)
 
-@router.message(F.text.contains("❓ Помощь"))
+@router.message(F.text == "❓ Помощь")
 async def help_button_handler(message: Message, state: FSMContext):
-    """Обработчик кнопки помощи"""
     await state.clear()
     from handlers.common import cmd_help
     await cmd_help(message, state)
@@ -277,9 +247,13 @@ async def full_analysis_handler(message: Message, state: FSMContext):
             parse_mode="HTML"
         )
 
-# Fallback-обработчик для отладки
-@router.message(F.text)
-async def debug_button_handler(message: Message):
-    """Логирует полученный текст для отладки"""
-    logger.info(f"Reply handler received: {repr(message.text)}")
-    # Не отвечаем, просто логируем
+# Обработчики для кнопок навигации
+@router.message(F.text == "🏠 Главное меню")
+async def back_to_main_handler(message: Message, state: FSMContext):
+    await state.clear()
+    from keyboards.reply_v2 import get_main_keyboard_v2
+    await message.answer(
+        "🏠 <b>Главное меню</b>",
+        reply_markup=get_main_keyboard_v2(),
+        parse_mode="HTML"
+    )

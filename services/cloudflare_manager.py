@@ -34,10 +34,10 @@ class CloudflareAIManager:
 
         # Модели для разных задач
         self.models = {
-            "food_parser": "@cf/zai-org/glm-4.7-flash",
+            "food_parser": "@cf/hermes-2-pro-mistral-7b",   # ← быстрее и без лишних рассуждений
             "assistant": "@cf/meta/llama-3.3-70b-instruct-fp8-fast", 
             "vision": "@cf/meta/llama-3.2-11b-vision-instruct",
-            "fallback": "@cf/hermes-2-pro-mistral-7b"
+            "fallback": "@cf/zai-org/glm-4.7-flash"
         }
 
     @with_timeout(timeout_seconds=90)

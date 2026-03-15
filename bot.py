@@ -86,6 +86,7 @@ async def webhook_handler(request):
     """Обработчик вебхука"""
     try:
         bot = request.app['bot']
+        dp = request.app['dp']
         update = await request.json()
         update_obj = Update(**update)
         await dp.feed_update(bot, update_obj)
@@ -175,6 +176,7 @@ def create_app():
 
 async def main():
     """Основная функция"""
+    global dp
     logging.info("Starting NutriBuddy Bot on Railway...")
     
     # Запускаем миграции БД

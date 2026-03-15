@@ -12,7 +12,7 @@ router = Router()
 
 # Обработчики для основных кнопок
 
-@router.message(F.text == "🍽️ Записать приём пищи")
+@router.message(F.text.contains("🍽️ Записать приём пищи"))
 async def food_button_handler(message: Message, state: FSMContext):
     """Обработчик кнопки записи еды"""
     await state.clear()
@@ -29,7 +29,7 @@ async def food_button_handler(message: Message, state: FSMContext):
         parse_mode="HTML"
     )
 
-@router.message(F.text == "💧 Записать воду")
+@router.message(F.text.contains("💧 Записать воду"))
 async def water_button_handler(message: Message, state: FSMContext):
     """Обработчик кнопки записи воды"""
     await state.clear()
@@ -53,13 +53,13 @@ async def water_button_handler(message: Message, state: FSMContext):
         parse_mode="HTML"
     )
 
-@router.message(F.text == "🤖 Спросить AI")
+@router.message(F.text.contains("🤖 Спросить AI"))
 async def ai_button_handler(message: Message, state: FSMContext):
     """Обработчик кнопки AI ассистента"""
     from handlers.ai_assistant import cmd_ask
     await cmd_ask(message, state)
 
-@router.message(F.text == "📊 Прогресс")
+@router.message(F.text.contains("📊 Прогресс"))
 async def progress_button_handler(message: Message, state: FSMContext):
     """Обработчик кнопки прогресса"""
     await state.clear()
@@ -70,14 +70,14 @@ async def progress_button_handler(message: Message, state: FSMContext):
         parse_mode="HTML"
     )
 
-@router.message(F.text == "👤 Профиль")
+@router.message(F.text.contains("Профиль"))
 async def profile_button_handler(message: Message, state: FSMContext):
     """Обработчик кнопки профиля"""
     await state.clear()
     from handlers.profile import cmd_profile
     await cmd_profile(message, state)
 
-@router.message(F.text == "❓ Помощь")
+@router.message(F.text.contains("❓ Помощь"))
 async def help_button_handler(message: Message, state: FSMContext):
     """Обработчик кнопки помощи"""
     await state.clear()

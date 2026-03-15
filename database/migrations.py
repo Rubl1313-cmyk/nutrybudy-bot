@@ -123,10 +123,22 @@ class MigrationManager:
             "Fix water_entries amount field",
             """
 -- Переименовываем amount_ml в amount, если такая колонка существует
-DO $$ BEGIN IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'water_entries' AND column_name = 'amount_ml') THEN ALTER TABLE water_entries RENAME COLUMN amount_ml TO amount; END IF; END $$;
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'water_entries' AND column_name = 'amount_ml') THEN
+        ALTER TABLE water_entries RENAME COLUMN amount_ml TO amount;
+    END IF;
+END;
+$$;
 
 -- Добавляем колонку amount, если её нет
-DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'water_entries' AND column_name = 'amount') THEN ALTER TABLE water_entries ADD COLUMN amount FLOAT; END IF; END $$;
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'water_entries' AND column_name = 'amount') THEN
+        ALTER TABLE water_entries ADD COLUMN amount FLOAT;
+    END IF;
+END;
+$$;
             """,
             None
         ))
@@ -169,27 +181,8 @@ DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_
         async with get_session() as session:
             try:
                 if migration.up_sql:
-                    # Разбиваем на строки
-                    lines = migration.up_sql.split('\n')
-                    current_stmt = []
-                    for line in lines:
-                        stripped = line.strip()
-                        # Пропускаем комментарии и пустые строки
-                        if stripped.startswith('--') or not stripped:
-                            continue
-                        current_stmt.append(line)
-                        # Если строка заканчивается точкой с запятой — выполняем накопленную команду
-                        if stripped.endswith(';'):
-                            full_stmt = '\n'.join(current_stmt)
-                            logger.info(f"Executing: {full_stmt[:100]}...")
-                            await session.execute(text(full_stmt))
-                            current_stmt = []
-                    # Если осталась команда без точки с запятой в конце (редкий случай)
-                    if current_stmt:
-                        full_stmt = '\n'.join(current_stmt)
-                        if full_stmt.strip():
-                            logger.info(f"Executing final statement: {full_stmt[:100]}...")
-                            await session.execute(text(full_stmt))
+                    # Выполняем весь SQL целиком
+                    await session.execute(text(migration.up_sql))
                 
                 # Записываем миграцию как примененную
                 await session.execute(text("""

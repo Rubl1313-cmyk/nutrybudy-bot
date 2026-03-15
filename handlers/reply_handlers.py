@@ -276,3 +276,10 @@ async def full_analysis_handler(message: Message, state: FSMContext):
             reply_markup=get_main_keyboard_v2(),
             parse_mode="HTML"
         )
+
+# Fallback-обработчик для отладки
+@router.message(F.text)
+async def debug_button_handler(message: Message):
+    """Логирует полученный текст для отладки"""
+    logger.info(f"Reply handler received: {repr(message.text)}")
+    # Не отвечаем, просто логируем

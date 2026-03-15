@@ -252,16 +252,24 @@ class CloudflareAIManager:
         
         if result.get("success"):
             try:
-                # Распарсиваем JSON из ответа
-                data = json.loads(result["data"])
+                # Пытаемся найти JSON в строке (на случай если есть дополнительный текст)
+                data = result["data"]
+                import re
+                json_match = re.search(r'(\{.*\})', data, re.DOTALL)
+                if json_match:
+                    data = json_match.group(1)
+                
+                # Распарсиваем JSON
+                parsed = json.loads(data)
                 return {
                     "success": True,
-                    "data": data,
+                    "data": parsed,
                     "model_used": result["model_used"],
                     "tokens_used": result["tokens_used"]
                 }
             except json.JSONDecodeError as e:
                 logger.error(f"❌ Failed to parse JSON from food_parser: {e}")
+                logger.error(f"❌ Raw data: {result['data']}")
                 return {"success": False, "error": "Invalid JSON response"}
         
         return result

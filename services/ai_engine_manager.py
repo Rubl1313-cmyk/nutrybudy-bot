@@ -103,28 +103,28 @@ class AIEngineManager:
                 "data": {}
             }
     
-    async def process_function_call(self, function_name: str, args: Dict) -> Dict[str, Any]:
+    async def process_function_call(self, prompt: str, available_functions: List[Dict]) -> Dict[str, Any]:
         """
-        Выполнить вызов функции (ТОЛЬКО Hermes)
+        Выполнить вызов функции через Hermes (ТОЛЬКО Hermes)
         
         Args:
-            function_name: Имя функции
-            args: Аргументы функции
+            prompt: Промпт для AI
+            available_functions: Список доступных функций
             
         Returns:
             Dict с результатом выполнения
         """
         try:
-            logger.info(f"🔧 AI Manager: маршрутизирую на Hermes для функции '{function_name}'")
+            logger.info(f"🔧 AI Manager: маршрутизирую на Hermes для function call")
             
             # Используем ТОЛЬКО Hermes для вызова функций
-            result = await self.engines["hermes"].process_function_call(function_name, args)
+            result = await self.engines["hermes"].process_function_call(prompt, available_functions)
             
             if result.get("success"):
-                logger.info(f"🔧 AI Manager: Hermes успешно выполнил функцию")
+                logger.info(f"🔧 AI Manager: Hermes успешно выполнил function call")
                 return result
             else:
-                logger.error(f"🔧 AI Manager: Hermes не смог выполнить функцию")
+                logger.error(f"🔧 AI Manager: Hermes не смог выполнить function call")
                 return result
                 
         except Exception as e:

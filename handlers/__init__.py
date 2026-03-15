@@ -1,9 +1,7 @@
 from . import (
-    common, profile, food, water, activity, progress, media_handlers, ai_assistant,
-    universal_text_handler, meal_plan, weight
+    common, food, ai_assistant, ai_handler
 )
 
 __all__ = [
-    'common', 'profile', 'food', 'water', 'activity', 'progress',
-    'media_handlers', 'ai_assistant', 'universal_text_handler', 'meal_plan', 'weight'
+    'common', 'food', 'ai_assistant', 'ai_handler'
 ]

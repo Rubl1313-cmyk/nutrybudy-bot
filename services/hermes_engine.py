@@ -29,10 +29,12 @@ class HermesEngine:
         logger.info(f"🧠 Hermes: инициализирован с моделью {self.hermes_model_id}")
         
         if not all([self.cloudflare_account_id, self.cloudflare_api_token]):
-            logger.warning("🧠 Hermes: отсутствуют Cloudflare учетные данные, будет использована эмуляция")
+            logger.error("🧠 Hermes: отсутствуют Cloudflare учетные данные - реальный AI недоступен")
             self.use_real_api = False
+            raise ValueError("Cloudflare credentials required for real AI operation")
         else:
             self.use_real_api = True
+            logger.info("🧠 Hermes: Cloudflare AI настроен для реальной работы")
             logger.info("🧠 Hermes: Cloudflare AI настроен для реальной работы")
     
     async def process_text(self, prompt: str, system_prompt: str = None, task_type: str = "text_generation") -> Dict[str, Any]:
@@ -228,12 +230,12 @@ class HermesEngine:
             if self.use_real_api:
                 return await self._call_cloudflare_ai(prompt, system_prompt, task_type)
             else:
-                logger.warning("🧠 Hermes: используем эмуляцию (нет Cloudflare ключей)")
-                return await self._fallback_emulation(task_type, prompt)
+                logger.error("🧠 Hermes: реальный AI недоступен - отсутствуют учетные данные Cloudflare")
+                raise ValueError("Real AI requires Cloudflare credentials")
                 
         except Exception as e:
             logger.error(f"🧠 Hermes: ошибка вызова {e}")
-            return await self._fallback_emulation(task_type, prompt)
+            raise
     
     async def _call_cloudflare_ai(self, prompt: str, system_prompt: str, task_type: str) -> Dict[str, Any]:
         """Реальный вызов Cloudflare Workers AI"""
@@ -306,13 +308,13 @@ class HermesEngine:
                         
         except aiohttp.ClientError as e:
             logger.error(f"🧠 Hermes: ошибка сети Cloudflare AI {e}")
-            return await self._fallback_emulation(task_type, prompt)
+            raise
         except asyncio.TimeoutError:
             logger.error("🧠 Hermes: timeout Cloudflare AI")
-            return await self._fallback_emulation(task_type, prompt)
+            raise
         except Exception as e:
             logger.error(f"🧠 Hermes: ошибка Cloudflare AI {e}")
-            return await self._fallback_emulation(task_type, prompt)
+            raise
     
     async def _fallback_emulation(self, task_type: str, prompt: str = "") -> Dict[str, Any]:
         """Fallback эмуляция если Cloudflare AI недоступен"""

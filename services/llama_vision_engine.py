@@ -29,8 +29,9 @@ class LlamaVisionEngine:
         logger.info(f"📸 Llama Vision: инициализирован с моделью {self.model_id}")
         
         if not all([self.cloudflare_account_id, self.cloudflare_api_token]):
-            logger.warning("📸 Llama Vision: отсутствуют Cloudflare учетные данные, будет использована эмуляция")
+            logger.error("📸 Llama Vision: отсутствуют Cloudflare учетные данные - реальный AI недоступен")
             self.use_real_api = False
+            raise ValueError("Cloudflare credentials required for real AI operation")
         else:
             self.use_real_api = True
             logger.info("📸 Llama Vision: Cloudflare AI настроен для реальной работы")
@@ -133,12 +134,12 @@ class LlamaVisionEngine:
             if self.use_real_api:
                 return await self._call_cloudflare_ai(image_data, system_prompt)
             else:
-                logger.warning("📸 Llama Vision: используем эмуляцию (нет Cloudflare ключей)")
-                return await self._fallback_emulation()
+                logger.error("📸 Llama Vision: реальный AI недоступен - отсутствуют учетные данные Cloudflare")
+                raise ValueError("Real AI requires Cloudflare credentials")
                 
         except Exception as e:
             logger.error(f"📸 Llama Vision: ошибка вызова {e}")
-            return await self._fallback_emulation()
+            raise
     
     async def _call_cloudflare_ai(self, image_data: bytes, system_prompt: str) -> Dict[str, Any]:
         """Реальный вызов Cloudflare Workers AI"""
@@ -198,13 +199,13 @@ class LlamaVisionEngine:
                         
         except aiohttp.ClientError as e:
             logger.error(f"📸 Llama Vision: ошибка сети Cloudflare AI {e}")
-            return await self._fallback_emulation()
+            raise
         except asyncio.TimeoutError:
             logger.error("📸 Llama Vision: timeout Cloudflare AI")
-            return await self._fallback_emulation()
+            raise
         except Exception as e:
             logger.error(f"📸 Llama Vision: ошибка Cloudflare AI {e}")
-            return await self._fallback_emulation()
+            raise
     
     async def _fallback_emulation(self) -> Dict[str, Any]:
         """Fallback эмуляция если Cloudflare AI недоступен"""

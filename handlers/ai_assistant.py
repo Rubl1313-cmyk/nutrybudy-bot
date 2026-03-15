@@ -222,9 +222,9 @@ async def handle_voice_global(message: Message, state: FSMContext):
 
         await message.answer(f"📝 <b>Распознано:</b>\n{text}", parse_mode="HTML")
 
-        # Передаём в универсальный обработчик (там будет классификация)
-        from handlers.universal_text_handler import handle_universal_text
-        await handle_universal_text(message, state, text)
+        # Передаём в AI обработчик (новая архитектура)
+        from handlers.ai_handler import handle_text
+        await handle_text(message, state)
 
     except Exception as e:
         logger.error(f"Ошибка обработки голоса: {e}", exc_info=True)

@@ -1,147 +1,32 @@
-# 🤖 NutriBuddy Bot - AI-driven Nutrition Assistant
+# AI-Driven Nutrition Bot (Refactor Plan)
 
-## 🎯 Обзор
+This repo proposes a complete rebuild and refactor of your nutrition bot to be fully AI-driven using Cloudflare AI models:
+- Vision model: llama-3.2-11b-vision-instruct for food recognition from images
+- Brain model: hermes-2-pro-mistral-7b for high-level reasoning and task orchestration
 
-NutriBuddy Bot - это умный Telegram бот для отслеживания питания, активности и здоровья с использованием реального AI.
+Architecture highlights:
+- Cloudflare Workers as the API gateway and orchestrator
+- Vision module handles food recognition from photos
+- Brain module handles meal planning, macro targets, hydration, activity, climate adaptation
+- Persistent user data via KV or Durable Objects (starter uses a simple in-memory store; replace with KV/DO in production)
 
-## ✨ Ключевые возможности
+Key features implemented:
+- AI-driven food recognition from images
+- AI-driven macro-nutrition calculation (personalized KBJU)
+- Hydration tracking, activity monitoring, steps, and climate-adapted recommendations
+- User-friendly API endpoints for logging meals, hydration, activity, and obtaining daily recommendations
 
-### 🧠 AI-driven функции (100% на Cloudflare AI):
-- **Распознавание еды**: "съел 200г курицы с гречкой"
-- **Анализ воды**: "выпил большую кружку чая" → 300мл
-- **Определение активности**: "интенсивная тренировка 45 минут"
-- **Климатические рекомендации**: адаптация под погоду
-- **Умный расчет КБЖУ**: персонализированные нормы
+What you’ll need to do next:
+- Replace in-memory store with Cloudflare KV or Durable Objects
+- Wire up real authentication to identify users securely
+- Add a front-end UI that calls these endpoints and visualizes progress
+- Implement proper error handling, rate limits, and retry strategies
+- Add tests and CI
 
-### 📊 Основной функционал:
-- 🍽️ Отслеживание питания с AI анализом
-- 💾 Контроль водного баланса
-- 🏃 Мониторинг физической активности
-- 👞 Трекер шагов с геймификацией
-- 📈 Детальная статистика и прогресс
-- 🌤️ Климатическая адаптация рекомендаций
+How to run locally (rough guide):
+- Install wrangler, configure with your Cloudflare account
+- wrangler login; wrangler dev
+- Ensure your Cloudflare subdomain can access the AI models (model endpoints)
 
-## 🚀 Быстрый старт
-
-### 1. Настройка Cloudflare AI
-
-```powershell
-# Windows PowerShell
-$env:CLOUDFLARE_ACCOUNT_ID = "ваш_account_id"
-$env:CLOUDFLARE_API_TOKEN = "ваш_api_token"
-$env:OPENWEATHERMAP_API_KEY = "ваш_api_key"
-```
-
-### 2. Установка зависимостей
-
-```bash
-pip install -r requirements.txt
-```
-
-### 3. Запуск бота
-
-```bash
-python bot.py
-```
-
-## 📁 Структура проекта
-
-```
-nutrybudy-bot/
-├── bot.py                 # Основной файл бота
-├── database/              # Модели данных
-├── handlers/              # Обработчики команд
-├── services/              # AI движки и бизнес-логика
-├── keyboards/             # Клавиатуры
-├── utils/                 # Утилиты
-├── scripts/               # Скрипты тестирования
-└── requirements.txt       # Зависимости
-```
-
-## 🧠 AI Компоненты
-
-### Enhanced AI Parser
-- Распознает еду, воду, активность из естественного языка
-- Точность: 85-95% confidence
-- Поддерживает комбинированные запросы
-
-### Climate Manager  
-- Анализирует погоду через OpenWeatherMap
-- Адаптирует рекомендации под климат
-
-### Nutrition Calculator
-- Рассчитывает персонализированные КБЖУ
-- Анализ прогресса и адаптирует нормы
-
-### AI Integration Manager
-- "Мозг" бота - маршрутизирует все запросы
-- Обогащает результаты контекстом
-
-## 📝 Примеры использования
-
-### Распознавание еды:
-```
-Пользователь: съел курицу с гречкой на обед
-AI: [{"name": "курица", "quantity": 150, "unit": "г"}, 
-     {"name": "гречка", "quantity": 100, "unit": "г"}]
-```
-
-### Анализ воды:
-```
-Пользователь: выпил большую кружку чая
-AI: {"amount_ml": 300, "confidence": 85}
-```
-
-### Активность:
-```
-Пользователь: интенсивная тренировка в зале 45 минут
-AI: {"activity_type": "тренировка", "duration_minutes": 45, 
-     "intensity": "высокая", "confidence": 90}
-```
-
-## 🛠️ Технологии
-
-- **AI Engine**: Cloudflare Workers AI (Llama 3.1 8B)
-- **База данных**: SQLAlchemy + SQLite
-- **Фреймворк**: aiogram 3.x
-- **Язык**: Python 3.12+
-
-## 📋 Требования
-
-- Python 3.12+
-- Telegram Bot Token
-- Cloudflare Account ID + API Token
-- OpenWeatherMap API Key (опционально)
-
-## 🔧 Команды бота
-
-- `/start` - Начать работу
-- `/set_profile` - Настроить профиль
-- `/today` - Статистика за сегодня
-- `/steps` - Трекер шагов
-- `/help` - Помощь
-
-## 📖 Подробная документация
-
-- [AI Setup Guide](AI_SETUP_GUIDE.md) - Настройка Cloudflare AI
-- [Start AI Bot](START_AI_BOT.md) - Запуск с AI
-
-## 🎯 Особенности
-
-- ✅ **100% AI-driven** - никаких жестких правил
-- ✅ **Естественный язык** - понимает разговорную речь
-- ✅ **Контекстная память** - помнит историю диалога
-- ✅ **Гибкая адаптация** - настраивается под пользователя
-- ✅ **Высокая точность** - 85-95% confidence
-
-## 🚀 Развертывание
-
-Бот готов к развертыванию на:
-- Railway (через `railway.json`)
-- Heroku
-- VPS серверы
-- Docker (через `Dockerfile`)
-
----
-
-**NutriBuddy Bot - ваш умный AI ассистент по питанию!** 🤖✨
+Notes:
+- This is a scaffold for rapid rebuilding. It focuses on architecture and integration points rather than a finished product.

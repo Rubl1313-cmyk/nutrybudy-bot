@@ -11,15 +11,8 @@ from aiogram.enums import ParseMode
 from aiogram.types import Update, BotCommand
 from aiohttp import web
 from database.db import init_db, close_db, engine
-from handlers import (
-    common, profile, food, water, activity, progress, media_handlers, ai_assistant,
-    universal_text_handler, enhanced_universal_handler, meal_plan, weight, steps  # Добавили enhanced_universal_handler
-)
-from handlers.universal_text_handler import universal_router
-from handlers import meal_plan
 from sqlalchemy import text
 from aiogram.fsm.strategy import FSMStrategy
-from handlers import food_search
 
 load_dotenv()
 
@@ -143,7 +136,6 @@ async def on_startup(app):
 
         await set_bot_commands(bot)
         
-        
     except Exception as e:
         logger.error(f"❌ Startup error: {e}", exc_info=True)
         raise
@@ -183,23 +175,21 @@ async def main():
     global dp
     dp = Dispatcher(storage=storage, fsm_strategy=FSMStrategy.GLOBAL_USER)
     
-    # Подключение роутеров (ПОРЯДОК ВАЖЕН!)
-    dp.include_router(common.router)
-    dp.include_router(profile.router)
-    dp.include_router(food.router)
-    dp.include_router(water.router)
-    dp.include_router(activity.router)
-    dp.include_router(steps.router)  # Добавили трекер шагов
-    # dp.include_router(progress.router)  # УБРАЛИ - логика перенесена в common.py
-    dp.include_router(weight.router)     
-    dp.include_router(media_handlers.router)
-    dp.include_router(meal_plan.router)
-    dp.include_router(food_search.router)
-    dp.include_router(ai_assistant.router)          # диалоговый AI
-    dp.include_router(enhanced_universal_handler.router)  # AI обработчик текста
-    dp.include_router(universal_text_handler.universal_router)  # fallback обработчик  
+    # Подключение роутеров в правильном порядке для AI-архитектуры:
+    # 1. AI обработчик для всех сообщений (главный)
+    # 2. AI ассистент для диалогов
+    # 3. Базовые команды (/start, /help)
     
-    logging.info("✅ All routers included")
+    from handlers import ai_handler      # Основной AI обработчик для всего
+    dp.include_router(ai_handler.router)
+    
+    from handlers import ai_assistant    # Диалоговый AI ассистент
+    dp.include_router(ai_assistant.router)
+    
+    from handlers import common          # Базовые команды
+    dp.include_router(common.router)
+    
+    logging.info("✅ All routers included in correct order for FSM")
     
     app = create_app()
     app['bot'] = bot

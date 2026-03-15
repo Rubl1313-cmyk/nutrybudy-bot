@@ -169,13 +169,13 @@ class SmartAIAssistant:
         
         messages.append({"role": "user", "content": message})
         
-        try:
-            # Выполняем AI запрос с retry логикой через Hermes
-            ai_result = await ai_operation_with_retry(
-                self.ai.process_function_call,
-                prompt=message,
-                available_functions=self.functions
-            )
+         try:
+             # Выполняем AI запрос с retry логикой через Hermes
+             ai_result = await ai_operation_with_retry(
+                 self.ai.engines["hermes"].process_function_call,
+                 prompt=message,
+                 available_functions=self.functions
+             )
             
             if ai_result.get("success"):
                 tool_calls = ai_result.get("data", {}).get("tool_calls", [])

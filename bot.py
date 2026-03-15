@@ -177,15 +177,17 @@ async def main():
     """Основная функция"""
     logging.info("Starting NutriBuddy Bot on Railway...")
     
+    # Валидация токена только в production
+    validate_token = os.getenv('RAILWAY_ENVIRONMENT') == 'production'
+    
     bot = Bot(
         token=TOKEN,
         default=DefaultBotProperties(parse_mode=ParseMode.HTML),
-        validate_token=False  # Временно отключаем валидацию для теста
+        validate_token=validate_token
     )
     
     storage = MemoryStorage()
     
-    global dp
     dp = Dispatcher(storage=storage, fsm_strategy=FSMStrategy.GLOBAL_USER)
     
     # Подключение роутеров в правильном порядке для AI-архитектуры:
@@ -211,6 +213,7 @@ async def main():
     
     app = create_app()
     app['bot'] = bot
+    app['dp'] = dp  # Передаем диспетчер в контекст
     
     runner = web.AppRunner(app)
     await runner.setup()

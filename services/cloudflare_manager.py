@@ -16,11 +16,13 @@ class CloudflareAIManager:
     """Единый менеджер для всех AI моделей через Cloudflare Workers AI"""
     
     def __init__(self):
+        """Инициализация менеджера Cloudflare AI"""
         self.account_id = os.getenv("CLOUDFLARE_ACCOUNT_ID")
         self.api_token = os.getenv("CLOUDFLARE_API_TOKEN")
         
         if not self.account_id or not self.api_token:
-            logger.warning("⚠️ Cloudflare credentials not set. Using emulation mode.")
+            logger.warning("⚠️ Cloudflare AI credentials not found. Using emulation mode.")
+            logger.warning("AI functionality will be limited. Set CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN in environment.")
             self.base_url = None
             self.headers = {}
         else:
@@ -266,19 +268,20 @@ class CloudflareAIManager:
 Отвечай кратко, по делу и поддерживай позитивный тон. Используй эмодзи умеренно.
 Персонализируй ответы, если есть данные профиля. Не давай медицинских советов, рекомендуй консультироваться с врачом."""
         
-        # Собираем историю в промпт
-        context_parts = []
+        # Строим сообщения для модели с историей
+        messages = [{"role": "system", "content": system_prompt}]
+        
+        # Добавляем историю диалога в сообщения
         if history:
-            context_parts.append(f"История диалога: {json.dumps(history[-3:], ensure_ascii=False)}")
+            messages.extend(history[-5:])  # Последние 5 сообщений
+        
+        # Добавляем текущее сообщение
+        messages.append({"role": "user", "content": message})
+        
+        # Добавляем профиль в системное сообщение если есть
         if user_profile:
-            context_parts.append(f"Профиль пользователя: {json.dumps(user_profile, ensure_ascii=False)}")
-        
-        full_prompt = f"{chr(10).join(context_parts)}{chr(10)}{chr(10)}Сообщение: {message}"
-        
-        messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": full_prompt}
-        ]
+            profile_context = f"Профиль пользователя: {json.dumps(user_profile, ensure_ascii=False)}"
+            messages[0]["content"] = f"{system_prompt}\n\n{profile_context}"
         
         return await self._call(
             "assistant", 

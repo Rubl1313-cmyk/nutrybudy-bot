@@ -72,6 +72,37 @@ async def process_weight(message: Message, state: FSMContext):
             
             # Обновляем текущий вес в профиле
             user.weight = weight
+            
+            # Пересчитываем нормы КБЖУ с новым весом
+            from services.calculator import calculate_calorie_goal, calculate_water_goal
+            nutrition_goals = calculate_calorie_goal(
+                weight=weight,
+                height=user.height,
+                age=user.age,
+                gender=user.gender,
+                activity_level=user.activity_level,
+                goal=user.goal
+            )
+            
+            # Распаковываем кортеж: (calories, protein_g, fat_g, carbs_g)
+            user.daily_calorie_goal, user.daily_protein_goal, user.daily_fat_goal, user.daily_carbs_goal = nutrition_goals
+            
+            # Пересчитываем норму воды с реальной температурой
+            temperature = 20.0  # По умолчанию
+            try:
+                from services.weather import get_temperature
+                temperature = await get_temperature(user.city)
+            except Exception as e:
+                logger.warning(f"Не удалось получить температуру для {user.city}: {e}")
+                temperature = 20.0
+                
+            water_goal = calculate_water_goal(
+                weight=weight,
+                activity_level=user.activity_level,
+                temperature=temperature  # Реальная температура
+            )
+            user.daily_water_goal = water_goal
+            
             await session.commit()
             
             # Получаем статистику

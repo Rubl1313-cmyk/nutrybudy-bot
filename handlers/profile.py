@@ -248,16 +248,23 @@ async def process_city(message: Message, state: FSMContext):
         goal=goal
     )
     
+    # Распаковываем кортеж: (calories, protein_g, fat_g, carbs_g)
+    daily_calorie_goal, daily_protein_goal, daily_fat_goal, daily_carbs_goal = nutrition_goals
+    
+    # Получаем реальную температуру для расчета воды
+    temperature = 20.0  # По умолчанию
+    try:
+        from services.weather import get_temperature
+        temperature = await get_temperature(city)
+    except Exception as e:
+        logger.warning(f"Не удалось получить температуру для {city}: {e}")
+        temperature = 20.0
+    
     water_goal = calculate_water_goal(
         weight=weight,
         activity_level=activity_level,
-        temperature=20.0  # Средняя температура
+        temperature=temperature  # Реальная температура
     )
-    
-    daily_calorie_goal = nutrition_goals['calories']
-    daily_protein_goal = nutrition_goals['protein']
-    daily_fat_goal = nutrition_goals['fat']
-    daily_carbs_goal = nutrition_goals['carbs']
     daily_water_goal = water_goal
     
     # Сохраняем в базу данных

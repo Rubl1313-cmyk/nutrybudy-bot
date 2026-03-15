@@ -40,13 +40,25 @@ async def set_bot_commands(bot: Bot):
     commands = [
         BotCommand(command="start", description="🚀 Запустить бота"),
         BotCommand(command="help", description="📚 Помощь"),
-        BotCommand(command="set_profile", description="👤 Профиль"),
-        BotCommand(command="log_food", description="🍽️ Еда"),
-        BotCommand(command="log_water", description="💧 Вода"),
-        BotCommand(command="steps", description="👞 Шаги"),
-        BotCommand(command="fitness", description="🏋️ Активность"),
-        BotCommand(command="progress", description="📊 Прогресс"),
-        BotCommand(command="ask", description="💬 AI Помощник"),
+        BotCommand(command="set_profile", description="👤 Настроить профиль"),
+        BotCommand(command="profile", description="👤 Мой профиль"),
+        BotCommand(command="log_food", description="🍽️ Добавить еду"),
+        BotCommand(command="log_water", description="💧 Записать воду"),
+        BotCommand(command="water", description="💧 Статистика воды"),
+        BotCommand(command="log_weight", description="⚖️ Записать вес"),
+        BotCommand(command="weight", description="⚖️ Статистика веса"),
+        BotCommand(command="fitness", description="� Добавить активность"),
+        BotCommand(command="activity", description="🏃 Статистика активности"),
+        BotCommand(command="progress", description="📊 Мой прогресс"),
+        BotCommand(command="stats", description="📊 Статистика за сегодня"),
+        BotCommand(command="ask", description="💬 AI ассистент"),
+        BotCommand(command="ai", description="💬 AI ассистент"),
+        BotCommand(command="weather", description="🌦️ Погода"),
+        BotCommand(command="recipe", description="🍳 Рецепт"),
+        BotCommand(command="calculate", description="🧮 Рассчитать КБЖУ"),
+        BotCommand(command="meal_plan", description="🍽️ План питания"),
+        BotCommand(command="diet", description="🍽️ План питания"),
+        BotCommand(command="nutrition", description="🥗 Советы по питанию"),
         BotCommand(command="cancel", description="❌ Отмена")
     ]
     await bot.set_my_commands(commands)
@@ -188,6 +200,24 @@ async def main():
     
     from handlers import common          # Базовые команды
     dp.include_router(common.router)
+    
+    from handlers import profile         # Профиль пользователя
+    dp.include_router(profile.router)
+    
+    from handlers import water           # Учет воды
+    dp.include_router(water.router)
+    
+    from handlers import progress        # Статистика и прогресс
+    dp.include_router(progress.router)
+    
+    from handlers import activity        # Учет активности
+    dp.include_router(activity.router)
+    
+    from handlers import weight          # Учет веса
+    dp.include_router(weight.router)
+    
+    from handlers import meal_plan       # Планирование питания
+    dp.include_router(meal_plan.router)
     
     logging.info("✅ All routers included in correct order for FSM")
     

@@ -71,6 +71,7 @@ async def save_food_and_respond(message: types.Message, food_data: dict):
                 protein=food_data.get("protein", 0),
                 fat=food_data.get("fat", 0),
                 carbs=food_data.get("carbs", 0),
+                meal_type=food_data.get("meal_type", "other"),  # Добавляем тип приема пищи
                 datetime=datetime.now()
             )
             session.add(meal)

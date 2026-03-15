@@ -27,6 +27,7 @@ async def cmd_ask(message: Message, state: FSMContext):
     """Начать диалог с AI ассистентом"""
     await state.clear()
     await state.set_state(AIStates.in_conversation)
+    await state.update_data(conversation_history=[])  # Инициализируем историю
     
     await message.answer(
         "🤖 <b>AI ассистент</b>\n\n"
@@ -59,6 +60,10 @@ async def process_ai_question(message: Message, state: FSMContext):
         return
     
     try:
+        # Получаем историю диалога
+        state_data = await state.get_data()
+        conversation_history = state_data.get('conversation_history', [])
+        
         # Получаем информацию о пользователе для контекста
         async with get_session() as session:
             result = await session.execute(
@@ -66,28 +71,50 @@ async def process_ai_question(message: Message, state: FSMContext):
             )
             user = result.scalar_one_or_none()
             
-            # Формируем контекст для AI
-            context = ""
+            # Формируем профиль пользователя для AI
+            user_profile = None
             if user:
-                context = f"""
-                Пользователь: {user.first_name or 'Anonymous'}
-                Вес: {user.weight} кг
-                Рост: {user.height} см
-                Возраст: {user.age} лет
-                Пол: {'мужской' if user.gender == 'male' else 'женский'}
-                Цель: {user.goal}
-                Норма калорий: {user.daily_calorie_goal} ккал
-                Норма белков: {user.daily_protein_goal} г
-                Норма жиров: {user.daily_fat_goal} г
-                Норма углеводов: {user.daily_carbs_goal} г
-                Город: {user.city}
-                """
+                user_profile = {
+                    'name': user.first_name or 'Anonymous',
+                    'weight': user.weight,
+                    'height': user.height,
+                    'age': user.age,
+                    'gender': user.gender,
+                    'goal': user.goal,
+                    'daily_calories': user.daily_calorie_goal,
+                    'daily_protein': user.daily_protein_goal,
+                    'daily_fat': user.daily_fat_goal,
+                    'daily_carbs': user.daily_carbs_goal,
+                    'city': user.city
+                }
         
         # Отправляем "печатает..."
         await message.bot.send_chat_action(message.chat.id, "typing")
         
-        # Запрос к AI
-        response = await cf_manager.ai_assistant(user_question, context)
+        # Запрос к AI с правильными параметрами и историей
+        response_dict = await cf_manager.ai_assistant(
+            message=user_question,
+            history=conversation_history,  # Передаем историю
+            user_profile=user_profile
+        )
+        
+        response = response_dict.get('response', 'Извините, произошла ошибка')
+        
+        # Обновляем историю диалога
+        conversation_history.append({
+            'role': 'user',
+            'message': user_question
+        })
+        conversation_history.append({
+            'role': 'assistant', 
+            'message': response
+        })
+        
+        # Ограничиваем историю последними 10 сообщениями (5 пар)
+        if len(conversation_history) > 10:
+            conversation_history = conversation_history[-10:]
+        
+        await state.update_data(conversation_history=conversation_history)
         
         await message.answer(
             f"🤖 <b>AI ассистент:</b>\n\n{response}\n\n"
@@ -134,9 +161,15 @@ async def cmd_weather(message: Message, state: FSMContext):
             # Отправляем "печатает..."
             await message.bot.send_chat_action(message.chat.id, "typing")
             
-            # Запрос погоды через AI
+            # Запрос погоды через AI с правильными параметрами
             weather_query = f"Какая сейчас погода в городе {city}?"
-            response = await cf_manager.ai_assistant(weather_query, "")
+            response_dict = await cf_manager.ai_assistant(
+                message=weather_query,
+                history=[],
+                user_profile=None
+            )
+            
+            response = response_dict.get('response', 'Не удалось получить погоду')
             
             await message.answer(
                 f"🌦️ <b>Погода в {city}</b>\n\n{response}",

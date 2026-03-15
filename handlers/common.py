@@ -507,12 +507,13 @@ async def photo_food_message(message: Message, state: FSMContext):
 async def progress_message(message: Message, state: FSMContext):
     """Обработчик прогресса с мотивацией"""
     from handlers.progress import cmd_progress
-    await cmd_progress(message, state, user_id=message.from_user.id)
+    await cmd_progress(message, state)
 
 @router.message(F.text == "👤 Мой профиль")
 async def profile_message(message: Message, state: FSMContext):
     """Обработчик профиля с персонализацией"""
-    await show_profile_category(message, state)
+    from handlers.profile import cmd_profile
+    await cmd_profile(message, state)
 
 @router.message(F.text == "❓ Помощь")
 async def help_message(message: Message, state: FSMContext):

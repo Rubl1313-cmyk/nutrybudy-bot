@@ -6,26 +6,16 @@ import logging
 from aiogram.types import Message, CallbackQuery
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import State, StatesGroup
 from aiogram import F, Router
 from sqlalchemy import select
 
 from database.db import get_session
 from database.models import User
 from keyboards.reply import get_main_keyboard
+from utils.states import ProfileStates
 
 logger = logging.getLogger(__name__)
 router = Router()
-
-class ProfileStates(StatesGroup):
-    """Состояния для редактирования профиля"""
-    waiting_for_weight = State()
-    waiting_for_height = State()
-    waiting_for_age = State()
-    waiting_for_gender = State()
-    waiting_for_activity = State()
-    waiting_for_goal = State()
-    waiting_for_city = State()
 
 @router.message(Command("set_profile"))
 async def cmd_set_profile(message: Message, state: FSMContext):
@@ -40,9 +30,9 @@ async def cmd_set_profile(message: Message, state: FSMContext):
         "Например: 70.5",
         parse_mode="HTML"
     )
-    await state.set_state(ProfileStates.waiting_for_weight)
+    await state.set_state(ProfileStates.weight)
 
-@router.message(ProfileStates.waiting_for_weight)
+@router.message(ProfileStates.weight)
 async def process_weight(message: Message, state: FSMContext):
     """Обработка веса"""
     try:
@@ -59,12 +49,12 @@ async def process_weight(message: Message, state: FSMContext):
             "Например: 175",
             parse_mode="HTML"
         )
-        await state.set_state(ProfileStates.waiting_for_height)
+        await state.set_state(ProfileStates.height)
         
     except ValueError:
         await message.answer("❌ Введите корректное число. Попробуйте еще раз:")
 
-@router.message(ProfileStates.waiting_for_height)
+@router.message(ProfileStates.height)
 async def process_height(message: Message, state: FSMContext):
     """Обработка роста"""
     try:
@@ -81,12 +71,12 @@ async def process_height(message: Message, state: FSMContext):
             "Например: 25",
             parse_mode="HTML"
         )
-        await state.set_state(ProfileStates.waiting_for_age)
+        await state.set_state(ProfileStates.age)
         
     except ValueError:
         await message.answer("❌ Введите корректное число. Попробуйте еще раз:")
 
-@router.message(ProfileStates.waiting_for_age)
+@router.message(ProfileStates.age)
 async def process_age(message: Message, state: FSMContext):
     """Обработка возраста"""
     try:
@@ -115,12 +105,12 @@ async def process_age(message: Message, state: FSMContext):
             reply_markup=keyboard,
             parse_mode="HTML"
         )
-        await state.set_state(ProfileStates.waiting_for_gender)
+        await state.set_state(ProfileStates.gender)
         
     except ValueError:
         await message.answer("❌ Введите корректное число. Попробуйте еще раз:")
 
-@router.message(ProfileStates.waiting_for_gender)
+@router.message(ProfileStates.gender)
 async def process_gender(message: Message, state: FSMContext):
     """Обработка пола"""
     gender = message.text.lower()
@@ -160,9 +150,9 @@ async def process_gender(message: Message, state: FSMContext):
         reply_markup=keyboard,
         parse_mode="HTML"
     )
-    await state.set_state(ProfileStates.waiting_for_activity)
+    await state.set_state(ProfileStates.activity)
 
-@router.message(ProfileStates.waiting_for_activity)
+@router.message(ProfileStates.activity)
 async def process_activity(message: Message, state: FSMContext):
     """Обработка уровня активности"""
     activity = message.text.lower()
@@ -203,9 +193,9 @@ async def process_activity(message: Message, state: FSMContext):
         reply_markup=keyboard,
         parse_mode="HTML"
     )
-    await state.set_state(ProfileStates.waiting_for_goal)
+    await state.set_state(ProfileStates.goal)
 
-@router.message(ProfileStates.waiting_for_goal)
+@router.message(ProfileStates.goal)
 async def process_goal(message: Message, state: FSMContext):
     """Обработка цели"""
     goal = message.text.lower()
@@ -229,9 +219,9 @@ async def process_goal(message: Message, state: FSMContext):
         "Например: Москва",
         parse_mode="HTML"
     )
-    await state.set_state(ProfileStates.waiting_for_city)
+    await state.set_state(ProfileStates.city)
 
-@router.message(ProfileStates.waiting_for_city)
+@router.message(ProfileStates.city)
 async def process_city(message: Message, state: FSMContext):
     """Обработка города и сохранение профиля"""
     city = message.text.strip()
@@ -239,7 +229,6 @@ async def process_city(message: Message, state: FSMContext):
     # Получаем все данные
     profile_data = await state.get_data()
     
-    # Рассчитываем КБЖУ
     weight = profile_data['weight']
     height = profile_data['height']
     age = profile_data['age']
@@ -247,28 +236,29 @@ async def process_city(message: Message, state: FSMContext):
     activity_level = profile_data['activity_level']
     goal = profile_data['goal']
     
-    # Базовый метаболизм по формуле Миффлина-Сан Жеора
-    if gender == "male":
-        bmr = 10 * weight + 6.25 * height - 5 * age + 5
-    else:
-        bmr = 10 * weight + 6.25 * height - 5 * age - 161
+    # Рассчитываем КБЖУ с использованием калькулятора
+    from services.calculator import calculate_calorie_goal, calculate_water_goal
     
-    # Суточная норма калорий с учетом активности
-    daily_calorie_goal = bmr * activity_level
+    nutrition_goals = calculate_calorie_goal(
+        weight=weight,
+        height=height, 
+        age=age,
+        gender=gender,
+        activity_level=activity_level,
+        goal=goal
+    )
     
-    # Корректировка под цель
-    if goal == "lose_weight":
-        daily_calorie_goal *= 0.85  # Дефицит 15%
-    elif goal == "gain_weight":
-        daily_calorie_goal *= 1.15  # Профицит 15%
+    water_goal = calculate_water_goal(
+        weight=weight,
+        activity_level=activity_level,
+        temperature=20.0  # Средняя температура
+    )
     
-    # Нормы БЖУ
-    daily_protein_goal = weight * 1.8 if goal == "gain_weight" else weight * 1.5
-    daily_fat_goal = weight * 1.0
-    daily_carbs_goal = (daily_calorie_goal - daily_protein_goal * 4 - daily_fat_goal * 9) / 4
-    
-    # Норма воды
-    daily_water_goal = weight * 35  # 35 мл на 1 кг веса
+    daily_calorie_goal = nutrition_goals['calories']
+    daily_protein_goal = nutrition_goals['protein']
+    daily_fat_goal = nutrition_goals['fat']
+    daily_carbs_goal = nutrition_goals['carbs']
+    daily_water_goal = water_goal
     
     # Сохраняем в базу данных
     async with get_session() as session:

@@ -85,19 +85,20 @@ async def process_restrictions(message: Message, state: FSMContext):
             )
             return
         
-        # Формируем контекст для AI
-        context = f"""
-        Пользователь: {user.first_name or 'Anonymous'}
-        Вес: {user.weight} кг
-        Рост: {user.height} см
-        Возраст: {user.age} лет
-        Пол: {'мужской' if user.gender == 'male' else 'женский'}
-        Цель: {user.goal}
-        Норма калорий: {user.daily_calorie_goal} ккал
-        Норма белков: {user.daily_protein_goal} г
-        Норма жиров: {user.daily_fat_goal} г
-        Норма углеводов: {user.daily_carbs_goal} г
-        """
+        # Формируем профиль пользователя для AI
+        user_profile = {
+            'name': user.first_name or 'Anonymous',
+            'weight': user.weight,
+            'height': user.height,
+            'age': user.age,
+            'gender': user.gender,
+            'goal': user.goal,
+            'daily_calories': user.daily_calorie_goal,
+            'daily_protein': user.daily_protein_goal,
+            'daily_fat': user.daily_fat_goal,
+            'daily_carbs': user.daily_carbs_goal,
+            'city': user.city
+        }
         
         # Получаем предпочтения
         meal_data = await state.get_data()
@@ -128,8 +129,14 @@ async def process_restrictions(message: Message, state: FSMContext):
             # Отправляем "печатает..."
             await message.bot.send_chat_action(message.chat.id, "typing")
             
-            # Запрос к AI
-            response = await cf_manager.ai_assistant(ai_query, context)
+            # Запрос к AI с правильными параметрами
+            response_dict = await cf_manager.ai_assistant(
+                message=ai_query,
+                history=[],
+                user_profile=user_profile
+            )
+            
+            response = response_dict.get('response', 'Не удалось создать план питания')
             
             await state.clear()
             
@@ -173,16 +180,20 @@ async def cmd_nutrition(message: Message, state: FSMContext):
                 )
                 return
             
-            # Формируем контекст
-            context = f"""
-            Пользователь: {user.first_name or 'Anonymous'}
-            Вес: {user.weight} кг
-            Рост: {user.height} см
-            Возраст: {user.age} лет
-            Пол: {'мужской' if user.gender == 'male' else 'женский'}
-            Цель: {user.goal}
-            Норма калорий: {user.daily_calorie_goal} ккал
-            """
+            # Формируем профиль пользователя для AI
+            user_profile = {
+                'name': user.first_name or 'Anonymous',
+                'weight': user.weight,
+                'height': user.height,
+                'age': user.age,
+                'gender': user.gender,
+                'goal': user.goal,
+                'daily_calories': user.daily_calorie_goal,
+                'daily_protein': user.daily_protein_goal,
+                'daily_fat': user.daily_fat_goal,
+                'daily_carbs': user.daily_carbs_goal,
+                'city': user.city
+            }
             
             # Запрос к AI
             ai_query = f"""
@@ -202,7 +213,14 @@ async def cmd_nutrition(message: Message, state: FSMContext):
             # Отправляем "печатает..."
             await message.bot.send_chat_action(message.chat.id, "typing")
             
-            response = await cf_manager.ai_assistant(ai_query, context)
+            # Запрос к AI с правильными параметрами
+            response_dict = await cf_manager.ai_assistant(
+                message=ai_query,
+                history=[],
+                user_profile=user_profile
+            )
+            
+            response = response_dict.get('response', 'Не удалось получить рекомендации')
             
             await message.answer(
                 f"🥗 <b>Рекомендации по питанию</b>\n\n{response}",

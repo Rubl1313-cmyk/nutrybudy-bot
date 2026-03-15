@@ -195,7 +195,7 @@ async def main():
     # 2. AI ассистент для диалогов
     # 3. Базовые команды (/start, /help)
     
-    from handlers import dialog, ai_handler, common, profile, water, progress, activity, weight, meal_plan, ai_assistant, reply_handlers
+    from handlers import dialog, ai_handler, common, profile, water, progress, activity, weight, meal_plan, ai_assistant, reply_handlers, achievements
 
     dp.include_router(dialog.router)          # Перехватывает все текстовые сообщения
     dp.include_router(ai_handler.router)      # Фото и другие медиа
@@ -208,6 +208,7 @@ async def main():
     dp.include_router(weight.router)           # /log_weight, /weight
     dp.include_router(meal_plan.router)        # /meal_plan, /diet
     dp.include_router(ai_assistant.router)     # /ask, /ai, /weather
+    dp.include_router(achievements.router)     # /achievements, /достижения
     
     logging.info("All routers included in correct order for FSM")
     

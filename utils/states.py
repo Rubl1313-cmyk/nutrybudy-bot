@@ -52,6 +52,9 @@ class ProfileStates(StatesGroup):
     height = State()
     age = State()
     gender = State()
+    waiting_for_neck = State()      # Обхват шеи для женщин
+    waiting_for_waist = State()     # Обхват талии для женщин
+    waiting_for_hip = State()       # Обхват бедер для женщин
     activity = State()
     goal = State()
     city = State()

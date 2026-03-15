@@ -64,8 +64,24 @@ class FoodSaveService:
                 # Сохраняем продукты
                 for item in food_items:
                     # Конвертируем вес в граммы
-                    quantity = item.get('quantity', '100 г')
+                    quantity_str = item.get('quantity', '100 г')
                     unit = item.get('unit', 'г')
+                    
+                    # Извлекаем число из строки quantity
+                    try:
+                        if isinstance(quantity_str, str):
+                            # Ищем число в строке
+                            import re
+                            match = re.search(r'[-+]?\d*\.?\d+', quantity_str)
+                            if match:
+                                quantity = float(match.group())
+                            else:
+                                quantity = 100.0
+                        else:
+                            quantity = float(quantity_str)
+                    except (ValueError, TypeError):
+                        quantity = 100.0
+                    
                     weight_grams = convert_to_grams(item.get('name', ''), quantity, unit)
                     
                     # Рассчитываем КБЖУ с учётом веса

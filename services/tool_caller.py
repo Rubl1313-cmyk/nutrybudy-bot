@@ -98,13 +98,13 @@ class ToolCaller:
             from services.intent_classifier import IntentClassifier
             entities = IntentClassifier.extract_entities(text, "log_water")
             
-            amount_ml = entities.get('amount_ml')
-            if not amount_ml:
+            amount = entities.get('amount_ml')
+            if not amount:
                 # Пробуем простой парсинг
                 from utils.water_parser import parse_water_amount
-                amount_ml = parse_water_amount(text)
+                amount = parse_water_amount(text)
             
-            if amount_ml and amount_ml > 0:
+            if amount and amount > 0:
                 # Сохраняем в базу
                 from database.db import get_session
                 from database.models import User, WaterEntry
@@ -120,24 +120,25 @@ class ToolCaller:
                     if not user:
                         await message.answer(
                             "❌ Сначала создайте профиль командой /set_profile",
-                            reply_markup=get_main_keyboard()
+                            reply_markup=get_main_keyboard_v2()
                         )
                         return False
                     
                     # Создаем запись о воде
                     water_entry = WaterEntry(
                         user_id=user.id,
-                        amount_ml=amount_ml,
+                        amount=amount,
                         datetime=datetime.now()
                     )
                     session.add(water_entry)
                     await session.commit()
                     
                     # Получаем статистику за сегодня
+                    from keyboards.reply_v2 import get_main_keyboard_v2
                     from sqlalchemy import func, extract
                     
                     today_stats = await session.execute(
-                        select(func.sum(WaterEntry.amount_ml)).where(
+                        select(func.sum(WaterEntry.amount)).where(
                             WaterEntry.user_id == user.id,
                             extract('day', WaterEntry.datetime) == datetime.now().day,
                             extract('month', WaterEntry.datetime) == datetime.now().month,
@@ -205,7 +206,7 @@ class ToolCaller:
                     if not user:
                         await message.answer(
                             "❌ Сначала создайте профиль командой /set_profile",
-                            reply_markup=get_main_keyboard()
+                            reply_markup=get_main_keyboard_v2()
                         )
                         return False
                     
@@ -369,7 +370,7 @@ class ToolCaller:
                 if not user:
                     await message.answer(
                         "❌ Сначала создайте профиль командой /set_profile",
-                        reply_markup=get_main_keyboard()
+                        reply_markup=get_main_keyboard_v2()
                     )
                     return False
                 

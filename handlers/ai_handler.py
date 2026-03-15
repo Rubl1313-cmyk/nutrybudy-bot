@@ -2,13 +2,16 @@
 AI Handler - обрабатывает все AI запросы через новый процессор
 """
 import logging
-from aiogram import Router, F, types
+from datetime import datetime
+from aiogram import types, F, Router
 from aiogram.fsm.context import FSMContext
+
+from services.ai_processor import ai_processor
+from services.food_save_service import food_save_service
+from utils.gamification import gamification
 from database.db import get_session
 from database.models import User, Meal
 from sqlalchemy import select
-from datetime import datetime
-from services.ai_processor import ai_processor
 
 logger = logging.getLogger(__name__)
 router = Router()
@@ -43,6 +46,22 @@ async def get_user_context(user_id: int) -> dict:
     except Exception as e:
         logger.error(f"❌ Error getting user context: {e}")
         return {"profile": None}
+
+async def send_achievement_notifications(message: types.Message, achievements: list):
+    """Отправляет уведомления о новых достижениях"""
+    if not achievements:
+        return
+    
+    notification_text = f"🎉 <b>Новые достижения!</b>\n\n"
+    
+    for achievement in achievements:
+        notification_text += f"{achievement.icon} {achievement.name}\n"
+        notification_text += f"   {achievement.description}\n"
+        notification_text += f"   +{achievement.points} очков\n\n"
+    
+    notification_text += f"📊 Всего очков: {gamification.get_user_stats(message.from_user.id)['total_points']}"
+    
+    await message.answer(notification_text, parse_mode="HTML")
 
 async def save_food_and_respond(message: types.Message, food_data: dict):
     """Сохраняет еду в базу и отправляет ответ"""
@@ -163,9 +182,23 @@ async def handle_text(message: types.Message, state: FSMContext):
             # Форматируем результат распознавания еды
             food_data = ai_processor.format_food_result(parameters)
             
-            # Сохраняем в базу
+            # Сохраняем еду и отвечаем пользователю
             await save_food_and_respond(message, food_data)
             
+            # Проверяем достижения
+            achievements = await gamification.check_achievements(
+                message.from_user.id, "meal_logged", 
+                {
+                    "time": datetime.now(),
+                    "meal_type": food_data.get("meal_type", ""),
+                    "calorie_goal_reached": False  # TODO: проверить после сохранения
+                }
+            )
+            
+            # Отправляем уведомления о достижениях
+            if achievements:
+                await send_achievement_notifications(message, achievements)
+                
         elif intent == "clarify":
             # Запрос уточнения
             await message.answer(

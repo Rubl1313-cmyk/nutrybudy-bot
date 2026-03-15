@@ -12,6 +12,7 @@ from sqlalchemy import select
 from database.db import get_session
 from database.models import User
 from keyboards.reply_v2 import get_main_keyboard_v2
+from keyboards.reply import get_gender_keyboard
 from utils.states import ProfileStates
 
 logger = logging.getLogger(__name__)
@@ -126,7 +127,94 @@ async def process_gender(message: Message, state: FSMContext):
     
     await state.update_data(gender=gender)
     
-    # Клавиатура для уровня активности
+    # Если женщина - собираем антропометрические данные
+    if gender == "female":
+        await message.answer(
+            "📏 <b>Антропометрические данные</b>\n\n"
+            "Для точного анализа жировой массы нужны обхваты.\n\n"
+            "📐 <b>Обхват шеи (в см):</b>\n"
+            "Например: 34",
+            parse_mode="HTML"
+        )
+        await state.set_state(ProfileStates.waiting_for_neck)
+    else:
+        # Пропускаем антропометрию для мужчин
+        await show_activity_keyboard(message, state)
+
+@router.message(ProfileStates.waiting_for_neck)
+async def process_neck(message: Message, state: FSMContext):
+    """Обработка обхвата шеи"""
+    from utils.safe_parser import safe_parse_float
+    
+    neck, error = safe_parse_float(message.text, "обхват шеи")
+    
+    if error:
+        await message.answer(
+            f"❌ {error}\n\n"
+            "💡 <b>Примеры:</b>\n"
+            "• 34\n"
+            "• 35.5 см",
+            parse_mode="HTML"
+        )
+        return
+    
+    await state.update_data(neck_cm=neck)
+    await message.answer(
+        "📏 <b>Обхват талии (в см):</b>\n"
+        "Например: 70",
+        parse_mode="HTML"
+    )
+    await state.set_state(ProfileStates.waiting_for_waist)
+
+@router.message(ProfileStates.waiting_for_waist)
+async def process_waist(message: Message, state: FSMContext):
+    """Обработка обхвата талии"""
+    from utils.safe_parser import safe_parse_float
+    
+    waist, error = safe_parse_float(message.text, "обхват талии")
+    
+    if error:
+        await message.answer(
+            f"❌ {error}\n\n"
+            "💡 <b>Примеры:</b>\n"
+            "• 70\n"
+            "• 68.5 см",
+            parse_mode="HTML"
+        )
+        return
+    
+    await state.update_data(waist_cm=waist)
+    await message.answer(
+        "📏 <b>Обхват бедер (в см):</b>\n"
+        "Например: 95",
+        parse_mode="HTML"
+    )
+    await state.set_state(ProfileStates.waiting_for_hip)
+
+@router.message(ProfileStates.waiting_for_hip)
+async def process_hip(message: Message, state: FSMContext):
+    """Обработка обхвата бедер"""
+    from utils.safe_parser import safe_parse_float
+    
+    hip, error = safe_parse_float(message.text, "обхват бедер")
+    
+    if error:
+        await message.answer(
+            f"❌ {error}\n\n"
+            "💡 <b>Примеры:</b>\n"
+            "• 95\n"
+            "• 97.5 см",
+            parse_mode="HTML"
+        )
+        return
+    
+    await state.update_data(hip_cm=hip)
+    
+    # Переходим к активности
+    await show_activity_keyboard(message, state)
+
+async def show_activity_keyboard(message: Message, state: FSMContext):
+    """Показываем клавиатуру активности"""
     from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
     
     keyboard = ReplyKeyboardMarkup(
@@ -146,8 +234,8 @@ async def process_gender(message: Message, state: FSMContext):
         "• Минимальная - сидячая работа, нет тренировок\n"
         "• Легкая - легкие тренировки 1-3 раза в неделю\n"
         "• Умеренная - тренировки 3-5 раза в неделю\n"
-        "• Высокая - интенсивные тренировки 6-7 раз в неделю\n"
-        "• Очень высокая - физическая работа/профессиональный спорт",
+        "• Высокая - интенсивные тренировки 5-6 раз в неделю\n"
+        "• Очень высокая - ежедневные тренировки",
         reply_markup=keyboard,
         parse_mode="HTML"
     )
@@ -288,6 +376,12 @@ async def process_city(message: Message, state: FSMContext):
             user.daily_fat_goal = round(daily_fat_goal)
             user.daily_carbs_goal = round(daily_carbs_goal)
             user.daily_water_goal = round(daily_water_goal)
+            
+            # Сохраняем антропометрические данные (только для женщин)
+            if gender == "female":
+                user.neck_cm = profile_data.get('neck_cm')
+                user.waist_cm = profile_data.get('waist_cm')
+                user.hip_cm = profile_data.get('hip_cm')
             
             await session.commit()
     

@@ -153,7 +153,7 @@ async def water_quick_variants(message: Message, state: FSMContext):
     
     # Вызываем обработчик воды
     from services.tool_caller import ToolCaller
-    await ToolCaller._handle_log_water(f"выпил {amount} мл", message.from_user.id, message, state)
+    await ToolCaller.handle_log_water(f"выпил {amount} мл", message.from_user.id, message, state)
 
 # Обработчики для быстрых вариантов активности
 
@@ -177,7 +177,7 @@ async def activity_quick_variants(message: Message, state: FSMContext):
         if button_text in text:
             # Вызываем обработчик активности
             from services.tool_caller import ToolCaller
-            await ToolCaller._handle_log_activity(activity_text, message.from_user.id, message, state)
+            await ToolCaller.handle_log_activity(activity_text, message.from_user.id, message, state)
             break
 
 # Обработчики для AI быстрых запросов

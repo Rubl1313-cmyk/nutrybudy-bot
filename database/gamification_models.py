@@ -3,10 +3,8 @@
 """
 from sqlalchemy import Column, Integer, String, DateTime, Boolean, ForeignKey, Float
 from sqlalchemy.orm import relationship
-from sqlalchemy.ext.declarative import declarative_base
+from database.db import Base
 from datetime import datetime
-
-Base = declarative_base()
 
 class UserAchievement(Base):
     """Достижения пользователя"""

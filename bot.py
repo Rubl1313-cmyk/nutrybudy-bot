@@ -196,17 +196,15 @@ async def main():
     
     dp = Dispatcher(storage=storage, fsm_strategy=FSMStrategy.GLOBAL_USER)
     
-    # Подключение роутеров в правильном порядке для AI-архитектуры:
-    # 1. AI обработчик для всех сообщений (главный)
-    # 2. AI ассистент для диалогов
-    # 3. Базовые команды (/start, /help)
+    # Подключение роутеров в правильном порядке:
+    # 1. Команды и специфические обработчики (должны быть первыми)
+    # 2. Медиа и AI обработчики
+    # 3. Универсальный обработчик текста (dialog) - должен быть последним
     
     from handlers import dialog, ai_handler, common, profile, water, progress, activity, weight, meal_plan, ai_assistant, reply_handlers, achievements
 
-    dp.include_router(dialog.router)          # Перехватывает все текстовые сообщения
-    dp.include_router(ai_handler.router)      # Фото и другие медиа
-    dp.include_router(common.router)           # Команды /start, /help и т.д.
-    dp.include_router(reply_handlers.router)  # Reply-кнопки
+    # Команды и специфические обработчики
+    dp.include_router(common.router)           # /start, /help, /cancel и т.д.
     dp.include_router(profile.router)          # /set_profile, /profile
     dp.include_router(water.router)            # /log_water, /water
     dp.include_router(progress.router)         # /progress, /stats
@@ -214,7 +212,14 @@ async def main():
     dp.include_router(weight.router)           # /log_weight, /weight
     dp.include_router(meal_plan.router)        # /meal_plan, /diet
     dp.include_router(ai_assistant.router)     # /ask, /ai, /weather
-    dp.include_router(achievements.router)     # /achievements, /достижения
+    dp.include_router(achievements.router)     # /achievements
+    
+    # Медиа и AI обработчики
+    dp.include_router(ai_handler.router)       # Фото и другие медиа
+    
+    # Универсальный обработчик текста – должен быть последним
+    dp.include_router(dialog.router)           # Все остальные текстовые сообщения
+    dp.include_router(reply_handlers.router)   # Reply-кнопки
     
     logging.info("All routers included in correct order for FSM")
     

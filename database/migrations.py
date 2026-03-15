@@ -117,23 +117,25 @@ class MigrationManager:
             """
         ))
         
-        # Версия 1.3: Исправление поля amount в water_entries
+        # Версия 1.3.0: Fix water_entries amount field
         self.migrations.append(Migration(
             "1.3.0",
             "Fix water_entries amount field",
             """
-            -- Проверяем и исправляем поле amount
+            -- Переименовываем amount_ml в amount, если такая колонка существует
             DO $$
             BEGIN
-                -- Если есть колонка amount_ml, переименовываем ее
                 IF EXISTS (
                     SELECT 1 FROM information_schema.columns 
                     WHERE table_name = 'water_entries' AND column_name = 'amount_ml'
                 ) THEN
                     ALTER TABLE water_entries RENAME COLUMN amount_ml TO amount;
                 END IF;
-                
-                -- Убедимся что колонка существует
+            END $$;
+
+            -- Добавляем колонку amount, если её нет
+            DO $$
+            BEGIN
                 IF NOT EXISTS (
                     SELECT 1 FROM information_schema.columns 
                     WHERE table_name = 'water_entries' AND column_name = 'amount'
@@ -142,9 +144,7 @@ class MigrationManager:
                 END IF;
             END $$;
             """,
-            """
-            ALTER TABLE water_entries RENAME COLUMN amount TO amount_ml;
-            """
+            None  # down_sql (можно оставить пустым или удалить)
         ))
         
         # Версия 1.4: Добавление поля бицепса для мужчин

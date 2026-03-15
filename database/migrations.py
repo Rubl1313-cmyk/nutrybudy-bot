@@ -81,10 +81,21 @@ class MigrationManager:
                 earned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
             
-            -- Индексы для производительности
-            CREATE INDEX IF NOT EXISTS idx_user_achievements_user_id ON user_achievements(user_id);
-            CREATE INDEX IF NOT EXISTS idx_user_gamification_user_id ON user_gamification(user_id);
-            CREATE INDEX IF NOT EXISTS idx_achievement_history_user_id ON achievement_history(user_id);
+            -- Индексы для производительности (с проверкой существования таблиц)
+            DO $$
+            BEGIN
+                IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'user_achievements') THEN
+                    CREATE INDEX IF NOT EXISTS idx_user_achievements_user_id ON user_achievements(user_id);
+                END IF;
+                
+                IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'user_gamification') THEN
+                    CREATE INDEX IF NOT EXISTS idx_user_gamification_user_id ON user_gamification(user_id);
+                END IF;
+                
+                IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'achievement_history') THEN
+                    CREATE INDEX IF NOT EXISTS idx_achievement_history_user_id ON achievement_history(user_id);
+                END IF;
+            END $$;
             """,
             """
             DROP TABLE IF EXISTS achievement_history;
@@ -183,21 +194,27 @@ class MigrationManager:
             return [row[0] for row in result.fetchall()]
     
     async def apply_migration(self, migration: Migration):
-        """Применение миграции с поддержкой asyncpg"""
+        """Применение миграции с поддержкой asyncpg и детальным логированием"""
         logger.info(f"Applying migration {migration.version}: {migration.description}")
         
         async with get_session() as session:
             try:
                 if migration.up_sql:
-                    # Разделяем SQL на отдельные операторы для asyncpg
-                    statements = re.split(r';\s*\n', migration.up_sql)
+                    # Разделяем SQL на отдельные команды по точке с запятой
+                    # Удаляем комментарии и пустые строки
+                    statements = []
+                    for line in migration.up_sql.split(';'):
+                        line = line.strip()
+                        if line and not line.startswith('--'):
+                            # Дополнительная очистка от лишних пробелов и переводов строк
+                            clean_line = ' '.join(line.split())
+                            statements.append(clean_line)
                     
-                    for stmt in statements:
-                        stmt = stmt.strip()
-                        # Пропускаем пустые строки и комментарии
-                        if stmt and not stmt.startswith('--'):
-                            logger.debug(f"Executing SQL: {stmt[:100]}...")
+                    for i, stmt in enumerate(statements):
+                        if stmt:  # Пропускаем пустые строки
+                            logger.info(f"Executing statement {i+1}: {stmt[:100]}...")
                             await session.execute(text(stmt))
+                            logger.info(f"Statement {i+1} executed successfully")
                 
                 # Записываем миграцию как примененную
                 await session.execute(text("""

@@ -185,21 +185,27 @@ class MigrationManager:
         async with get_session() as session:
             try:
                 if migration.up_sql:
-                    # Разделяем SQL на отдельные команды по точке с запятой
-                    # Удаляем комментарии и пустые строки
-                    statements = []
-                    for line in migration.up_sql.split(';'):
-                        line = line.strip()
-                        if line and not line.startswith('--'):
-                            # Дополнительная очистка от лишних пробелов и переводов строк
-                            clean_line = ' '.join(line.split())
-                            statements.append(clean_line)
-                    
-                    for i, stmt in enumerate(statements):
-                        if stmt:  # Пропускаем пустые строки
-                            logger.info(f"Executing statement {i+1}: {stmt[:100]}...")
-                            await session.execute(text(stmt))
-                            logger.info(f"Statement {i+1} executed successfully")
+                    # Разбиваем на строки
+                    lines = migration.up_sql.split('\n')
+                    current_stmt = []
+                    for line in lines:
+                        stripped = line.strip()
+                        # Пропускаем комментарии и пустые строки
+                        if stripped.startswith('--') or not stripped:
+                            continue
+                        current_stmt.append(line)
+                        # Если строка заканчивается точкой с запятой — выполняем накопленную команду
+                        if stripped.endswith(';'):
+                            full_stmt = '\n'.join(current_stmt)
+                            logger.info(f"Executing: {full_stmt[:100]}...")
+                            await session.execute(text(full_stmt))
+                            current_stmt = []
+                    # Если осталась команда без точки с запятой в конце (редкий случай)
+                    if current_stmt:
+                        full_stmt = '\n'.join(current_stmt)
+                        if full_stmt.strip():
+                            logger.info(f"Executing final statement: {full_stmt[:100]}...")
+                            await session.execute(text(full_stmt))
                 
                 # Записываем миграцию как примененную
                 await session.execute(text("""

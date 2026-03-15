@@ -38,7 +38,7 @@ class MigrationManager:
             None
         ))
         
-        # Версия 1.1: Добавление геймификации
+        # Версия 1.1.0: Добавление геймификации
         self.migrations.append(Migration(
             "1.1.0",
             "Add gamification tables",
@@ -51,7 +51,7 @@ class MigrationManager:
                 earned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 points INTEGER NOT NULL
             );
-            
+
             -- Таблица статистики геймификации
             CREATE TABLE IF NOT EXISTS user_gamification (
                 id SERIAL PRIMARY KEY,
@@ -69,7 +69,7 @@ class MigrationManager:
                 late_dinners INTEGER DEFAULT 0,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
-            
+
             -- Таблица истории достижений
             CREATE TABLE IF NOT EXISTS achievement_history (
                 id SERIAL PRIMARY KEY,
@@ -80,28 +80,13 @@ class MigrationManager:
                 points_earned INTEGER NOT NULL,
                 earned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
-            
-            -- Индексы для производительности (с проверкой существования таблиц)
-            DO $$
-            BEGIN
-                IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'user_achievements') THEN
-                    CREATE INDEX IF NOT EXISTS idx_user_achievements_user_id ON user_achievements(user_id);
-                END IF;
-                
-                IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'user_gamification') THEN
-                    CREATE INDEX IF NOT EXISTS idx_user_gamification_user_id ON user_gamification(user_id);
-                END IF;
-                
-                IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'achievement_history') THEN
-                    CREATE INDEX IF NOT EXISTS idx_achievement_history_user_id ON achievement_history(user_id);
-                END IF;
-            END $$;
+
+            -- Индексы для производительности
+            CREATE INDEX IF NOT EXISTS idx_user_achievements_user_id ON user_achievements(user_id);
+            CREATE INDEX IF NOT EXISTS idx_user_gamification_user_id ON user_gamification(user_id);
+            CREATE INDEX IF NOT EXISTS idx_achievement_history_user_id ON achievement_history(user_id);
             """,
-            """
-            DROP TABLE IF EXISTS achievement_history;
-            DROP TABLE IF EXISTS user_gamification;
-            DROP TABLE IF EXISTS user_achievements;
-            """
+            None  # down_sql (можно оставить как есть или тоже упростить)
         ))
         
         # Версия 1.2: Добавление полей антропометрии

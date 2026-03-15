@@ -127,7 +127,7 @@ async def process_gender(message: Message, state: FSMContext):
     
     await state.update_data(gender=gender)
     
-    # Если женщина - собираем антропометрические данные
+    # Собираем антропометрические данные для точного анализа
     if gender == "female":
         await message.answer(
             "📏 <b>Антропометрические данные</b>\n\n"
@@ -137,8 +137,17 @@ async def process_gender(message: Message, state: FSMContext):
             parse_mode="HTML"
         )
         await state.set_state(ProfileStates.waiting_for_neck)
+    elif gender == "male":
+        await message.answer(
+            "📏 <b>Антропометрические данные</b>\n\n"
+            "Для точного анализа мышечной массы и жира нужны обхваты.\n\n"
+            "📐 <b>Обхват запястья (в см):</b>\n"
+            "Например: 17",
+            parse_mode="HTML"
+        )
+        await state.set_state(ProfileStates.waiting_for_wrist)
     else:
-        # Пропускаем антропометрию для мужчин
+        # Пропускаем антропометрию
         await show_activity_keyboard(message, state)
 
 @router.message(ProfileStates.waiting_for_neck)
@@ -209,6 +218,63 @@ async def process_hip(message: Message, state: FSMContext):
         return
     
     await state.update_data(hip_cm=hip)
+    
+    # Переходим к активности
+    await show_activity_keyboard(message, state)
+
+@router.message(ProfileStates.waiting_for_wrist)
+async def process_wrist(message: Message, state: FSMContext):
+    """Обработка обхвата запястья для мужчин"""
+    from utils.safe_parser import safe_parse_float
+    
+    wrist, error = safe_parse_float(message.text, "обхват запястья")
+    
+    if error:
+        await message.answer(
+            f"❌ {error}\n\n"
+            "💡 <b>Примеры:</b>\n"
+            "• 17\n"
+            "• 18.5 см",
+            parse_mode="HTML"
+        )
+        return
+    
+    await state.update_data(wrist_cm=wrist)
+    
+    # Для мужчин можно добавить еще обхваты по желанию
+    await message.answer(
+        "💪 <b>Дополнительные замеры (необязательно)</b>\n\n"
+        "Для более точного анализа можно добавить:\n\n"
+        "📐 <b>Обхват бицепса (в см):</b>\n"
+        "Или пропустите, нажав «Пропустить»",
+        parse_mode="HTML"
+    )
+    await state.set_state(ProfileStates.waiting_for_bicep)
+
+@router.message(ProfileStates.waiting_for_bicep)
+async def process_bicep(message: Message, state: FSMContext):
+    """Обработка обхвата бицепса для мужчин"""
+    from utils.safe_parser import safe_parse_float
+    
+    # Проверяем, не хочет ли пользователь пропустить
+    if message.text.lower() in ["пропустить", "пропуст", "skip", "далее"]:
+        await show_activity_keyboard(message, state)
+        return
+    
+    bicep, error = safe_parse_float(message.text, "обхват бицепса")
+    
+    if error:
+        await message.answer(
+            f"❌ {error}\n\n"
+            "💡 <b>Примеры:</b>\n"
+            "• 35\n"
+            "• 37.5 см\n\n"
+            "Или напишите «Пропустить»",
+            parse_mode="HTML"
+        )
+        return
+    
+    await state.update_data(bicep_cm=bicep)
     
     # Переходим к активности
     await show_activity_keyboard(message, state)
@@ -377,11 +443,14 @@ async def process_city(message: Message, state: FSMContext):
             user.daily_carbs_goal = round(daily_carbs_goal)
             user.daily_water_goal = round(daily_water_goal)
             
-            # Сохраняем антропометрические данные (только для женщин)
+            # Сохраняем антропометрические данные
             if gender == "female":
                 user.neck_cm = profile_data.get('neck_cm')
                 user.waist_cm = profile_data.get('waist_cm')
                 user.hip_cm = profile_data.get('hip_cm')
+            elif gender == "male":
+                user.wrist_cm = profile_data.get('wrist_cm')
+                user.bicep_cm = profile_data.get('bicep_cm')
             
             await session.commit()
     

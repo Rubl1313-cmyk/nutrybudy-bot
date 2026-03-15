@@ -149,6 +149,20 @@ class MigrationManager:
             ALTER TABLE water_entries RENAME COLUMN amount TO amount_ml;
             """
         ))
+        
+        # Версия 1.4: Добавление поля бицепса для мужчин
+        self.migrations.append(Migration(
+            "1.4.0",
+            "Add bicep_cm field for male anthropometry",
+            """
+            -- Добавляем поле бицепса если его нет
+            ALTER TABLE users ADD COLUMN IF NOT EXISTS bicep_cm FLOAT;
+            """,
+            """
+            -- Удаление поля бицепса (если понадобится откат)
+            ALTER TABLE users DROP COLUMN IF EXISTS bicep_cm;
+            """
+        ))
     
     async def get_applied_migrations(self) -> List[str]:
         """Получение списка примененных миграций"""

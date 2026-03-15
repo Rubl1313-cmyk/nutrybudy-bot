@@ -32,10 +32,11 @@ class User(Base):
     reminder_enabled = Column(Boolean, default=True)
     
     # Поля антропометрии для расширенного анализа
-    neck_cm = Column(Float, nullable=True)          # Обхват шеи
+    neck_cm = Column(Float, nullable=True)          # Обхват шеи (женщины/бицепс мужчины)
     waist_cm = Column(Float, nullable=True)         # Обхват талии
     hip_cm = Column(Float, nullable=True)           # Обхват бедер
     wrist_cm = Column(Float, nullable=True)         # Обхват запястья
+    bicep_cm = Column(Float, nullable=True)        # Обхват бицепса (мужчины)
     
     # Кешированные расчеты композиции тела
     last_bodyfat = Column(Float, nullable=True)     # Последний % жира

@@ -9,52 +9,11 @@ import re
 
 logger = logging.getLogger(__name__)
 
-async def get_daily_stats(user_id: int) -> Dict[str, Any]:
-    """
-    Получает суточную статистику питания пользователя
-    
-    Args:
-        user_id: ID пользователя
-        
-    Returns:
-        dict: Словарь с калориями и БЖУ за сегодня
-    """
-    try:
-        from database.db import get_session
-        from database.models import Meal
-        from sqlalchemy import select, func
-        
-        async with get_session() as session:
-            # Получаем все приемы пищи за сегодня
-            meals_result = await session.execute(
-                select(Meal).where(
-                    Meal.user_id == user_id,
-                    func.date(Meal.datetime) == date.today()
-                )
-            )
-            meals = meals_result.scalars().all()
-            
-            # Суммируем значения
-            stats = {
-                'calories': sum(meal.total_calories or 0 for meal in meals),
-                'protein': sum(meal.total_protein or 0 for meal in meals),
-                'fat': sum(meal.total_fat or 0 for meal in meals),
-                'carbs': sum(meal.total_carbs or 0 for meal in meals),
-                'meals_count': len(meals)
-            }
-            
-            logger.info(f"Daily stats for user {user_id}: {stats}")
-            return stats
-            
-    except Exception as e:
-        logger.error(f"Error getting daily stats for user {user_id}: {e}")
-        return {
-            'calories': 0,
-            'protein': 0,
-            'fat': 0,
-            'carbs': 0,
-            'meals_count': 0
-        }
+# Унифицированные функции статистики - импортируем из daily_stats
+from utils.daily_stats import (
+    get_daily_stats, get_daily_water, get_daily_drink_calories, 
+    get_daily_activity_calories, get_period_stats
+)
 
 async def get_weekly_stats(user_id: int) -> Dict[str, Any]:
     """

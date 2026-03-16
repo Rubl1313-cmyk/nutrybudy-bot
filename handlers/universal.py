@@ -117,8 +117,9 @@ async def analyze_photo_parallel(message: Message, agent: LangChainAgent):
         file = await message.bot.get_file(message.photo[-1].file_id)
         photo_bytes = await message.bot.download_file(file.file_path)
         
-        # Анализируем фото через AI
-        analysis_result = await cf_manager.analyze_food_photo(photo_bytes.read())
+        # Анализируем фото через AI с подписью
+        caption = message.caption or ""
+        analysis_result = await cf_manager.analyze_food_photo(photo_bytes.read(), caption)
         
         if not analysis_result.get("success"):
             error_msg = analysis_result.get("error", "Не удалось проанализировать фото")

@@ -247,7 +247,7 @@ async def main():
     
     # Универсальный обработчик текста – ПОСЛЕДНИМ
     dp.include_router(universal.router)         # Полный обработчик (с LangChain)
-    dp.include_router(dialog.router)           # Резервный обработчик
+    # dialog.router удален - его функциональность покрывается universal.router
     
     logging.info("All routers included in correct order for FSM")
     

@@ -4,6 +4,7 @@
 """
 import aiohttp
 import asyncio
+import base64
 import json
 import logging
 import os

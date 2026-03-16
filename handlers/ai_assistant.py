@@ -161,15 +161,22 @@ async def cmd_weather(message: Message, state: FSMContext):
             # Отправляем "печатает..."
             await message.bot.send_chat_action(message.chat.id, "typing")
             
-            # Запрос погоды через AI с правильными параметрами
-            weather_query = f"Какая сейчас погода в городе {city}?"
-            response_dict = await cf_manager.ai_assistant(
-                message=weather_query,
-                history=[],
-                user_profile=None
-            )
+            # Запрос погоды через реальное API
+            from services.weather import get_weather
+            weather_data = await get_weather(city)
             
-            response = response_dict.get('response', 'Не удалось получить погоду')
+            if weather_data:
+                temp = weather_data.get('temp', 'N/A')
+                condition = weather_data.get('condition', 'неизвестно')
+                humidity = weather_data.get('humidity', 'N/A')
+                wind = weather_data.get('wind', 'N/A')
+                
+                response = (f"🌡️ <b>Температура:</b> {temp}°C\n"
+                           f"☁️ <b>Состояние:</b> {condition}\n"
+                           f"💧 <b>Влажность:</b> {humidity}%\n"
+                           f"💨 <b>Ветер:</b> {wind} м/с")
+            else:
+                response = "Не удалось получить данные о погоде. Попробуйте позже."
             
             await message.answer(
                 f"🌦️ <b>Погода в {city}</b>\n\n{response}",

@@ -16,15 +16,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Теперь пробуем импортировать Redis
-try:
-    from aiogram.fsm.storage.redis import RedisStorage, DefaultKeyBuilder
-    import redis.asyncio as redis
-    REDIS_AVAILABLE = True
-except ImportError:
-    from aiogram.fsm.storage.memory import MemoryStorage
-    REDIS_AVAILABLE = False
-    logger.warning("Redis not available, using MemoryStorage")
+# Импортируем Redis (обязательная зависимость)
+from aiogram.fsm.storage.redis import RedisStorage, DefaultKeyBuilder
+import redis.asyncio as redis
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.types import Update, BotCommand
@@ -203,20 +197,11 @@ async def main():
         validate_token=validate_token
     )
     
-    # Redis storage для FSM
-    if REDIS_AVAILABLE:
-        redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-        try:
-            redis_client = await redis.from_url(redis_url)
-            storage = RedisStorage(redis_client, key_builder=DefaultKeyBuilder(with_destiny=True))
-            logger.info("✅ Redis storage initialized")
-        except Exception as e:
-            logger.warning(f"Redis not available, falling back to MemoryStorage: {e}")
-            from aiogram.fsm.storage.memory import MemoryStorage
-            storage = MemoryStorage()
-    else:
-        from aiogram.fsm.storage.memory import MemoryStorage
-        storage = MemoryStorage()
+    # Redis storage для FSM (обязательный)
+    redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+    redis_client = await redis.from_url(redis_url)
+    storage = RedisStorage(redis_client, key_builder=DefaultKeyBuilder(with_destiny=True))
+    logger.info("✅ Redis storage initialized")
     
     # Создаем диспетчер с FSM
     dp = Dispatcher(storage=storage, fsm_strategy=FSMStrategy.GLOBAL_USER)

@@ -25,6 +25,7 @@ from utils.premium_templates import (
     activity_card, progress_card, achievement_card, error_card
 )
 from utils.helpers import get_daily_stats
+from utils.daily_stats import get_daily_water, get_daily_drink_calories, get_daily_activity_calories
 
 logger = logging.getLogger(__name__)
 
@@ -42,25 +43,21 @@ class LangChainAgent:
         self.user = None
         self.tools = self._create_tools()
         
-        if self.llm.is_available():
-            self.agent = create_react_agent(
-                llm=self.llm.llm,
-                tools=self.tools,
-                prompt=PromptTemplate.from_template(self._get_prompt())
-            )
-            self.executor = AgentExecutor(
-                agent=self.agent,
-                tools=self.tools,
-                memory=self.memory,
-                handle_parsing_errors=True,
-                max_iterations=5,
-                verbose=True
-            )
-            logger.info(f"✅ LangChain Agent initialized for user {user_id}")
-        else:
-            self.agent = None
-            self.executor = None
-            logger.warning(f"⚠️ LangChain Agent not available for user {user_id}")
+        # LLM всегда доступен (без эмуляции)
+        self.agent = create_react_agent(
+            llm=self.llm.llm,
+            tools=self.tools,
+            prompt=PromptTemplate.from_template(self._get_prompt())
+        )
+        self.executor = AgentExecutor(
+            agent=self.agent,
+            tools=self.tools,
+            memory=self.memory,
+            handle_parsing_errors=True,
+            max_iterations=5,
+            verbose=True
+        )
+        logger.info(f"✅ LangChain Agent initialized for user {user_id}")
 
     async def load_user(self):
         """Загружает пользователя из БД"""
@@ -107,6 +104,9 @@ class LangChainAgent:
                 food_items = result["parameters"].get("food_items", [])
                 meal_type = result["parameters"].get("meal_type", "main")
                 
+                if not food_items:
+                    return "❌ Не удалось распознать продукты в вашем сообщении."
+                
                 # Сохраняем через save_food_to_db с детальными ингредиентами
                 save_result = await food_save_service.save_food_to_db(
                     self.user_id, 
@@ -114,12 +114,21 @@ class LangChainAgent:
                     meal_type
                 )
                 
+                if not save_result.get("success"):
+                    return f"❌ Ошибка сохранения: {save_result.get('error', 'Неизвестная ошибка')}"
+                
                 # Получаем дневную статистику
                 daily_stats = await get_daily_stats(self.user_id)
                 
+                # Форматируем описание из ингредиентов
+                description_from_items = ", ".join([
+                    f"{item.get('quantity','')} {item.get('unit','г')} {item['name']}" 
+                    for item in food_items
+                ])
+                
                 # Форматируем данные для карточки
                 food_data = {
-                    'description': description,
+                    'description': description_from_items,
                     'total_calories': save_result.get('total_calories', 0),
                     'total_protein': save_result.get('total_protein', 0),
                     'total_fat': save_result.get('total_fat', 0),
@@ -326,69 +335,3 @@ class LangChainAgent:
             del _agents[user_id]
             logger.info(f"🧹 Cleaned up agent for user {user_id}")
 
-# Вспомогательные функции
-async def get_daily_water(user_id: int) -> int:
-    """Получает количество выпитой воды за сегодня"""
-    try:
-        from database.db import get_session
-        from database.models import DrinkEntry
-        from sqlalchemy import func, extract
-        from datetime import datetime
-        
-        async with get_session() as session:
-            result = await session.execute(
-                select(func.sum(DrinkEntry.volume_ml)).where(
-                    DrinkEntry.user_id == user_id,
-                    extract('day', DrinkEntry.datetime) == datetime.now().day,
-                    extract('month', DrinkEntry.datetime) == datetime.now().month,
-                    extract('year', DrinkEntry.datetime) == datetime.now().year
-                )
-            )
-            return result.scalar() or 0
-    except Exception as e:
-        logger.error(f"❌ Error getting daily water: {e}")
-        return 0
-
-async def get_daily_drink_calories(user_id: int) -> int:
-    """Получает калории из напитков за сегодня"""
-    try:
-        from database.db import get_session
-        from database.models import DrinkEntry
-        from sqlalchemy import func, extract
-        from datetime import datetime
-        
-        async with get_session() as session:
-            result = await session.execute(
-                select(func.sum(DrinkEntry.calories)).where(
-                    DrinkEntry.user_id == user_id,
-                    extract('day', DrinkEntry.datetime) == datetime.now().day,
-                    extract('month', DrinkEntry.datetime) == datetime.now().month,
-                    extract('year', DrinkEntry.datetime) == datetime.now().year
-                )
-            )
-            return result.scalar() or 0
-    except Exception as e:
-        logger.error(f"❌ Error getting daily drink calories: {e}")
-        return 0
-
-async def get_daily_activity_calories(user_id: int) -> int:
-    """Получает калории из активности за сегодня"""
-    try:
-        from database.db import get_session
-        from database.models import Activity
-        from sqlalchemy import func, extract
-        from datetime import datetime
-        
-        async with get_session() as session:
-            result = await session.execute(
-                select(func.sum(Activity.calories_burned)).where(
-                    Activity.user_id == user_id,
-                    extract('day', Activity.datetime) == datetime.now().day,
-                    extract('month', Activity.datetime) == datetime.now().month,
-                    extract('year', Activity.datetime) == datetime.now().year
-                )
-            )
-            return result.scalar() or 0
-    except Exception as e:
-        logger.error(f"❌ Error getting daily activity calories: {e}")
-        return 0

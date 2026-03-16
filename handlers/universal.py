@@ -179,11 +179,21 @@ async def transcribe_voice(message: Message) -> str:
             logger.info(f"🎤 Voice transcribed: {text[:50]}...")
             return text
         else:
-            logger.error(f"❌ Voice transcription failed: {result.get('error', 'Unknown error')}")
+            error_msg = result.get('error', 'Unknown error')
+            logger.error(f"❌ Voice transcription failed: {error_msg}")
+            # Отправляем сообщение об ошибке пользователю
+            await message.answer(
+                "❌ Не удалось распознать голос. Попробуйте ещё раз или напишите текст.",
+                parse_mode="HTML"
+            )
             return None
             
     except Exception as e:
         logger.error(f"❌ Error in transcribe_voice: {e}")
+        await message.answer(
+            "❌ Ошибка при распознавании речи. Попробуйте отправить текстовое сообщение.",
+            parse_mode="HTML"
+        )
         return None
 
 # Callback обработчики для выбора типа приёма пищи
@@ -215,17 +225,49 @@ async def meal_type_callback(callback: CallbackQuery, state: FSMContext):
         from utils.premium_templates import meal_card
         from utils.helpers import get_daily_stats
         
-        save_result = await food_save_service.save_meal(
-            callback.from_user.id,
-            food_data,
-            meal_type
-        )
+        # Используем save_food_to_db с детальными ингредиентами
+        food_items = food_data.get("food_items", [])
+        if not food_items:
+            # Если нет детальных ингредиентов, используем старый метод
+            save_result = await food_save_service.save_meal(
+                callback.from_user.id,
+                food_data,
+                meal_type
+            )
+            save_data = food_data
+        else:
+            # Сохраняем через save_food_to_db
+            save_result = await food_save_service.save_food_to_db(
+                callback.from_user.id,
+                food_items,
+                meal_type
+            )
+            
+            if not save_result.get("success"):
+                await callback.answer(
+                    f"❌ Ошибка сохранения: {save_result.get('error', 'Неизвестная ошибка')}",
+                    show_alert=True
+                )
+                return
+            
+            # Форматируем данные для карточки
+            save_data = {
+                'description': ", ".join([
+                    f"{item.get('quantity','')} {item.get('unit','г')} {item['name']}" 
+                    for item in food_items
+                ]),
+                'total_calories': save_result.get('total_calories', 0),
+                'total_protein': save_result.get('total_protein', 0),
+                'total_fat': save_result.get('total_fat', 0),
+                'total_carbs': save_result.get('total_carbs', 0),
+                'meal_type': meal_type
+            }
         
         # Получаем дневную статистику
         daily_stats = await get_daily_stats(callback.from_user.id)
         
         # Формируем красивую карточку
-        response = meal_card(food_data, agent.user, daily_stats)
+        response = meal_card(save_data, agent.user, daily_stats)
         
         # Редактируем сообщение
         await callback.message.edit_text(

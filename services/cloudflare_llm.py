@@ -18,18 +18,20 @@ class CloudflareLLM:
         self.api_token = os.getenv("CLOUDFLARE_API_TOKEN")
         
         if not self.account_id or not self.api_token:
-            logger.warning("⚠️ Cloudflare credentials not found. Using emulation mode.")
-            self.llm = None
-        else:
-            self.llm = ChatCloudflareWorkersAI(
-                account_id=self.account_id,
-                api_token=self.api_token,
-                model=model,
-                temperature=0.2,
-                max_tokens=2000,
-                top_p=0.9,
+            raise ValueError(
+                "❌ Cloudflare credentials not found. "
+                "Please set CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN environment variables."
             )
-            logger.info(f"✅ Cloudflare LLM initialized: {model}")
+        
+        self.llm = ChatCloudflareWorkersAI(
+            account_id=self.account_id,
+            api_token=self.api_token,
+            model=model,
+            temperature=0.2,
+            max_tokens=2000,
+            top_p=0.9,
+        )
+        logger.info(f"✅ Cloudflare LLM initialized: {model}")
 
     async def ainvoke(self, messages: List[Dict[str, str]], tools: Optional[List[Dict]] = None) -> AIMessage:
         """
@@ -43,8 +45,7 @@ class CloudflareLLM:
             AIMessage с ответом модели
         """
         if not self.llm:
-            # Эмуляция для разработки
-            return AIMessage(content="🤖 Cloudflare LLM не настроен. Пожалуйста, установите CLOUDFLARE_ACCOUNT_ID и CLOUDFLARE_API_TOKEN.")
+            raise RuntimeError("Cloudflare LLM not initialized")
         
         try:
             # Конвертируем сообщения в формат LangChain

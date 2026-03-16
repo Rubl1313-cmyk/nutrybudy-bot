@@ -12,7 +12,7 @@ router = Router()
 
 # Обработчики для основных кнопок
 
-@router.message(F.text == "🍽️ Записать приём пищи")
+@router.message(F.text.contains("Записать приём пищи"))
 async def food_button_handler(message: Message, state: FSMContext):
     await state.clear()
     await message.answer(
@@ -21,7 +21,7 @@ async def food_button_handler(message: Message, state: FSMContext):
         parse_mode="HTML"
     )
 
-@router.message(F.text == "💧 Записать воду")
+@router.message(F.text.contains("Записать воду"))
 async def water_button_handler(message: Message, state: FSMContext):
     await state.clear()
     await message.answer(
@@ -30,25 +30,25 @@ async def water_button_handler(message: Message, state: FSMContext):
         parse_mode="HTML"
     )
 
-@router.message(F.text == "🤖 Спросить AI")
+@router.message(F.text.contains("Спросить AI"))
 async def ai_button_handler(message: Message, state: FSMContext):
     await state.clear()
     from handlers.ai_assistant import cmd_ask
     await cmd_ask(message, state)
 
-@router.message(F.text == "📊 Прогресс")
+@router.message(F.text.contains("Прогресс"))
 async def progress_button_handler(message: Message, state: FSMContext):
     await state.clear()
     from handlers.progress import cmd_progress
     await cmd_progress(message, state)
 
-@router.message(F.text == "👤 Профиль")
+@router.message(F.text.contains("Профиль"))
 async def profile_button_handler(message: Message, state: FSMContext):
     await state.clear()
     from handlers.profile import cmd_profile
     await cmd_profile(message, state)
 
-@router.message(F.text == "❓ Помощь")
+@router.message(F.text.contains("Помощь"))
 async def help_button_handler(message: Message, state: FSMContext):
     await state.clear()
     from handlers.common import cmd_help
@@ -247,13 +247,8 @@ async def full_analysis_handler(message: Message, state: FSMContext):
             parse_mode="HTML"
         )
 
-# Обработчики для кнопок навигации
-@router.message(F.text == "🏠 Главное меню")
-async def back_to_main_handler(message: Message, state: FSMContext):
-    await state.clear()
-    from keyboards.reply_v2 import get_main_keyboard_v2
-    await message.answer(
-        "🏠 <b>Главное меню</b>",
-        reply_markup=get_main_keyboard_v2(),
-        parse_mode="HTML"
-    )
+# Отладочный обработчик (должен быть последним)
+@router.message(F.text)
+async def debug_button_handler(message: Message):
+    logger.info(f"Reply handler received: {repr(message.text)}")
+    # Не отвечаем – просто логируем

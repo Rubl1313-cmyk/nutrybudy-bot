@@ -163,11 +163,11 @@ $$;
             "Add advanced anthropometry fields (girths only)",
             """
             -- Добавляем новые антропометрические поля
-            ALTER TABLE users ADD COLUMN IF NOT EXISTS chest_cm FLOAT;
-            ALTER TABLE users ADD COLUMN IF NOT EXISTS forearm_cm FLOAT;
-            ALTER TABLE users ADD COLUMN IF NOT EXISTS calf_cm FLOAT;
-            ALTER TABLE users ADD COLUMN IF NOT EXISTS shoulder_width_cm FLOAT;
-            ALTER TABLE users ADD COLUMN IF NOT EXISTS hip_width_cm FLOAT;
+            ALTER TABLE users ADD COLUMN chest_cm FLOAT;
+            ALTER TABLE users ADD COLUMN forearm_cm FLOAT;
+            ALTER TABLE users ADD COLUMN calf_cm FLOAT;
+            ALTER TABLE users ADD COLUMN shoulder_width_cm FLOAT;
+            ALTER TABLE users ADD COLUMN hip_width_cm FLOAT;
             """,
             """
             -- Удаление новых полей (если понадобится откат)
@@ -203,8 +203,24 @@ $$;
         async with get_session() as session:
             try:
                 if migration.up_sql:
-                    # Выполняем весь SQL целиком
-                    await session.execute(text(migration.up_sql))
+                    # Разделяем по точке с запятой, игнорируем пустые строки и комментарии
+                    commands = [cmd.strip() for cmd in migration.up_sql.split(';') 
+                                if cmd.strip() and not cmd.strip().startswith('--')]
+                    
+                    logger.info(f"Executing {len(commands)} SQL commands for migration {migration.version}")
+                    
+                    for i, cmd in enumerate(commands, 1):
+                        if cmd:  # Пропускаем пустые команды
+                            try:
+                                logger.info(f"Command {i}: {cmd[:100]}...")  # Логируем первые 100 символов
+                                await session.execute(text(cmd))
+                            except Exception as cmd_error:
+                                # Проверяем, не ошибка дублирования колонки
+                                if "already exists" in str(cmd_error).lower() or "duplicate column" in str(cmd_error).lower():
+                                    logger.warning(f"Column already exists in command {i}: {cmd_error}")
+                                    continue  # Пропускаем эту команду
+                                else:
+                                    raise cmd_error  # Пробрасываем другие ошибки
                 
                 # Записываем миграцию как примененную
                 await session.execute(text("""

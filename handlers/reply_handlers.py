@@ -6,6 +6,7 @@ import logging
 from aiogram import Router, F
 from aiogram.types import Message
 from aiogram.fsm.context import FSMContext
+from keyboards.reply_v2 import get_main_keyboard_v2
 
 logger = logging.getLogger(__name__)
 router = Router()

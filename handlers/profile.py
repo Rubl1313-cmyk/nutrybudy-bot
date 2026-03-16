@@ -129,22 +129,36 @@ async def process_gender(message: Message, state: FSMContext):
     
     # Далее код без изменений...
     if gender == "female":
+        from aiogram.utils.keyboard import InlineKeyboardBuilder
+        
+        builder = InlineKeyboardBuilder()
+        builder.button(text="📐 Ввести обхват шеи", callback_data="add_neck")
+        builder.button(text="⏭️ Пропустить шею", callback_data="skip_neck")
+        builder.adjust(1)
+        
         await message.answer(
             "📏 <b>Антропометрические данные</b>\n\n"
             "Для точного анализа жировой массы нужны обхваты.\n\n"
             "📐 <b>Обхват шеи (в см):</b>\n"
-            "Например: 34\n\n"
-            "Или напишите «Пропустить»",
+            "Или пропустите, нажав кнопку ниже:",
+            reply_markup=builder.as_markup(),
             parse_mode="HTML"
         )
         await state.set_state(ProfileStates.waiting_for_neck)
     elif gender == "male":
+        from aiogram.utils.keyboard import InlineKeyboardBuilder
+        
+        builder = InlineKeyboardBuilder()
+        builder.button(text="📐 Ввести обхват запястья", callback_data="add_wrist")
+        builder.button(text="⏭️ Пропустить запястье", callback_data="skip_wrist")
+        builder.adjust(1)
+        
         await message.answer(
             "📏 <b>Антропометрические данные</b>\n\n"
             "Для точного анализа мышечной массы и жира нужны обхваты.\n\n"
             "📐 <b>Обхват запястья (в см):</b>\n"
-            "Например: 17\n\n"
-            "Или напишите «Пропустить»",
+            "Или пропустите, нажав кнопку ниже:",
+            reply_markup=builder.as_markup(),
             parse_mode="HTML"
         )
         await state.set_state(ProfileStates.waiting_for_wrist)
@@ -156,6 +170,16 @@ async def process_gender(message: Message, state: FSMContext):
 async def process_neck(message: Message, state: FSMContext):
     """Обработка обхвата шеи"""
     from utils.safe_parser import safe_parse_float
+    
+    # Проверяем, не хочет ли пользователь пропустить
+    if message.text.lower() in ["пропустить", "пропуст", "skip", "далее"]:
+        await message.answer(
+            "📏 <b>Обхват талии (в см):</b>\n"
+            "Например: 70",
+            parse_mode="HTML"
+        )
+        await state.set_state(ProfileStates.waiting_for_waist)
+        return
     
     neck, error = safe_parse_float(message.text, "обхват шеи")
     
@@ -229,6 +253,19 @@ async def process_wrist(message: Message, state: FSMContext):
     """Обработка обхвата запястья для мужчин"""
     from utils.safe_parser import safe_parse_float
     
+    # Проверяем, не хочет ли пользователь пропустить
+    if message.text.lower() in ["пропустить", "пропуст", "skip", "далее"]:
+        await message.answer(
+            "💪 <b>Дополнительные замеры (необязательно)</b>\n\n"
+            "Для более точного анализа можно добавить:\n\n"
+            "📐 <b>Обхват бицепса (в см):</b>\n"
+            "Например: 32\n\n"
+            "Или напишите «Пропустить»",
+            parse_mode="HTML"
+        )
+        await state.set_state(ProfileStates.waiting_for_bicep)
+        return
+    
     wrist, error = safe_parse_float(message.text, "обхват запястья")
     
     if error:
@@ -242,13 +279,20 @@ async def process_wrist(message: Message, state: FSMContext):
         return
     
     await state.update_data(wrist_cm=wrist)
+# Для мужчин можно добавить еще обхваты по желанию
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
+    
+    builder = InlineKeyboardBuilder()
+    builder.button(text="📐 Ввести обхват бицепса", callback_data="add_bicep")
+    builder.button(text="⏭️ Пропустить", callback_data="skip_measurements")
+    builder.adjust(1)
     
     await message.answer(
         "💪 <b>Дополнительные замеры (необязательно)</b>\n\n"
         "Для более точного анализа можно добавить:\n\n"
         "📐 <b>Обхват бицепса (в см):</b>\n"
-        "Например: 32\n\n"
-        "Или напишите «Пропустить»",
+        "Или пропустите, нажав кнопку ниже:",
+        reply_markup=builder.as_markup(),
         parse_mode="HTML"
     )
     await state.set_state(ProfileStates.waiting_for_bicep)

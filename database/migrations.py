@@ -203,23 +203,29 @@ $$;
         async with get_session() as session:
             try:
                 if migration.up_sql:
-                    # Разделяем по точке с запятой, игнорируем пустые строки и комментарии
-                    commands = [cmd.strip() for cmd in migration.up_sql.split(';') 
-                                if cmd.strip() and not cmd.strip().startswith('--')]
+                    # Разделяем по точке с запятой, фильтруем пустые строки и комментарии
+                    commands = []
+                    for cmd in migration.up_sql.split(';'):
+                        cmd = cmd.strip()
+                        if cmd and not cmd.startswith('--'):
+                            commands.append(cmd)
                     
                     logger.info(f"Executing {len(commands)} SQL commands for migration {migration.version}")
                     
                     for i, cmd in enumerate(commands, 1):
-                        if cmd:  # Пропускаем пустые команды
+                        if cmd:  # Дополнительная проверка
                             try:
-                                logger.info(f"Command {i}: {cmd[:100]}...")  # Логируем первые 100 символов
+                                logger.info(f"Command {i}: {cmd}")
                                 await session.execute(text(cmd))
                             except Exception as cmd_error:
                                 # Проверяем, не ошибка дублирования колонки
-                                if "already exists" in str(cmd_error).lower() or "duplicate column" in str(cmd_error).lower():
+                                error_str = str(cmd_error).lower()
+                                if "already exists" in error_str or "duplicate column" in error_str:
                                     logger.warning(f"Column already exists in command {i}: {cmd_error}")
                                     continue  # Пропускаем эту команду
                                 else:
+                                    logger.error(f"Error in command {i}: {cmd}")
+                                    logger.error(f"Error details: {cmd_error}")
                                     raise cmd_error  # Пробрасываем другие ошибки
                 
                 # Записываем миграцию как примененную

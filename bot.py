@@ -183,6 +183,10 @@ async def main():
     from database.migrations import run_migrations
     await run_migrations()
     
+    # Принудительно применяем миграцию 1.5.0 если нужно
+    from fix_150 import fix_migration_150
+    await fix_migration_150()
+    
     # Валидация токена только в production
     validate_token = os.getenv('RAILWAY_ENVIRONMENT') == 'production'
     

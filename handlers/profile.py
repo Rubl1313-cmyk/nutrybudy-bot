@@ -11,7 +11,7 @@ from sqlalchemy import select
 
 from database.db import get_session
 from database.models import User
-from keyboards.reply_v2 import get_main_keyboard_v2
+from keyboards.reply_v2 import get_main_keyboard_v2, get_profile_keyboard
 from keyboards.reply import get_gender_keyboard
 from utils.states import ProfileStates
 
@@ -129,36 +129,22 @@ async def process_gender(message: Message, state: FSMContext):
     
     # Далее код без изменений...
     if gender == "female":
-        from aiogram.utils.keyboard import InlineKeyboardBuilder
-        
-        builder = InlineKeyboardBuilder()
-        builder.button(text="📐 Ввести обхват шеи", callback_data="add_neck")
-        builder.button(text="⏭️ Пропустить шею", callback_data="skip_neck")
-        builder.adjust(1)
-        
         await message.answer(
             "📏 <b>Антропометрические данные</b>\n\n"
             "Для точного анализа жировой массы нужны обхваты.\n\n"
             "📐 <b>Обхват шеи (в см):</b>\n"
-            "Или пропустите, нажав кнопку ниже:",
-            reply_markup=builder.as_markup(),
+            "Например: 34\n\n"
+            "Или напишите «Пропустить»",
             parse_mode="HTML"
         )
         await state.set_state(ProfileStates.waiting_for_neck)
     elif gender == "male":
-        from aiogram.utils.keyboard import InlineKeyboardBuilder
-        
-        builder = InlineKeyboardBuilder()
-        builder.button(text="📐 Ввести обхват запястья", callback_data="add_wrist")
-        builder.button(text="⏭️ Пропустить запястье", callback_data="skip_wrist")
-        builder.adjust(1)
-        
         await message.answer(
             "📏 <b>Антропометрические данные</b>\n\n"
             "Для точного анализа мышечной массы и жира нужны обхваты.\n\n"
             "📐 <b>Обхват запястья (в см):</b>\n"
-            "Или пропустите, нажав кнопку ниже:",
-            reply_markup=builder.as_markup(),
+            "Например: 17\n\n"
+            "Или напишите «Пропустить»",
             parse_mode="HTML"
         )
         await state.set_state(ProfileStates.waiting_for_wrist)
@@ -257,20 +243,12 @@ async def process_wrist(message: Message, state: FSMContext):
     
     await state.update_data(wrist_cm=wrist)
     
-    # Для мужчин можно добавить еще обхваты по желанию
-    from aiogram.utils.keyboard import InlineKeyboardBuilder
-    
-    builder = InlineKeyboardBuilder()
-    builder.button(text="📐 Ввести обхват бицепса", callback_data="add_bicep")
-    builder.button(text="⏭️ Пропустить", callback_data="skip_measurements")
-    builder.adjust(1)
-    
     await message.answer(
         "💪 <b>Дополнительные замеры (необязательно)</b>\n\n"
         "Для более точного анализа можно добавить:\n\n"
-        "📐 <b>Обхват бицепса (в см)</b>\n"
-        "Или пропустите, нажав кнопку ниже:",
-        reply_markup=builder.as_markup(),
+        "📐 <b>Обхват бицепса (в см):</b>\n"
+        "Например: 32\n\n"
+        "Или напишите «Пропустить»",
         parse_mode="HTML"
     )
     await state.set_state(ProfileStates.waiting_for_bicep)
@@ -300,81 +278,6 @@ async def process_bicep(message: Message, state: FSMContext):
     await state.update_data(bicep_cm=bicep)
     await show_activity_keyboard(message, state)
 
-@router.callback_query(F.data.startswith("add_bicep"))
-async def add_bicep_callback(callback: types.CallbackQuery, state: FSMContext):
-    """Обработчик кнопки добавления бицепса"""
-    await callback.answer()
-    await callback.message.edit_text(
-        "📐 <b>Введите обхват бицепса (в см):</b>\n\n"
-        "Например: 32",
-        parse_mode="HTML"
-    )
-    await state.set_state(ProfileStates.waiting_for_bicep)
-
-@router.callback_query(F.data.startswith("add_neck"))
-async def add_neck_callback(callback: types.CallbackQuery, state: FSMContext):
-    """Обработчик кнопки добавления шеи"""
-    await callback.answer()
-    await callback.message.edit_text(
-        "📐 <b>Введите обхват шеи (в см):</b>\n\n"
-        "Например: 34",
-        parse_mode="HTML"
-    )
-    await state.set_state(ProfileStates.waiting_for_neck)
-
-@router.callback_query(F.data.startswith("skip_neck"))
-async def skip_neck_callback(callback: types.CallbackQuery, state: FSMContext):
-    """Обработчик кнопки пропуска шеи"""
-    await callback.answer()
-    await callback.message.edit_text("⏭️ Обхват шеи пропущен.")
-    # Переходим к талии
-    await callback.message.answer(
-        "📏 <b>Обхват талии (в см):</b>\n"
-        "Например: 70",
-        parse_mode="HTML"
-    )
-    await state.set_state(ProfileStates.waiting_for_waist)
-
-@router.callback_query(F.data.startswith("add_wrist"))
-async def add_wrist_callback(callback: types.CallbackQuery, state: FSMContext):
-    """Обработчик кнопки добавления запястья"""
-    await callback.answer()
-    await callback.message.edit_text(
-        "📐 <b>Введите обхват запястья (в см):</b>\n\n"
-        "Например: 17",
-        parse_mode="HTML"
-    )
-    await state.set_state(ProfileStates.waiting_for_wrist)
-
-@router.callback_query(F.data.startswith("skip_wrist"))
-async def skip_wrist_callback(callback: types.CallbackQuery, state: FSMContext):
-    """Обработчик кнопки пропуска запястья"""
-    await callback.answer()
-    await callback.message.edit_text("⏭️ Обхват запястья пропущен.")
-    # Показываем меню бицепса
-    from aiogram.utils.keyboard import InlineKeyboardBuilder
-    
-    builder = InlineKeyboardBuilder()
-    builder.button(text="📐 Ввести обхват бицепса", callback_data="add_bicep")
-    builder.button(text="⏭️ Пропустить", callback_data="skip_measurements")
-    builder.adjust(1)
-    
-    await callback.message.answer(
-        "💪 <b>Дополнительные замеры (необязательно)</b>\n\n"
-        "Для более точного анализа можно добавить:\n\n"
-        "📐 <b>Обхват бицепса (в см):</b>\n"
-        "Или пропустите, нажав кнопку ниже:",
-        reply_markup=builder.as_markup(),
-        parse_mode="HTML"
-    )
-    await state.set_state(ProfileStates.waiting_for_bicep)
-
-@router.callback_query(F.data.startswith("skip_measurements"))
-async def skip_measurements_callback(callback: types.CallbackQuery, state: FSMContext):
-    """Обработчик кнопки пропуска замеров"""
-    await callback.answer()
-    await callback.message.edit_text("⏭️ Дополнительные замеры пропущены.")
-    await show_activity_keyboard(callback.message, state)
 
 async def show_activity_keyboard(message: Message, state: FSMContext):
     """Показываем клавиатуру активности"""
@@ -616,6 +519,6 @@ async def cmd_profile(message: Message, state: FSMContext):
             f"🍞 Углеводы: {user.daily_carbs_goal} г/день\n"
             f"💧 Вода: {user.daily_water_goal} мл/день\n\n"
             f"Для изменения профиля используйте /set_profile",
-            reply_markup=get_main_keyboard_v2(),
+            reply_markup=get_profile_keyboard(),
             parse_mode="HTML"
         )

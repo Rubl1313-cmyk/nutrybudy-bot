@@ -47,17 +47,17 @@ async def set_bot_commands(bot: Bot):
         BotCommand(command="water", description="💧 Статистика воды"),
         BotCommand(command="log_weight", description="⚖️ Записать вес"),
         BotCommand(command="weight", description="⚖️ Статистика веса"),
-        BotCommand(command="fitness", description="� Добавить активность"),
+        BotCommand(command="fitness", description="🏃 Добавить активность"),
         BotCommand(command="activity", description="🏃 Статистика активности"),
         BotCommand(command="progress", description="📊 Мой прогресс"),
         BotCommand(command="stats", description="📊 Статистика за сегодня"),
-        BotCommand(command="ask", description="💬 AI ассистент"),
-        BotCommand(command="ai", description="💬 AI ассистент"),
+        BotCommand(command="ask", description="💬 AI ассистент"),  # основная
+        # BotCommand(command="ai", description="💬 AI ассистент"),  # убрано
         BotCommand(command="weather", description="🌦️ Погода"),
         BotCommand(command="recipe", description="🍳 Рецепт"),
         BotCommand(command="calculate", description="🧮 Рассчитать КБЖУ"),
         BotCommand(command="meal_plan", description="🍽️ План питания"),
-        BotCommand(command="diet", description="🍽️ План питания"),
+        # BotCommand(command="diet", description="🍽️ План питания"),  # убрано
         BotCommand(command="nutrition", description="🥗 Советы по питанию"),
         BotCommand(command="cancel", description="❌ Отмена")
     ]

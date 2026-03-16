@@ -400,6 +400,7 @@ class ToolCaller:
             activity_type = entities.get('activity_type')
             duration_min = entities.get('duration_min')
             distance_km = entities.get('distance_km')
+            steps = entities.get('steps')
             
             if not activity_type:
                 await message.answer(
@@ -413,7 +414,7 @@ class ToolCaller:
                 return False
             
             # Рассчитываем калории
-            from handlers.activity import estimate_calories_burned
+            from services.activity_service import estimate_calories_burned
             
             if duration_min:
                 calories = estimate_calories_burned(activity_type, duration_min)
@@ -426,7 +427,10 @@ class ToolCaller:
                 else:
                     duration_min = distance_km * 8  # среднее
                 calories = estimate_calories_burned(activity_type, duration_min)
-            # steps больше не используется - удалена неиспользуемая ветка
+            elif steps:
+                # Оцениваем время по шагам (примерно 120 шагов в минуту)
+                duration_min = steps // 120
+                calories = estimate_calories_burned(activity_type, duration_min)
             else:
                 calories = 0
             

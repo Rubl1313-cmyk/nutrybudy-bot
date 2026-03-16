@@ -225,11 +225,11 @@ async def main():
     dp.include_router(ai_assistant.router)     # /ask, /ai, /weather
     dp.include_router(achievements.router)     # /achievements
     
+    # Обработчики reply-кнопок – должны быть ПЕРЕД ai_handler
+    dp.include_router(reply_handlers.router)   # Reply-кнопки
+    
     # Медиа и AI обработчики
     dp.include_router(ai_handler.router)       # Фото и другие медиа
-    
-    # Обработчики reply-кнопок – ДО универсального!
-    dp.include_router(reply_handlers.router)   # Reply-кнопки
     
     # Универсальный обработчик текста – ПОСЛЕДНИМ
     dp.include_router(dialog.router)           # Все остальные текстовые сообщения

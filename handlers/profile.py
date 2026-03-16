@@ -6,7 +6,7 @@ import logging
 from aiogram.types import Message, CallbackQuery
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
-from aiogram import F, Router
+from aiogram import F, Router, types
 from sqlalchemy import select
 
 from database.db import get_session

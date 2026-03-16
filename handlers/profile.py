@@ -428,11 +428,14 @@ async def process_goal(message: Message, state: FSMContext):
 
 @router.message(ProfileStates.city)
 async def process_city(message: Message, state: FSMContext):
-    """Обработка города и начало расширенной антропометрии"""
+    """Обработка города и сохранение основного профиля"""
     city = message.text.strip()
     await state.update_data(city=city)
     
-    # Начинаем расширенную антропометрию с обхвата груди
+    # Сначала сохраняем основной профиль (без очистки состояния)
+    await save_profile(message, state, clear_state=False)
+    
+    # Затем начинаем расширенную антропометрию
     await ask_measurement(
         message, state,
         "Обхват груди",
@@ -569,14 +572,63 @@ async def process_hip_width(message: Message, state: FSMContext):
             return
         await state.update_data(hip_width_cm=hip_width)
     
-    # Сохраняем полный профиль
-    await save_profile(message, state)
+    # Сохраняем только расширенные замеры, не трогая основной профиль
+    await save_extended_measurements(message, state)
 
-async def save_profile(message: Message, state: FSMContext):
+async def save_extended_measurements(message: Message, state: FSMContext):
+    """Сохранение только расширенных антропометрических замеров"""
+    
+    # Получаем данные из состояния
+    profile_data = await state.get_data()
+    
+    async with get_session() as session:
+        result = await session.execute(
+            select(User).where(User.telegram_id == message.from_user.id)
+        )
+        user = result.scalar_one_or_none()
+        
+        if user:
+            # Обновляем только расширенные замеры
+            if 'chest_cm' in profile_data:
+                user.chest_cm = profile_data['chest_cm']
+            if 'forearm_cm' in profile_data:
+                user.forearm_cm = profile_data['forearm_cm']
+            if 'calf_cm' in profile_data:
+                user.calf_cm = profile_data['calf_cm']
+            if 'shoulder_width_cm' in profile_data:
+                user.shoulder_width_cm = profile_data['shoulder_width_cm']
+            if 'hip_width_cm' in profile_data:
+                user.hip_width_cm = profile_data['hip_width_cm']
+            
+            await session.commit()
+            
+            # Показываем сообщение об успешном сохранении
+            await message.answer(
+                "✅ <b>Расширенные замеры сохранены!</b>\n\n"
+                "Теперь в вашем профиле доступны дополнительные метрики анализа тела.\n"
+                "Используйте /profile для просмотра полного профиля.",
+                reply_markup=get_main_keyboard_v2(),
+                parse_mode="HTML"
+            )
+    
+    await state.clear()
+
+async def save_profile(message: Message, state: FSMContext, clear_state=False):
     """Сохранение полного профиля с расширенной антропометрией"""
     
     # Получаем все данные
     profile_data = await state.get_data()
+    
+    # Проверяем наличие обязательных полей
+    required_fields = ['weight', 'height', 'age', 'gender', 'activity_level', 'goal', 'city']
+    missing = [field for field in required_fields if field not in profile_data]
+    if missing:
+        await message.answer(
+            f"❌ Обнаружена ошибка: отсутствуют данные: {', '.join(missing)}.\n"
+            f"Пожалуйста, начните настройку профиля заново командой /set_profile"
+        )
+        await state.clear()
+        return
     
     weight = profile_data['weight']
     height = profile_data['height']
@@ -666,27 +718,28 @@ async def save_profile(message: Message, state: FSMContext):
             
             await session.commit()
     
-    await state.clear()
-    
-    await message.answer(
-        f"✅ <b>Профиль успешно настроен!</b>\n\n"
-        f"👤 <b>Ваши данные:</b>\n"
-        f"📏 Вес: {weight} кг\n"
-        f"📏 Рост: {height} см\n"
-        f"🎂 Возраст: {age} лет\n"
-        f"⚧️ Пол: {'Мужской' if gender == 'male' else 'Женский'}\n"
-        f"🎯 Цель: {message.text}\n"
-        f"🏙️ Город: {city}\n\n"
-        f"📊 <b>Ваши нормы:</b>\n"
-        f"🔥 Калории: {round(daily_calorie_goal)} ккал/день\n"
-        f"🥩 Белки: {round(daily_protein_goal)} г/день\n"
-        f"🧈 Жиры: {round(daily_fat_goal)} г/день\n"
-        f"🍞 Углеводы: {round(daily_carbs_goal)} г/день\n"
-        f"💧 Вода: {round(daily_water_goal)} мл/день\n\n"
-        f"Теперь вы можете использовать все функции бота!",
-        reply_markup=get_main_keyboard_v2(),
-        parse_mode="HTML"
-    )
+    if clear_state:
+        await state.clear()
+        
+        await message.answer(
+            f"✅ <b>Профиль успешно настроен!</b>\n\n"
+            f"👤 <b>Ваши данные:</b>\n"
+            f"📏 Вес: {weight} кг\n"
+            f"📏 Рост: {height} см\n"
+            f"🎂 Возраст: {age} лет\n"
+            f"⚧️ Пол: {'Мужской' if gender == 'male' else 'Женский'}\n"
+            f"🎯 Цель: {message.text}\n"
+            f"🏙️ Город: {city}\n\n"
+            f"📊 <b>Ваши нормы:</b>\n"
+            f"🔥 Калории: {round(daily_calorie_goal)} ккал/день\n"
+            f"🥩 Белки: {round(daily_protein_goal)} г/день\n"
+            f"🧈 Жиры: {round(daily_fat_goal)} г/день\n"
+            f"🍞 Углеводы: {round(daily_carbs_goal)} г/день\n"
+            f"💧 Вода: {round(daily_water_goal)} мл/день\n\n"
+            f"Теперь вы можете использовать все функции бота!",
+            reply_markup=get_main_keyboard_v2(),
+            parse_mode="HTML"
+        )
 
 @router.message(Command("profile"))
 async def cmd_profile(message: Message, state: FSMContext):

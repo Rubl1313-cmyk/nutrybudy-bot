@@ -44,10 +44,15 @@ async def process_weight(message: Message, state: FSMContext):
     if error:
         await message.answer(
             f"❌ {error}\n\n"
-            "� <b>Примеры:</b>\n"
+            "📏 <b>Примеры:</b>\n"
             "• 75.5\n"
             "• 80 кг\n"
             "• 72,3",
+            reply_markup=ReplyKeyboardMarkup(
+                keyboard=[[KeyboardButton(text="❌ Отмена")]],
+                resize_keyboard=True,
+                one_time_keyboard=True
+            ),
             parse_mode="HTML"
         )
         return
@@ -750,13 +755,13 @@ async def cmd_profile(message: Message, state: FSMContext):
             extended_measurements.append(f"Ширина таза: {user.hip_width_cm} см")
         
         if extended_measurements:
-            profile_text += "\n� <b>Расширенные замеры:</b>\n"
+            profile_text += "\n📏 <b>Расширенные замеры:</b>\n"
             for measurement in extended_measurements:
                 profile_text += f"• {measurement}\n"
         else:
             profile_text += "• Расширенные замеры: не указаны\n"
         
-        profile_text += "\n� Для изменения профиля используйте /edit_profile"
+        profile_text += "\n🔧 Для изменения профиля используйте /edit_profile"
         
         await message.answer(
             profile_text,
@@ -1331,17 +1336,23 @@ async def process_edit_goal(message: Message, state: FSMContext):
             
             await session.commit()
             
+            profile_text = ""
+            profile_text += f"• Город: {user.city}\n"
+            profile_text += f"• Цель: {user.goal}\n\n"
+            profile_text += f"📊 <b>Ваши нормы:</b>\n"
+            profile_text += f"• Калории: {user.daily_calorie_goal} ккал/день\n"
+            profile_text += f"• Белки: {user.daily_protein_goal} г/день\n"
+            profile_text += f"• Жиры: {user.daily_fat_goal} г/день\n"
+            profile_text += f"• Углеводы: {user.daily_carbs_goal} г/день\n"
+            profile_text += f"• Вода: {user.daily_water_goal} мл/день\n\n"
+            profile_text += "📐 <b>Антропометрия:</b>\n"
+            
             await message.answer(
                 f"✅ <b>Цель обновлена!</b>\n\n"
                 f"🎯 <b>Изменение:</b>\n"
                 f"Было: {old_display}\n"
                 f"Стало: {message.text}\n\n"
-                f"📊 <b>Новые нормы:</b>\n"
-                f"🔥 Калории: {user.daily_calorie_goal} ккал/день\n"
-                f"🥩 Белки: {user.daily_protein_goal} г/день\n"
-                f"🥑 Жиры: {user.daily_fat_goal} г/день\n"
-                f"🍞 Углеводы: {user.daily_carbs_goal} г/день\n\n"
-                f"💡 Все цели автоматически пересчитаны!",
+                f"{profile_text}",
                 reply_markup=get_main_keyboard_v2(),
                 parse_mode="HTML"
             )

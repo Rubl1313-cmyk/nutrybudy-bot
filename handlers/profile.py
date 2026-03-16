@@ -115,11 +115,11 @@ async def process_age(message: Message, state: FSMContext):
 @router.message(ProfileStates.gender)
 async def process_gender(message: Message, state: FSMContext):
     """Обработка пола"""
-    gender = message.text.lower()
+    gender_text = message.text.lower()
     
-    if gender in ["мужской", "м"]:
+    if "мужской" in gender_text:
         gender = "male"
-    elif gender in ["женский", "ж"]:
+    elif "женский" in gender_text:
         gender = "female"
     else:
         await message.answer("❌ Выберите 'Мужской' или 'Женский'")
@@ -127,7 +127,7 @@ async def process_gender(message: Message, state: FSMContext):
     
     await state.update_data(gender=gender)
     
-    # Собираем антропометрические данные для точного анализа
+    # Далее код без изменений...
     if gender == "female":
         await message.answer(
             "📏 <b>Антропометрические данные</b>\n\n"

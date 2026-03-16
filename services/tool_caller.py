@@ -227,7 +227,7 @@ class ToolCaller:
                     progress_percent = (today_total / user.daily_water_goal) * 100 if user.daily_water_goal else 0
                     remaining = user.daily_water_goal - today_total if user.daily_water_goal else 0
                     
-                    response = f"💧 <b>Записано: {amount_ml} мл</b>\n\n"
+                    response = f"💧 <b>Записано: {amount} мл</b>\n\n"
                     response += f"📊 <b>Сегодня выпито:</b> {today_total} мл\n"
                     response += f"🎯 <b>Норма:</b> {user.daily_water_goal} мл\n"
                     response += f"📈 <b>Прогресс:</b> {progress_percent:.0f}%\n"
@@ -307,7 +307,7 @@ class ToolCaller:
                     user.weight = weight_kg
                     
                     # Пересчитываем КБЖУ
-                    nutrition_goals = calculate_calorie_goal(
+                    calories, protein, fat, carbs = calculate_calorie_goal(
                         weight=weight_kg,
                         height=user.height,
                         age=user.age,
@@ -323,10 +323,10 @@ class ToolCaller:
                     )
                     
                     # Обновляем нормы
-                    user.daily_calorie_goal = round(nutrition_goals['calories'])
-                    user.daily_protein_goal = round(nutrition_goals['protein'])
-                    user.daily_fat_goal = round(nutrition_goals['fat'])
-                    user.daily_carbs_goal = round(nutrition_goals['carbs'])
+                    user.daily_calorie_goal = round(calories)
+                    user.daily_protein_goal = round(protein)
+                    user.daily_fat_goal = round(fat)
+                    user.daily_carbs_goal = round(carbs)
                     user.daily_water_goal = round(water_goal)
                     
                     # Анализ композиции тела
@@ -426,9 +426,7 @@ class ToolCaller:
                 else:
                     duration_min = distance_km * 8  # среднее
                 calories = estimate_calories_burned(activity_type, duration_min)
-            elif steps:
-                duration_min = steps // 120  # ~120 шагов в минуту
-                calories = estimate_calories_burned('walking', duration_min)
+            # steps больше не используется - удалена неиспользуемая ветка
             else:
                 calories = 0
             

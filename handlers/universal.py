@@ -121,8 +121,10 @@ async def analyze_photo_parallel(message: Message, agent: LangChainAgent):
         analysis_result = await cf_manager.analyze_food_photo(photo_bytes.read())
         
         if not analysis_result.get("success"):
+            error_msg = analysis_result.get("error", "Не удалось проанализировать фото")
+            logger.error(f"Photo analysis failed: {error_msg}")
             await message.answer(
-                error_card("ai", "Не удалось проанализировать фото. Попробуйте ещё раз."),
+                error_card("ai", f"Не удалось проанализировать фото: {error_msg}. Попробуйте ещё раз."),
                 parse_mode="HTML"
             )
             return
@@ -228,40 +230,44 @@ async def meal_type_callback(callback: CallbackQuery, state: FSMContext):
         # Используем save_food_to_db с детальными ингредиентами
         food_items = food_data.get("food_items", [])
         if not food_items:
-            # Если нет детальных ингредиентов, используем старый метод
-            save_result = await food_save_service.save_meal(
-                callback.from_user.id,
-                food_data,
-                meal_type
+            # Если нет детальных ингредиентов, создаем их из food_data
+            # Конвертируем старый формат в новый
+            food_items = [{
+                'name': food_data.get('description', 'Блюдо'),
+                'quantity': food_data.get('total_weight', 100),
+                'unit': 'г',
+                'calories': food_data.get('total_calories', 0),
+                'protein': food_data.get('total_protein', 0),
+                'fat': food_data.get('total_fat', 0),
+                'carbs': food_data.get('total_carbs', 0)
+            }]
+        
+        # Сохраняем через save_food_to_db
+        save_result = await food_save_service.save_food_to_db(
+            callback.from_user.id,
+            food_items,
+            meal_type
+        )
+        
+        if not save_result.get("success"):
+            await callback.answer(
+                f"❌ Ошибка сохранения: {save_result.get('error', 'Неизвестная ошибка')}",
+                show_alert=True
             )
-            save_data = food_data
-        else:
-            # Сохраняем через save_food_to_db
-            save_result = await food_save_service.save_food_to_db(
-                callback.from_user.id,
-                food_items,
-                meal_type
-            )
-            
-            if not save_result.get("success"):
-                await callback.answer(
-                    f"❌ Ошибка сохранения: {save_result.get('error', 'Неизвестная ошибка')}",
-                    show_alert=True
-                )
-                return
-            
-            # Форматируем данные для карточки
-            save_data = {
-                'description': ", ".join([
-                    f"{item.get('quantity','')} {item.get('unit','г')} {item['name']}" 
-                    for item in food_items
-                ]),
-                'total_calories': save_result.get('total_calories', 0),
-                'total_protein': save_result.get('total_protein', 0),
-                'total_fat': save_result.get('total_fat', 0),
-                'total_carbs': save_result.get('total_carbs', 0),
-                'meal_type': meal_type
-            }
+            return
+        
+        # Форматируем данные для карточки
+        save_data = {
+            'description': ", ".join([
+                f"{item.get('quantity','')} {item.get('unit','г')} {item['name']}" 
+                for item in food_items
+            ]),
+            'total_calories': save_result.get('total_calories', 0),
+            'total_protein': save_result.get('total_protein', 0),
+            'total_fat': save_result.get('total_fat', 0),
+            'total_carbs': save_result.get('total_carbs', 0),
+            'meal_type': meal_type
+        }
         
         # Получаем дневную статистику
         daily_stats = await get_daily_stats(callback.from_user.id)

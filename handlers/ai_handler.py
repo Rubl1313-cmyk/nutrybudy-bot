@@ -180,7 +180,16 @@ async def handle_text(message: types.Message, state: FSMContext):
         parameters = result["parameters"]
         
         if intent == "log_food":
-            # Форматируем результат распознавания еды
+            # Проверяем, есть ли food_items в параметрах
+            food_items = parameters.get("food_items", [])
+            if food_items:
+                # Передаём управление в модуль уточнения
+                from handlers.food_clarification import handle_food_text
+                handled = await handle_food_text(message, state)
+                if handled:
+                    return
+            
+            # Если нет food_items или уточнение не сработало, используем старый метод
             food_data = ai_processor.format_food_result(parameters)
             
             # Сохраняем еду и отвечаем пользователю

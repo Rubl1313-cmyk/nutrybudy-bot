@@ -3,6 +3,7 @@ services/intent_classifier.py
 Умный классификатор намерений для естественного диалога
 """
 import re
+import json
 import logging
 from typing import Dict, Any, List, Optional
 
@@ -449,3 +450,107 @@ class IntentClassifier:
                 break
         
         return entities
+    
+    @classmethod
+    async def classify_with_ai(cls, text: str) -> dict:
+        """
+        Определяет намерение пользователя с помощью AI-модели.
+        Возвращает словарь с intent, confidence и entities.
+        """
+        from services.cloudflare_manager import cf_manager
+        
+        system_prompt = """Ты — классификатор намерений для бота по питанию.
+Определи, что хочет пользователь. Варианты:
+- log_food: запись еды (съел, покушал, завтрак, обед, ужин, перекус, упоминание продуктов)
+- log_water: запись воды (выпил, вода, стакан, мл, литр)
+- log_weight: запись веса (вес, взвесился, кг)
+- log_activity: запись активности (бег, ходьба, тренировка, шаги, км)
+- show_progress: показать прогресс (статистика, прогресс, график, сколько похудел)
+- ask_advice: спросить совет (как, что делать, рекомендация, рецепт)
+- general_chat: общий вопрос или другое
+
+Ответь только JSON в формате:
+{"intent": "одно из значений", "confidence": число от 0 до 1, "entities": {}}
+Если уверен, ставь confidence > 0.7, если сомневаешься — меньше.
+Не добавляй пояснений, только JSON."""
+
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": text}
+        ]
+
+        result = await cf_manager._call(
+            "assistant",  # используем ту же модель, но можно и отдельную быструю
+            messages,
+            response_format={"type": "json_object"},
+            temperature=0.2,
+            max_tokens=100
+        )
+
+        if result.get("success"):
+            try:
+                # Пытаемся найти JSON в строке (на случай если есть дополнительный текст)
+                data = result["data"]
+                json_match = re.search(r'(\{.*\})', data, re.DOTALL)
+                if json_match:
+                    data = json_match.group(1)
+                
+                # Распарсиваем JSON
+                parsed = json.loads(data)
+                
+                # Нормализуем поля
+                intent = parsed.get("intent", "general_chat")
+                confidence = parsed.get("confidence", 0.5)
+                entities = parsed.get("entities", {})
+                
+                return {
+                    "intent": intent,
+                    "confidence": confidence,
+                    "entities": entities,
+                    "method": "ai"
+                }
+            except Exception as e:
+                logger.error(f"Failed to parse AI classification: {e}")
+
+        # Fallback на старый метод
+        return cls._classify_by_keywords(text)
+    
+    @classmethod
+    def _classify_by_keywords(cls, text: str) -> dict:
+        """Классификация по ключевым словам (fallback)"""
+        text_lower = text.lower()
+        
+        # Определяем намерение по ключевым словам
+        if any(word in text_lower for word in ['съел', 'покушал', 'завтрак', 'обед', 'ужин', 'перекус', 'еда', 'продукт']):
+            return {"intent": "log_food", "confidence": 0.8, "method": "keywords"}
+        elif any(word in text_lower for word in ['выпил', 'вода', 'стакан', 'мл', 'литр']):
+            return {"intent": "log_water", "confidence": 0.8, "method": "keywords"}
+        elif any(word in text_lower for word in ['вес', 'взвесился', 'кг']):
+            return {"intent": "log_weight", "confidence": 0.8, "method": "keywords"}
+        elif any(word in text_lower for word in ['бег', 'ходьба', 'тренировка', 'шаги', 'км']):
+            return {"intent": "log_activity", "confidence": 0.8, "method": "keywords"}
+        elif any(word in text_lower for word in ['статистика', 'прогресс', 'график', 'похудел']):
+            return {"intent": "show_progress", "confidence": 0.8, "method": "keywords"}
+        elif any(word in text_lower for word in ['как', 'что делать', 'рекомендация', 'рецепт']):
+            return {"intent": "ask_advice", "confidence": 0.7, "method": "keywords"}
+        else:
+            return {"intent": "general_chat", "confidence": 0.5, "method": "keywords"}
+    
+    @classmethod
+    async def classify(cls, text: str) -> dict:
+        """
+        Основной метод классификации с fallback.
+        Сначала пробует AI, если confidence низкий или ошибка – использует keywords.
+        """
+        try:
+            result = await cls.classify_with_ai(text)
+            
+            # Если AI не уверен или ошибка, используем keywords
+            if result.get("method") == "ai" and result.get("confidence", 0) < 0.6:
+                logger.info(f"AI confidence too low ({result.get('confidence')}), using keywords fallback")
+                return cls._classify_by_keywords(text)
+            
+            return result
+        except Exception as e:
+            logger.error(f"Classification error: {e}, using keywords fallback")
+            return cls._classify_by_keywords(text)

@@ -212,7 +212,7 @@ async def main():
     # 2. Медиа и AI обработчики
     # 3. Универсальный обработчик текста (dialog) - должен быть последним
     
-    from handlers import dialog, ai_handler, common, profile, water, progress, activity, weight, meal_plan, ai_assistant, reply_handlers, achievements
+    from handlers import dialog, ai_handler, common, profile, water, progress, activity, weight, meal_plan, ai_assistant, reply_handlers, achievements, food_clarification
 
     # Команды и специфические обработчики
     dp.include_router(common.router)           # /start, /help, /cancel и т.д.
@@ -225,8 +225,11 @@ async def main():
     dp.include_router(ai_assistant.router)     # /ask, /ai, /weather
     dp.include_router(achievements.router)     # /achievements
     
-    # Обработчики reply-кнопок – должны быть ПЕРЕД ai_handler
+    # Обработчики reply-кнопок – должны быть ПЕРЕД AI
     dp.include_router(reply_handlers.router)   # Reply-кнопки
+    
+    # Уточнение продуктов – ПЕРЕД основным AI обработчиком
+    dp.include_router(food_clarification.router)  # Уточнение продуктов
     
     # Медиа и AI обработчики
     dp.include_router(ai_handler.router)       # Фото и другие медиа

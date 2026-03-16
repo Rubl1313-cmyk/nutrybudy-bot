@@ -156,6 +156,28 @@ $$;
             ALTER TABLE users DROP COLUMN IF EXISTS bicep_cm;
             """
         ))
+        
+        # Версия 1.5.0: Расширенная антропометрия (только обхваты)
+        self.migrations.append(Migration(
+            "1.5.0",
+            "Add advanced anthropometry fields (girths only)",
+            """
+            -- Добавляем новые антропометрические поля
+            ALTER TABLE users ADD COLUMN IF NOT EXISTS chest_cm FLOAT;
+            ALTER TABLE users ADD COLUMN IF NOT EXISTS forearm_cm FLOAT;
+            ALTER TABLE users ADD COLUMN IF NOT EXISTS calf_cm FLOAT;
+            ALTER TABLE users ADD COLUMN IF NOT EXISTS shoulder_width_cm FLOAT;
+            ALTER TABLE users ADD COLUMN IF NOT EXISTS hip_width_cm FLOAT;
+            """,
+            """
+            -- Удаление новых полей (если понадобится откат)
+            ALTER TABLE users DROP COLUMN IF EXISTS chest_cm;
+            ALTER TABLE users DROP COLUMN IF EXISTS forearm_cm;
+            ALTER TABLE users DROP COLUMN IF EXISTS calf_cm;
+            ALTER TABLE users DROP COLUMN IF EXISTS shoulder_width_cm;
+            ALTER TABLE users DROP COLUMN IF EXISTS hip_width_cm;
+            """
+        ))
     
     async def get_applied_migrations(self) -> List[str]:
         """Получение списка примененных миграций"""

@@ -38,6 +38,13 @@ class User(Base):
     wrist_cm = Column(Float, nullable=True)         # Обхват запястья
     bicep_cm = Column(Float, nullable=True)        # Обхват бицепса (мужчины)
     
+    # Новые расширенные антропометрические поля (опциональные)
+    chest_cm = Column(Float, nullable=True)          # Обхват груди
+    forearm_cm = Column(Float, nullable=True)        # Обхват предплечья
+    calf_cm = Column(Float, nullable=True)           # Обхват голени
+    shoulder_width_cm = Column(Float, nullable=True) # Ширина плеч
+    hip_width_cm = Column(Float, nullable=True)      # Ширина таза
+    
     # Кешированные расчеты композиции тела
     last_bodyfat = Column(Float, nullable=True)     # Последний % жира
     last_muscle_mass = Column(Float, nullable=True) # Последняя мышечная масса

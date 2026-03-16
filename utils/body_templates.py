@@ -30,7 +30,12 @@ def get_body_analysis_text(user, previous_weights: list = None) -> str:
             neck_cm=user.neck_cm,
             waist_cm=user.waist_cm,
             hip_cm=user.hip_cm,
-            wrist_cm=getattr(user, 'wrist_cm', None)
+            wrist_cm=getattr(user, 'wrist_cm', None),
+            chest_cm=getattr(user, 'chest_cm', None),
+            forearm_cm=getattr(user, 'forearm_cm', None),
+            calf_cm=getattr(user, 'calf_cm', None),
+            shoulder_width_cm=getattr(user, 'shoulder_width_cm', None),
+            hip_width_cm=getattr(user, 'hip_width_cm', None)
         )
         
         # Анализ тренда веса
@@ -47,6 +52,28 @@ def get_body_analysis_text(user, previous_weights: list = None) -> str:
 • Мышечная масса: {body_analysis['muscle_mass']} кг
 • Вода в организме: {body_analysis['body_water']} л
 """
+        
+        # Добавляем новые метрики
+        if body_analysis.get('whtr'):
+            status = "✅ норма" if body_analysis['whtr'] < 0.5 else "⚠️ выше нормы"
+            text += f"• Отношение талия/рост: {body_analysis['whtr']} ({status})\n  💡 Показатель <0.5 – низкий риск заболеваний. Стремитесь к талии менее {round(0.5*user.height)} см.\n"
+        
+        if body_analysis.get('metabolic_age'):
+            age_diff = body_analysis['metabolic_age'] - user.age
+            if age_diff < 0:
+                age_comment = f"на {abs(age_diff)} года младше вашего реального возраста – отлично!"
+            elif age_diff > 0:
+                age_comment = f"на {age_diff} лет старше – стоит обратить внимание на состав тела."
+            else:
+                age_comment = "совпадает с вашим возрастом."
+            text += f"• Метаболический возраст: {body_analysis['metabolic_age']} лет ({age_comment})\n  💡 Отражает, какому возрасту соответствует ваш обмен веществ.\n"
+        
+        if body_analysis.get('absi') and body_analysis.get('absi_risk'):
+            text += f"• Индекс формы тела (ABSI): {body_analysis['absi']:.3f} – {body_analysis['absi_risk']} риск\n  💡 Учитывает распределение жира. Чем ниже, тем лучше.\n"
+        
+        if body_analysis.get('muscle_segments'):
+            ms = body_analysis['muscle_segments']
+            text += f"• Мышечная масса по сегментам:\n  💪 Руки: {ms['arms']} кг | Ноги: {ms['legs']} кг | Туловище: {ms['trunk']} кг\n  💡 Позволяет оценить равномерность развития. Больше обхваты – больше мышц в этой зоне.\n"
         
         # Добавляем информацию о риске висцерального жира
         if body_analysis['visceral_risk']:

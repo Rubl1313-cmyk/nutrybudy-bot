@@ -57,6 +57,14 @@ class ProfileStates(StatesGroup):
     waiting_for_hip = State()       # Обхват бедер для женщин
     waiting_for_wrist = State()     # Обхват запястья для мужчин
     waiting_for_bicep = State()     # Обхват бицепса для мужчин (опционально)
+    
+    # Новые состояния для расширенной антропометрии (опциональные)
+    waiting_for_chest = State()     # Обхват груди
+    waiting_for_forearm = State()   # Обхват предплечья
+    waiting_for_calf = State()      # Обхват голени
+    waiting_for_shoulder_width = State()  # Ширина плеч
+    waiting_for_hip_width = State()      # Ширина таза
+    
     activity = State()
     goal = State()
     city = State()

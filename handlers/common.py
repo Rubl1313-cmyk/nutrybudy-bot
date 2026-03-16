@@ -395,9 +395,21 @@ async def universal_callback_handler(callback: CallbackQuery, state: FSMContext)
         await period_callback_internal(callback, state)
         return
     
+    # Обработка progress_ callback
+    if data.startswith("progress_"):
+        await period_callback_internal(callback, state)
+        return
+    
     # Обработка help_ callback
     if data.startswith("help_"):
         await help_callbacks(callback)
+        return
+    
+    # Обработка edit_ callback - перенаправляем в profile.py
+    if data.startswith("edit_"):
+        # Импортируем и вызываем обработчик из profile.py
+        from handlers.profile import process_edit_callback
+        await process_edit_callback(callback, state)
         return
     
     # Другие callback

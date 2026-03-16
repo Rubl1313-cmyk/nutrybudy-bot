@@ -806,7 +806,6 @@ async def cmd_edit_profile(message: Message, state: FSMContext):
             parse_mode="HTML"
         )
 
-@router.callback_query(F.data.startswith("edit_"))
 async def process_edit_callback(callback: CallbackQuery, state: FSMContext):
     """Обработка выбора параметра для редактирования"""
     action = callback.data.split("_")[1]
@@ -859,6 +858,21 @@ async def process_edit_callback(callback: CallbackQuery, state: FSMContext):
         await state.set_state(ProfileStates.waiting_for_bicep)
     elif action == "extended":
         await show_extended_measurements_keyboard(callback.message, state)
+    elif action == "chest":
+        await callback.message.answer("📊 Введите новый обхват груди (в см):")
+        await state.set_state(ProfileStates.waiting_for_chest)
+    elif action == "forearm":
+        await callback.message.answer("💪 Введите новый обхват предплечья (в см):")
+        await state.set_state(ProfileStates.waiting_for_forearm)
+    elif action == "calf":
+        await callback.message.answer("🦵 Введите новый обхват голени (в см):")
+        await state.set_state(ProfileStates.waiting_for_calf)
+    elif action == "shoulder_width":
+        await callback.message.answer("📏 Введите новую ширину плеч (в см):")
+        await state.set_state(ProfileStates.waiting_for_shoulder_width)
+    elif action == "hip_width":
+        await callback.message.answer("📐 Введите новую ширину таза (в см):")
+        await state.set_state(ProfileStates.waiting_for_hip_width)
     
     await callback.answer()
 
@@ -907,65 +921,29 @@ async def process_edit_bicep(message: Message, state: FSMContext):
     """Обработка изменения обхвата бицепса"""
     await process_measurement_edit(message, state, "bicep_cm", "обхват бицепса")
 
-# Обработчики для расширенных антропометрических замеров
-@router.callback_query(F.data.startswith("edit_chest"))
-async def process_edit_chest_callback(callback: CallbackQuery, state: FSMContext):
-    """Начало редактирования обхвата груди"""
-    await callback.message.answer("📊 Введите новый обхват груди (в см):")
-    await state.set_state(ProfileStates.waiting_for_chest)
-    await callback.answer()
-
-@router.callback_query(F.data.startswith("edit_forearm"))
-async def process_edit_forearm_callback(callback: CallbackQuery, state: FSMContext):
-    """Начало редактирования обхвата предплечья"""
-    await callback.message.answer("💪 Введите новый обхват предплечья (в см):")
-    await state.set_state(ProfileStates.waiting_for_forearm)
-    await callback.answer()
-
-@router.callback_query(F.data.startswith("edit_calf"))
-async def process_edit_calf_callback(callback: CallbackQuery, state: FSMContext):
-    """Начало редактирования обхвата голени"""
-    await callback.message.answer("🦵 Введите новый обхват голени (в см):")
-    await state.set_state(ProfileStates.waiting_for_calf)
-    await callback.answer()
-
-@router.callback_query(F.data.startswith("edit_shoulder_width"))
-async def process_edit_shoulder_width_callback(callback: CallbackQuery, state: FSMContext):
-    """Начало редактирования ширины плеч"""
-    await callback.message.answer("📏 Введите новую ширину плеч (в см):")
-    await state.set_state(ProfileStates.waiting_for_shoulder_width)
-    await callback.answer()
-
-@router.callback_query(F.data.startswith("edit_hip_width"))
-async def process_edit_hip_width_callback(callback: CallbackQuery, state: FSMContext):
-    """Начало редактирования ширины таза"""
-    await callback.message.answer("📐 Введите новую ширину таза (в см):")
-    await state.set_state(ProfileStates.waiting_for_hip_width)
-    await callback.answer()
-
-# Обработчики для расширенных антропометрических замеров
+# Обработчики для расширенных антропометрических замеров (только message обработчики)
 @router.message(ProfileStates.waiting_for_chest)
-async def process_edit_chest(message: Message, state: FSMContext):
+async def process_chest(message: Message, state: FSMContext):
     """Обработка изменения обхвата груди"""
     await process_measurement_edit(message, state, "chest_cm", "обхват груди")
 
 @router.message(ProfileStates.waiting_for_forearm)
-async def process_edit_forearm(message: Message, state: FSMContext):
+async def process_forearm(message: Message, state: FSMContext):
     """Обработка изменения обхвата предплечья"""
     await process_measurement_edit(message, state, "forearm_cm", "обхват предплечья")
 
 @router.message(ProfileStates.waiting_for_calf)
-async def process_edit_calf(message: Message, state: FSMContext):
+async def process_calf(message: Message, state: FSMContext):
     """Обработка изменения обхвата голени"""
     await process_measurement_edit(message, state, "calf_cm", "обхват голени")
 
 @router.message(ProfileStates.waiting_for_shoulder_width)
-async def process_edit_shoulder_width(message: Message, state: FSMContext):
+async def process_shoulder_width(message: Message, state: FSMContext):
     """Обработка изменения ширины плеч"""
     await process_measurement_edit(message, state, "shoulder_width_cm", "ширина плеч")
 
 @router.message(ProfileStates.waiting_for_hip_width)
-async def process_edit_hip_width(message: Message, state: FSMContext):
+async def process_hip_width(message: Message, state: FSMContext):
     """Обработка изменения ширины таза"""
     await process_measurement_edit(message, state, "hip_width_cm", "ширина таза")
 

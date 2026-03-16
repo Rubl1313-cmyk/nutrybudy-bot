@@ -54,7 +54,8 @@ class User(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     meals = relationship("Meal", back_populates="user", cascade="all, delete-orphan")
-    water_entries = relationship("WaterEntry", back_populates="user", cascade="all, delete-orphan")
+    drink_entries = relationship("DrinkEntry", back_populates="user", cascade="all, delete-orphan")
+    water_entries = relationship("WaterEntry", back_populates="user", cascade="all, delete-orphan")  # Для совместимости
     weight_entries = relationship("WeightEntry", back_populates="user", cascade="all, delete-orphan")
     activities = relationship("Activity", back_populates="user", cascade="all, delete-orphan")
     steps_entries = relationship("StepsEntry", back_populates="user", cascade="all, delete-orphan")
@@ -95,15 +96,22 @@ class FoodItem(Base):
 
     meal = relationship("Meal", back_populates="foods")
 
-class WaterEntry(Base):
-    __tablename__ = 'water_entries'
+class DrinkEntry(Base):
+    __tablename__ = 'drink_entries'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(Integer, ForeignKey('users.id', ondelete="CASCADE"), nullable=False, index=True)
-    amount = Column(Float, nullable=False)
+    name = Column(String(100), nullable=False, default="вода")  # Название напитка
+    volume_ml = Column(Float, nullable=False)                    # Объём в мл
+    calories = Column(Float, default=0.0)                        # Калории в этой порции
     datetime = Column(DateTime, default=datetime.utcnow, index=True)
 
-    user = relationship("User", back_populates="water_entries")
+    user = relationship("User", back_populates="drink_entries")
+
+# Совместимость со старым кодом
+class WaterEntry(DrinkEntry):
+    """Для обратной совместимости со старым кодом"""
+    __tablename__ = 'drink_entries'
 
 class WeightEntry(Base):
     __tablename__ = 'weight_entries'

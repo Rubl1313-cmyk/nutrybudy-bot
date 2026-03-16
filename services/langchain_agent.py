@@ -1,0 +1,382 @@
+"""
+services/langchain_agent.py
+LangChain Agent с инструментами для автоматизации NutriBuddy Bot
+"""
+import os
+import json
+import logging
+from typing import Dict, List, Any, Optional
+from aiogram.types import Message
+from aiogram.fsm.context import FSMContext
+from langchain.agents import create_react_agent, AgentExecutor
+from langchain.tools import StructuredTool
+from langchain.memory import ConversationBufferMemory
+from langchain.prompts import PromptTemplate
+from langchain_core.messages import AIMessage
+from sqlalchemy import select
+
+from database.db import get_session
+from database.models import User
+from services.cloudflare_llm import CloudflareLLM
+from services.ai_processor import ai_processor
+from services.food_save_service import food_save_service
+from utils.premium_templates import (
+    meal_card, water_card, weight_card, 
+    activity_card, progress_card, achievement_card, error_card
+)
+from utils.helpers import get_daily_stats
+
+logger = logging.getLogger(__name__)
+
+# Кеш агентов (в production заменить на Redis)
+_agents: Dict[int, 'LangChainAgent'] = {}
+
+class LangChainAgent:
+    """AI агент с инструментами для NutriBuddy"""
+    
+    def __init__(self, user_id: int, state: FSMContext):
+        self.user_id = user_id
+        self.state = state
+        self.llm = CloudflareLLM()
+        self.memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
+        self.user = None
+        self.tools = self._create_tools()
+        
+        if self.llm.is_available():
+            self.agent = create_react_agent(
+                llm=self.llm.llm,
+                tools=self.tools,
+                prompt=PromptTemplate.from_template(self._get_prompt())
+            )
+            self.executor = AgentExecutor(
+                agent=self.agent,
+                tools=self.tools,
+                memory=self.memory,
+                handle_parsing_errors=True,
+                max_iterations=5,
+                verbose=True
+            )
+            logger.info(f"✅ LangChain Agent initialized for user {user_id}")
+        else:
+            self.agent = None
+            self.executor = None
+            logger.warning(f"⚠️ LangChain Agent not available for user {user_id}")
+
+    async def load_user(self):
+        """Загружает пользователя из БД"""
+        try:
+            async with get_session() as session:
+                result = await session.execute(select(User).where(User.telegram_id == self.user_id))
+                self.user = result.scalar_one_or_none()
+                if self.user:
+                    logger.info(f"✅ User loaded: {self.user.first_name}")
+                else:
+                    logger.warning(f"⚠️ User not found: {self.user_id}")
+        except Exception as e:
+            logger.error(f"❌ Error loading user {self.user_id}: {e}")
+            self.user = None
+
+    def _get_prompt(self) -> str:
+        return """Ты — премиальный AI-ассистент по питанию NutriBuddy.
+Твоя задача — понять, что хочет пользователь, и вызвать подходящий инструмент.
+Всегда отвечай красиво, используя эмодзи и структурированный текст.
+
+Информация о пользователе:
+{user_info}
+
+Доступные инструменты:
+{tools}
+
+История диалога:
+{chat_history}
+
+Запрос пользователя: {input}
+{agent_scratchpad}"""
+
+    def _create_tools(self) -> List[StructuredTool]:
+        """Создаёт инструменты для агента"""
+        
+        async def log_meal(description: str) -> str:
+            """Записывает приём пищи. description: описание еды (например, "200г курицы с гречкой"). Возвращает карточку с КБЖУ."""
+            try:
+                # Парсим еду через ai_processor
+                result = await ai_processor.process_text_input(description, self.user_id)
+                if not result.get("success"):
+                    return "❌ Не удалось распознать еду. Попробуйте описать подробнее."
+                
+                food_data = result["parameters"]
+                
+                # Сохраняем
+                save_result = await food_save_service.save_meal(
+                    self.user_id, 
+                    food_data, 
+                    meal_type="auto"
+                )
+                
+                # Получаем дневную статистику
+                daily_stats = await get_daily_stats(self.user_id)
+                return meal_card(food_data, self.user, daily_stats)
+                
+            except Exception as e:
+                logger.error(f"❌ Error in log_meal: {e}")
+                return error_card("ai", f"Ошибка при сохранении еды: {str(e)}")
+
+        async def log_water(amount_ml: int) -> str:
+            """Записывает выпитую воду. amount_ml: количество в миллилитрах."""
+            try:
+                from services.drinks import save_drink
+                
+                # Сохраняем
+                result = await save_drink(self.user_id, f"вода {amount_ml} мл")
+                
+                # Получаем статистику за день
+                total_today = await get_daily_water(self.user_id)
+                return water_card(amount_ml, total_today, self.user.daily_water_goal)
+                
+            except Exception as e:
+                logger.error(f"❌ Error in log_water: {e}")
+                return error_card("database", f"Ошибка при записи воды: {str(e)}")
+
+        async def log_drink(description: str) -> str:
+            """Записывает напиток. description: описание напитка (например, "сок 250 мл")."""
+            try:
+                from services.drinks import save_drink
+                
+                # Сохраняем
+                result = await save_drink(self.user_id, description)
+                
+                # Получаем статистику за день
+                total_today = await get_daily_water(self.user_id)
+                total_calories = await get_daily_drink_calories(self.user_id)
+                
+                return drink_card(
+                    result['volume'], 
+                    result['name'], 
+                    result['calories'],
+                    total_today, 
+                    total_calories, 
+                    self.user.daily_water_goal
+                )
+                
+            except Exception as e:
+                logger.error(f"❌ Error in log_drink: {e}")
+                return error_card("database", f"Ошибка при записи напитка: {str(e)}")
+
+        async def log_weight(weight_kg: float) -> str:
+            """Записывает вес. weight_kg: вес в килограммах."""
+            try:
+                from services.weight_service import save_weight
+                
+                # Сохраняем
+                result = await save_weight(self.user_id, weight_kg)
+                
+                return weight_card(
+                    weight_kg, 
+                    result.get('change'), 
+                    self.user.target_weight
+                )
+                
+            except Exception as e:
+                logger.error(f"❌ Error in log_weight: {e}")
+                return error_card("database", f"Ошибка при записи веса: {str(e)}")
+
+        async def log_activity(activity_type: str, duration_min: int) -> str:
+            """Записывает активность. activity_type: тип активности, duration_min: длительность в минутах."""
+            try:
+                from services.activity_service import save_activity
+                
+                # Сохраняем
+                result = await save_activity(self.user_id, activity_type, duration_min)
+                
+                # Получаем статистику за день
+                daily_total = await get_daily_activity_calories(self.user_id)
+                
+                return activity_card(
+                    activity_type, 
+                    duration_min, 
+                    result.get('calories', 0),
+                    daily_total,
+                    self.user.daily_activity_goal
+                )
+                
+            except Exception as e:
+                logger.error(f"❌ Error in log_activity: {e}")
+                return error_card("database", f"Ошибка при записи активности: {str(e)}")
+
+        async def show_progress(period: str = "день") -> str:
+            """Показывает прогресс. period: период (день, неделя, месяц, всё время)."""
+            try:
+                from services.progress_service import get_progress_stats
+                
+                stats = await get_progress_stats(self.user_id, period)
+                return progress_card(stats, period)
+                
+            except Exception as e:
+                logger.error(f"❌ Error in show_progress: {e}")
+                return error_card("database", f"Ошибка при получении прогресса: {str(e)}")
+
+        return [
+            StructuredTool.from_function(
+                coroutine=log_meal,
+                name="log_meal",
+                description="Записывает приём пищи. Вход: описание еды."
+            ),
+            StructuredTool.from_function(
+                coroutine=log_water,
+                name="log_water",
+                description="Записывает выпитую воду. Вход: количество в миллилитрах."
+            ),
+            StructuredTool.from_function(
+                coroutine=log_drink,
+                name="log_drink",
+                description="Записывает напиток. Вход: описание напитка."
+            ),
+            StructuredTool.from_function(
+                coroutine=log_weight,
+                name="log_weight",
+                description="Записывает вес. Вход: вес в килограммах."
+            ),
+            StructuredTool.from_function(
+                coroutine=log_activity,
+                name="log_activity",
+                description="Записывает активность. Вход: тип и длительность."
+            ),
+            StructuredTool.from_function(
+                coroutine=show_progress,
+                name="show_progress",
+                description="Показывает прогресс. Вход: период."
+            )
+        ]
+
+    async def handle_text(self, text: str, message: Message):
+        """Обрабатывает текстовое сообщение"""
+        try:
+            if not self.user:
+                await self.load_user()
+                if not self.user:
+                    await message.answer("❌ Сначала создайте профиль через /set_profile")
+                    return
+
+            if not self.executor:
+                await message.answer(
+                    "🤖 AI агент недоступен. Проверьте настройки Cloudflare.",
+                    parse_mode="HTML"
+                )
+                return
+
+            # Формируем информацию о пользователе
+            user_info = (
+                f"Имя: {self.user.first_name}\n"
+                f"Вес: {self.user.weight} кг\n"
+                f"Рост: {self.user.height} см\n"
+                f"Цель: {self.user.goal}\n"
+                f"Дневная норма калорий: {self.user.daily_calorie_goal} ккал\n"
+                f"Норма воды: {self.user.daily_water_goal} мл"
+            )
+
+            # Вызываем агента
+            response = await self.executor.ainvoke({
+                "input": text,
+                "user_info": user_info
+            })
+
+            # Отправляем ответ
+            await message.answer(response["output"], parse_mode="HTML")
+            
+        except Exception as e:
+            logger.error(f"❌ Error in handle_text: {e}")
+            await message.answer(
+                error_card("general", f"Ошибка обработки: {str(e)}"),
+                parse_mode="HTML"
+            )
+
+    @classmethod
+    def get_for_user(cls, user_id: int, state: FSMContext):
+        """Получает или создаёт агента для пользователя"""
+        if user_id not in _agents:
+            _agents[user_id] = cls(user_id, state)
+        return _agents[user_id]
+
+    @classmethod
+    def cleanup_inactive(cls, max_age_hours: int = 1):
+        """Очищает неактивных агентов"""
+        import time
+        current_time = time.time()
+        to_remove = []
+        
+        for user_id, agent in _agents.items():
+            # Здесь можно добавить отслеживание времени последнего использования
+            # Пока просто очищаем всех старше max_age_hours
+            # В реальной реализации нужно хранить время последнего использования
+            pass
+        
+        for user_id in to_remove:
+            del _agents[user_id]
+            logger.info(f"🧹 Cleaned up agent for user {user_id}")
+
+# Вспомогательные функции
+async def get_daily_water(user_id: int) -> int:
+    """Получает количество выпитой воды за сегодня"""
+    try:
+        from database.db import get_session
+        from database.models import DrinkEntry
+        from sqlalchemy import func, extract
+        from datetime import datetime
+        
+        async with get_session() as session:
+            result = await session.execute(
+                select(func.sum(DrinkEntry.volume_ml)).where(
+                    DrinkEntry.user_id == user_id,
+                    extract('day', DrinkEntry.datetime) == datetime.now().day,
+                    extract('month', DrinkEntry.datetime) == datetime.now().month,
+                    extract('year', DrinkEntry.datetime) == datetime.now().year
+                )
+            )
+            return result.scalar() or 0
+    except Exception as e:
+        logger.error(f"❌ Error getting daily water: {e}")
+        return 0
+
+async def get_daily_drink_calories(user_id: int) -> int:
+    """Получает калории из напитков за сегодня"""
+    try:
+        from database.db import get_session
+        from database.models import DrinkEntry
+        from sqlalchemy import func, extract
+        from datetime import datetime
+        
+        async with get_session() as session:
+            result = await session.execute(
+                select(func.sum(DrinkEntry.calories)).where(
+                    DrinkEntry.user_id == user_id,
+                    extract('day', DrinkEntry.datetime) == datetime.now().day,
+                    extract('month', DrinkEntry.datetime) == datetime.now().month,
+                    extract('year', DrinkEntry.datetime) == datetime.now().year
+                )
+            )
+            return result.scalar() or 0
+    except Exception as e:
+        logger.error(f"❌ Error getting daily drink calories: {e}")
+        return 0
+
+async def get_daily_activity_calories(user_id: int) -> int:
+    """Получает калории из активности за сегодня"""
+    try:
+        from database.db import get_session
+        from database.models import Activity
+        from sqlalchemy import func, extract
+        from datetime import datetime
+        
+        async with get_session() as session:
+            result = await session.execute(
+                select(func.sum(Activity.calories_burned)).where(
+                    Activity.user_id == user_id,
+                    extract('day', Activity.datetime) == datetime.now().day,
+                    extract('month', Activity.datetime) == datetime.now().month,
+                    extract('year', Activity.datetime) == datetime.now().year
+                )
+            )
+            return result.scalar() or 0
+    except Exception as e:
+        logger.error(f"❌ Error getting daily activity calories: {e}")
+        return 0

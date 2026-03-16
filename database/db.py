@@ -19,10 +19,10 @@ if DATABASE_URL:
         DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+asyncpg://", 1)
     elif DATABASE_URL.startswith("postgresql://") and "postgresql+asyncpg://" not in DATABASE_URL:
         DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
-    logger.info("🗄️ Using PostgreSQL")
+    logger.info("Using PostgreSQL")
 else:
     DATABASE_URL = "sqlite+aiosqlite:///nutribudy.db"
-    logger.warning("⚠️ Using SQLite")
+    logger.warning("Using SQLite")
 
 engine = create_async_engine(
     DATABASE_URL,

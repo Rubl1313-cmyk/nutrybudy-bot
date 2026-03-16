@@ -33,6 +33,9 @@ class ToolCaller:
             if intent == "log_food":
                 return await ToolCaller.handle_log_food(text, user_id, message, state)
             
+            elif intent == "log_drink":
+                return await ToolCaller.handle_log_drink(text, user_id, message, state)
+            
             elif intent == "log_water":
                 return await ToolCaller.handle_log_water(text, user_id, message, state)
             
@@ -88,6 +91,79 @@ class ToolCaller:
                 
         except Exception as e:
             logger.error(f"Error in log_food: {e}")
+            return False
+    
+    @staticmethod
+    async def handle_log_drink(text: str, user_id: int, message: Message, state: FSMContext) -> bool:
+        """Обработка записи напитков"""
+        try:
+            # Используем новый парсер напитков
+            from utils.drink_parser import parse_drink
+            volume, drink_name, calories = await parse_drink(text)
+            
+            if not volume or volume <= 0:
+                await message.answer(
+                    "❌ Не удалось определить количество напитка. Попробуйте еще раз:\n\n"
+                    "Примеры: сок 250 мл, чай с сахаром 300, молоко 200"
+                )
+                return False
+            
+            # Сохраняем напиток
+            from services.soup_service import save_drink
+            result = await save_drink(user_id, text)
+            
+            # Получаем статистику за сегодня
+            from database.db import get_session
+            from database.models import User, DrinkEntry
+            from sqlalchemy import func, extract
+            from keyboards.reply_v2 import get_main_keyboard_v2
+            from datetime import datetime
+            
+            async with get_session() as session:
+                user_result = await session.execute(
+                    select(User).where(User.telegram_id == user_id)
+                )
+                user = user_result.scalar_one_or_none()
+                
+                if not user:
+                    await message.answer(
+                        "❌ Сначала создайте профиль командой /set_profile",
+                        reply_markup=get_main_keyboard_v2()
+                    )
+                    return False
+                
+                # Статистика за сегодня
+                today_stats = await session.execute(
+                    select(func.sum(DrinkEntry.volume_ml), func.sum(DrinkEntry.calories)).where(
+                        DrinkEntry.user_id == user.id,
+                        extract('day', DrinkEntry.datetime) == datetime.now().day,
+                        extract('month', DrinkEntry.datetime) == datetime.now().month,
+                        extract('year', DrinkEntry.datetime) == datetime.now().year
+                    )
+                )
+                total_volume, total_calories = today_stats.first() or (0, 0)
+                
+                progress = (total_volume / user.daily_water_goal) * 100
+                
+                await message.answer(
+                    f"✅ <b>Напиток записан!</b>\n\n"
+                    f"🥤 {drink_name.title()}: {volume:.0f} мл\n"
+                    f"🔥 Калории: {calories:.0f} ккал\n\n"
+                    f"📊 <b>Всего за сегодня:</b>\n"
+                    f"💦 Жидкость: {total_volume:.0f} мл\n"
+                    f"🎯 Цель: {user.daily_water_goal} мл\n"
+                    f"📈 Прогресс: {progress:.1f}%\n"
+                    f"🔥 Калории из напитков: {total_calories:.0f} ккал\n\n"
+                    f"{'🎉 Отлично!' if progress >= 100 else '💪 Продолжайте!'}",
+                    reply_markup=get_main_keyboard_v2(),
+                    parse_mode="HTML"
+                )
+                
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error in handle_log_drink: {e}")
+            await message.answer("❌ Ошибка при записи напитка. Попробуйте еще раз.")
             return False
     
     @staticmethod

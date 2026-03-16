@@ -8,6 +8,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from services.food_api import get_product_variants
 from services.ai_processor import ai_processor
+from services.soup_service import is_soup, save_soup
 from utils.safe_parser import safe_parse_float
 
 logger = logging.getLogger(__name__)
@@ -40,14 +41,53 @@ async def handle_food_text(message: Message, state: FSMContext):
         await message.answer("🤔 Не удалось распознать продукты. Попробуйте описать подробнее.")
         return True
 
-    # 2. Инициализируем временное хранилище
+    # 2. Проверяем, не является ли это супом
+    dish_name = parameters.get("description", text)
+    if is_soup(dish_name):
+        # Это суп - сохраняем как еда + жидкость
+        try:
+            # Оцениваем объём супа (если не указан, считаем 300 мл)
+            volume_ml = 300  # Стандартная порция супа
+            
+            # Ищем упоминание объёма в тексте
+            import re
+            volume_match = re.search(r'(\d+)\s*(мл|л|стакан)', text.lower())
+            if volume_match:
+                amount = float(volume_match.group(1))
+                unit = volume_match.group(2)
+                if unit == 'л':
+                    volume_ml = amount * 1000
+                elif unit == 'стакан':
+                    volume_ml = amount * 250
+                else:
+                    volume_ml = amount
+            
+            # Сохраняем суп
+            result = await save_soup(user_id, dish_name, volume_ml)
+            
+            await message.answer(
+                f"🍲 <b>Суп сохранён!</b>\n\n"
+                f"🥣 {dish_name.title()}: {volume_ml} мл\n"
+                f"🔥 Калории: {result['calories']:.0f} ккал\n"
+                f"💧 Жидкость: {result['water_volume']:.0f} мл\n\n"
+                f"✅ Учтено и как еда, и как жидкость!",
+                parse_mode="HTML"
+            )
+            return True
+            
+        except Exception as e:
+            logger.error(f"Ошибка при сохранении супа: {e}")
+            await message.answer("❌ Ошибка при сохранении супа. Попробуйте ещё раз.")
+            return True
+
+    # 3. Инициализируем временное хранилище для обычной еды
     _temp_storage[user_id] = {
         "original_items": food_items,
         "current_index": 0,
         "clarified_items": []
     }
 
-    # 3. Начинаем уточнение первого продукта
+    # 4. Начинаем уточнение первого продукта
     await clarify_next_product(message, user_id, state)
     return True
 

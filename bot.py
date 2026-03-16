@@ -5,7 +5,26 @@ import sys
 from datetime import datetime
 from dotenv import load_dotenv
 from aiogram import Bot, Dispatcher
-from aiogram.fsm.storage.memory import MemoryStorage
+# Сначала настраиваем логирование
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(sys.stdout),
+        logging.FileHandler('bot.log') if os.getenv('LOG_TO_FILE') else logging.NullHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
+
+# Теперь пробуем импортировать Redis
+try:
+    from aiogram.fsm.storage.redis import RedisStorage, DefaultKeyBuilder
+    import redis.asyncio as redis
+    REDIS_AVAILABLE = True
+except ImportError:
+    from aiogram.fsm.storage.memory import MemoryStorage
+    REDIS_AVAILABLE = False
+    logger.warning("Redis not available, using MemoryStorage")
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.types import Update, BotCommand
@@ -16,16 +35,6 @@ from aiogram.fsm.strategy import FSMStrategy
 
 load_dotenv('.env')
 
-# Настройка логирования
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler(sys.stdout),
-        logging.FileHandler('bot.log') if os.getenv('LOG_TO_FILE') else logging.NullHandler()
-    ]
-)
-logger = logging.getLogger(__name__)
 
 TOKEN = os.getenv("BOT_TOKEN")
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")
@@ -43,7 +52,9 @@ async def set_bot_commands(bot: Bot):
         BotCommand(command="set_profile", description="👤 Настроить профиль"),
         BotCommand(command="profile", description="👤 Мой профиль"),
         BotCommand(command="log_food", description="🍽️ Добавить еду"),
+        BotCommand(command="log_drink", description="💧 Записать жидкость"),
         BotCommand(command="log_water", description="💧 Записать воду"),
+        BotCommand(command="drink", description="💧 Статистика жидкости"),
         BotCommand(command="water", description="💧 Статистика воды"),
         BotCommand(command="log_weight", description="⚖️ Записать вес"),
         BotCommand(command="weight", description="⚖️ Статистика веса"),
@@ -192,8 +203,22 @@ async def main():
         validate_token=validate_token
     )
     
-    storage = MemoryStorage()
+    # Redis storage для FSM
+    if REDIS_AVAILABLE:
+        redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+        try:
+            redis_client = await redis.from_url(redis_url)
+            storage = RedisStorage(redis_client, key_builder=DefaultKeyBuilder(with_destiny=True))
+            logger.info("✅ Redis storage initialized")
+        except Exception as e:
+            logger.warning(f"Redis not available, falling back to MemoryStorage: {e}")
+            from aiogram.fsm.storage.memory import MemoryStorage
+            storage = MemoryStorage()
+    else:
+        from aiogram.fsm.storage.memory import MemoryStorage
+        storage = MemoryStorage()
     
+    # Создаем диспетчер с FSM
     dp = Dispatcher(storage=storage, fsm_strategy=FSMStrategy.GLOBAL_USER)
     
     # Middleware для логирования всех входящих сообщений
@@ -212,12 +237,13 @@ async def main():
     # 2. Медиа и AI обработчики
     # 3. Универсальный обработчик текста (dialog) - должен быть последним
     
-    from handlers import dialog, ai_handler, common, profile, water, progress, activity, weight, meal_plan, ai_assistant, reply_handlers, achievements, food_clarification
+    from handlers import universal, dialog, ai_handler, common, profile, water, drinks, progress, activity, weight, meal_plan, ai_assistant, reply_handlers, achievements, food_clarification
 
     # Команды и специфические обработчики
     dp.include_router(common.router)           # /start, /help, /cancel и т.д.
     dp.include_router(profile.router)          # /set_profile, /profile
-    dp.include_router(water.router)            # /log_water, /water
+    dp.include_router(drinks.router)           # /log_drink, /drink (новая система)
+    dp.include_router(water.router)            # /log_water, /water (для совместимости)
     dp.include_router(progress.router)         # /progress, /stats
     dp.include_router(activity.router)         # /fitness, /activity
     dp.include_router(weight.router)           # /log_weight, /weight
@@ -235,7 +261,8 @@ async def main():
     dp.include_router(ai_handler.router)       # Фото и другие медиа
     
     # Универсальный обработчик текста – ПОСЛЕДНИМ
-    dp.include_router(dialog.router)           # Все остальные текстовые сообщения
+    dp.include_router(universal.router)         # Полный обработчик (с LangChain)
+    dp.include_router(dialog.router)           # Резервный обработчик
     
     logging.info("All routers included in correct order for FSM")
     

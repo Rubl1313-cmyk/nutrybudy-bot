@@ -37,6 +37,7 @@ class CloudflareAIManager:
             "food_parser": "@hf/nousresearch/hermes-2-pro-mistral-7b",   # ← быстрее и без лишних рассуждений
             "assistant": "@cf/meta/llama-3.3-70b-instruct-fp8-fast", 
             "vision": "@cf/meta/llama-3.2-11b-vision-instruct",
+            "whisper": "@cf/openai/whisper",
             "fallback": "@cf/zai-org/glm-4.7-flash"
         }
 
@@ -425,6 +426,52 @@ class CloudflareAIManager:
             temperature=0.4,
             max_tokens=1500
         )
+
+    @with_timeout(timeout_seconds=60)
+    @with_retry(max_attempts=3, delay_seconds=1.0)
+    async def transcribe_audio(self, audio_bytes: bytes) -> Dict[str, Any]:
+        """
+        Транскрибация аудио через Cloudflare Whisper
+        
+        Args:
+            audio_bytes: Байты аудио файла
+            
+        Returns:
+            Dict с результатом транскрибации
+        """
+        if not self.base_url:
+            return {"success": False, "error": "Cloudflare credentials not configured"}
+        
+        try:
+            # Для Whisper нужен другой формат запроса
+            url = f"https://api.cloudflare.com/client/v4/accounts/{self.account_id}/ai/run/@cf/openai/whisper"
+            
+            # Создаем multipart form data
+            form_data = aiohttp.FormData()
+            form_data.add_field('audio', audio_bytes, filename='audio.ogg', content_type='audio/ogg')
+            
+            async with aiohttp.ClientSession() as session:
+                async with session.post(url, headers={"Authorization": f"Bearer {self.api_token}"}, data=form_data) as resp:
+                    if resp.status == 200:
+                        result = await resp.json()
+                        return {
+                            "success": True,
+                            "text": result["result"]["text"]
+                        }
+                    else:
+                        error_text = await resp.text()
+                        logger.error(f"Whisper API error: {resp.status} - {error_text}")
+                        return {
+                            "success": False,
+                            "error": f"API Error: {resp.status}"
+                        }
+                        
+        except Exception as e:
+            logger.error(f"Error transcribing audio: {e}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
 
 # Глобальный экземпляр
 cf_manager = CloudflareAIManager()

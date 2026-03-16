@@ -104,17 +104,29 @@ class LangChainAgent:
                 if not result.get("success"):
                     return "❌ Не удалось распознать еду. Попробуйте описать подробнее."
                 
-                food_data = result["parameters"]
+                food_items = result["parameters"].get("food_items", [])
+                meal_type = result["parameters"].get("meal_type", "main")
                 
-                # Сохраняем
-                save_result = await food_save_service.save_meal(
+                # Сохраняем через save_food_to_db с детальными ингредиентами
+                save_result = await food_save_service.save_food_to_db(
                     self.user_id, 
-                    food_data, 
-                    meal_type="auto"
+                    food_items, 
+                    meal_type
                 )
                 
                 # Получаем дневную статистику
                 daily_stats = await get_daily_stats(self.user_id)
+                
+                # Форматируем данные для карточки
+                food_data = {
+                    'description': description,
+                    'total_calories': save_result.get('total_calories', 0),
+                    'total_protein': save_result.get('total_protein', 0),
+                    'total_fat': save_result.get('total_fat', 0),
+                    'total_carbs': save_result.get('total_carbs', 0),
+                    'meal_type': meal_type
+                }
+                
                 return meal_card(food_data, self.user, daily_stats)
                 
             except Exception as e:
@@ -124,7 +136,7 @@ class LangChainAgent:
         async def log_water(amount_ml: int) -> str:
             """Записывает выпитую воду. amount_ml: количество в миллилитрах."""
             try:
-                from services.drinks import save_drink
+                from services.soup_service import save_drink
                 
                 # Сохраняем
                 result = await save_drink(self.user_id, f"вода {amount_ml} мл")
@@ -140,7 +152,7 @@ class LangChainAgent:
         async def log_drink(description: str) -> str:
             """Записывает напиток. description: описание напитка (например, "сок 250 мл")."""
             try:
-                from services.drinks import save_drink
+                from services.soup_service import save_drink
                 
                 # Сохраняем
                 result = await save_drink(self.user_id, description)

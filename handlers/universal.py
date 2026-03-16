@@ -75,17 +75,25 @@ async def handle_voice(message: Message, agent: LangChainAgent):
         )
         
         # Транскрибируем голос
-        text = await transcribe_voice(message)
-        
-        if text:
-            # Удаляем сообщение о загрузке
-            await loading_msg.delete()
+        try:
+            text = await transcribe_voice(message)
             
-            # Передаём текст в агент
-            await agent.handle_text(text, message)
-        else:
+            if text:
+                # Удаляем сообщение загрузки
+                await loading_msg.delete()
+                
+                # Передаем текст агенту
+                response = await agent.process_message(text)
+                await message.answer(response, parse_mode="HTML")
+            else:
+                await loading_msg.edit_text(
+                    "❌ Не удалось распознать речь. Попробуйте ещё раз.",
+                    parse_mode="HTML"
+                )
+        except Exception as transcribe_error:
+            logger.error(f"❌ Voice transcription error: {transcribe_error}")
             await loading_msg.edit_text(
-                error_card("ai", "Не удалось распознать речь. Попробуйте ещё раз."),
+                "❌ Ошибка при распознавании речи. Попробуйте отправить текстовое сообщение.",
                 parse_mode="HTML"
             )
             
@@ -122,12 +130,19 @@ async def analyze_photo_parallel(message: Message, agent: LangChainAgent):
         # Получаем данные о еде
         food_data = analysis_result["data"]
         
+        # Генерируем уникальный ID и сохраняем данные во временное хранилище
+        import uuid
+        analysis_id = str(uuid.uuid4())[:8]
+        
+        # Сохраняем данные в FSM
+        await state.update_data(photo_analysis={analysis_id: food_data})
+        
         # Показываем клавиатуру выбора типа приёма пищи
         keyboard = InlineKeyboardBuilder()
-        keyboard.button(text="🌅 Завтрак", callback_data=f"meal_type_breakfast_{json.dumps(food_data)}")
-        keyboard.button(text="☀️ Обед", callback_data=f"meal_type_lunch_{json.dumps(food_data)}")
-        keyboard.button(text="🌆 Ужин", callback_data=f"meal_type_dinner_{json.dumps(food_data)}")
-        keyboard.button(text="🍎 Перекус", callback_data=f"meal_type_snack_{json.dumps(food_data)}")
+        keyboard.button(text="🌅 Завтрак", callback_data=f"meal_type_breakfast_{analysis_id}")
+        keyboard.button(text="☀️ Обед", callback_data=f"meal_type_lunch_{analysis_id}")
+        keyboard.button(text="🌆 Ужин", callback_data=f"meal_type_dinner_{analysis_id}")
+        keyboard.button(text="🍎 Перекус", callback_data=f"meal_type_snack_{analysis_id}")
         keyboard.adjust(2)
         
         await message.answer(
@@ -181,10 +196,16 @@ async def meal_type_callback(callback: CallbackQuery, state: FSMContext):
         # Парсим callback_data
         parts = callback.data.split("_", 2)
         meal_type = parts[1]  # breakfast, lunch, dinner, snack
-        food_data_json = parts[2]
+        analysis_id = parts[2]
         
-        import json
-        food_data = json.loads(food_data_json)
+        # Получаем данные из FSM
+        state_data = await state.get_data()
+        photo_analysis = state_data.get("photo_analysis", {})
+        food_data = photo_analysis.get(analysis_id)
+        
+        if not food_data:
+            await callback.answer("❌ Данные анализа устарели. Попробуйте отправить фото заново.", show_alert=True)
+            return
         
         # Получаем агента
         agent = LangChainAgent.get_for_user(callback.from_user.id, state)

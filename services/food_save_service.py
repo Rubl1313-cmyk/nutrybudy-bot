@@ -77,6 +77,8 @@ class FoodSaveService:
                                 quantity = float(match.group())
                             else:
                                 quantity = 100.0
+                        elif quantity_str is None:
+                            quantity = 100.0
                         else:
                             quantity = float(quantity_str)
                     except (ValueError, TypeError):

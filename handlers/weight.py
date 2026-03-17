@@ -74,13 +74,18 @@ async def process_weight(message: Message, state: FSMContext):
             user.weight = weight
             
             # Пересчитываем нормы КБЖУ с новым весом
-            from services.calculator import calculate_calorie_goal, calculate_water_goal
+            from services.calculator import calculate_calorie_goal
+            from utils.activity_normalizer import normalize_activity_level
+            
+            # Нормализуем уровень активности
+            normalized_activity = normalize_activity_level(user.activity_level)
+            
             nutrition_goals = calculate_calorie_goal(
                 weight=weight,
                 height=user.height,
                 age=user.age,
                 gender=user.gender,
-                activity_level=user.activity_level,
+                activity_level=normalized_activity,
                 goal=user.goal
             )
             
@@ -98,7 +103,7 @@ async def process_weight(message: Message, state: FSMContext):
                 
             water_goal = calculate_water_goal(
                 weight=weight,
-                activity_level=user.activity_level,
+                activity_level=normalized_activity,
                 temperature=temperature  # Реальная температура
             )
             user.daily_water_goal = water_goal

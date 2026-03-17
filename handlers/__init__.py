@@ -10,11 +10,10 @@ from . import (
     meal_plan,            # Планирование питания
     ai_assistant,          # AI ассистент
     food_clarification,    # Уточнение продуктов
-    achievements,         # Достижения
 )
 
 __all__ = [
     'universal', 'common', 'reply_handlers', 'profile', 'drinks',
     'progress', 'activity', 'weight', 'meal_plan', 'ai_assistant',
-    'food_clarification', 'achievements'
+    'food_clarification'
 ]

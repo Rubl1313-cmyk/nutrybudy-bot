@@ -263,12 +263,22 @@ class CloudflareAIManager:
         
         if result.get("success"):
             try:
-                # Пытаемся найти JSON в строке (на случай если есть дополнительный текст)
+                # Пытаемся распарсить JSON ответ
                 data = result["data"]
-                import re
-                json_match = re.search(r'(\{.*\})', data, re.DOTALL)
-                if json_match:
-                    data = json_match.group(1)
+                try:
+                    # Сначала пробуем распарсить весь ответ как JSON
+                    parsed_data = json.loads(data)
+                    data = parsed_data
+                except json.JSONDecodeError:
+                    # Если не получается, ищем первый JSON-объект
+                    import re
+                    json_match = re.search(r'(\{.*?\})', data, re.DOTALL)
+                    if json_match:
+                        try:
+                            data = json.loads(json_match.group(1))
+                        except json.JSONDecodeError:
+                            logger.error(f"Failed to parse JSON from response: {data[:200]}...")
+                            return {"success": False, "error": "Failed to parse AI response"}
                 
                 # Распарсиваем JSON
                 parsed = json.loads(data)

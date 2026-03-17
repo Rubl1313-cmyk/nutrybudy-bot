@@ -141,39 +141,33 @@ class MigrationManager:
             """
         ))
         
-        # Версия 1.4.0: Миграция на единую таблицу DrinkEntry
+        # Версия 1.4.0: Миграция на единую таблицу DrinkEntry (SQLite совместимая)
         self.migrations.append(Migration(
             "1.4.0",
             "Migrate to unified DrinkEntry table",
             """
--- Добавляем поля source и reference_id в drink_entries (PostgreSQL)
--- Для SQLite эти поля будут добавлены через init_db()
+-- Миграция данных из water_entries в drink_entries
+-- Работает как для PostgreSQL, так и для SQLite
 
--- Проверяем существование таблицы water_entries перед миграцией
--- Это предотвратит ошибку при повторном применении миграции
-DO $$
-BEGIN
-    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'water_entries') THEN
-        INSERT INTO drink_entries (user_id, name, volume_ml, calories, source, datetime)
-        SELECT user_id, 'вода', volume_ml, 0.0, 'drink', datetime
-        FROM water_entries
-        WHERE NOT EXISTS (
-            SELECT 1 FROM drink_entries 
-            WHERE drink_entries.user_id = water_entries.user_id 
-            AND drink_entries.datetime = water_entries.datetime
-            AND drink_entries.name = 'вода'
-        );
-        
-        -- Удаляем таблицу water_entries
-        DROP TABLE water_entries;
-    END IF;
-END $$;
+-- Переносим данные из water_entries в drink_entries
+INSERT INTO drink_entries (user_id, name, volume_ml, calories, source, datetime)
+SELECT user_id, 'вода', volume_ml, 0.0, 'drink', datetime
+FROM water_entries
+WHERE NOT EXISTS (
+    SELECT 1 FROM drink_entries 
+    WHERE drink_entries.user_id = water_entries.user_id 
+    AND drink_entries.datetime = water_entries.datetime
+    AND drink_entries.name = 'вода'
+);
+
+-- Удаляем таблицу water_entries (если она существует)
+DROP TABLE IF EXISTS water_entries;
 """,
             """
 -- Откат миграции (если понадобится)
 -- Создаем таблицу water_entries
 CREATE TABLE water_entries (
-    id SERIAL PRIMARY KEY,
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
     volume_ml FLOAT NOT NULL,
     datetime TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -186,8 +180,21 @@ FROM drink_entries
 WHERE name = 'вода' AND source = 'drink';
 
 -- Удаляем поля из drink_entries
-ALTER TABLE drink_entries DROP COLUMN IF EXISTS source;
-ALTER TABLE drink_entries DROP COLUMN IF EXISTS reference_id;
+-- SQLite не поддерживает DROP COLUMN, поэтому пересоздаем таблицу
+CREATE TABLE drink_entries_backup AS SELECT * FROM drink_entries;
+DROP TABLE drink_entries;
+CREATE TABLE drink_entries (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    volume_ml FLOAT NOT NULL,
+    calories FLOAT DEFAULT 0.0,
+    datetime TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+INSERT INTO drink_entries (id, user_id, name, volume_ml, calories, datetime)
+SELECT id, user_id, name, volume_ml, calories, datetime 
+FROM drink_entries_backup;
+DROP TABLE drink_entries_backup;
             """
         ))
         

@@ -74,7 +74,7 @@ async def process_weight(message: Message, state: FSMContext):
             user.weight = weight
             
             # ĞŸĞµÑ€ĞµÑ�Ñ‡Ğ¸Ñ‚Ñ‹Ğ²Ğ°ĞµĞ¼ Ğ½Ğ¾Ñ€Ğ¼Ñ‹ ĞšĞ‘Ğ–Ğ£ Ñ� Ğ½Ğ¾Ğ²Ñ‹Ğ¼ Ğ²ĞµÑ�Ğ¾Ğ¼
-            from services.calculator import calculate_calorie_goal
+            from services.calculator import calculate_calorie_goal, calculate_water_goal
             from utils.activity_normalizer import normalize_activity_level
             
             # Ğ�Ğ¾Ñ€Ğ¼Ğ°Ğ»Ğ¸Ğ·ÑƒĞµĞ¼ ÑƒÑ€Ğ¾Ğ²ĞµĞ½ÑŒ Ğ°ĞºÑ‚Ğ¸Ğ²Ğ½Ğ¾Ñ�Ñ‚Ğ¸

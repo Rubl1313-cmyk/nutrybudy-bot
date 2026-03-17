@@ -198,11 +198,16 @@ async def main():
         validate_token=validate_token
     )
     
-    # Redis storage Ğ´Ğ»Ñ� FSM (Ğ¾Ğ±Ñ�Ğ·Ğ°Ñ‚ĞµĞ»ÑŒĞ½Ñ‹Ğ¹)
+    # Redis storage Ğ´Ğ»Ñ� FSM (Ğ¾Ğ±Ñ�Ğ·Ğ°Ñ‚ĞµĞ»ÑŒĞ½Ñ‹Ğ¹) c fallback
     redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-    redis_client = await redis.from_url(redis_url)
-    storage = RedisStorage(redis_client, key_builder=DefaultKeyBuilder(with_destiny=True))
-    logger.info("âœ… Redis storage initialized")
+    try:
+        redis_client = await redis.from_url(redis_url)
+        storage = RedisStorage(redis_client, key_builder=DefaultKeyBuilder(with_destiny=True))
+        logger.info("âœ… Redis storage initialized")
+    except Exception as e:
+        logger.warning(f"Redis unavailable ({e}), using MemoryStorage")
+        from aiogram.fsm.storage.memory import MemoryStorage
+        storage = MemoryStorage()
     
     # Ğ¡Ğ¾Ğ·Ğ´Ğ°ĞµĞ¼ Ğ´Ğ¸Ñ�Ğ¿ĞµÑ‚Ñ‡ĞµÑ€ Ñ� FSM
     dp = Dispatcher(storage=storage, fsm_strategy=FSMStrategy.GLOBAL_USER)

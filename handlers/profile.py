@@ -1136,8 +1136,12 @@ async def process_edit_weight(message: Message, state: FSMContext):
             
             daily_calorie_goal, daily_protein_goal, daily_fat_goal, daily_carbs_goal = nutrition_goals
             
-            # Используем температуру, полученную при вводе города
-            temperature = profile_data.get('temperature', 20.0)
+            # Получаем температуру из города пользователя
+            try:
+                from services.weather import get_temperature
+                temperature = await get_temperature(user.city)
+            except:
+                temperature = 20.0
                 
             water_goal = calculate_water_goal(
                 weight=weight,

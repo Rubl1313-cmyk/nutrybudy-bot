@@ -10,10 +10,13 @@ from . import (
     weight,          # Учет веса
     meal_plan,       # Планирование питания
     ai_assistant,    # AI ассистент
-    food             # 
+    food,           # Логирование питания
+    food_clarification,  # Уточнение продуктов
+    achievements      # Достижения
 )
 
 __all__ = [
     'dialog', 'ai_handler', 'common', 'reply_handlers', 'profile', 'water',
-    'progress', 'activity', 'weight', 'meal_plan', 'ai_assistant', 'food'
+    'progress', 'activity', 'weight', 'meal_plan', 'ai_assistant', 'food',
+    'food_clarification', 'achievements'
 ]

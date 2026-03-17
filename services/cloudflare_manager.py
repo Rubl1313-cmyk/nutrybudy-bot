@@ -22,10 +22,11 @@ class CloudflareAIManager:
         self.api_token = os.getenv("CLOUDFLARE_API_TOKEN")
         
         if not self.account_id or not self.api_token:
-            logger.warning("⚠️ Cloudflare AI credentials not found. Using emulation mode.")
-            logger.warning("AI functionality will be limited. Set CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN in environment.")
-            self.base_url = None
-            self.headers = {}
+            error_msg = "❌ FATAL: Cloudflare AI credentials not found!"
+            logger.error(error_msg)
+            logger.error("Set CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN in environment variables.")
+            logger.error("Bot cannot start without AI functionality.")
+            raise RuntimeError(error_msg)
         else:
             self.base_url = f"https://api.cloudflare.com/client/v4/accounts/{self.account_id}/ai/run/"
             self.headers = {

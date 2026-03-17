@@ -130,7 +130,7 @@ async def send_weight_statistics(message: Message, user, session, current_weight
     yesterday_result = await session.execute(
         select(WeightEntry.weight).where(
             WeightEntry.user_id == user.id,
-            WeightEntry.datetime == yesterday
+            func.date(WeightEntry.datetime) == yesterday
         )
     )
     yesterday_weight = yesterday_result.scalar_one_or_none()
@@ -140,7 +140,7 @@ async def send_weight_statistics(message: Message, user, session, current_weight
     week_result = await session.execute(
         select(WeightEntry.weight).where(
             WeightEntry.user_id == user.id,
-            WeightEntry.datetime == week_ago
+            func.date(WeightEntry.datetime) == week_ago
         )
     )
     week_weight = week_result.scalar_one_or_none()
@@ -150,7 +150,7 @@ async def send_weight_statistics(message: Message, user, session, current_weight
     month_result = await session.execute(
         select(WeightEntry.weight).where(
             WeightEntry.user_id == user.id,
-            WeightEntry.datetime == month_ago
+            func.date(WeightEntry.datetime) == month_ago
         )
     )
     month_weight = month_result.scalar_one_or_none()

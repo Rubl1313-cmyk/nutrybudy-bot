@@ -111,7 +111,7 @@ async def generate_water_plot(
         user_id=user_id,
         session=session,
         model=WaterEntry,
-        amount_field='amount',
+        amount_field='volume_ml',
         ylabel='Вода (мл)',
         title='💧 Потребление воды',
         color=COLORS['water'],

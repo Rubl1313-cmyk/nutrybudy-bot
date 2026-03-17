@@ -150,7 +150,7 @@ async def analyze_photo_parallel(message: Message, agent: LangChainAgent):
         
         await message.answer(
             "📸 <b>Фото проанализировано!</b>\n\n"
-            f"🍽️ <b>Распознано:</b> {food_data.get('description', 'Блюдо')}\n\n"
+            f"🍽️ <b>Распознано:</b> {food_data.get('dish_name', 'Блюдо')}\n\n"
             "🍽️ <b>Выберите тип приёма пищи:</b>",
             reply_markup=keyboard.as_markup(),
             parse_mode="HTML"
@@ -234,7 +234,7 @@ async def meal_type_callback(callback: CallbackQuery, state: FSMContext):
             # Если нет детальных ингредиентов, создаем их из food_data
             # Конвертируем старый формат в новый
             food_items = [{
-                'name': food_data.get('description', 'Блюдо'),
+                'name': food_data.get('dish_name', 'Блюдо'),
                 'quantity': food_data.get('total_weight', 100),
                 'unit': 'г',
                 'calories': food_data.get('total_calories', 0),

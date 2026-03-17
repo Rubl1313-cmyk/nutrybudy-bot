@@ -37,13 +37,15 @@ async def cmd_log_drink(message: Message, state: FSMContext):
         parse_mode="HTML"
     )
 
-@router.message(Command("log_water") | create_localized_command_filter("Ğ·Ğ°Ğ¿Ğ¸Ñ�Ğ°Ñ‚ÑŒ_Ğ²Ğ¾Ğ´Ñƒ"))
+@router.message(Command("log_water"))
+@router.message(create_localized_command_filter("Ğ·Ğ°Ğ¿Ğ¸Ñ�Ğ°Ñ‚ÑŒ_Ğ²Ğ¾Ğ´Ñƒ"))
 async def cmd_log_water(message: Message, state: FSMContext):
     """Ğ—Ğ°Ğ¿Ğ¸Ñ�ÑŒ Ğ²Ğ¾Ğ´Ñ‹ (Ğ´Ğ»Ñ� Ñ�Ğ¾Ğ²Ğ¼ĞµÑ�Ñ‚Ğ¸Ğ¼Ğ¾Ñ�Ñ‚Ğ¸)"""
     return await cmd_log_drink(message, state)
 
 @router.message(Command("drink"))
-@router.message(Command("water") | create_localized_command_filter("Ğ²Ğ¾Ğ´Ğ°"))
+@router.message(Command("water"))
+@router.message(create_localized_command_filter("Ğ²Ğ¾Ğ´Ğ°"))
 async def cmd_drink_stats(message: Message, state: FSMContext):
     """Ğ¡Ñ‚Ğ°Ñ‚Ğ¸Ñ�Ñ‚Ğ¸ĞºĞ° Ğ¿Ğ¾Ñ‚Ñ€ĞµĞ±Ğ»ĞµĞ½Ğ¸Ñ� Ğ¶Ğ¸Ğ´ĞºĞ¾Ñ�Ñ‚Ğ¸"""
     await state.clear()

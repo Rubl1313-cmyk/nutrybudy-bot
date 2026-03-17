@@ -22,7 +22,8 @@ from utils.localized_commands import create_localized_command_filter
 logger = logging.getLogger(__name__)
 router = Router()
 
-@router.message(Command("set_profile") | create_localized_command_filter("Ğ½Ğ°Ñ�Ñ‚Ñ€Ğ¾Ğ¸Ñ‚ÑŒ_Ğ¿Ñ€Ğ¾Ñ„Ğ¸Ğ»ÑŒ"))
+@router.message(Command("set_profile"))
+@router.message(create_localized_command_filter("Ğ½Ğ°Ñ�Ñ‚Ñ€Ğ¾Ğ¸Ñ‚ÑŒ_Ğ¿Ñ€Ğ¾Ñ„Ğ¸Ğ»ÑŒ"))
 async def cmd_set_profile(message: Message, state: FSMContext):
     """Ğ�Ğ°Ñ‡Ğ°Ğ»Ğ¾ Ğ½Ğ°Ñ�Ñ‚Ñ€Ğ¾Ğ¹ĞºĞ¸ Ğ¿Ñ€Ğ¾Ñ„Ğ¸Ğ»Ñ�"""
     await state.clear()
@@ -820,7 +821,8 @@ async def save_profile(message: Message, state: FSMContext, clear_state=False):
             parse_mode="HTML"
         )
 
-@router.message(Command("profile") | create_localized_command_filter("Ğ¿Ñ€Ğ¾Ñ„Ğ¸Ğ»ÑŒ"))
+@router.message(Command("profile"))
+@router.message(create_localized_command_filter("Ğ¿Ñ€Ğ¾Ñ„Ğ¸Ğ»ÑŒ"))
 async def cmd_profile(message: Message, state: FSMContext):
     """ĞŸÑ€Ğ¾Ñ�Ğ¼Ğ¾Ñ‚Ñ€ Ñ‚ĞµĞºÑƒÑ‰ĞµĞ³Ğ¾ Ğ¿Ñ€Ğ¾Ñ„Ğ¸Ğ»Ñ�"""
     await state.clear()

@@ -15,7 +15,8 @@ from utils.localized_commands import create_localized_command_filter
 
 router = Router()
 
-@router.message(Command("start") | create_localized_command_filter("Ñ�Ñ‚Ğ°Ñ€Ñ‚"))
+@router.message(Command("start"))
+@router.message(create_localized_command_filter("Ñ�Ñ‚Ğ°Ñ€Ñ‚"))
 async def cmd_start(message: Message, state: FSMContext):
     """ĞŸÑ€Ğ¸Ğ²ĞµÑ‚Ñ�Ñ‚Ğ²Ğ¸Ğµ Ğ½Ğ¾Ğ²Ğ¾Ğ³Ğ¾ Ğ¿Ğ¾Ğ»ÑŒĞ·Ğ¾Ğ²Ğ°Ñ‚ĞµĞ»Ñ�"""
     await state.clear()
@@ -52,7 +53,8 @@ async def cmd_start(message: Message, state: FSMContext):
         parse_mode="HTML"
     )
 
-@router.message(Command("help") | create_localized_command_filter("Ğ¿Ğ¾Ğ¼Ğ¾Ñ‰ÑŒ"))
+@router.message(Command("help"))
+@router.message(create_localized_command_filter("Ğ¿Ğ¾Ğ¼Ğ¾Ñ‰ÑŒ"))
 async def cmd_help(message: Message, state: FSMContext):
     """Ğ’Ñ‹Ğ·Ñ‹Ğ²Ğ°ĞµÑ‚ Ğ¸Ğ½Ñ‚ĞµÑ€Ğ°ĞºÑ‚Ğ¸Ğ²Ğ½Ğ¾Ğµ Ğ¼ĞµĞ½Ñ� Ğ¿Ğ¾Ğ¼Ğ¾Ñ‰Ğ¸."""
     await state.clear()

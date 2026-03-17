@@ -243,13 +243,12 @@ async def main():
     # 2. Медиа и AI обработчики
     # 3. Универсальный обработчик текста (universal) - должен быть последним
     
-    from handlers import universal, ai_handler, common, profile, water, drinks, progress, activity, weight, meal_plan, ai_assistant, reply_handlers, achievements, food_clarification
+    from handlers import universal, common, profile, drinks, progress, activity, weight, meal_plan, ai_assistant, reply_handlers, achievements, food_clarification
 
-    # Команды и специфические обработчики
+    # Команды и специфические обработчики (должны быть первыми)
     dp.include_router(common.router)           # /start, /help, /cancel и т.д.
     dp.include_router(profile.router)          # /set_profile, /profile
-    dp.include_router(drinks.router)           # /log_drink, /drink (новая система)
-    dp.include_router(water.router)            # /log_water, /water (для совместимости)
+    dp.include_router(drinks.router)           # /log_drink, /drink (единая система воды)
     dp.include_router(progress.router)         # /progress, /stats
     dp.include_router(activity.router)         # /fitness, /activity
     dp.include_router(weight.router)           # /log_weight, /weight
@@ -257,17 +256,15 @@ async def main():
     dp.include_router(ai_assistant.router)     # /ask, /ai, /weather
     dp.include_router(achievements.router)     # /achievements
     
-    # Обработчики reply-кнопок – должны быть ПЕРЕД AI
+    # Обработчики reply-кнопок – должны быть ПЕРЕД универсальным
     dp.include_router(reply_handlers.router)   # Reply-кнопки
     
-    # Уточнение продуктов – ПЕРЕД основным AI обработчиком
+    # Уточнение продуктов – ПЕРЕД универсальным обработчиком
     dp.include_router(food_clarification.router)  # Уточнение продуктов
     
-    # Медиа и AI обработчики
-    dp.include_router(ai_handler.router)       # Фото и другие медиа
-    
-    # Универсальный обработчик текста – ПОСЛЕДНИМ
+    # Универсальный обработчик текста – ПОСЛЕДНИЙ (получает все сообщения)
     dp.include_router(universal.router)         # Полный обработчик (с LangChain)
+    # ai_handler.router удален - его функциональность интегрирована в universal.router
     # dialog.router удален - его функциональность покрывается universal.router
     
     logging.info("All routers included in correct order for FSM")

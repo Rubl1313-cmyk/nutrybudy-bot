@@ -1015,26 +1015,31 @@ async def process_measurement_edit(message: Message, state: FSMContext, field_na
         await message.answer(f"❌ {error}\nПопробуйте ещё раз:")
         return
     
-    data = await state.get_data()
-    original_data = data.get('original_data', {})
-    old_value = original_data.get(field_name, 'не указан')
-    
     async with get_session() as session:
         result = await session.execute(
-            select(User).where(User.id == data['user_id'])
+            select(User).where(User.id == (await state.get_data()).get('user_id'))
         )
         user = result.scalar_one_or_none()
         
         if user:
+            # Получаем старое значение из базы данных
+            old_value = getattr(user, field_name, 'не указан')
+            
             setattr(user, field_name, value)
             await session.commit()
+            
+            # Корректно обрабатываем разницу
+            if isinstance(old_value, (int, float)) and isinstance(value, (int, float)):
+                diff_text = f"{value - old_value:+.1f}"
+            else:
+                diff_text = f"{value} (было: {old_value})"
             
             await message.answer(
                 f"✅ <b>{field_display.title()} обновлен!</b>\n\n"
                 f"📏 <b>Изменение:</b>\n"
-                f"Было: {old_value} см\n"
-                f"Стало: {value} см\n"
-                f"Разница: {value - old_value:+.1f} см\n\n"
+                f"Было: {old_value}\n"
+                f"Стало: {value}\n"
+                f"Разница: {diff_text}\n\n"
                 f"💡 Профиль успешно обновлен!",
                 reply_markup=get_main_keyboard_v2(),
                 parse_mode="HTML"

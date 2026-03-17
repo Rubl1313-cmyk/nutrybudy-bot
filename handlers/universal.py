@@ -22,6 +22,13 @@ async def universal_handler(message: Message, state: FSMContext):
     user_id = message.from_user.id
     
     try:
+        # Проверяем FSM-состояние перед обработкой
+        current_state = await state.get_state()
+        if current_state:
+            logger.info(f"User {user_id} has active FSM state: {current_state}")
+            # Если есть активное состояние, не обрабатываем через универсальный обработчик
+            return
+        
         # Получаем или создаём агента для пользователя
         agent = LangChainAgent.get_for_user(user_id, state)
         

@@ -1,32 +1,188 @@
-# AI-Driven Nutrition Bot (Refactor Plan)
+# NutriBuddy Bot 🤖
 
-This repo proposes a complete rebuild and refactor of your nutrition bot to be fully AI-driven using Cloudflare AI models:
-- Vision model: llama-3.2-11b-vision-instruct for food recognition from images
-- Brain model: hermes-2-pro-mistral-7b for high-level reasoning and task orchestration
+AI-ассистент для питания и здоровья с распознаванием еды по фото
 
-Architecture highlights:
-- Cloudflare Workers as the API gateway and orchestrator
-- Vision module handles food recognition from photos
-- Brain module handles meal planning, macro targets, hydration, activity, climate adaptation
-- Persistent user data via KV or Durable Objects (starter uses a simple in-memory store; replace with KV/DO in production)
+## 🌟 Возможности
 
-Key features implemented:
-- AI-driven food recognition from images
-- AI-driven macro-nutrition calculation (personalized KBJU)
-- Hydration tracking, activity monitoring, steps, and climate-adapted recommendations
-- User-friendly API endpoints for logging meals, hydration, activity, and obtaining daily recommendations
+### 🍽️ Распознавание еды
+- **Фото еды**: Автоматическое распознавание блюд и ингредиентов
+- **КБЖУ анализ**: Точный расчет калорий, белков, жиров, углеводов
+- **Умные подсказки**: Рекомендации по питанию на основе распознанных продуктов
 
-What you’ll need to do next:
-- Replace in-memory store with Cloudflare KV or Durable Objects
-- Wire up real authentication to identify users securely
-- Add a front-end UI that calls these endpoints and visualizes progress
-- Implement proper error handling, rate limits, and retry strategies
-- Add tests and CI
+### 💧 Учет жидкости
+- **Напитки**: Вода, соки, чай, кофе и другие жидкости
+- **Автоматический расчет**: Калорийность напитков с сахаром
+- **Прогресс**: Отслеживание дневной нормы воды
 
-How to run locally (rough guide):
-- Install wrangler, configure with your Cloudflare account
-- wrangler login; wrangler dev
-- Ensure your Cloudflare subdomain can access the AI models (model endpoints)
+### 🏃‍♂️ Активность и вес
+- **Шаги**: Трекинг ежедневной активности
+- **Тренировки**: Учет разных видов активности с расчетом калорий
+- **Вес**: Отслеживание изменений веса с графиками
+
+### 🎮 Геймификация
+- **Достижения**: Система наград за регулярное использование
+- **Прогресс**: Визуализация статистики и целей
+- **Мотивация**: Персонализированные рекомендации
+
+## 🚀 Архитектура
+
+### 🧠 AI-компоненты
+- **LangChain Agent**: Умный ассистент для обработки запросов
+- **Cloudflare Vision**: Модель распознавания еды по фото
+- **Food API**: Локальная база продуктов с кэшированием
+
+### 🗄️ База данных
+- **SQLAlchemy**: Асинхронная ORM
+- **PostgreSQL**: Основная база данных
+- **Redis**: FSM-состояния и кэширование
+
+### 🏗️ Структура проекта
+```
+nutrybudy-bot/
+├── handlers/           # Обработчики сообщений
+│   ├── universal.py     # Универсальный обработчик (LangChain)
+│   ├── common.py       # Команды /start, /help
+│   ├── profile.py      # Настройка профиля
+│   ├── drinks.py       # Учет жидкости
+│   ├── activity.py     # Активность и шаги
+│   └── weight.py       # Вес и прогресс
+├── services/          # Бизнес-логика
+│   ├── langchain_agent.py    # AI-ассистент
+│   ├── food_save_service.py  # Сохранение еды
+│   ├── weight_service.py     # Вес
+│   └── activity_service.py   # Активность
+├── database/          # Модели и миграции
+│   ├── models.py             # SQLAlchemy модели
+│   └── migrations.py        # Миграции БД
+├── utils/             # Утилиты
+│   ├── daily_stats.py        # Статистика
+│   ├── gamification.py       # Геймификация
+│   └── animations.py        # Анимации
+└── keyboards/         # Клавиатуры
+    └── reply_v2.py          # Основные клавиатуры
+```
+
+## 📋 Команды бота
+
+### 🚀 Основные команды
+- `/start` - Запуск бота и приветствие
+- `/help` - Помощь и справка
+- `/set_profile` - Настройка профиля
+- `/profile` - Мой профиль
+
+### 🍽️ Питание
+- `/log_food` - Добавить еду (текстом)
+- 📸 **Отправить фото** - Распознать еду автоматически
+- `/meal_plan` - План питания
+- `/today` - Статистика за сегодня
+
+### 💧 Жидкости
+- `/log_drink` - Записать напиток
+- `/water` - Статистика потребления жидкости
+
+### 🏃‍♂️ Активность
+- `/log_weight` - Записать вес
+- `/fitness` - Записать тренировку
+- `/steps` - Шаги за день
+- `/progress` - Графики прогресса
+
+### 🎮 Дополнительно
+- `/achievements` - Мои достижения
+- `/ask` - Задать вопрос AI-ассистенту
+- `/weather` - Погода и рекомендации
+
+## 🛠️ Установка и запуск
+
+### Требования
+- Python 3.11+
+- PostgreSQL
+- Redis
+- Telegram Bot Token
+
+### Установка зависимостей
+```bash
+pip install -r requirements.txt
+```
+
+### Настройка переменных окружения
+```bash
+cp .env.example .env
+# Отредактируйте .env с вашими данными
+```
+
+### Запуск
+```bash
+python bot.py
+```
+
+## 🏗️ Для разработчиков
+
+### Добавление новых команд
+1. Создайте обработчик в `handlers/`
+2. Добавьте роутер в `bot.py`
+3. Обновите команды в `set_bot_commands()`
+
+### Расширение AI-функционала
+- Инструменты добавляются в `services/langchain_agent.py`
+- Новые модели в `services/`
+- Обновите `Food API` для новых продуктов
+
+### База данных
+```bash
+# Создание миграций
+alembic revision --autogenerate -m "description"
+
+# Применение миграций
+alembic upgrade head
+```
+
+## 🔧 Конфигурация
+
+### .env переменные
+```env
+BOT_TOKEN=your_telegram_bot_token
+DATABASE_URL=postgresql://user:password@localhost/nutribuddy
+REDIS_URL=redis://localhost:6379/0
+CLOUDFLARE_API_TOKEN=your_cloudflare_token
+```
+
+## 📊 Особенности
+
+### 🧠 AI-интеграция
+- **Cloudflare Vision**: Распознавание еды по фото
+- **LangChain**: Умная обработка запросов
+- **Персонализация**: Адаптация под профиль пользователя
+
+### ⚡ Оптимизации
+- **Кэширование**: Продуктов и результатов поиска
+- **Асинхронность**: Все операции асинхронные
+- **Rate limiting**: Защита от спама
+
+### 🎨 UI/UX
+- **Современный дизайн**: Эмодзи и прогресс-бары
+- **Интуитивные клавиатуры**: Быстрый доступ к функциям
+- **Анимации**: Визуальная обратная связь
+
+## 🤝 Вклад в проект
+
+1. Fork проекта
+2. Создайте feature branch
+3. Внесите изменения
+4. Отправьте pull request
+
+## 📄 Лицензия
+
+MIT License - см. файл LICENSE
+
+## 🆘 Поддержка
+
+Если у вас есть вопросы или предложения:
+- Создайте issue в репозитории
+- Напишите в Telegram: @username
+
+---
+
+**NutriBuddy Bot** - ваш умный помощник в питании и здоровье! 🌟
 
 Notes:
 - This is a scaffold for rapid rebuilding. It focuses on architecture and integration points rather than a finished product.

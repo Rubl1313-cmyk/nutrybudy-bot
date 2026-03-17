@@ -13,7 +13,9 @@ from database.db import get_session
 from database.models import User, DrinkEntry
 from keyboards.reply_v2 import get_main_keyboard_v2
 from utils.drink_parser import parse_drink
+from utils.water_parser import parse_water_amount
 from services.soup_service import save_drink
+from utils.localized_commands import create_localized_command_filter
 
 logger = logging.getLogger(__name__)
 router = Router()
@@ -35,13 +37,13 @@ async def cmd_log_drink(message: Message, state: FSMContext):
         parse_mode="HTML"
     )
 
-@router.message(Command("log_water"))
+@router.message(Command("log_water") | create_localized_command_filter("записать_воду"))
 async def cmd_log_water(message: Message, state: FSMContext):
     """Запись воды (для совместимости)"""
     return await cmd_log_drink(message, state)
 
 @router.message(Command("drink"))
-@router.message(Command("water"))
+@router.message(Command("water") | create_localized_command_filter("вода"))
 async def cmd_drink_stats(message: Message, state: FSMContext):
     """Статистика потребления жидкости"""
     await state.clear()

@@ -4,7 +4,7 @@
 """
 from sqlalchemy import Column, Integer, BigInteger, String, Float, DateTime, ForeignKey, Boolean, Text
 from sqlalchemy.orm import relationship
-from datetime import datetime
+from datetime import datetime, timezone
 
 # Импортируем Base из db.py (единый источник!)
 from database.db import Base
@@ -53,8 +53,8 @@ class User(Base):
     # Целевые показатели
     goal_weight = Column(Float, nullable=True)      # Целевой вес
     
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     meals = relationship("Meal", back_populates="user", cascade="all, delete-orphan")
     drink_entries = relationship("DrinkEntry", back_populates="user", cascade="all, delete-orphan")
@@ -73,7 +73,7 @@ class Meal(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(Integer, ForeignKey('users.id', ondelete="CASCADE"), nullable=False, index=True)
     meal_type = Column(String(20))
-    datetime = Column(DateTime, default=datetime.utcnow, index=True)
+    datetime = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
     total_calories = Column(Float)
     total_protein = Column(Float)
     total_fat = Column(Float)
@@ -110,7 +110,7 @@ class DrinkEntry(Base):
     calories = Column(Float, default=0.0)                        # Калории (для соков, чая с сахаром)
     source = Column(String(20), default='drink')                # Источник: 'drink' (напиток), 'food' (из еды)
     reference_id = Column(Integer, nullable=True)               # ID связанной записи (meal_id для супа)
-    datetime = Column(DateTime, default=datetime.utcnow, index=True)
+    datetime = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
 
     user = relationship("User", back_populates="drink_entries")
 
@@ -122,7 +122,7 @@ class WeightEntry(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(Integer, ForeignKey('users.id', ondelete="CASCADE"), nullable=False, index=True)
     weight = Column(Float, nullable=False)
-    datetime = Column(DateTime, default=datetime.utcnow, index=True)
+    datetime = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
 
     user = relationship("User", back_populates="weight_entries")
 
@@ -136,7 +136,7 @@ class Activity(Base):
     distance = Column(Float)
     calories_burned = Column(Float)
     steps = Column(Integer, default=0)
-    datetime = Column(DateTime, default=datetime.utcnow, index=True)
+    datetime = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
     source = Column(String(20), default='manual')
 
     user = relationship("User", back_populates="activities")
@@ -148,7 +148,7 @@ class StepsEntry(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(Integer, ForeignKey('users.id', ondelete="CASCADE"), nullable=False, index=True)
     steps_count = Column(Integer, nullable=False)
-    datetime = Column(DateTime, default=datetime.utcnow, index=True)
+    datetime = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
     source = Column(String(20), default='manual')  # manual, fitness_tracker, etc.
     notes = Column(String(255))  # Примечания пользователя
 

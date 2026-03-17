@@ -4,7 +4,7 @@
 from sqlalchemy import Column, Integer, String, DateTime, Boolean, ForeignKey, Float
 from sqlalchemy.orm import relationship
 from database.db import Base
-from datetime import datetime
+from datetime import datetime, timezone
 
 class UserAchievement(Base):
     """Достижения пользователя"""
@@ -13,7 +13,7 @@ class UserAchievement(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(Integer, ForeignKey('users.id', ondelete="CASCADE"), nullable=False, index=True)
     achievement_id = Column(String(50), nullable=False)  # ID достижения из gamification.py
-    earned_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    earned_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     points = Column(Integer, nullable=False)  # Очки за достижение
     
     # Связи
@@ -36,7 +36,7 @@ class UserGamification(Base):
     last_activity_date = Column(DateTime, nullable=True)
     early_breakfasts = Column(Integer, default=0, nullable=False)
     late_dinners = Column(Integer, default=0, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     
     # Связи
     user = relationship("User", back_populates="gamification")
@@ -51,7 +51,7 @@ class AchievementHistory(Base):
     achievement_name = Column(String(100), nullable=False)
     achievement_description = Column(String(255), nullable=False)
     points_earned = Column(Integer, nullable=False)
-    earned_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    earned_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     
     # Связи
     user = relationship("User")

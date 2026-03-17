@@ -23,32 +23,20 @@ def estimate_calories_burned(activity_type: str, duration_min: int, weight_kg: O
     Returns:
         int: Примерное количество сожженных калорий
     """
-    # Базовые MET значения (Metabolic Equivalent of Task)
-    met_values = {
-        'walking': 3.5,
-        'running': 8.0,
-        'cycling': 6.0,
-        'gym': 5.0,
-        'yoga': 2.5,
-        'swimming': 7.0,
-        'hiit': 10.0,
-        'stretching': 2.0,
-        'dancing': 5.5,
-        'sports': 6.5
-    }
+    # Используем единый словарь из activity.py
+    from services.activity import CALORIES_PER_MINUTE
     
-    met = met_values.get(activity_type.lower(), 4.0)  # По умолчанию 4.0 MET
+    # Получаем MET значение из единого источника
+    met_value = CALORIES_PER_MINUTE.get(activity_type, 3.5)  # По умолчанию ходьба
     
-    # Если вес не указан, используем средний вес 70 кг
+    # Если вес не указан, используем среднее значение
     if weight_kg is None:
         weight_kg = 70.0
     
-    # Формула: калории = MET * вес(кг) * время(часы)
-    calories_per_minute = (met * weight_kg) / 60
-    total_calories = int(calories_per_minute * duration_min)
+    # Расчет калорий: MET × вес(кг) × время(мин) / 60
+    calories = int(met_value * weight_kg * duration_min / 60)
     
-    logger.info(f"Calculated calories: {total_calories} for {activity_type} {duration_min}min at {weight_kg}kg")
-    return total_calories
+    return max(calories, 1)  # Минимум 1 калория
 
 async def save_activity(user_id: int, activity_type: str, duration_min: int, 
                        calories_burned: Optional[int] = None, 

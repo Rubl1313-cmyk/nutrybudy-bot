@@ -67,51 +67,34 @@ async def send_achievement_notifications(message: types.Message, achievements: l
 async def save_food_and_respond(message: types.Message, food_data: dict):
     """Сохраняет еду в базу и отправляет ответ"""
     try:
-        user_id = message.from_user.id
+        from services.food_save_service import FoodSaveService
         
+        # Используем унифицированный сервис сохранения еды
+        result = await FoodSaveService.save_food_to_db(message.from_user.id, food_data)
+        
+        if not result['success']:
+            await message.answer(f"❌ Ошибка при сохранении: {result.get('error', 'Неизвестная ошибка')}")
+            return
+        
+        # Формируем ответ на основе результата
+        calories = food_data.get("calories", 0)
+        protein = food_data.get("protein", 0)
+        fat = food_data.get("fat", 0)
+        carbs = food_data.get("carbs", 0)
+        
+        response = f"✅ <b>Записано:</b>\n"
+        response += f"🍽️ {food_data.get('description', 'Неизвестная еда')}\n\n"
+        response += f"🔥 Калории: {calories} ккал\n"
+        response += f"🥩 Белки: {protein}г\n"
+        response += f"🥑 Жиры: {fat}г\n"
+        response += f"🍚 Углеводы: {carbs}г\n\n"
+        
+        # Добавляем прогресс по целям
         async with get_session() as session:
-            user_result = await session.execute(select(User).where(User.telegram_id == user_id))
+            user_result = await session.execute(select(User).where(User.telegram_id == message.from_user.id))
             user = user_result.scalar_one_or_none()
             
-            if not user:
-                await message.answer(
-                    "❌ Сначала создайте профиль через /set_profile",
-                    reply_markup=types.ReplyKeyboardMarkup(
-                        keyboard=[[types.KeyboardButton(text="/set_profile")]],
-                        resize_keyboard=True
-                    )
-                )
-                return
-            
-            # Сохраняем еду в базу
-            meal = Meal(
-                user_id=user.id,
-                ai_description=food_data.get("description", "Неизвестная еда"),
-                total_calories=food_data.get("calories", 0),      # ← было calories
-                total_protein=food_data.get("protein", 0),        # ← было protein
-                total_fat=food_data.get("fat", 0),                # ← было fat
-                total_carbs=food_data.get("carbs", 0),            # ← было carbs
-                meal_type=food_data.get("meal_type", "other"),  # Добавляем тип приема пищи
-                datetime=datetime.now()
-            )
-            session.add(meal)
-            await session.commit()
-            
-            # Формируем ответ
-            calories = food_data.get("calories", 0)
-            protein = food_data.get("protein", 0)
-            fat = food_data.get("fat", 0)
-            carbs = food_data.get("carbs", 0)
-            
-            response = f"✅ <b>Записано:</b>\n"
-            response += f"🍽️ {food_data.get('description', 'Неизвестная еда')}\n\n"
-            response += f"🔥 Калории: {calories} ккал\n"
-            response += f"🥩 Белки: {protein}г\n"
-            response += f"🥑 Жиры: {fat}г\n"
-            response += f"🍚 Углеводы: {carbs}г\n\n"
-            
-            # Добавляем прогресс по целям
-            if user.daily_calorie_goal:
+            if user and user.daily_calorie_goal:
                 calorie_progress = (calories / user.daily_calorie_goal) * 100
                 response += f"📊 Прогресс по калориям: {calorie_progress:.1f}%\n"
             

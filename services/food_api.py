@@ -3241,6 +3241,14 @@ def get_product_variants(base_name: str) -> List[Dict]:
         for key in cache_keys_to_delete:
             del _SEARCH_CACHE[key]
         logger.info(f"🧹 Очищен кэш для базового продукта: {base_name_lower}")
+    
+    # Проверяем размер кэша и ограничиваем при необходимости
+    if len(_SEARCH_CACHE) > _CACHE_LIMIT:
+        # Удаляем самые старые записи (простая LRU стратегия)
+        keys_to_remove = list(_SEARCH_CACHE.keys())[:len(_SEARCH_CACHE) - _CACHE_LIMIT]
+        for key in keys_to_remove:
+            del _SEARCH_CACHE[key]
+        logger.info(f"🧹 Ограничен кэш: удалено {len(keys_to_remove)} старых записей")
 
     # Точное совпадение ключа
     if base_name_lower in LOCAL_FOOD_DB:

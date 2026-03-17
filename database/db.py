@@ -1,6 +1,6 @@
 """
-Подключение к базе данных для NutriBuddy.
-Гарантированно создаёт недостающие колонки и приводит типы к BIGINT через явные SQL-запросы.
+ĞŸĞ¾Ğ´ĞºĞ»Ñ�Ñ‡ĞµĞ½Ğ¸Ğµ Ğº Ğ±Ğ°Ğ·Ğµ Ğ´Ğ°Ğ½Ğ½Ñ‹Ñ… Ğ´Ğ»Ñ� NutriBuddy.
+Ğ“Ğ°Ñ€Ğ°Ğ½Ñ‚Ğ¸Ñ€Ğ¾Ğ²Ğ°Ğ½Ğ½Ğ¾ Ñ�Ğ¾Ğ·Ğ´Ğ°Ñ‘Ñ‚ Ğ½ĞµĞ´Ğ¾Ñ�Ñ‚Ğ°Ñ�Ñ‰Ğ¸Ğµ ĞºĞ¾Ğ»Ğ¾Ğ½ĞºĞ¸ Ğ¸ Ğ¿Ñ€Ğ¸Ğ²Ğ¾Ğ´Ğ¸Ñ‚ Ñ‚Ğ¸Ğ¿Ñ‹ Ğº BIGINT Ñ‡ĞµÑ€ĞµĞ· Ñ�Ğ²Ğ½Ñ‹Ğµ SQL-Ğ·Ğ°Ğ¿Ñ€Ğ¾Ñ�Ñ‹.
 """
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import declarative_base
@@ -44,75 +44,98 @@ async_session = async_sessionmaker(
 
 async def _ensure_bigint_columns(conn):
     """
-    Проверяет и изменяет тип колонок, хранящих Telegram ID, с INTEGER на BIGINT.
-    Выполняется только для PostgreSQL.
+    ĞŸÑ€Ğ¾Ğ²ĞµÑ€Ñ�ĞµÑ‚ Ğ¸ Ğ¸Ğ·Ğ¼ĞµĞ½Ñ�ĞµÑ‚ Ñ‚Ğ¸Ğ¿ ĞºĞ¾Ğ»Ğ¾Ğ½Ğ¾Ğº, Ñ…Ñ€Ğ°Ğ½Ñ�Ñ‰Ğ¸Ñ… Telegram ID, Ñ� INTEGER Ğ½Ğ° BIGINT.
+    Ğ’Ñ‹Ğ¿Ğ¾Ğ»Ğ½Ñ�ĞµÑ‚Ñ�Ñ� Ñ‚Ğ¾Ğ»ÑŒĞºĞ¾ Ğ´Ğ»Ñ� PostgreSQL.
     """
     if "postgresql" not in DATABASE_URL:
-        logger.info("ℹ️ Skipping BIGINT migration for non-PostgreSQL database")
+        logger.info("â„¹ï¸� Skipping BIGINT migration for non-PostgreSQL database")
         return
 
-    # 1. Колонка telegram_id в таблице users
+    # 1. ĞšĞ¾Ğ»Ğ¾Ğ½ĞºĞ° telegram_id Ğ² Ñ‚Ğ°Ğ±Ğ»Ğ¸Ñ†Ğµ users
     result = await conn.execute(text(
         "SELECT data_type FROM information_schema.columns "
         "WHERE table_name='users' AND column_name='telegram_id'"
     ))
     row = result.first()
     if row and row[0] == 'integer':
-        logger.info("🔄 Migrating users.telegram_id from INTEGER to BIGINT...")
+        logger.info("ğŸ”„ Migrating users.telegram_id from INTEGER to BIGINT...")
         await conn.execute(text("ALTER TABLE users ALTER COLUMN telegram_id TYPE BIGINT;"))
-        logger.info("✅ users.telegram_id is now BIGINT")
+        logger.info("âœ… users.telegram_id is now BIGINT")
     else:
-        logger.info("ℹ️ users.telegram_id already BIGINT or not found")
+        logger.info("â„¹ï¸� users.telegram_id already BIGINT or not found")
 
-    # 2. Пропускаем миграцию shopping_items - таблица не существует в моделях
-    logger.info("ℹ️ Skipping shopping_items migration - table not defined in models")
+    # 2. ĞŸÑ€Ğ¾Ğ¿ÑƒÑ�ĞºĞ°ĞµĞ¼ Ğ¼Ğ¸Ğ³Ñ€Ğ°Ñ†Ğ¸Ñ� shopping_items - Ñ‚Ğ°Ğ±Ğ»Ğ¸Ñ†Ğ° Ğ½Ğµ Ñ�ÑƒÑ‰ĞµÑ�Ñ‚Ğ²ÑƒĞµÑ‚ Ğ² Ğ¼Ğ¾Ğ´ĞµĞ»Ñ�Ñ…
+    logger.info("â„¹ï¸� Skipping shopping_items migration - table not defined in models")
 
 async def init_db():
     """
-    Инициализация таблиц, добавление недостающих колонок и приведение типов к BIGINT.
+    Ğ˜Ğ½Ğ¸Ñ†Ğ¸Ğ°Ğ»Ğ¸Ğ·Ğ°Ñ†Ğ¸Ñ� Ñ‚Ğ°Ğ±Ğ»Ğ¸Ñ†, Ğ´Ğ¾Ğ±Ğ°Ğ²Ğ»ĞµĞ½Ğ¸Ğµ Ğ½ĞµĞ´Ğ¾Ñ�Ñ‚Ğ°Ñ�Ñ‰Ğ¸Ñ… ĞºĞ¾Ğ»Ğ¾Ğ½Ğ¾Ğº Ğ¸ Ğ¿Ñ€Ğ¸Ğ²ĞµĞ´ĞµĞ½Ğ¸Ğµ Ñ‚Ğ¸Ğ¿Ğ¾Ğ² Ğº BIGINT.
     """
     try:
-        logger.info("🔍 Initializing database tables...")
+        logger.info("ğŸ”� Initializing database tables...")
         from database import models  # noqa: F401
 
         async with engine.begin() as conn:
-            # Создаём таблицы
+            # Ğ¡Ğ¾Ğ·Ğ´Ğ°Ñ‘Ğ¼ Ñ‚Ğ°Ğ±Ğ»Ğ¸Ñ†Ñ‹
             await conn.run_sync(Base.metadata.create_all)
-            logger.info("✅ Tables created via create_all()")
+            logger.info("âœ… Tables created via create_all()")
 
-            # Проверяем и добавляем недостающие колонки
+            # ĞŸÑ€Ğ¾Ğ²ĞµÑ€Ñ�ĞµĞ¼ Ğ¸ Ğ´Ğ¾Ğ±Ğ°Ğ²Ğ»Ñ�ĞµĞ¼ Ğ½ĞµĞ´Ğ¾Ñ�Ñ‚Ğ°Ñ�Ñ‰Ğ¸Ğµ ĞºĞ¾Ğ»Ğ¾Ğ½ĞºĞ¸
             if "postgresql" in DATABASE_URL:
-                # Пропускаем добавление колонки в shopping_items - таблица не существует
-                logger.info("ℹ️ Skipping shopping_items.unit column - table not defined in models")
+                # ĞŸÑ€Ğ¾Ğ¿ÑƒÑ�ĞºĞ°ĞµĞ¼ Ğ´Ğ¾Ğ±Ğ°Ğ²Ğ»ĞµĞ½Ğ¸Ğµ ĞºĞ¾Ğ»Ğ¾Ğ½ĞºĞ¸ Ğ² shopping_items - Ñ‚Ğ°Ğ±Ğ»Ğ¸Ñ†Ğ° Ğ½Ğµ Ñ�ÑƒÑ‰ĞµÑ�Ñ‚Ğ²ÑƒĞµÑ‚
+                logger.info("â„¹ï¸� Skipping shopping_items.unit column - table not defined in models")
 
-                # Колонка daily_steps_goal в users
+                # ĞšĞ¾Ğ»Ğ¾Ğ½ĞºĞ¸ source Ğ¸ reference_id Ğ² drink_entries (Ğ´Ğ»Ñ� PostgreSQL)
+                result = await conn.execute(text(
+                    "SELECT column_name FROM information_schema.columns "
+                    "WHERE table_name='drink_entries' AND column_name='source'"
+                ))
+                if not result.first():
+                    logger.info("â�• Adding column drink_entries.source...")
+                    await conn.execute(text("ALTER TABLE drink_entries ADD COLUMN source VARCHAR(20) DEFAULT 'drink';"))
+                    logger.info("âœ… drink_entries.source added")
+                else:
+                    logger.info("â„¹ï¸� Column 'source' already exists in drink_entries")
+
+                result = await conn.execute(text(
+                    "SELECT column_name FROM information_schema.columns "
+                    "WHERE table_name='drink_entries' AND column_name='reference_id'"
+                ))
+                if not result.first():
+                    logger.info("â�• Adding column drink_entries.reference_id...")
+                    await conn.execute(text("ALTER TABLE drink_entries ADD COLUMN reference_id INTEGER;"))
+                    logger.info("âœ… drink_entries.reference_id added")
+                else:
+                    logger.info("â„¹ï¸� Column 'reference_id' already exists in drink_entries")
+
+                # ĞšĞ¾Ğ»Ğ¾Ğ½ĞºĞ° daily_steps_goal Ğ² users
                 result = await conn.execute(text(
                     "SELECT column_name FROM information_schema.columns "
                     "WHERE table_name='users' AND column_name='daily_steps_goal'"
                 ))
                 if not result.first():
-                    logger.info("➕ Adding column users.daily_steps_goal...")
+                    logger.info("â�• Adding column users.daily_steps_goal...")
                     await conn.execute(text("ALTER TABLE users ADD COLUMN daily_steps_goal INTEGER DEFAULT 10000;"))
-                    logger.info("✅ users.daily_steps_goal added")
+                    logger.info("âœ… users.daily_steps_goal added")
                 else:
-                    logger.info("ℹ️ Column 'daily_steps_goal' already exists")
+                    logger.info("â„¹ï¸� Column 'daily_steps_goal' already exists")
 
-            # Миграция BIGINT
+            # ĞœĞ¸Ğ³Ñ€Ğ°Ñ†Ğ¸Ñ� BIGINT
             await _ensure_bigint_columns(conn)
 
-            # Проверяем список таблиц для отладки (только для PostgreSQL)
+            # ĞŸÑ€Ğ¾Ğ²ĞµÑ€Ñ�ĞµĞ¼ Ñ�Ğ¿Ğ¸Ñ�Ğ¾Ğº Ñ‚Ğ°Ğ±Ğ»Ğ¸Ñ† Ğ´Ğ»Ñ� Ğ¾Ñ‚Ğ»Ğ°Ğ´ĞºĞ¸ (Ñ‚Ğ¾Ğ»ÑŒĞºĞ¾ Ğ´Ğ»Ñ� PostgreSQL)
             result = await conn.execute(text(
                 "SELECT table_name FROM information_schema.tables WHERE table_schema='public'"
             ))
             tables = [row[0] for row in result]
-            logger.info(f"✅ Tables in DB: {tables}")
+            logger.info(f"âœ… Tables in DB: {tables}")
             
-        logger.info("✅ Database initialized successfully")
-        logger.info("💾 Database ready")
+        logger.info("âœ… Database initialized successfully")
+        logger.info("ğŸ’¾ Database ready")
         return True
 
     except Exception as e:
-        logger.error(f"❌ Database init failed: {e}", exc_info=True)
+        logger.error(f"â�Œ Database init failed: {e}", exc_info=True)
         return False
 
 def get_session() -> AsyncSession:
@@ -120,4 +143,4 @@ def get_session() -> AsyncSession:
 
 async def close_db():
     await engine.dispose()
-    logger.info("🔌 Database connections closed")
+    logger.info("ğŸ”Œ Database connections closed")

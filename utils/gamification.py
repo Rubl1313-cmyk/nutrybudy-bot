@@ -1,5 +1,5 @@
 """
-Система геймификации и достижений для NutriBuddy Bot с сохранением в БД
+Ğ¡Ğ¸Ñ�Ñ‚ĞµĞ¼Ğ° Ğ³ĞµĞ¹Ğ¼Ğ¸Ñ„Ğ¸ĞºĞ°Ñ†Ğ¸Ğ¸ Ğ¸ Ğ´Ğ¾Ñ�Ñ‚Ğ¸Ğ¶ĞµĞ½Ğ¸Ğ¹ Ğ´Ğ»Ñ� NutriBuddy Bot Ñ� Ñ�Ğ¾Ñ…Ñ€Ğ°Ğ½ĞµĞ½Ğ¸ĞµĞ¼ Ğ² Ğ‘Ğ”
 """
 import logging
 from datetime import datetime, timedelta
@@ -14,7 +14,7 @@ from sqlalchemy import select, func
 logger = logging.getLogger(__name__)
 
 class AchievementType(Enum):
-    """Типы достижений"""
+    """Ğ¢Ğ¸Ğ¿Ñ‹ Ğ´Ğ¾Ñ�Ñ‚Ğ¸Ğ¶ĞµĞ½Ğ¸Ğ¹"""
     FIRST_MEAL = "first_meal"
     WEEK_STREAK = "week_streak"
     MONTH_STREAK = "month_streak"
@@ -26,7 +26,7 @@ class AchievementType(Enum):
     NIGHT_OWL = "night_owl"
 
 class Achievement:
-    """Класс достижения"""
+    """ĞšĞ»Ğ°Ñ�Ñ� Ğ´Ğ¾Ñ�Ñ‚Ğ¸Ğ¶ĞµĞ½Ğ¸Ñ�"""
     def __init__(self, id: str, type: AchievementType, name: str, description: str, 
                  icon: str, points: int, condition: Dict):
         self.id = id
@@ -38,93 +38,93 @@ class Achievement:
         self.condition = condition
 
 class GamificationSystem:
-    """Система геймификации с сохранением в БД"""
+    """Ğ¡Ğ¸Ñ�Ñ‚ĞµĞ¼Ğ° Ğ³ĞµĞ¹Ğ¼Ğ¸Ñ„Ğ¸ĞºĞ°Ñ†Ğ¸Ğ¸ Ñ� Ñ�Ğ¾Ñ…Ñ€Ğ°Ğ½ĞµĞ½Ğ¸ĞµĞ¼ Ğ² Ğ‘Ğ”"""
     
     def __init__(self):
         self.achievements = self._init_achievements()
     
     def _init_achievements(self) -> Dict[str, Achievement]:
-        """Инициализация достижений"""
+        """Ğ˜Ğ½Ğ¸Ñ†Ğ¸Ğ°Ğ»Ğ¸Ğ·Ğ°Ñ†Ğ¸Ñ� Ğ´Ğ¾Ñ�Ñ‚Ğ¸Ğ¶ĞµĞ½Ğ¸Ğ¹"""
         achievements = {
-            # Еда
+            # Ğ•Ğ´Ğ°
             "first_meal": Achievement(
                 "first_meal", AchievementType.FIRST_MEAL,
-                "Первый шаг", "Запишите первый прием пищи",
-                "🍽️", 10, {"count": 1}
+                "ĞŸĞµÑ€Ğ²Ñ‹Ğ¹ ÑˆĞ°Ğ³", "Ğ—Ğ°Ğ¿Ğ¸ÑˆĞ¸Ñ‚Ğµ Ğ¿ĞµÑ€Ğ²Ñ‹Ğ¹ Ğ¿Ñ€Ğ¸ĞµĞ¼ Ğ¿Ğ¸Ñ‰Ğ¸",
+                "ğŸ�½ï¸�", 10, {"count": 1}
             ),
             
-            # Серии дней
+            # Ğ¡ĞµÑ€Ğ¸Ğ¸ Ğ´Ğ½ĞµĞ¹
             "week_streak": Achievement(
                 "week_streak", AchievementType.WEEK_STREAK,
-                "Неделя дисциплины", "Записывайте еду 7 дней подряд",
-                "🔥", 50, {"days": 7}
+                "Ğ�ĞµĞ´ĞµĞ»Ñ� Ğ´Ğ¸Ñ�Ñ†Ğ¸Ğ¿Ğ»Ğ¸Ğ½Ñ‹", "Ğ—Ğ°Ğ¿Ğ¸Ñ�Ñ‹Ğ²Ğ°Ğ¹Ñ‚Ğµ ĞµĞ´Ñƒ 7 Ğ´Ğ½ĞµĞ¹ Ğ¿Ğ¾Ğ´Ñ€Ñ�Ğ´",
+                "ğŸ”¥", 50, {"days": 7}
             ),
             
             "month_streak": Achievement(
                 "month_streak", AchievementType.MONTH_STREAK,
-                "Месяц мастерства", "Записывайте еду 30 дней подряд",
-                "💎", 200, {"days": 30}
+                "ĞœĞµÑ�Ñ�Ñ† Ğ¼Ğ°Ñ�Ñ‚ĞµÑ€Ñ�Ñ‚Ğ²Ğ°", "Ğ—Ğ°Ğ¿Ğ¸Ñ�Ñ‹Ğ²Ğ°Ğ¹Ñ‚Ğµ ĞµĞ´Ñƒ 30 Ğ´Ğ½ĞµĞ¹ Ğ¿Ğ¾Ğ´Ñ€Ñ�Ğ´",
+                "ğŸ’�", 200, {"days": 30}
             ),
             
-            # Цели
+            # Ğ¦ĞµĞ»Ğ¸
             "calorie_goal": Achievement(
                 "calorie_goal", AchievementType.CALORIE_GOAL,
-                "Мастер калорий", "Выполните дневную норму калорий",
-                "🎯", 30, {"type": "daily_goal", "metric": "calories"}
+                "ĞœĞ°Ñ�Ñ‚ĞµÑ€ ĞºĞ°Ğ»Ğ¾Ñ€Ğ¸Ğ¹", "Ğ’Ñ‹Ğ¿Ğ¾Ğ»Ğ½Ğ¸Ñ‚Ğµ Ğ´Ğ½ĞµĞ²Ğ½ÑƒÑ� Ğ½Ğ¾Ñ€Ğ¼Ñƒ ĞºĞ°Ğ»Ğ¾Ñ€Ğ¸Ğ¹",
+                "ğŸ�¯", 30, {"type": "daily_goal", "metric": "calories"}
             ),
             
             "water_goal": Achievement(
                 "water_goal", AchievementType.WATER_GOAL,
-                "Гидратация", "Выпейте дневную норму воды",
-                "💧", 25, {"type": "daily_goal", "metric": "water"}
+                "Ğ“Ğ¸Ğ´Ñ€Ğ°Ñ‚Ğ°Ñ†Ğ¸Ñ�", "Ğ’Ñ‹Ğ¿ĞµĞ¹Ñ‚Ğµ Ğ´Ğ½ĞµĞ²Ğ½ÑƒÑ� Ğ½Ğ¾Ñ€Ğ¼Ñƒ Ğ²Ğ¾Ğ´Ñ‹",
+                "ğŸ’§", 25, {"type": "daily_goal", "metric": "water"}
             ),
             
-            # Вес
+            # Ğ’ĞµÑ�
             "weight_loss_1kg": Achievement(
                 "weight_loss_1kg", AchievementType.WEIGHT_LOSS,
-                "Первый килограмм", "Похудейте на 1 кг",
-                "⚖️", 40, {"kg": 1}
+                "ĞŸĞµÑ€Ğ²Ñ‹Ğ¹ ĞºĞ¸Ğ»Ğ¾Ğ³Ñ€Ğ°Ğ¼Ğ¼", "ĞŸĞ¾Ñ…ÑƒĞ´ĞµĞ¹Ñ‚Ğµ Ğ½Ğ° 1 ĞºĞ³",
+                "âš–ï¸�", 40, {"kg": 1}
             ),
             
             "weight_loss_5kg": Achievement(
                 "weight_loss_5kg", AchievementType.WEIGHT_LOSS,
-                "Значимый результат", "Похудейте на 5 кг",
-                "🏆", 150, {"kg": 5}
+                "Ğ—Ğ½Ğ°Ñ‡Ğ¸Ğ¼Ñ‹Ğ¹ Ñ€ĞµĞ·ÑƒĞ»ÑŒÑ‚Ğ°Ñ‚", "ĞŸĞ¾Ñ…ÑƒĞ´ĞµĞ¹Ñ‚Ğµ Ğ½Ğ° 5 ĞºĞ³",
+                "ğŸ�†", 150, {"kg": 5}
             ),
             
-            # Идеальный день
+            # Ğ˜Ğ´ĞµĞ°Ğ»ÑŒĞ½Ñ‹Ğ¹ Ğ´ĞµĞ½ÑŒ
             "perfect_day": Achievement(
                 "perfect_day", AchievementType.PERFECT_DAY,
-                "Идеальный день", "Выполните все цели за день",
-                "⭐", 75, {"type": "perfect_day"}
+                "Ğ˜Ğ´ĞµĞ°Ğ»ÑŒĞ½Ñ‹Ğ¹ Ğ´ĞµĞ½ÑŒ", "Ğ’Ñ‹Ğ¿Ğ¾Ğ»Ğ½Ğ¸Ñ‚Ğµ Ğ²Ñ�Ğµ Ñ†ĞµĞ»Ğ¸ Ğ·Ğ° Ğ´ĞµĞ½ÑŒ",
+                "â­�", 75, {"type": "perfect_day"}
             ),
             
-            # Время
+            # Ğ’Ñ€ĞµĞ¼Ñ�
             "early_bird": Achievement(
                 "early_bird", AchievementType.EARLY_BIRD,
-                "Жаворонок", "Запишите завтрак до 8 утра",
-                "🌅", 20, {"time_before": "08:00", "meal_type": "breakfast"}
+                "Ğ–Ğ°Ğ²Ğ¾Ñ€Ğ¾Ğ½Ğ¾Ğº", "Ğ—Ğ°Ğ¿Ğ¸ÑˆĞ¸Ñ‚Ğµ Ğ·Ğ°Ğ²Ñ‚Ñ€Ğ°Ğº Ğ´Ğ¾ 8 ÑƒÑ‚Ñ€Ğ°",
+                "ğŸŒ…", 20, {"time_before": "08:00", "meal_type": "breakfast"}
             ),
             
             "night_owl": Achievement(
                 "night_owl", AchievementType.NIGHT_OWL,
-                "Сова", "Запишите ужин после 9 вечера",
-                "🌙", 15, {"time_after": "21:00", "meal_type": "dinner"}
+                "Ğ¡Ğ¾Ğ²Ğ°", "Ğ—Ğ°Ğ¿Ğ¸ÑˆĞ¸Ñ‚Ğµ ÑƒĞ¶Ğ¸Ğ½ Ğ¿Ğ¾Ñ�Ğ»Ğµ 9 Ğ²ĞµÑ‡ĞµÑ€Ğ°",
+                "ğŸŒ™", 15, {"time_after": "21:00", "meal_type": "dinner"}
             )
         }
         return achievements
     
     async def check_achievements(self, user_id: int, event_type: str, data: Dict) -> List[Achievement]:
-        """Проверка достижений для события с сохранением в БД"""
+        """ĞŸÑ€Ğ¾Ğ²ĞµÑ€ĞºĞ° Ğ´Ğ¾Ñ�Ñ‚Ğ¸Ğ¶ĞµĞ½Ğ¸Ğ¹ Ğ´Ğ»Ñ� Ñ�Ğ¾Ğ±Ñ‹Ñ‚Ğ¸Ñ� Ñ� Ñ�Ğ¾Ñ…Ñ€Ğ°Ğ½ĞµĞ½Ğ¸ĞµĞ¼ Ğ² Ğ‘Ğ”"""
         new_achievements = []
         
-        # Получаем или создаем прогресс пользователя из БД
+        # ĞŸĞ¾Ğ»ÑƒÑ‡Ğ°ĞµĞ¼ Ğ¸Ğ»Ğ¸ Ñ�Ğ¾Ğ·Ğ´Ğ°ĞµĞ¼ Ğ¿Ñ€Ğ¾Ğ³Ñ€ĞµÑ�Ñ� Ğ¿Ğ¾Ğ»ÑŒĞ·Ğ¾Ğ²Ğ°Ñ‚ĞµĞ»Ñ� Ğ¸Ğ· Ğ‘Ğ”
         user_progress = await self._get_user_progress(user_id)
         
-        # Обновляем статистику
+        # Ğ�Ğ±Ğ½Ğ¾Ğ²Ğ»Ñ�ĞµĞ¼ Ñ�Ñ‚Ğ°Ñ‚Ğ¸Ñ�Ñ‚Ğ¸ĞºÑƒ
         await self._update_progress_in_db(user_progress, event_type, data)
         
-        # Проверяем каждое достижение
+        # ĞŸÑ€Ğ¾Ğ²ĞµÑ€Ñ�ĞµĞ¼ ĞºĞ°Ğ¶Ğ´Ğ¾Ğµ Ğ´Ğ¾Ñ�Ñ‚Ğ¸Ğ¶ĞµĞ½Ğ¸Ğµ
         for achievement in self.achievements.values():
             if not await self._has_achievement(user_id, achievement.id):
                 if self._check_achievement_condition(achievement, user_progress, data):
@@ -135,9 +135,9 @@ class GamificationSystem:
         return new_achievements
     
     async def _get_user_progress(self, user_id: int) -> UserGamification:
-        """Получение прогресса пользователя из БД"""
+        """ĞŸĞ¾Ğ»ÑƒÑ‡ĞµĞ½Ğ¸Ğµ Ğ¿Ñ€Ğ¾Ğ³Ñ€ĞµÑ�Ñ�Ğ° Ğ¿Ğ¾Ğ»ÑŒĞ·Ğ¾Ğ²Ğ°Ñ‚ĞµĞ»Ñ� Ğ¸Ğ· Ğ‘Ğ”"""
         async with get_session() as session:
-            # Сначала ищем пользователя в основной таблице
+            # Ğ¡Ğ½Ğ°Ñ‡Ğ°Ğ»Ğ° Ğ¸Ñ‰ĞµĞ¼ Ğ¿Ğ¾Ğ»ÑŒĞ·Ğ¾Ğ²Ğ°Ñ‚ĞµĞ»Ñ� Ğ² Ğ¾Ñ�Ğ½Ğ¾Ğ²Ğ½Ğ¾Ğ¹ Ñ‚Ğ°Ğ±Ğ»Ğ¸Ñ†Ğµ
             user_result = await session.execute(
                 select(User).where(User.telegram_id == user_id)
             )
@@ -147,7 +147,7 @@ class GamificationSystem:
                 logger.error(f"User {user_id} not found in main table")
                 raise ValueError(f"User {user_id} not found")
             
-            # Получаем или создаем геймификацию
+            # ĞŸĞ¾Ğ»ÑƒÑ‡Ğ°ĞµĞ¼ Ğ¸Ğ»Ğ¸ Ñ�Ğ¾Ğ·Ğ´Ğ°ĞµĞ¼ Ğ³ĞµĞ¹Ğ¼Ğ¸Ñ„Ğ¸ĞºĞ°Ñ†Ğ¸Ñ�
             gamif_result = await session.execute(
                 select(UserGamification).where(UserGamification.user_id == user.id)
             )
@@ -170,14 +170,14 @@ class GamificationSystem:
             return gamif
     
     async def _update_progress_in_db(self, progress: UserGamification, event_type: str, data: Dict):
-        """Обновление прогресса пользователя в БД"""
+        """Ğ�Ğ±Ğ½Ğ¾Ğ²Ğ»ĞµĞ½Ğ¸Ğµ Ğ¿Ñ€Ğ¾Ğ³Ñ€ĞµÑ�Ñ�Ğ° Ğ¿Ğ¾Ğ»ÑŒĞ·Ğ¾Ğ²Ğ°Ñ‚ĞµĞ»Ñ� Ğ² Ğ‘Ğ”"""
         today = datetime.now().date()
         
         if event_type == "meal_logged":
             progress.last_activity_date = datetime.now()
             progress.meals_logged += 1
             
-            # Проверяем время
+            # ĞŸÑ€Ğ¾Ğ²ĞµÑ€Ñ�ĞµĞ¼ Ğ²Ñ€ĞµĞ¼Ñ�
             meal_time = data.get('time', datetime.now()).time()
             meal_type = data.get('meal_type', '')
             
@@ -197,16 +197,16 @@ class GamificationSystem:
                 progress.start_weight = weight
             progress.current_weight = weight
         
-        # Обновляем серию дней
+        # Ğ�Ğ±Ğ½Ğ¾Ğ²Ğ»Ñ�ĞµĞ¼ Ñ�ĞµÑ€Ğ¸Ñ� Ğ´Ğ½ĞµĞ¹
         await self._update_streak(progress)
         
-        # Сохраняем изменения
+        # Ğ¡Ğ¾Ñ…Ñ€Ğ°Ğ½Ñ�ĞµĞ¼ Ğ¸Ğ·Ğ¼ĞµĞ½ĞµĞ½Ğ¸Ñ�
         async with get_session() as session:
             await session.merge(progress)
             await session.commit()
     
     async def _update_streak(self, progress: UserGamification):
-        """Обновление серии дней"""
+        """Ğ�Ğ±Ğ½Ğ¾Ğ²Ğ»ĞµĞ½Ğ¸Ğµ Ñ�ĞµÑ€Ğ¸Ğ¸ Ğ´Ğ½ĞµĞ¹"""
         if not progress.last_activity_date:
             return
         
@@ -214,26 +214,26 @@ class GamificationSystem:
         last_activity = progress.last_activity_date.date()
         
         if today == last_activity:
-            # Активность сегодня - серия продолжается
+            # Ğ�ĞºÑ‚Ğ¸Ğ²Ğ½Ğ¾Ñ�Ñ‚ÑŒ Ñ�ĞµĞ³Ğ¾Ğ´Ğ½Ñ� - Ñ�ĞµÑ€Ğ¸Ñ� Ğ¿Ñ€Ğ¾Ğ´Ğ¾Ğ»Ğ¶Ğ°ĞµÑ‚Ñ�Ñ�
             if progress.current_streak == 0:
                 progress.current_streak = 1
-            # Если уже была активность сегодня, серия не меняется
+            # Ğ•Ñ�Ğ»Ğ¸ ÑƒĞ¶Ğµ Ğ±Ñ‹Ğ»Ğ° Ğ°ĞºÑ‚Ğ¸Ğ²Ğ½Ğ¾Ñ�Ñ‚ÑŒ Ñ�ĞµĞ³Ğ¾Ğ´Ğ½Ñ�, Ñ�ĞµÑ€Ğ¸Ñ� Ğ½Ğµ Ğ¼ĞµĞ½Ñ�ĞµÑ‚Ñ�Ñ�
         elif today == last_activity + timedelta(days=1):
-            # Активность вчера - увеличиваем серию
+            # Ğ�ĞºÑ‚Ğ¸Ğ²Ğ½Ğ¾Ñ�Ñ‚ÑŒ Ğ²Ñ‡ĞµÑ€Ğ° - ÑƒĞ²ĞµĞ»Ğ¸Ñ‡Ğ¸Ğ²Ğ°ĞµĞ¼ Ñ�ĞµÑ€Ğ¸Ñ�
             progress.current_streak += 1
         else:
-            # Пропущен день - сбрасываем серию
+            # ĞŸÑ€Ğ¾Ğ¿ÑƒÑ‰ĞµĞ½ Ğ´ĞµĞ½ÑŒ - Ñ�Ğ±Ñ€Ğ°Ñ�Ñ‹Ğ²Ğ°ĞµĞ¼ Ñ�ĞµÑ€Ğ¸Ñ�
             if progress.current_streak > progress.max_streak:
                 progress.max_streak = progress.current_streak
             progress.current_streak = 1
         
-        # Обновляем уровень
+        # Ğ�Ğ±Ğ½Ğ¾Ğ²Ğ»Ñ�ĞµĞ¼ ÑƒÑ€Ğ¾Ğ²ĞµĞ½ÑŒ
         progress.level = progress.total_points // 100 + 1
     
     async def _has_achievement(self, user_id: int, achievement_id: str) -> bool:
-        """Проверка наличия достижения у пользователя"""
+        """ĞŸÑ€Ğ¾Ğ²ĞµÑ€ĞºĞ° Ğ½Ğ°Ğ»Ğ¸Ñ‡Ğ¸Ñ� Ğ´Ğ¾Ñ�Ñ‚Ğ¸Ğ¶ĞµĞ½Ğ¸Ñ� Ñƒ Ğ¿Ğ¾Ğ»ÑŒĞ·Ğ¾Ğ²Ğ°Ñ‚ĞµĞ»Ñ�"""
         async with get_session() as session:
-            # Получаем ID пользователя
+            # ĞŸĞ¾Ğ»ÑƒÑ‡Ğ°ĞµĞ¼ ID Ğ¿Ğ¾Ğ»ÑŒĞ·Ğ¾Ğ²Ğ°Ñ‚ĞµĞ»Ñ�
             user_result = await session.execute(
                 select(User).where(User.telegram_id == user_id)
             )
@@ -242,7 +242,7 @@ class GamificationSystem:
             if not user:
                 return False
             
-            # Проверяем достижение
+            # ĞŸÑ€Ğ¾Ğ²ĞµÑ€Ñ�ĞµĞ¼ Ğ´Ğ¾Ñ�Ñ‚Ğ¸Ğ¶ĞµĞ½Ğ¸Ğµ
             result = await session.execute(
                 select(UserAchievement).where(
                     UserAchievement.user_id == user.id,
@@ -252,9 +252,9 @@ class GamificationSystem:
             return result.scalar_one_or_none() is not None
     
     async def _award_achievement(self, user_id: int, achievement: Achievement):
-        """Присвоение достижения пользователю"""
+        """ĞŸÑ€Ğ¸Ñ�Ğ²Ğ¾ĞµĞ½Ğ¸Ğµ Ğ´Ğ¾Ñ�Ñ‚Ğ¸Ğ¶ĞµĞ½Ğ¸Ñ� Ğ¿Ğ¾Ğ»ÑŒĞ·Ğ¾Ğ²Ğ°Ñ‚ĞµĞ»Ñ�"""
         async with get_session() as session:
-            # Получаем ID пользователя
+            # ĞŸĞ¾Ğ»ÑƒÑ‡Ğ°ĞµĞ¼ ID Ğ¿Ğ¾Ğ»ÑŒĞ·Ğ¾Ğ²Ğ°Ñ‚ĞµĞ»Ñ�
             user_result = await session.execute(
                 select(User).where(User.telegram_id == user_id)
             )
@@ -263,7 +263,7 @@ class GamificationSystem:
             if not user:
                 return
             
-            # Добавляем достижение
+            # Ğ”Ğ¾Ğ±Ğ°Ğ²Ğ»Ñ�ĞµĞ¼ Ğ´Ğ¾Ñ�Ñ‚Ğ¸Ğ¶ĞµĞ½Ğ¸Ğµ
             user_achievement = UserAchievement(
                 user_id=user.id,
                 achievement_id=achievement.id,
@@ -272,7 +272,7 @@ class GamificationSystem:
             )
             session.add(user_achievement)
             
-            # Добавляем в историю
+            # Ğ”Ğ¾Ğ±Ğ°Ğ²Ğ»Ñ�ĞµĞ¼ Ğ² Ğ¸Ñ�Ñ‚Ğ¾Ñ€Ğ¸Ñ�
             history = AchievementHistory(
                 user_id=user.id,
                 achievement_id=achievement.id,
@@ -283,7 +283,7 @@ class GamificationSystem:
             )
             session.add(history)
             
-            # Обновляем общую статистику
+            # Ğ�Ğ±Ğ½Ğ¾Ğ²Ğ»Ñ�ĞµĞ¼ Ğ¾Ğ±Ñ‰ÑƒÑ� Ñ�Ñ‚Ğ°Ñ‚Ğ¸Ñ�Ñ‚Ğ¸ĞºÑƒ
             gamif_result = await session.execute(
                 select(UserGamification).where(UserGamification.user_id == user.id)
             )
@@ -297,7 +297,7 @@ class GamificationSystem:
     
     def _check_achievement_condition(self, achievement: Achievement, 
                                    progress: UserGamification, data: Dict) -> bool:
-        """Проверка условия достижения"""
+        """ĞŸÑ€Ğ¾Ğ²ĞµÑ€ĞºĞ° ÑƒÑ�Ğ»Ğ¾Ğ²Ğ¸Ñ� Ğ´Ğ¾Ñ�Ñ‚Ğ¸Ğ¶ĞµĞ½Ğ¸Ñ�"""
         condition = achievement.condition
         
         if achievement.type == AchievementType.FIRST_MEAL:
@@ -333,9 +333,9 @@ class GamificationSystem:
         return False
     
     async def get_user_stats(self, user_id: int) -> Dict:
-        """Получение статистики пользователя"""
+        """ĞŸĞ¾Ğ»ÑƒÑ‡ĞµĞ½Ğ¸Ğµ Ñ�Ñ‚Ğ°Ñ‚Ğ¸Ñ�Ñ‚Ğ¸ĞºĞ¸ Ğ¿Ğ¾Ğ»ÑŒĞ·Ğ¾Ğ²Ğ°Ñ‚ĞµĞ»Ñ�"""
         async with get_session() as session:
-            # Получаем ID пользователя
+            # ĞŸĞ¾Ğ»ÑƒÑ‡Ğ°ĞµĞ¼ ID Ğ¿Ğ¾Ğ»ÑŒĞ·Ğ¾Ğ²Ğ°Ñ‚ĞµĞ»Ñ�
             user_result = await session.execute(
                 select(User).where(User.telegram_id == user_id)
             )
@@ -344,7 +344,7 @@ class GamificationSystem:
             if not user:
                 return self._get_empty_stats()
             
-            # Получаем статистику геймификации
+            # ĞŸĞ¾Ğ»ÑƒÑ‡Ğ°ĞµĞ¼ Ñ�Ñ‚Ğ°Ñ‚Ğ¸Ñ�Ñ‚Ğ¸ĞºÑƒ Ğ³ĞµĞ¹Ğ¼Ğ¸Ñ„Ğ¸ĞºĞ°Ñ†Ğ¸Ğ¸
             gamif_result = await session.execute(
                 select(UserGamification).where(UserGamification.user_id == user.id)
             )
@@ -353,7 +353,7 @@ class GamificationSystem:
             if not gamif:
                 return self._get_empty_stats()
             
-            # Получаем количество достижений
+            # ĞŸĞ¾Ğ»ÑƒÑ‡Ğ°ĞµĞ¼ ĞºĞ¾Ğ»Ğ¸Ñ‡ĞµÑ�Ñ‚Ğ²Ğ¾ Ğ´Ğ¾Ñ�Ñ‚Ğ¸Ğ¶ĞµĞ½Ğ¸Ğ¹
             achievements_count = await session.execute(
                 select(func.count(UserAchievement.id)).where(
                     UserAchievement.user_id == user.id
@@ -378,7 +378,7 @@ class GamificationSystem:
             }
     
     def _get_empty_stats(self) -> Dict:
-        """Пустая статистика для нового пользователя"""
+        """ĞŸÑƒÑ�Ñ‚Ğ°Ñ� Ñ�Ñ‚Ğ°Ñ‚Ğ¸Ñ�Ñ‚Ğ¸ĞºĞ° Ğ´Ğ»Ñ� Ğ½Ğ¾Ğ²Ğ¾Ğ³Ğ¾ Ğ¿Ğ¾Ğ»ÑŒĞ·Ğ¾Ğ²Ğ°Ñ‚ĞµĞ»Ñ�"""
         return {
             "level": 1,
             "total_points": 0,
@@ -392,5 +392,5 @@ class GamificationSystem:
             "start_weight": None
         }
 
-# Глобальный экземпляр системы
+# Ğ“Ğ»Ğ¾Ğ±Ğ°Ğ»ÑŒĞ½Ñ‹Ğ¹ Ñ�ĞºĞ·ĞµĞ¼Ğ¿Ğ»Ñ�Ñ€ Ñ�Ğ¸Ñ�Ñ‚ĞµĞ¼Ñ‹
 gamification = GamificationSystem()

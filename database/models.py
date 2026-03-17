@@ -1,19 +1,19 @@
 """
-Модели базы данных для NutriBuddy
-✅ Все модели используют Base из database.db
+ĞœĞ¾Ğ´ĞµĞ»Ğ¸ Ğ±Ğ°Ğ·Ñ‹ Ğ´Ğ°Ğ½Ğ½Ñ‹Ñ… Ğ´Ğ»Ñ� NutriBuddy
+âœ… Ğ’Ñ�Ğµ Ğ¼Ğ¾Ğ´ĞµĞ»Ğ¸ Ğ¸Ñ�Ğ¿Ğ¾Ğ»ÑŒĞ·ÑƒÑ�Ñ‚ Base Ğ¸Ğ· database.db
 """
 from sqlalchemy import Column, Integer, BigInteger, String, Float, DateTime, ForeignKey, Boolean, Text
 from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
 
-# Импортируем Base из db.py (единый источник!)
+# Ğ˜Ğ¼Ğ¿Ğ¾Ñ€Ñ‚Ğ¸Ñ€ÑƒĞµĞ¼ Base Ğ¸Ğ· db.py (ĞµĞ´Ğ¸Ğ½Ñ‹Ğ¹ Ğ¸Ñ�Ñ‚Ğ¾Ñ‡Ğ½Ğ¸Ğº!)
 from database.db import Base
 
 class User(Base):
     __tablename__ = 'users'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    telegram_id = Column(BigInteger, unique=True, nullable=False, index=True)  # изменено на BigInteger
+    telegram_id = Column(BigInteger, unique=True, nullable=False, index=True)  # Ğ¸Ğ·Ğ¼ĞµĞ½ĞµĞ½Ğ¾ Ğ½Ğ° BigInteger
     username = Column(String(255))
     first_name = Column(String(255))
     weight = Column(Float)
@@ -28,43 +28,43 @@ class User(Base):
     daily_protein_goal = Column(Float)
     daily_fat_goal = Column(Float)
     daily_carbs_goal = Column(Float)
-    daily_steps_goal = Column(Integer, default=10000)  # Цель по шагам по умолчанию
-    daily_activity_goal = Column(Integer, default=300)  # Цель по калориям активности по умолчанию
+    daily_steps_goal = Column(Integer, default=10000)  # Ğ¦ĞµĞ»ÑŒ Ğ¿Ğ¾ ÑˆĞ°Ğ³Ğ°Ğ¼ Ğ¿Ğ¾ ÑƒĞ¼Ğ¾Ğ»Ñ‡Ğ°Ğ½Ğ¸Ñ�
+    daily_activity_goal = Column(Integer, default=300)  # Ğ¦ĞµĞ»ÑŒ Ğ¿Ğ¾ ĞºĞ°Ğ»Ğ¾Ñ€Ğ¸Ñ�Ğ¼ Ğ°ĞºÑ‚Ğ¸Ğ²Ğ½Ğ¾Ñ�Ñ‚Ğ¸ Ğ¿Ğ¾ ÑƒĞ¼Ğ¾Ğ»Ñ‡Ğ°Ğ½Ğ¸Ñ�
     reminder_enabled = Column(Boolean, default=True)
     
-    # Поля антропометрии для расширенного анализа
-    neck_cm = Column(Float, nullable=True)          # Обхват шеи (женщины/бицепс мужчины)
-    waist_cm = Column(Float, nullable=True)         # Обхват талии
-    hip_cm = Column(Float, nullable=True)           # Обхват бедер
-    wrist_cm = Column(Float, nullable=True)         # Обхват запястья
-    bicep_cm = Column(Float, nullable=True)        # Обхват бицепса (мужчины)
+    # ĞŸĞ¾Ğ»Ñ� Ğ°Ğ½Ñ‚Ñ€Ğ¾Ğ¿Ğ¾Ğ¼ĞµÑ‚Ñ€Ğ¸Ğ¸ Ğ´Ğ»Ñ� Ñ€Ğ°Ñ�ÑˆĞ¸Ñ€ĞµĞ½Ğ½Ğ¾Ğ³Ğ¾ Ğ°Ğ½Ğ°Ğ»Ğ¸Ğ·Ğ°
+    neck_cm = Column(Float, nullable=True)          # Ğ�Ğ±Ñ…Ğ²Ğ°Ñ‚ ÑˆĞµĞ¸ (Ğ¶ĞµĞ½Ñ‰Ğ¸Ğ½Ñ‹/Ğ±Ğ¸Ñ†ĞµĞ¿Ñ� Ğ¼ÑƒĞ¶Ñ‡Ğ¸Ğ½Ñ‹)
+    waist_cm = Column(Float, nullable=True)         # Ğ�Ğ±Ñ…Ğ²Ğ°Ñ‚ Ñ‚Ğ°Ğ»Ğ¸Ğ¸
+    hip_cm = Column(Float, nullable=True)           # Ğ�Ğ±Ñ…Ğ²Ğ°Ñ‚ Ğ±ĞµĞ´ĞµÑ€
+    wrist_cm = Column(Float, nullable=True)         # Ğ�Ğ±Ñ…Ğ²Ğ°Ñ‚ Ğ·Ğ°Ğ¿Ñ�Ñ�Ñ‚ÑŒÑ�
+    bicep_cm = Column(Float, nullable=True)        # Ğ�Ğ±Ñ…Ğ²Ğ°Ñ‚ Ğ±Ğ¸Ñ†ĞµĞ¿Ñ�Ğ° (Ğ¼ÑƒĞ¶Ñ‡Ğ¸Ğ½Ñ‹)
     
-    # Новые расширенные антропометрические поля (опциональные)
-    chest_cm = Column(Float, nullable=True)          # Обхват груди
-    forearm_cm = Column(Float, nullable=True)        # Обхват предплечья
-    calf_cm = Column(Float, nullable=True)           # Обхват голени
-    shoulder_width_cm = Column(Float, nullable=True) # Ширина плеч
-    hip_width_cm = Column(Float, nullable=True)      # Ширина таза
+    # Ğ�Ğ¾Ğ²Ñ‹Ğµ Ñ€Ğ°Ñ�ÑˆĞ¸Ñ€ĞµĞ½Ğ½Ñ‹Ğµ Ğ°Ğ½Ñ‚Ñ€Ğ¾Ğ¿Ğ¾Ğ¼ĞµÑ‚Ñ€Ğ¸Ñ‡ĞµÑ�ĞºĞ¸Ğµ Ğ¿Ğ¾Ğ»Ñ� (Ğ¾Ğ¿Ñ†Ğ¸Ğ¾Ğ½Ğ°Ğ»ÑŒĞ½Ñ‹Ğµ)
+    chest_cm = Column(Float, nullable=True)          # Ğ�Ğ±Ñ…Ğ²Ğ°Ñ‚ Ğ³Ñ€ÑƒĞ´Ğ¸
+    forearm_cm = Column(Float, nullable=True)        # Ğ�Ğ±Ñ…Ğ²Ğ°Ñ‚ Ğ¿Ñ€ĞµĞ´Ğ¿Ğ»ĞµÑ‡ÑŒÑ�
+    calf_cm = Column(Float, nullable=True)           # Ğ�Ğ±Ñ…Ğ²Ğ°Ñ‚ Ğ³Ğ¾Ğ»ĞµĞ½Ğ¸
+    shoulder_width_cm = Column(Float, nullable=True) # Ğ¨Ğ¸Ñ€Ğ¸Ğ½Ğ° Ğ¿Ğ»ĞµÑ‡
+    hip_width_cm = Column(Float, nullable=True)      # Ğ¨Ğ¸Ñ€Ğ¸Ğ½Ğ° Ñ‚Ğ°Ğ·Ğ°
     
-    # Кешированные расчеты композиции тела
-    last_bodyfat = Column(Float, nullable=True)     # Последний % жира
-    last_muscle_mass = Column(Float, nullable=True) # Последняя мышечная масса
-    last_body_water = Column(Float, nullable=True)  # Последняя расчетная вода
+    # ĞšĞµÑˆĞ¸Ñ€Ğ¾Ğ²Ğ°Ğ½Ğ½Ñ‹Ğµ Ñ€Ğ°Ñ�Ñ‡ĞµÑ‚Ñ‹ ĞºĞ¾Ğ¼Ğ¿Ğ¾Ğ·Ğ¸Ñ†Ğ¸Ğ¸ Ñ‚ĞµĞ»Ğ°
+    last_bodyfat = Column(Float, nullable=True)     # ĞŸĞ¾Ñ�Ğ»ĞµĞ´Ğ½Ğ¸Ğ¹ % Ğ¶Ğ¸Ñ€Ğ°
+    last_muscle_mass = Column(Float, nullable=True) # ĞŸĞ¾Ñ�Ğ»ĞµĞ´Ğ½Ñ�Ñ� Ğ¼Ñ‹ÑˆĞµÑ‡Ğ½Ğ°Ñ� Ğ¼Ğ°Ñ�Ñ�Ğ°
+    last_body_water = Column(Float, nullable=True)  # ĞŸĞ¾Ñ�Ğ»ĞµĞ´Ğ½Ñ�Ñ� Ñ€Ğ°Ñ�Ñ‡ĞµÑ‚Ğ½Ğ°Ñ� Ğ²Ğ¾Ğ´Ğ°
     
-    # Целевые показатели
-    goal_weight = Column(Float, nullable=True)      # Целевой вес
+    # Ğ¦ĞµĞ»ĞµĞ²Ñ‹Ğµ Ğ¿Ğ¾ĞºĞ°Ğ·Ğ°Ñ‚ĞµĞ»Ğ¸
+    goal_weight = Column(Float, nullable=True)      # Ğ¦ĞµĞ»ĞµĞ²Ğ¾Ğ¹ Ğ²ĞµÑ�
     
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     meals = relationship("Meal", back_populates="user", cascade="all, delete-orphan")
     drink_entries = relationship("DrinkEntry", back_populates="user", cascade="all, delete-orphan")
-    # water_entries удалены - используем drink_entries для всех жидкостей
+    # water_entries ÑƒĞ´Ğ°Ğ»ĞµĞ½Ñ‹ - Ğ¸Ñ�Ğ¿Ğ¾Ğ»ÑŒĞ·ÑƒĞµĞ¼ drink_entries Ğ´Ğ»Ñ� Ğ²Ñ�ĞµÑ… Ğ¶Ğ¸Ğ´ĞºĞ¾Ñ�Ñ‚ĞµĞ¹
     weight_entries = relationship("WeightEntry", back_populates="user", cascade="all, delete-orphan")
     activities = relationship("Activity", back_populates="user", cascade="all, delete-orphan")
     steps_entries = relationship("StepsEntry", back_populates="user", cascade="all, delete-orphan")
     
-    # Геймификация
+    # Ğ“ĞµĞ¹Ğ¼Ğ¸Ñ„Ğ¸ĞºĞ°Ñ†Ğ¸Ñ�
     achievements = relationship("UserAchievement", back_populates="user", cascade="all, delete-orphan")
     gamification = relationship("UserGamification", back_populates="user", uselist=False, cascade="all, delete-orphan")
 
@@ -101,21 +101,21 @@ class FoodItem(Base):
     meal = relationship("Meal", back_populates="foods")
 
 class DrinkEntry(Base):
-    """Универсальные записи о жидкостях (напитки + вода из еды)"""
+    """Ğ£Ğ½Ğ¸Ğ²ĞµÑ€Ñ�Ğ°Ğ»ÑŒĞ½Ñ‹Ğµ Ğ·Ğ°Ğ¿Ğ¸Ñ�Ğ¸ Ğ¾ Ğ¶Ğ¸Ğ´ĞºĞ¾Ñ�Ñ‚Ñ�Ñ… (Ğ½Ğ°Ğ¿Ğ¸Ñ‚ĞºĞ¸ + Ğ²Ğ¾Ğ´Ğ° Ğ¸Ğ· ĞµĞ´Ñ‹)"""
     __tablename__ = 'drink_entries'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(Integer, ForeignKey('users.id', ondelete="CASCADE"), nullable=False, index=True)
-    name = Column(String(100), nullable=False, default="вода")  # Название: "вода", "сок", "вода из супа борщ"
-    volume_ml = Column(Float, nullable=False)                    # Объём в мл
-    calories = Column(Float, default=0.0)                        # Калории (для соков, чая с сахаром)
-    source = Column(String(20), default='drink')                # Источник: 'drink' (напиток), 'food' (из еды)
-    reference_id = Column(Integer, nullable=True)               # ID связанной записи (meal_id для супа)
+    name = Column(String(100), nullable=False, default="Ğ²Ğ¾Ğ´Ğ°")  # Ğ�Ğ°Ğ·Ğ²Ğ°Ğ½Ğ¸Ğµ: "Ğ²Ğ¾Ğ´Ğ°", "Ñ�Ğ¾Ğº", "Ğ²Ğ¾Ğ´Ğ° Ğ¸Ğ· Ñ�ÑƒĞ¿Ğ° Ğ±Ğ¾Ñ€Ñ‰"
+    volume_ml = Column(Float, nullable=False)                    # Ğ�Ğ±ÑŠÑ‘Ğ¼ Ğ² Ğ¼Ğ»
+    calories = Column(Float, default=0.0)                        # ĞšĞ°Ğ»Ğ¾Ñ€Ğ¸Ğ¸ (Ğ´Ğ»Ñ� Ñ�Ğ¾ĞºĞ¾Ğ², Ñ‡Ğ°Ñ� Ñ� Ñ�Ğ°Ñ…Ğ°Ñ€Ğ¾Ğ¼)
+    source = Column(String(20), default='drink')                # Ğ˜Ñ�Ñ‚Ğ¾Ñ‡Ğ½Ğ¸Ğº: 'drink' (Ğ½Ğ°Ğ¿Ğ¸Ñ‚Ğ¾Ğº), 'food' (Ğ¸Ğ· ĞµĞ´Ñ‹)
+    reference_id = Column(Integer, nullable=True)               # ID Ñ�Ğ²Ñ�Ğ·Ğ°Ğ½Ğ½Ğ¾Ğ¹ Ğ·Ğ°Ğ¿Ğ¸Ñ�Ğ¸ (meal_id Ğ´Ğ»Ñ� Ñ�ÑƒĞ¿Ğ°)
     datetime = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
 
     user = relationship("User", back_populates="drink_entries")
 
-# WaterEntry удалена - используем единую DrinkEntry для всех жидкостей
+# WaterEntry ÑƒĞ´Ğ°Ğ»ĞµĞ½Ğ° - Ğ¸Ñ�Ğ¿Ğ¾Ğ»ÑŒĞ·ÑƒĞµĞ¼ ĞµĞ´Ğ¸Ğ½ÑƒÑ� DrinkEntry Ğ´Ğ»Ñ� Ğ²Ñ�ĞµÑ… Ğ¶Ğ¸Ğ´ĞºĞ¾Ñ�Ñ‚ĞµĞ¹
 
 class WeightEntry(Base):
     __tablename__ = 'weight_entries'
@@ -143,7 +143,7 @@ class Activity(Base):
     user = relationship("User", back_populates="activities")
 
 class StepsEntry(Base):
-    """👞 Записи о шагах пользователя"""
+    """ğŸ‘� Ğ—Ğ°Ğ¿Ğ¸Ñ�Ğ¸ Ğ¾ ÑˆĞ°Ğ³Ğ°Ñ… Ğ¿Ğ¾Ğ»ÑŒĞ·Ğ¾Ğ²Ğ°Ñ‚ĞµĞ»Ñ�"""
     __tablename__ = 'steps_entries'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -151,6 +151,6 @@ class StepsEntry(Base):
     steps_count = Column(Integer, nullable=False)
     datetime = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
     source = Column(String(20), default='manual')  # manual, fitness_tracker, etc.
-    notes = Column(String(255))  # Примечания пользователя
+    notes = Column(String(255))  # ĞŸÑ€Ğ¸Ğ¼ĞµÑ‡Ğ°Ğ½Ğ¸Ñ� Ğ¿Ğ¾Ğ»ÑŒĞ·Ğ¾Ğ²Ğ°Ñ‚ĞµĞ»Ñ�
 
     user = relationship("User", back_populates="steps_entries")

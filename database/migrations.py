@@ -145,20 +145,8 @@ class MigrationManager:
             "1.4.0",
             "Migrate to unified DrinkEntry table",
             """
--- Добавляем поля source и reference_id в drink_entries
-DO $$
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'drink_entries' AND column_name = 'source') THEN
-        ALTER TABLE drink_entries ADD COLUMN source VARCHAR(20) DEFAULT 'drink';
-    END IF;
-    
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'drink_entries' AND column_name = 'reference_id') THEN
-        ALTER TABLE drink_entries ADD COLUMN reference_id INTEGER;
-    END IF;
-END;
-$$;
-
--- Переносим данные из water_entries в drink_entries
+-- Добавляем поля source и reference_id в drink_entries (PostgreSQL)
+-- Для SQLite эти поля будут добавлены через init_db()
 INSERT INTO drink_entries (user_id, name, volume_ml, calories, source, datetime)
 SELECT user_id, 'вода', volume_ml, 0.0, 'drink', datetime
 FROM water_entries

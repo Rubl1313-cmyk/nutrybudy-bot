@@ -370,7 +370,7 @@ async def get_daily_stats(user_id: int) -> Dict[str, Any]:
             fat = await get_daily_fat(user_id)
             carbs = await get_daily_carbs(user_id)
             water = await get_daily_water(user_id)
-            calories_burned = await get_daily_calories_burned(user_id)
+            calories_burned = await get_daily_activity_calories(user_id)
             
             return {
                 'date': today.isoformat(),

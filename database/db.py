@@ -64,18 +64,8 @@ async def _ensure_bigint_columns(conn):
     else:
         logger.info("ℹ️ users.telegram_id already BIGINT or not found")
 
-    # 2. Колонка added_by в таблице shopping_items
-    result = await conn.execute(text(
-        "SELECT data_type FROM information_schema.columns "
-        "WHERE table_name='shopping_items' AND column_name='added_by'"
-    ))
-    row = result.first()
-    if row and row[0] == 'integer':
-        logger.info("🔄 Migrating shopping_items.added_by from INTEGER to BIGINT...")
-        await conn.execute(text("ALTER TABLE shopping_items ALTER COLUMN added_by TYPE BIGINT;"))
-        logger.info("✅ shopping_items.added_by is now BIGINT")
-    else:
-        logger.info("ℹ️ shopping_items.added_by already BIGINT or not found")
+    # 2. Пропускаем миграцию shopping_items - таблица не существует в моделях
+    logger.info("ℹ️ Skipping shopping_items migration - table not defined in models")
 
 async def init_db():
     """
@@ -92,17 +82,8 @@ async def init_db():
 
             # Проверяем и добавляем недостающие колонки
             if "postgresql" in DATABASE_URL:
-                # Колонка unit в shopping_items
-                result = await conn.execute(text(
-                    "SELECT column_name FROM information_schema.columns "
-                    "WHERE table_name='shopping_items' AND column_name='unit'"
-                ))
-                if not result.first():
-                    logger.info("➕ Adding column shopping_items.unit...")
-                    await conn.execute(text("ALTER TABLE shopping_items ADD COLUMN unit VARCHAR(20);"))
-                    logger.info("✅ shopping_items.unit added")
-                else:
-                    logger.info("ℹ️ Column 'unit' already exists")
+                # Пропускаем добавление колонки в shopping_items - таблица не существует
+                logger.info("ℹ️ Skipping shopping_items.unit column - table not defined in models")
 
                 # Колонка daily_steps_goal в users
                 result = await conn.execute(text(

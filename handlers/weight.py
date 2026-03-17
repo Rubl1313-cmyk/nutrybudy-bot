@@ -105,7 +105,8 @@ async def process_weight(message: Message, state: FSMContext):
                 weight=weight,
                 activity_level=normalized_activity,
                 temperature=temperature,  # Реальная температура
-                goal=user.goal  # Добавляем цель для расчета воды
+                goal=user.goal,  # Добавляем цель для расчета воды
+                gender=user.gender  # Добавляем пол для расчета воды
             )
             user.daily_water_goal = water_goal
             

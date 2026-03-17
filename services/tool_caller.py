@@ -371,7 +371,8 @@ class ToolCaller:
                         weight=weight_kg,
                         activity_level=user.activity_level,
                         temperature=20.0,
-                        goal=user.goal  # Добавляем цель для расчета воды
+                        goal=user.goal,  # Добавляем цель для расчета воды
+                        gender=user.gender  # Добавляем пол для расчета воды
                     )
                     
                     # Обновляем нормы

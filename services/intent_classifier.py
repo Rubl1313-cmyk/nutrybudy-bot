@@ -537,27 +537,6 @@ class IntentClassifier:
         return cls._classify_by_keywords(text)
     
     @classmethod
-    def _classify_by_keywords(cls, text: str) -> dict:
-        """Классификация по ключевым словам (fallback)"""
-        text_lower = text.lower()
-        
-        # Определяем намерение по ключевым словам
-        if any(word in text_lower for word in ['съел', 'покушал', 'завтрак', 'обед', 'ужин', 'перекус', 'еда', 'продукт']):
-            return {"intent": "log_food", "confidence": 0.8, "method": "keywords"}
-        elif any(word in text_lower for word in ['выпил', 'вода', 'стакан', 'мл', 'литр']):
-            return {"intent": "log_water", "confidence": 0.8, "method": "keywords"}
-        elif any(word in text_lower for word in ['вес', 'взвесился', 'кг']):
-            return {"intent": "log_weight", "confidence": 0.8, "method": "keywords"}
-        elif any(word in text_lower for word in ['бег', 'ходьба', 'тренировка', 'шаги', 'км']):
-            return {"intent": "log_activity", "confidence": 0.8, "method": "keywords"}
-        elif any(word in text_lower for word in ['статистика', 'прогресс', 'график', 'похудел']):
-            return {"intent": "show_progress", "confidence": 0.8, "method": "keywords"}
-        elif any(word in text_lower for word in ['как', 'что делать', 'рекомендация', 'рецепт']):
-            return {"intent": "ask_advice", "confidence": 0.7, "method": "keywords"}
-        else:
-            return {"intent": "general_chat", "confidence": 0.5, "method": "keywords"}
-    
-    @classmethod
     async def classify(cls, text: str) -> dict:
         """
         Основной метод классификации с fallback.

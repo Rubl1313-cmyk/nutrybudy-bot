@@ -134,12 +134,13 @@ def calculate_calorie_goal(
     )
 
 
-def calculate_water_goal(weight: float, activity_level: str, temperature: float, goal: str = "maintain") -> float:
+def calculate_water_goal(weight: float, activity_level: str, temperature: float, goal: str = "maintain", gender: str = "male") -> float:
     """
-    Рассчитывает норму потребления жидкости с учетом цели.
+    Рассчитывает норму потребления жидкости с учетом цели и пола.
     
     Формула (Institute of Medicine):
     - Базовая: 30 мл на 1 кг веса (включает всю жидкость)
+    - Пол: +200 мл для мужчин, -100 мл для женщин (EFSA 2024)
     - Активность: +500 мл при средней, +1000 мл при высокой
     - Температура: +200 мл на каждые 10°C выше 20°C
     - Цель: +500 мл для похудения (дополнительная вода перед едой)
@@ -172,12 +173,17 @@ def calculate_water_goal(weight: float, activity_level: str, temperature: float,
         activity_level: уровень активности (low/medium/high)
         temperature: температура в °C
         goal: цель (lose_weight/maintain/gain_weight)
+        gender: пол (male/female)
     
     Returns:
         float: Норма ОБЩЕЙ жидкости в мл/день
     """
     # Базовая норма: 30 мл на 1 кг
     base_water = weight * 30
+    
+    # Коррекция на пол (EFSA 2024)
+    gender_adjustment = 200 if gender == "male" else -100
+    total_water = base_water + gender_adjustment
     
     # Коррекция на активность
     activity_additions = {
@@ -186,13 +192,13 @@ def calculate_water_goal(weight: float, activity_level: str, temperature: float,
         "high": 1000
     }
     activity_water = activity_additions.get(activity_level, 0)
+    total_water += activity_water
     
     # Коррекция на температуру
     temp_water = 0
     if temperature > 20:
         temp_water = ((temperature - 20) / 10) * 200
-    
-    total_water = base_water + activity_water + temp_water
+    total_water += temp_water
     
     # Коррекция на цель (основано на исследованиях 2024-2026)
     if goal == "lose_weight":

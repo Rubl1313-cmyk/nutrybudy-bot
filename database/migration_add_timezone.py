@@ -1,11 +1,11 @@
 """
 Миграция для добавления поля timezone в таблицу users
 """
-from datetime import datetime, timezone
 
-async def add_timezone_column():
-    """Добавляет колонку timezone в таблицу users"""
-    
+def add_timezone_column():
+    """
+    Возвращает SQL для добавления колонки timezone в таблицу users.
+    """
     migration_sql = """
     -- Добавляем колонку timezone в таблицу users
     ALTER TABLE users ADD COLUMN timezone VARCHAR(50) DEFAULT 'UTC';

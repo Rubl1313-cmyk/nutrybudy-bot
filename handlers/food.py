@@ -9,7 +9,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.filters import Command
 
 from database.db import get_session
-from database.models import User, MealEntry
+from database.models import User, Meal
 from services.ai_processor import AIProcessor
 from handlers.food_clarification import handle_food_text
 from keyboards.reply_v2 import get_main_keyboard_v2

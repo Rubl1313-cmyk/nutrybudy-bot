@@ -3,31 +3,42 @@ utils/daily_stats.py
 Централизованные функции для получения дневной статистики
 """
 import logging
-from datetime import datetime, date
+from datetime import date, datetime, timedelta, timezone
+from utils.timezone_utils import get_user_local_date
 from typing import Dict, Any, Optional
 
 logger = logging.getLogger(__name__)
 
-async def get_daily_water(user_id: int) -> int:
+async def get_daily_water(user_id: int, user_timezone: str = 'UTC') -> int:
     """
-    Получает количество выпитой жидкости за сегодня
+    Получает количество выпитой жидкости за сегодня с учетом часового пояса
     
     Args:
         user_id: ID пользователя
+        user_timezone: Часовой пояс пользователя
         
     Returns:
         int: Объем жидкости в мл
     """
     try:
         from database.db import get_session
-        from database.models import DrinkEntry
+        from database.models import DrinkEntry, User
         from sqlalchemy import select, func
         
         async with get_session() as session:
+            # Получаем часовой пояс пользователя
+            user_result = await session.execute(
+                select(User.timezone).where(User.telegram_id == user_id)
+            )
+            user_tz = user_result.scalar() or 'UTC'
+            
+            # Получаем локальную дату пользователя
+            today_local = get_user_local_date(user_tz)
+            
             result = await session.execute(
                 select(func.sum(DrinkEntry.volume_ml)).where(
                     DrinkEntry.user_id == user_id,
-                    func.date(DrinkEntry.datetime) == date.today()
+                    func.date(DrinkEntry.datetime) == today_local
                 )
             )
             return result.scalar() or 0
@@ -36,26 +47,36 @@ async def get_daily_water(user_id: int) -> int:
         logger.error(f"Error getting daily water for user {user_id}: {e}")
         return 0
 
-async def get_daily_drink_calories(user_id: int) -> int:
+async def get_daily_drink_calories(user_id: int, user_timezone: str = 'UTC') -> int:
     """
-    Получает калории из напитков за сегодня
+    Получает калории из напитков за сегодня с учетом часового пояса
     
     Args:
         user_id: ID пользователя
+        user_timezone: Часовой пояс пользователя
         
     Returns:
         int: Калории из напитков
     """
     try:
         from database.db import get_session
-        from database.models import DrinkEntry
+        from database.models import DrinkEntry, User
         from sqlalchemy import select, func
         
         async with get_session() as session:
+            # Получаем часовой пояс пользователя
+            user_result = await session.execute(
+                select(User.timezone).where(User.telegram_id == user_id)
+            )
+            user_tz = user_result.scalar() or 'UTC'
+            
+            # Получаем локальную дату пользователя
+            today_local = get_user_local_date(user_tz)
+            
             result = await session.execute(
                 select(func.sum(DrinkEntry.calories)).where(
                     DrinkEntry.user_id == user_id,
-                    func.date(DrinkEntry.datetime) == date.today()
+                    func.date(DrinkEntry.datetime) == today_local
                 )
             )
             return result.scalar() or 0
@@ -64,26 +85,36 @@ async def get_daily_drink_calories(user_id: int) -> int:
         logger.error(f"Error getting daily drink calories for user {user_id}: {e}")
         return 0
 
-async def get_daily_activity_calories(user_id: int) -> int:
+async def get_daily_activity_calories(user_id: int, user_timezone: str = 'UTC') -> int:
     """
-    Получает сожженные калории через активность за сегодня
+    Получает сожженные калории через активность за сегодня с учетом часового пояса
     
     Args:
         user_id: ID пользователя
+        user_timezone: Часовой пояс пользователя
         
     Returns:
         int: Сожженные калории
     """
     try:
         from database.db import get_session
-        from database.models import Activity
+        from database.models import Activity, User
         from sqlalchemy import select, func
         
         async with get_session() as session:
+            # Получаем часовой пояс пользователя
+            user_result = await session.execute(
+                select(User.timezone).where(User.telegram_id == user_id)
+            )
+            user_tz = user_result.scalar() or 'UTC'
+            
+            # Получаем локальную дату пользователя
+            today_local = get_user_local_date(user_tz)
+            
             result = await session.execute(
                 select(func.sum(Activity.calories_burned)).where(
                     Activity.user_id == user_id,
-                    func.date(Activity.datetime) == date.today()
+                    func.date(Activity.datetime) == today_local
                 )
             )
             return result.scalar() or 0
@@ -92,26 +123,36 @@ async def get_daily_activity_calories(user_id: int) -> int:
         logger.error(f"Error getting daily activity calories for user {user_id}: {e}")
         return 0
 
-async def get_daily_meals_count(user_id: int) -> int:
+async def get_daily_meals_count(user_id: int, user_timezone: str = 'UTC') -> int:
     """
-    Получает количество приемов пищи за сегодня
+    Получает количество приемов пищи за сегодня с учетом часового пояса
     
     Args:
         user_id: ID пользователя
+        user_timezone: Часовой пояс пользователя
         
     Returns:
         int: Количество приемов пищи
     """
     try:
         from database.db import get_session
-        from database.models import Meal
+        from database.models import Meal, User
         from sqlalchemy import select, func
         
         async with get_session() as session:
+            # Получаем часовой пояс пользователя
+            user_result = await session.execute(
+                select(User.timezone).where(User.telegram_id == user_id)
+            )
+            user_tz = user_result.scalar() or 'UTC'
+            
+            # Получаем локальную дату пользователя
+            today_local = get_user_local_date(user_tz)
+            
             result = await session.execute(
                 select(func.count(Meal.id)).where(
                     Meal.user_id == user_id,
-                    func.date(Meal.datetime) == date.today()
+                    func.date(Meal.datetime) == today_local
                 )
             )
             return result.scalar() or 0
@@ -120,31 +161,38 @@ async def get_daily_meals_count(user_id: int) -> int:
         logger.error(f"Error getting daily meals count for user {user_id}: {e}")
         return 0
 
-async def get_period_stats(user_id: int, period: str = "day") -> Dict[str, Any]:
+async def get_period_stats(user_id: int, period: str = "day", user_timezone: str = 'UTC') -> Dict[str, Any]:
     """
-    Получает статистику за период
+    Получает статистику за период с учетом часового пояса
     
     Args:
         user_id: ID пользователя
         period: period (day, week, month, all)
+        user_timezone: Часовой пояс пользователя
         
     Returns:
         dict: Статистика за период
     """
     try:
         from database.db import get_session
-        from database.models import Meal, DrinkEntry, Activity, Weight
+        from database.models import Meal, DrinkEntry, Activity, Weight, User
         from sqlalchemy import select, func
         from datetime import timedelta
         
         async with get_session() as session:
+            # Получаем часовой пояс пользователя
+            user_result = await session.execute(
+                select(User.timezone).where(User.telegram_id == user_id)
+            )
+            user_tz = user_result.scalar() or 'UTC'
+            
             # Определяем дату начала периода
             if period == "day":
-                start_date = date.today()
+                start_date = get_user_local_date(user_tz)
             elif period == "week":
-                start_date = date.today() - timedelta(days=7)
+                start_date = get_user_local_date(user_tz) - timedelta(days=7)
             elif period == "month":
-                start_date = date.today() - timedelta(days=30)
+                start_date = get_user_local_date(user_tz) - timedelta(days=30)
             else:  # all
                 start_date = None
             
@@ -253,7 +301,7 @@ async def get_daily_calories(user_id: int) -> int:
             result = await session.execute(
                 select(func.sum(Meal.calories)).where(
                     Meal.user_id == user_id,
-                    func.date(Meal.datetime) == date.today()
+                    func.date(Meal.datetime) == datetime.now(timezone.utc).date()
                 )
             )
             return result.scalar() or 0
@@ -281,7 +329,7 @@ async def get_daily_protein(user_id: int) -> int:
             result = await session.execute(
                 select(func.sum(Meal.protein)).where(
                     Meal.user_id == user_id,
-                    func.date(Meal.datetime) == date.today()
+                    func.date(Meal.datetime) == datetime.now(timezone.utc).date()
                 )
             )
             return result.scalar() or 0
@@ -309,7 +357,7 @@ async def get_daily_fat(user_id: int) -> int:
             result = await session.execute(
                 select(func.sum(Meal.fat)).where(
                     Meal.user_id == user_id,
-                    func.date(Meal.datetime) == date.today()
+                    func.date(Meal.datetime) == datetime.now(timezone.utc).date()
                 )
             )
             return result.scalar() or 0
@@ -337,7 +385,7 @@ async def get_daily_carbs(user_id: int) -> int:
             result = await session.execute(
                 select(func.sum(Meal.carbs)).where(
                     Meal.user_id == user_id,
-                    func.date(Meal.datetime) == date.today()
+                    func.date(Meal.datetime) == datetime.now(timezone.utc).date()
                 )
             )
             return result.scalar() or 0
@@ -361,7 +409,7 @@ async def get_daily_stats(user_id: int) -> Dict[str, Any]:
         from database.models import User
         from sqlalchemy import select
         
-        today = date.today()
+        today = datetime.now(timezone.utc).date()
         
         async with get_session() as session:
             # Получаем статистику за день
@@ -386,7 +434,7 @@ async def get_daily_stats(user_id: int) -> Dict[str, Any]:
     except Exception as e:
         logger.error(f"Error getting daily stats for user {user_id}: {e}")
         return {
-            'date': date.today().isoformat(),
+            'date': datetime.now(timezone.utc).date().isoformat(),
             'calories': 0,
             'protein': 0,
             'fat': 0,

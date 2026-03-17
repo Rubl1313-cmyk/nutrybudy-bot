@@ -13,6 +13,7 @@ from database.db import get_session
 from database.models import User, Meal, Activity, DrinkEntry, WeightEntry
 from keyboards.reply_v2 import get_main_keyboard_v2
 from keyboards.inline import get_progress_menu
+from utils.daily_stats import get_period_stats
 
 logger = logging.getLogger(__name__)
 router = Router()
@@ -51,25 +52,18 @@ async def progress_callback(callback: CallbackQuery, state: FSMContext):
                 )
                 return
             
-            # Ğ�Ğ¿Ñ€ĞµĞ´ĞµĞ»Ñ�ĞµĞ¼ Ğ¿ĞµÑ€Ğ¸Ğ¾Ğ´
-            from datetime import datetime, timedelta
-            today = datetime.now().date()
-            
+            # ĞŸĞ¾Ğ»ÑƒÑ‡Ğ°ĞµĞ¼ Ñ�Ñ‚Ğ°Ñ‚Ğ¸Ñ�Ñ‚Ğ¸ĞºÑƒ Ñ� ÑƒÑ‡ĞµÑ‚Ğ¾Ğ¼ Ñ‡Ğ°Ñ�Ğ¾Ğ²Ğ¾Ğ³Ğ¾ Ğ¿Ğ¾Ñ�Ñ�Ğ°
             if period == "day":
-                start_date = today
                 period_name = "Ñ�ĞµĞ³Ğ¾Ğ´Ğ½Ñ�"
             elif period == "week":
-                start_date = today - timedelta(days=7)
                 period_name = "Ğ·Ğ° Ğ½ĞµĞ´ĞµĞ»Ñ�"
             elif period == "month":
-                start_date = today - timedelta(days=30)
                 period_name = "Ğ·Ğ° Ğ¼ĞµÑ�Ñ�Ñ†"
             else:  # all
-                start_date = today - timedelta(days=365)
-                period_name = "Ğ·Ğ° Ğ²Ñ�Ñ‘ Ğ²Ñ€ĞµĞ¼Ñ�"
+                period_name = "Ğ·Ğ° Ğ²Ñ�Ñ' Ğ²Ñ€ĞµĞ¼Ñ�"
             
-            # ĞŸĞ¾Ğ»ÑƒÑ‡Ğ°ĞµĞ¼ Ñ�Ñ‚Ğ°Ñ‚Ğ¸Ñ�Ñ‚Ğ¸ĞºÑƒ
-            stats = await get_period_stats(user.id, session, start_date)
+            # Ğ�Ğ¿Ñ€ĞµĞ´ĞµĞ»Ñ�ĞµĞ¼ Ñ�Ñ‚Ğ°Ñ‚Ğ¸Ñ�Ñ‚Ğ¸ĞºÑƒ
+            stats = await get_period_stats(user.id, period, user.timezone)
             
             # Ğ¤Ğ¾Ñ€Ğ¼Ğ¸Ñ€ÑƒĞµĞ¼ Ñ�Ğ¾Ğ¾Ğ±Ñ‰ĞµĞ½Ğ¸Ğµ
             message_text = await create_progress_message(user, stats, period_name)
@@ -95,9 +89,9 @@ async def get_period_stats(user_id: int, session, start_date) -> dict:
     """ĞŸĞ¾Ğ»ÑƒÑ‡ĞµĞ½Ğ¸Ğµ Ñ�Ñ‚Ğ°Ñ‚Ğ¸Ñ�Ñ‚Ğ¸ĞºĞ¸ Ğ·Ğ° Ğ¿ĞµÑ€Ğ¸Ğ¾Ğ´ - Ğ¸Ñ�Ğ¿Ğ¾Ğ»ÑŒĞ·ÑƒĞµÑ‚ unified Ñ„ÑƒĞ½ĞºÑ†Ğ¸Ñ� Ğ¸Ğ· utils.daily_stats"""
     from utils.daily_stats import get_period_stats as unified_get_period_stats
     
-    # Ğ�Ğ¿Ñ€ĞµĞ´ĞµĞ»Ñ�ĞµĞ¼ Ğ¿ĞµÑ€Ğ¸Ğ¾Ğ´ Ğ½Ğ° Ğ¾Ñ�Ğ½Ğ¾Ğ²Ğµ start_date
-    from datetime import datetime, timedelta
-    today = datetime.now().date()
+    # Ğ�Ğ¿Ñ€ĞµĞ´ĞµĞ»Ñ�ĞµĞ¼ Ğ¿ĞµÑ€Ğ¸Ğ¾Ğ´# Определяем период на основе start_date
+    from datetime import datetime, timedelta, timezone
+    today = datetime.now(timezone.utc).date()
     
     if start_date == today:
         period = "day"
@@ -181,9 +175,8 @@ async def cmd_stats(message: Message, state: FSMContext):
             )
             return
         
-        # Ğ¡Ñ‚Ğ°Ñ‚Ğ¸Ñ�Ñ‚Ğ¸ĞºĞ° Ğ·Ğ° Ñ�ĞµĞ³Ğ¾Ğ´Ğ½Ñ�
-        today = message.date
-        stats = await get_period_stats(user.id, session, today)
+        # Ğ¡Ñ‚Ğ°Ñ‚Ğ¸Ñ�Ñ‚Ğ¸ĞºĞ° Ğ·Ğ° Ñ�ĞµĞ³Ğ¾Ğ´Ğ½Ñ� Ñ� ÑƒÑ‡ĞµÑ‚Ğ¾Ğ¼ Ñ‡Ğ°Ñ�Ğ¾Ğ²Ğ¾Ğ³Ğ¾ Ğ¿Ğ¾Ñ�Ñ�Ğ°
+        stats = await get_period_stats(user.id, "day", user.timezone)
         
         # ĞŸÑ€Ğ¾Ğ³Ñ€ĞµÑ�Ñ�
         calorie_progress = (stats['total_calories'] / user.daily_calorie_goal * 100) if user.daily_calorie_goal > 0 else 0

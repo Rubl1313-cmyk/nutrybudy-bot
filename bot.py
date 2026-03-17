@@ -269,6 +269,36 @@ async def main():
     
     logging.info("All routers included in correct order for FSM")
     
+    # Запускаем фоновую задачу для очистки неактивных агентов
+    async def cleanup_agents_task():
+        while True:
+            try:
+                from services.langchain_agent import LangChainAgent
+                LangChainAgent.cleanup_inactive(max_age_hours=1)
+                logger.info("Agent cleanup completed")
+            except Exception as e:
+                logger.error(f"Agent cleanup error: {e}")
+            await asyncio.sleep(3600)  # Каждый час
+    
+    asyncio.create_task(cleanup_agents_task())
+    logger.info("Agent cleanup task started")
+    
+    # Запускаем фоновую задачу для ежедневного обновления нормы воды
+    async def periodic_weather_update():
+        """Запускает обновление раз в 24 часа."""
+        while True:
+            try:
+                from services.weather_updater import update_all_users_water_goal
+                await update_all_users_water_goal()
+                logger.info("Daily water goal update completed")
+            except Exception as e:
+                logger.exception(f"Error in periodic weather update: {e}")
+            # Ждём 24 часа (86400 секунд)
+            await asyncio.sleep(86400)
+    
+    asyncio.create_task(periodic_weather_update())
+    logger.info("Weather update task started")
+    
     app = create_app()
     app['bot'] = bot
     app['dp'] = dp  # ĞŸĞµÑ€ĞµĞ´Ğ°ĞµĞ¼ Ğ´Ğ¸Ñ�Ğ¿ĞµÑ‚Ñ‡ĞµÑ€ Ğ² ĞºĞ¾Ğ½Ñ‚ĞµĞºÑ�Ñ‚

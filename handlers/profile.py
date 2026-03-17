@@ -14,7 +14,9 @@ from database.db import get_session
 from database.models import User
 from keyboards.reply_v2 import get_main_keyboard_v2, get_profile_keyboard
 from keyboards.reply import get_gender_keyboard
+from keyboards.timezone_keyboard import get_timezone_keyboard, get_timezone_confirm_keyboard
 from utils.states import ProfileStates
+from utils.timezone_utils import parse_timezone_input, get_timezone_display_name
 from utils.localized_commands import create_localized_command_filter
 
 logger = logging.getLogger(__name__)
@@ -430,11 +432,28 @@ async def process_goal(message: Message, state: FSMContext):
 @router.message(ProfileStates.city)
 async def process_city(message: Message, state: FSMContext):
     """Ğ�Ğ±Ñ€Ğ°Ğ±Ğ¾Ñ‚ĞºĞ° Ğ³Ğ¾Ñ€Ğ¾Ğ´Ğ° Ğ¸ Ñ�Ğ¾Ñ…Ñ€Ğ°Ğ½ĞµĞ½Ğ¸Ğµ Ğ¾Ñ�Ğ½Ğ¾Ğ²Ğ½Ğ¾Ğ³Ğ¾ Ğ¿Ñ€Ğ¾Ñ„Ğ¸Ğ»Ñ�"""
+    # ĞŸĞ¾Ğ»ÑƒÑ‡Ğ°ĞµĞ¼ Ñ€ĞµĞ°Ğ»ÑŒĞ½ÑƒÑ� Ğ¿Ğ¾Ğ»Ğµ city Ğ¸Ğ· FSMContext
     city = message.text.strip()
     await state.update_data(city=city)
     
-    # Ğ¡Ğ½Ğ°Ñ‡Ğ°Ğ»Ğ° Ñ�Ğ¾Ñ…Ñ€Ğ°Ğ½Ñ�ĞµĞ¼ Ğ¾Ñ�Ğ½Ğ¾Ğ²Ğ½Ğ¾Ğ¹ Ğ¿Ñ€Ğ¾Ñ„Ğ¸Ğ»ÑŒ (Ğ±ĞµĞ· Ğ¾Ñ‡Ğ¸Ñ�Ñ‚ĞºĞ¸ Ñ�Ğ¾Ñ�Ñ‚Ğ¾Ñ�Ğ½Ğ¸Ñ�)
-    await save_profile(message, state, clear_state=False)
+    # ĞŸĞ¾Ğ»ÑƒÑ‡Ğ°ĞµĞ¼ Ñ‚ĞµĞ¼Ğ¿ĞµÑ€Ğ°Ñ‚ÑƒÑ€Ñƒ Ð´Ğ»Ñ� Ğ¿Ğ¾Ğ³Ğ¾Ğ´Ñ‹
+    try:
+        from services.weather import get_temperature
+        temperature = await get_temperature(city)
+        await state.update_data(temperature=temperature)
+    except Exception as e:
+        logger.warning(f"Ğ�Ğµ ÑƒĞ´Ğ°Ğ»Ğ¾Ñ�ÑŒ Ğ¿Ğ¾Ğ»ÑƒÑ‡Ğ¸Ñ‚ÑŒ Ñ‚ĞµĞ¼Ğ¿ĞµÑ€Ğ°Ñ‚ÑƒÑ€Ñƒ Ğ´Ğ»Ñ� {city}: {e}")
+        await state.update_data(temperature=20.0)
+    
+    # Ğ—Ğ°Ğ¿Ñ€Ğ°ÑˆĞ¸Ğ²Ğ°ĞµĞ¼ Ğ§Ğ°Ñ�Ğ¾Ğ²Ğ¾Ğ¹ Ğ¿Ğ¾Ñ�Ñ�
+    await message.answer(
+        "ğ•ï¸ <b>Ğ’Ğ°Ñˆ Ñ‡Ğ°Ñ�Ğ¾Ğ²Ğ¾Ğ¹ Ğ¿Ğ¾Ñ�Ñ�:</b>\n\n"
+        "Ğ’Ñ‹Ğ±ĞµÑ€Ğ¸Ñ‚Ğµ Ğ²Ğ°Ñˆ Ğ³Ğ¾Ñ€Ğ¾Ğ´ Ğ¸Ğ· Ñ�Ğ¿Ğ¸Ñ�ĞºĞ°, Ñ‡Ñ‚Ğ¾Ğ±Ñ‹ Ğ²Ğ²ĞµÑ�Ñ‚Ğ¸ Ñ�Ğ¼ĞµÑ‰ĞµĞ½Ğ¸Ğµ Ð¼Ğ°Ğ½ÑƒĞ°Ğ»ÑŒĞ½Ğ¾.\n\n"
+        "ğŸ¡Ğ°Ğ²Ğ¸Ğ»ÑŒĞ½Ğ¾Ğµ Ñ‡Ğ°Ñ�Ğ¾Ğ²Ğ¾Ğ³Ğ¾ Ğ¿Ğ¾Ñ�Ñ�Ğ° Ð¾Ğ±ĞµÑ�Ğ¿ĞµÑ‡Ğ¸Ğ²Ğ°ĞµÑ‚ Ñ�Ñ‚Ğ°Ñ‚Ğ¸Ñ�Ñ‚Ğ¸ĞºÑƒ Ğ¿Ğ¾ ÑƒĞ¶Ğ´Ğ°Ñ�!",
+        reply_markup=get_timezone_keyboard(),
+        parse_mode="HTML"
+    )
+    await state.set_state(ProfileStates.timezone)
     
     # Ğ—Ğ°Ñ‚ĞµĞ¼ Ğ½Ğ°Ñ‡Ğ¸Ğ½Ğ°ĞµĞ¼ Ñ€Ğ°Ñ�ÑˆĞ¸Ñ€ĞµĞ½Ğ½ÑƒÑ� Ğ°Ğ½Ñ‚Ñ€Ğ¾Ğ¿Ğ¾Ğ¼ĞµÑ‚Ñ€Ğ¸Ñ�
     await ask_measurement(
@@ -621,7 +640,7 @@ async def save_profile(message: Message, state: FSMContext, clear_state=False):
     profile_data = await state.get_data()
     
     # ĞŸÑ€Ğ¾Ğ²ĞµÑ€Ñ�ĞµĞ¼ Ğ½Ğ°Ğ»Ğ¸Ñ‡Ğ¸Ğµ Ğ¾Ğ±Ñ�Ğ·Ğ°Ñ‚ĞµĞ»ÑŒĞ½Ñ‹Ñ… Ğ¿Ğ¾Ğ»ĞµĞ¹
-    required_fields = ['weight', 'height', 'age', 'gender', 'activity_level', 'goal', 'city']
+    required_fields = ['weight', 'height', 'age', 'gender', 'activity_level', 'goal', 'city', 'timezone']
     missing = [field for field in required_fields if field not in profile_data]
     if missing:
         await message.answer(
@@ -638,6 +657,7 @@ async def save_profile(message: Message, state: FSMContext, clear_state=False):
     activity_level = profile_data['activity_level']
     goal = profile_data['goal']
     city = profile_data['city']
+    timezone = profile_data.get('timezone', 'UTC')
     
     # ĞŸÑ€ĞµĞ¾Ğ±Ñ€Ğ°Ğ·ÑƒĞµĞ¼ Ñ€ÑƒÑ�Ñ�ĞºĞ¾Ğµ Ğ½Ğ°Ğ·Ğ²Ğ°Ğ½Ğ¸Ğµ Ğ°ĞºÑ‚Ğ¸Ğ²Ğ½Ğ¾Ñ�Ñ‚Ğ¸ Ğ² Ğ°Ğ½Ğ³Ğ»Ğ¸Ğ¹Ñ�ĞºĞ¸Ğ¹ ĞºĞ¾Ğ´ Ğ´Ğ»Ñ� ĞºĞ°Ğ»ÑŒĞºÑƒĞ»Ñ�Ñ‚Ğ¾Ñ€Ğ°
     activity_map_calc = {
@@ -697,6 +717,7 @@ async def save_profile(message: Message, state: FSMContext, clear_state=False):
             user.activity_level = activity_level  # Ñ�Ğ¾Ñ…Ñ€Ğ°Ğ½Ñ�ĞµĞ¼ Ñ�Ñ‚Ñ€Ğ¾ĞºÑƒ, Ğ° Ğ½Ğµ Ñ‡Ğ¸Ñ�Ğ»Ğ¾
             user.goal = goal
             user.city = city
+            user.timezone = timezone
             user.daily_calorie_goal = round(daily_calorie_goal)
             user.daily_protein_goal = round(daily_protein_goal)
             user.daily_fat_goal = round(daily_fat_goal)
@@ -1115,11 +1136,8 @@ async def process_edit_weight(message: Message, state: FSMContext):
             
             daily_calorie_goal, daily_protein_goal, daily_fat_goal, daily_carbs_goal = nutrition_goals
             
-            try:
-                from services.weather import get_temperature
-                temperature = await get_temperature(user.city)
-            except:
-                temperature = 20.0
+            # Используем температуру, полученную при вводе города
+            temperature = profile_data.get('temperature', 20.0)
                 
             water_goal = calculate_water_goal(
                 weight=weight,

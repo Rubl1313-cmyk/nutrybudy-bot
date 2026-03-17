@@ -13,7 +13,7 @@ from database.db import get_session
 from database.models import User, DrinkEntry
 from keyboards.reply_v2 import get_main_keyboard_v2
 from utils.drink_parser import parse_drink
-from utils.water_parser import parse_water_amount
+from utils.daily_stats import get_daily_water
 from services.soup_service import save_drink
 from utils.localized_commands import create_localized_command_filter
 
@@ -62,30 +62,20 @@ async def cmd_drink_stats(message: Message, state: FSMContext):
             )
             return
         
-        # Ğ¡Ñ‚Ğ°Ñ‚Ğ¸Ñ�Ñ‚Ğ¸ĞºĞ° Ğ·Ğ° Ñ�ĞµĞ³Ğ¾Ğ´Ğ½Ñ�
-        from datetime import datetime, timedelta
-        today = message.date
+        # Ğ¡Ñ‚Ğ°Ñ‚Ğ¸Ñ�Ñ‚Ğ¸ĞºĞ° Ğ·Ğ° Ñ�ĞµĞ³Ğ¾Ğ´Ğ½Ñ� Ñ� ÑƒÑ‡ĞµÑ‚Ğ¾Ğ¼ Ñ‡Ğ°Ñ�Ğ¾Ğ²Ğ¾Ğ³Ğ¾ Ğ¿Ğ¾Ñ�Ñ�Ğ°
+        from utils.timezone_utils import get_user_local_date
         
         # Ğ�Ğ±Ñ‰Ğ°Ñ� Ğ¶Ğ¸Ğ´ĞºĞ¾Ñ�Ñ‚ÑŒ
-        drink_result = await session.execute(
-            select(func.sum(DrinkEntry.volume_ml)).where(
-                DrinkEntry.user_id == user.id,
-                func.date(DrinkEntry.datetime) == today
-            )
-        )
-        total_volume = drink_result.scalar() or 0
+        total_volume = await get_daily_water(user.id, user.timezone)
         
         # ĞšĞ°Ğ»Ğ¾Ñ€Ğ¸Ğ¸ Ğ¸Ğ· Ğ½Ğ°Ğ¿Ğ¸Ñ‚ĞºĞ¾Ğ²
-        calories_result = await session.execute(
-            select(func.sum(DrinkEntry.calories)).where(
-                DrinkEntry.user_id == user.id,
-                func.date(DrinkEntry.datetime) == today
-            )
-        )
-        total_calories = calories_result.scalar() or 0
+        from utils.daily_stats import get_daily_drink_calories
+        total_calories = await get_daily_drink_calories(user.id, user.timezone)
         
         # Ğ¡Ñ‚Ğ°Ñ‚Ğ¸Ñ�Ñ‚Ğ¸ĞºĞ° Ğ·Ğ° Ğ½ĞµĞ´ĞµĞ»Ñ�
-        week_ago = today - timedelta(days=7)
+        from datetime import timedelta
+        today_local = get_user_local_date(user.timezone)
+        week_ago = today_local - timedelta(days=7)
         
         week_result = await session.execute(
             select(func.sum(DrinkEntry.volume_ml)).where(
@@ -149,28 +139,18 @@ async def process_drink(message: Message, state: FSMContext):
         # Ğ¡Ğ¾Ñ…Ñ€Ğ°Ğ½Ñ�ĞµĞ¼ Ğ½Ğ°Ğ¿Ğ¸Ñ‚Ğ¾Ğº
         result = await save_drink(message.from_user.id, message.text)
         
-        # ĞŸĞ¾Ğ»ÑƒÑ‡Ğ°ĞµĞ¼ Ñ�Ñ‚Ğ°Ñ‚Ğ¸Ñ�Ñ‚Ğ¸ĞºÑƒ Ğ·Ğ° Ñ�ĞµĞ³Ğ¾Ğ´Ğ½Ñ�
+        # ĞŸĞ¾Ğ»ÑƒÑ‡Ğ°ĞµĞ¼ Ñ�Ñ‚Ğ°Ñ‚Ğ¸Ñ�Ñ‚Ğ¸ĞºÑƒ Ğ·Ğ° Ñ�ĞµĞ³Ğ¾Ğ´Ğ½Ñ� Ñ� ÑƒÑ‡ĞµÑ‚Ğ¾Ğ¼ Ñ‡Ğ°Ñ�Ğ¾Ğ²Ğ¾Ğ³Ğ¾ Ğ¿Ğ¾Ñ�Ñ�Ğ°
         async with get_session() as session:
             user_result = await session.execute(
                 select(User).where(User.telegram_id == message.from_user.id)
             )
             user = user_result.scalar_one_or_none()
             
-            today_result = await session.execute(
-                select(func.sum(DrinkEntry.volume_ml)).where(
-                    DrinkEntry.user_id == user.id,
-                    func.date(DrinkEntry.datetime) == message.date
-                )
-            )
-            total_volume = today_result.scalar() or 0
+            # Ğ�Ğ±Ñ‰Ğ°Ñ� Ğ¶Ğ¸Ğ´ĞºĞ¾Ñ�Ñ‚ÑŒ
+            total_volume = await get_daily_water(user.id, user.timezone)
             
-            calories_result = await session.execute(
-                select(func.sum(DrinkEntry.calories)).where(
-                    DrinkEntry.user_id == user.id,
-                    func.date(DrinkEntry.datetime) == message.date
-                )
-            )
-            total_calories = calories_result.scalar() or 0
+            # ĞšĞ°Ğ»Ğ¾Ñ€Ğ¸Ğ¸ Ğ¸Ğ· Ğ½Ğ°Ğ¿Ğ¸Ñ‚ĞºĞ¾Ğ²
+            total_calories = await get_daily_drink_calories(user.id, user.timezone)
             
             progress = (total_volume / user.daily_water_goal) * 100
             

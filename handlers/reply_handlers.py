@@ -27,8 +27,17 @@ async def food_button_handler(message: Message, state: FSMContext):
 async def water_button_handler(message: Message, state: FSMContext):
     await state.clear()
     await message.answer(
-        "ğŸ’§ <b>Ğ—Ğ°Ğ¿Ğ¸Ñ�ÑŒ Ğ²Ğ¾Ğ´Ñ‹</b>\n\n"
-        "Ğ�Ğ°Ğ¿Ğ¸ÑˆĞ¸Ñ‚Ğµ, Ñ�ĞºĞ¾Ğ»ÑŒĞºĞ¾ Ğ²Ñ‹ Ğ²Ñ‹Ğ¿Ğ¸Ğ»Ğ¸ (Ğ½Ğ°Ğ¿Ñ€Ğ¸Ğ¼ĞµÑ€, Â«250 Ğ¼Ğ»Â» Ğ¸Ğ»Ğ¸ Â«2 Ñ�Ñ‚Ğ°ĞºĞ°Ğ½Ğ°Â»).",
+        "💧 <b>Записать воду</b>\n\n"
+        "Напишите, сколько вы выпили (например, «250 мл» или «2 стакана»).",
+        parse_mode="HTML"
+    )
+
+@router.message(F.text.contains("Ğ—Ğ°Ğ¿Ğ¸Ñ�Ğ°Ñ‚ÑŒ ÑˆĞ°Ğ³Ğ¸"))
+async def steps_button_handler(message: Message, state: FSMContext):
+    await state.clear()
+    await message.answer(
+        "👟 <b>Записать шаги</b>\n\n"
+        "Напишите, сколько шагов вы сделали (например, «10000 шагов» или «8500»).",
         parse_mode="HTML"
     )
 

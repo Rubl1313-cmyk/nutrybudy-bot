@@ -9,6 +9,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from services.food_api import get_product_variants
 from services.ai_processor import ai_processor
 from services.soup_service import is_soup, save_soup
+from services.soup_service import save_drink
 from utils.safe_parser import safe_parse_float
 
 logger = logging.getLogger(__name__)

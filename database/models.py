@@ -31,6 +31,7 @@ class User(Base):
     daily_steps_goal = Column(Integer, default=10000)  # Ğ¦ĞµĞ»ÑŒ Ğ¿Ğ¾ ÑˆĞ°Ğ³Ğ°Ğ¼ Ğ¿Ğ¾ ÑƒĞ¼Ğ¾Ğ»Ñ‡Ğ°Ğ½Ğ¸Ñ�
     daily_activity_goal = Column(Integer, default=300)  # Ğ¦ĞµĞ»ÑŒ Ğ¿Ğ¾ ĞºĞ°Ğ»Ğ¾Ñ€Ğ¸Ñ�Ğ¼ Ğ°ĞºÑ‚Ğ¸Ğ²Ğ½Ğ¾Ñ�Ñ‚Ğ¸ Ğ¿Ğ¾ ÑƒĞ¼Ğ¾Ğ»Ñ‡Ğ°Ğ½Ğ¸Ñ�
     reminder_enabled = Column(Boolean, default=True)
+    timezone = Column(String(50), default='UTC')  # Ğ§Ğ°Ñ�Ğ¾Ğ²Ğ¾Ğ¹ Ğ¿Ğ¾Ñ�Ğ°Ñ� Ğ¿Ğ¾Ğ»ÑŒĞ·Ğ¾Ğ²Ğ°Ñ‚ĞµĞ»Ñ� (IANA Ğ¤Ğ¾Ñ€Ğ¼Ğ°Ñ‚)
     
     # ĞŸĞ¾Ğ»Ñ� Ğ°Ğ½Ñ‚Ñ€Ğ¾Ğ¿Ğ¾Ğ¼ĞµÑ‚Ñ€Ğ¸Ğ¸ Ğ´Ğ»Ñ� Ñ€Ğ°Ñ�ÑˆĞ¸Ñ€ĞµĞ½Ğ½Ğ¾Ğ³Ğ¾ Ğ°Ğ½Ğ°Ğ»Ğ¸Ğ·Ğ°
     neck_cm = Column(Float, nullable=True)          # Ğ�Ğ±Ñ…Ğ²Ğ°Ñ‚ ÑˆĞµĞ¸ (Ğ¶ĞµĞ½Ñ‰Ğ¸Ğ½Ñ‹/Ğ±Ğ¸Ñ†ĞµĞ¿Ñ� Ğ¼ÑƒĞ¶Ñ‡Ğ¸Ğ½Ñ‹)

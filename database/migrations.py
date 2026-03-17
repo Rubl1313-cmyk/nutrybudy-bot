@@ -3,8 +3,9 @@
 """
 import logging
 from typing import List, Dict, Any
-from datetime import datetime
-from sqlalchemy import text, inspect
+import sqlalchemy
+from .migration_add_timezone import add_timezone_column
+import text, inspect
 import re
 from database.db import get_session
 from database.models import Base
@@ -147,19 +148,27 @@ class MigrationManager:
             """
 -- Добавляем поля source и reference_id в drink_entries (PostgreSQL)
 -- Для SQLite эти поля будут добавлены через init_db()
-INSERT INTO drink_entries (user_id, name, volume_ml, calories, source, datetime)
-SELECT user_id, 'вода', volume_ml, 0.0, 'drink', datetime
-FROM water_entries
-WHERE NOT EXISTS (
-    SELECT 1 FROM drink_entries 
-    WHERE drink_entries.user_id = water_entries.user_id 
-    AND drink_entries.datetime = water_entries.datetime
-    AND drink_entries.name = 'вода'
-);
 
--- Удаляем таблицу water_entries
-DROP TABLE IF EXISTS water_entries;
-            """,
+-- Проверяем существование таблицы water_entries перед миграцией
+-- Это предотвратит ошибку при повторном применении миграции
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'water_entries') THEN
+        INSERT INTO drink_entries (user_id, name, volume_ml, calories, source, datetime)
+        SELECT user_id, 'вода', volume_ml, 0.0, 'drink', datetime
+        FROM water_entries
+        WHERE NOT EXISTS (
+            SELECT 1 FROM drink_entries 
+            WHERE drink_entries.user_id = water_entries.user_id 
+            AND drink_entries.datetime = water_entries.datetime
+            AND drink_entries.name = 'вода'
+        );
+        
+        -- Удаляем таблицу water_entries
+        DROP TABLE water_entries;
+    END IF;
+END $$;
+""",
             """
 -- Откат миграции (если понадобится)
 -- Создаем таблицу water_entries
@@ -207,6 +216,17 @@ ALTER TABLE drink_entries DROP COLUMN IF EXISTS reference_id;
             """
             -- Удаление поля целевого веса (если понадобится откат)
             ALTER TABLE users DROP COLUMN IF EXISTS goal_weight;
+            """
+        ))
+        
+        # Версия 1.8.0: Добавление часового пояса
+        self.migrations.append(Migration(
+            "1.8.0",
+            "Add timezone field for user timezone tracking",
+            add_timezone_column(),
+            """
+            -- Удаление поля timezone (если понадобится откат)
+            ALTER TABLE users DROP COLUMN IF EXISTS timezone;
             """
         ))
         
@@ -264,12 +284,42 @@ ALTER TABLE drink_entries DROP COLUMN IF EXISTS reference_id;
                     for cmd in migration.up_sql.split(';'):
                         cmd = cmd.strip()
                         if cmd and not cmd.startswith('--'):
-                            # Для SQLite заменяем ALTER TABLE ... IF NOT EXISTS на проверку
-                            if is_sqlite and "ALTER TABLE" in cmd and "IF NOT EXISTS" in cmd:
-                                # Пропускаем миграции с IF NOT EXISTS для SQLite
-                                logger.info(f"Skipping SQLite-incompatible command: {cmd}")
-                                continue
-                            commands.append(cmd)
+                            # Для SQLite заменяем несовместимые команды
+                            if is_sqlite:
+                                if "CREATE INDEX IF NOT EXISTS" in cmd:
+                                    # Для SQLite проверяем существование таблицы и индекса
+                                    index_name = cmd.split("CREATE INDEX IF NOT EXISTS ")[1].split(" ")[0]
+                                    table_name = cmd.split("ON ")[1].split("(")[0].strip()
+                                    
+                                    # Проверяем существование таблицы
+                                    table_check = f"SELECT name FROM sqlite_master WHERE type='table' AND name='{table_name}'"
+                                    table_result = await session.execute(text(table_check))
+                                    
+                                    if table_result.fetchone():
+                                        # Проверяем существование индекса
+                                        check_cmd = f"SELECT name FROM sqlite_master WHERE type='index' AND name='{index_name}'"
+                                        result = await session.execute(text(check_cmd))
+                                        if not result.fetchone():
+                                            # Создаем индекс без IF NOT EXISTS
+                                            sqlite_cmd = cmd.replace("CREATE INDEX IF NOT EXISTS", "CREATE INDEX")
+                                            commands.append(sqlite_cmd)  # Добавляем команду
+                                        else:
+                                            logger.info(f"Index {index_name} already exists, skipping")
+                                    else:
+                                        logger.info(f"Table {table_name} does not exist, skipping index {index_name}")
+                                        continue
+                                elif "ALTER TABLE" in cmd and "IF NOT EXISTS" in cmd:
+                                    # Пропускаем миграции с IF NOT EXISTS для SQLite
+                                    logger.info(f"Skipping SQLite-incompatible command: {cmd}")
+                                    continue
+                                elif "DO $$" in cmd or "END $$" in cmd or "END IF" in cmd or ("BEGIN" in cmd and "IF" in cmd):
+                                    # Пропускаем PostgreSQL-specific блоки для SQLite
+                                    logger.info(f"Skipping PostgreSQL-specific block: {cmd[:50]}...")
+                                    continue
+                                else:
+                                    commands.append(cmd)
+                            else:
+                                commands.append(cmd)
                     
                     logger.info(f"Executing {len(commands)} SQL commands for migration {migration.version}")
                     

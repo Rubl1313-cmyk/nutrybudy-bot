@@ -56,6 +56,7 @@ class ProfileStates(StatesGroup):
     waiting_for_goal = State()
     waiting_for_activity_level = State()
     waiting_for_city = State()
+    waiting_for_timezone = State()
     
     # Антропометрия при настройке
     waiting_for_neck = State()      # Обхват шеи для женщин

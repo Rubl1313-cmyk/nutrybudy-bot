@@ -13,30 +13,36 @@ from aiogram.types import Message
 logger = logging.getLogger(__name__)
 
 class RateLimiter:
-    """Базовый класс rate limiting"""
+    """Базовый класс rate limiting с потокобезопасностью"""
     
     def __init__(self, max_requests: int, time_window: int):
         self.max_requests = max_requests
         self.time_window = time_window
         self.requests = defaultdict(deque)
+        self._locks = {}  # Блокировки для каждого ключа
     
     async def is_allowed(self, key: str) -> bool:
         """Проверка, разрешен ли запрос"""
-        now = time.time()
-        requests = self.requests[key]
+        # Получаем или создаем блокировку для этого ключа
+        if key not in self._locks:
+            self._locks[key] = asyncio.Lock()
         
-        # Удаляем старые запросы
-        while requests and requests[0] <= now - self.time_window:
-            requests.popleft()
-        
-        # Проверяем лимит
-        if len(requests) >= self.max_requests:
-            logger.warning(f"Rate limit exceeded for {key}: {len(requests)}/{self.max_requests}")
-            return False
-        
-        # Добавляем новый запрос
-        requests.append(now)
-        return True
+        async with self._locks[key]:
+            now = time.time()
+            requests = self.requests[key]
+            
+            # Удаляем старые запросы
+            while requests and requests[0] <= now - self.time_window:
+                requests.popleft()
+            
+            # Проверяем лимит
+            if len(requests) >= self.max_requests:
+                logger.warning(f"Rate limit exceeded for {key}: {len(requests)}/{self.max_requests}")
+                return False
+            
+            # Добавляем новый запрос
+            requests.append(now)
+            return True
     
     async def wait_if_needed(self, key: str):
         """Ожидание, если превышен лимит"""

@@ -46,7 +46,7 @@ async def set_bot_commands(bot: Bot):
         BotCommand(command="help", description="ğŸ“š ĞŸĞ¾Ğ¼Ğ¾Ñ‰ÑŒ"),
         BotCommand(command="set_profile", description="ğŸ‘¤ Ğ�Ğ°Ñ�Ñ‚Ñ€Ğ¾Ğ¸Ñ‚ÑŒ Ğ¿Ñ€Ğ¾Ñ„Ğ¸Ğ»ÑŒ"),
         BotCommand(command="profile", description="ğŸ‘¤ ĞœĞ¾Ğ¹ Ğ¿Ñ€Ğ¾Ñ„Ğ¸Ğ»ÑŒ"),
-        BotCommand(command="log_food", description="ğŸ�½ï¸� Ğ”Ğ¾Ğ±Ğ°Ğ²Ğ¸Ñ‚ÑŒ ĞµĞ´Ñƒ"),
+        BotCommand(command="log_food", description="ğŸ½ï¸ Ğ”Ğ¾Ğ±Ğ°Ğ²Ğ¸Ñ‚ÑŒ ĞµĞ´Ñƒ"),
         BotCommand(command="log_drink", description="ğŸ’§ Ğ—Ğ°Ğ¿Ğ¸Ñ�Ğ°Ñ‚ÑŒ Ğ¶Ğ¸Ğ´ĞºĞ¾Ñ�Ñ‚ÑŒ"),
         BotCommand(command="log_water", description="ğŸ’§ Ğ—Ğ°Ğ¿Ğ¸Ñ�Ğ°Ñ‚ÑŒ Ğ²Ğ¾Ğ´Ñƒ"),
         BotCommand(command="drink", description="ğŸ’§ Ğ¡Ñ‚Ğ°Ñ‚Ğ¸Ñ�Ñ‚Ğ¸ĞºĞ° Ğ¶Ğ¸Ğ´ĞºĞ¾Ñ�Ñ‚Ğ¸"),
@@ -248,18 +248,15 @@ async def main():
     # 2. ĞœĞµĞ´Ğ¸Ğ° Ğ¸ AI Ğ¾Ğ±Ñ€Ğ°Ğ±Ğ¾Ñ‚Ñ‡Ğ¸ĞºĞ¸
     # 3. Ğ£Ğ½Ğ¸Ğ²ĞµÑ€Ñ�Ğ°Ğ»ÑŒĞ½Ñ‹Ğ¹ Ğ¾Ğ±Ñ€Ğ°Ğ±Ğ¾Ñ‚Ñ‡Ğ¸Ğº Ñ‚ĞµĞºÑ�Ñ‚Ğ° (universal) - Ğ´Ğ¾Ğ»Ğ¶ĞµĞ½ Ğ±Ñ‹Ñ‚ÑŒ Ğ¿Ğ¾Ñ�Ğ»ĞµĞ´Ğ½Ğ¸Ğ¼
     
-    from handlers import universal, common, profile, drinks, progress, activity, weight, meal_plan, ai_assistant, reply_handlers, achievements, food_clarification
+    from handlers import universal, common, profile, drinks, progress, activity, weight, meal_plan, ai_assistant, reply_handlers, achievements, food_clarification, food
 
     # ĞšĞ¾Ğ¼Ğ°Ğ½Ğ´Ñ‹ Ğ¸ Ñ�Ğ¿ĞµÑ†Ğ¸Ñ„Ğ¸Ñ‡ĞµÑ�ĞºĞ¸Ğµ Ğ¾Ğ±Ñ€Ğ°Ğ±Ğ¾Ñ‚Ñ‡Ğ¸ĞºĞ¸ (Ğ´Ğ¾Ğ»Ğ¶Ğ½Ñ‹ Ğ±Ñ‹Ñ‚ÑŒ Ğ¿ĞµÑ€Ğ²Ñ‹Ğ¼Ğ¸)
     dp.include_router(common.router)           # /start, /help, /cancel Ğ¸ Ñ‚.Ğ´.
     dp.include_router(profile.router)          # /set_profile, /profile
     dp.include_router(drinks.router)           # /log_drink, /drink (ĞµĞ´Ğ¸Ğ½Ğ°Ñ� Ñ�Ğ¸Ñ�Ñ‚ĞµĞ¼Ğ° Ğ²Ğ¾Ğ´Ñ‹)
-    dp.include_router(progress.router)         # /progress, /stats
-    dp.include_router(activity.router)         # /fitness, /activity
-    dp.include_router(weight.router)           # /log_weight, /weight
-    dp.include_router(meal_plan.router)        # /meal_plan, /diet
     dp.include_router(ai_assistant.router)     # /ask, /ai, /weather
     dp.include_router(achievements.router)     # /achievements
+    dp.include_router(food.router)             # /log_food
     
     # Ğ�Ğ±Ñ€Ğ°Ğ±Ğ¾Ñ‚Ñ‡Ğ¸ĞºĞ¸ reply-ĞºĞ½Ğ¾Ğ¿Ğ¾Ğº â€“ Ğ´Ğ¾Ğ»Ğ¶Ğ½Ñ‹ Ğ±Ñ‹Ñ‚ÑŒ ĞŸĞ•Ğ Ğ•Ğ” ÑƒĞ½Ğ¸Ğ²ĞµÑ€Ñ�Ğ°Ğ»ÑŒĞ½Ñ‹Ğ¼
     dp.include_router(reply_handlers.router)   # Reply-ĞºĞ½Ğ¾Ğ¿ĞºĞ¸

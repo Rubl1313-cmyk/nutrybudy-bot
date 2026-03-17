@@ -38,6 +38,11 @@ async def universal_handler(message: Message, state: FSMContext):
         elif message.voice:
             await handle_voice(message, agent)
         elif message.text:
+            # Сначала пробуем обработать через food_clarification
+            from handlers.food_clarification import handle_food_text
+            if await handle_food_text(message, state):
+                return  # Если food_clarification обработал, выходим
+            # Иначе передаем в AI агент
             await agent.handle_text(message.text, message)
         else:
             await message.answer(

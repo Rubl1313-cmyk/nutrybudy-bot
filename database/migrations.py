@@ -316,9 +316,29 @@ DROP TABLE drink_entries_backup;
                                         logger.info(f"Table {table_name} does not exist, skipping index {index_name}")
                                         continue
                                 elif "ALTER TABLE" in cmd and "IF NOT EXISTS" in cmd:
-                                    # Пропускаем миграции с IF NOT EXISTS для SQLite
-                                    logger.info(f"Skipping SQLite-incompatible command: {cmd}")
-                                    continue
+                                    # Для SQLite обрабатываем ALTER TABLE с IF NOT EXISTS
+                                    table_name = cmd.split("ALTER TABLE ")[1].split(" ")[0]
+                                    column_name = cmd.split("ADD COLUMN IF NOT EXISTS ")[1].split(" ")[0]
+                                    
+                                    # Проверяем существование таблицы
+                                    table_check = f"SELECT name FROM sqlite_master WHERE type='table' AND name='{table_name}'"
+                                    table_result = await session.execute(text(table_check))
+                                    
+                                    if table_result.fetchone():
+                                        # Проверяем существование колонки через PRAGMA
+                                        pragma_cmd = f"PRAGMA table_info({table_name})"
+                                        pragma_result = await session.execute(text(pragma_cmd))
+                                        columns = [row[1] for row in pragma_result.fetchall()]
+                                        
+                                        if column_name not in columns:
+                                            # Создаем колонку без IF NOT EXISTS
+                                            sqlite_cmd = cmd.replace("ADD COLUMN IF NOT EXISTS", "ADD COLUMN")
+                                            commands.append(sqlite_cmd)
+                                        else:
+                                            logger.info(f"Column {column_name} already exists in table {table_name}")
+                                    else:
+                                        logger.info(f"Table {table_name} does not exist, skipping column {column_name}")
+                                        continue
                                 elif "DO $$" in cmd or "END $$" in cmd or "END IF" in cmd or ("BEGIN" in cmd and "IF" in cmd):
                                     # Пропускаем PostgreSQL-specific блоки для SQLite
                                     logger.info(f"Skipping PostgreSQL-specific block: {cmd[:50]}...")

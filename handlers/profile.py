@@ -357,9 +357,9 @@ async def show_activity_keyboard(message: Message, state: FSMContext):
         reply_markup=keyboard,
         parse_mode="HTML"
     )
-    await state.set_state(ProfileStates.activity)
+    await state.set_state(ProfileStates.waiting_for_activity_level)
     
-@router.message(ProfileStates.activity)
+@router.message(ProfileStates.waiting_for_activity_level)
 async def process_activity(message: Message, state: FSMContext):
     """Ğ�Ğ±Ñ€Ğ°Ğ±Ğ¾Ñ‚ĞºĞ° ÑƒÑ€Ğ¾Ğ²Ğ½Ñ� Ğ°ĞºÑ‚Ğ¸Ğ²Ğ½Ğ¾Ñ�Ñ‚Ğ¸"""
     activity = message.text.lower()

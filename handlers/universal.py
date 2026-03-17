@@ -1,7 +1,8 @@
 """
 handlers/universal.py
-Ğ£Ğ½Ğ¸Ğ²ĞµÑ€Ñ�Ğ°Ğ»ÑŒĞ½Ñ‹Ğ¹ Ğ¾Ğ±Ñ€Ğ°Ğ±Ğ¾Ñ‚Ñ‡Ğ¸Ğº Ğ²Ñ�ĞµÑ… Ñ�Ğ¾Ğ¾Ğ±Ñ‰ĞµĞ½Ğ¸Ğ¹ Ñ‡ĞµÑ€ĞµĞ· LangChain Agent
+Универсальный обработчик всех сообщений через LangChain Agent
 """
+import asyncio
 import logging
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery

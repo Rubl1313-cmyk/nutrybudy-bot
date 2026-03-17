@@ -265,14 +265,14 @@ async def main():
             
             # ĞŸÑ€Ğ¾Ğ²ĞµÑ€ÑŒĞµĞ¼ Ğ³Ğ»Ğ¾Ğ±Ğ°Ğ»ÑŒĞ½Ñ‹Ğ¹ Ğ»Ğ¸Ğ¼Ğ¸Ñ‚
             if not await global_rate_limiter.is_allowed():
-                logger.warning(f"ğŸš« Global rate limit exceeded for user {user_id}")
-                await event.answer("âš ï¸ Ğ¡Ğ»Ğ¸ÑˆĞºĞ¾Ğ¼ Ğ¼Ğ½Ğ¾Ğ³Ğ¾ Ğ·Ğ°Ğ¿Ñ€Ğ¾ÑŒĞ¾Ğ²! ĞŸĞ¾Ğ¿Ñ€Ğ¾Ğ±ÑƒĞ¹Ñ‚Ğµ Ğ¿Ğ¾Ğ·Ğ¶Ğµ.")
+                logger.warning(f"[LIMIT] Global rate limit exceeded for user {user_id}")
+                await event.answer("[WARN] Слишком много запросов! Попробуйте позже.")
                 return
             
             # ĞŸÑ€Ğ¾Ğ²ĞµÑ€ÑŒĞµĞ¼ Ğ¿Ğ¾Ğ»ÑŒĞ·Ğ¾Ğ²Ğ°Ñ‚ĞµĞ»ÑŒÑŒĞºĞ¸Ğ¹ Ğ»Ğ¸Ğ¼Ğ¸Ñ‚
             if not await user_rate_limiter.is_allowed(user_id, 'general'):
-                logger.warning(f"ğŸš« User rate limit exceeded for user {user_id}")
-                await event.answer("âš ï¸ Ğ¡Ğ»Ğ¸ÑˆĞºĞ¾Ğ¼ Ğ¼Ğ½Ğ¾Ğ³Ğ¾ Ğ·Ğ°Ğ¿Ñ€Ğ¾ÑŒĞ¾Ğ²! ĞŸĞ¾Ğ´Ğ¾Ğ¶Ğ´Ğ¸Ñ‚Ğµ Ğ½ĞµĞ¼Ğ½Ğ¾Ğ³Ğ¾.")
+                logger.warning(f"[LIMIT] User rate limit exceeded for user {user_id}")
+                await event.answer("[WARN] Слишком много запросов! Подождите немного.")
                 return
             
             return await handler(event, data)

@@ -30,6 +30,39 @@ from utils.rate_limiter import user_rate_limiter, global_rate_limiter
 
 load_dotenv('.env')
 
+# Validate required environment variables
+required_vars = {
+    'BOT_TOKEN': 'Telegram Bot Token',
+    'REDIS_URL': 'Redis connection URL'
+}
+
+optional_vars = {
+    'WEBHOOK_URL': 'Webhook URL (optional for polling)',
+    'ADMIN_ID': 'Admin user ID for notifications',
+    'CLOUDFLARE_ACCOUNT_ID': 'Cloudflare Account ID',
+    'CLOUDFLARE_API_TOKEN': 'Cloudflare API Token',
+    'LOG_TO_FILE': 'Enable file logging'
+}
+
+missing_vars = []
+for var, desc in required_vars.items():
+    if not os.getenv(var):
+        missing_vars.append(f"{var} ({desc})")
+
+if missing_vars:
+    logger.error("❌ Missing required environment variables:")
+    for var in missing_vars:
+        logger.error(f"  - {var}")
+    logger.error("Please set these variables in your .env file or environment.")
+    sys.exit(1)
+
+# Log optional variables that are missing
+for var, desc in optional_vars.items():
+    if not os.getenv(var):
+        logger.warning(f"⚠️ Optional variable not set: {var} ({desc})")
+
+logger.info("✅ Environment variables validated")
+
 
 TOKEN = os.getenv("BOT_TOKEN")
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")
@@ -226,16 +259,20 @@ async def main():
         async def __call__(self, handler, event: Message, data: dict):
             user_id = event.from_user.id
             
-            # ĞŸÑ€Ğ¾Ğ²ĞµÑ€Ñ�ĞµĞ¼ Ğ³Ğ»Ğ¾Ğ±Ğ°Ğ»ÑŒĞ½Ñ‹Ğ¹ Ğ»Ğ¸Ğ¼Ğ¸Ñ‚
+            # Skip rate limiting for commands to ensure they're always processed
+            if event.text and event.text.startswith('/'):
+                return await handler(event, data)
+            
+            # ĞŸÑ€Ğ¾Ğ²ĞµÑ€ÑŒĞµĞ¼ Ğ³Ğ»Ğ¾Ğ±Ğ°Ğ»ÑŒĞ½Ñ‹Ğ¹ Ğ»Ğ¸Ğ¼Ğ¸Ñ‚
             if not await global_rate_limiter.is_allowed():
                 logger.warning(f"ğŸš« Global rate limit exceeded for user {user_id}")
-                await event.answer("âš ï¸� Ğ¡Ğ»Ğ¸ÑˆĞºĞ¾Ğ¼ Ğ¼Ğ½Ğ¾Ğ³Ğ¾ Ğ·Ğ°Ğ¿Ñ€Ğ¾Ñ�Ğ¾Ğ²! ĞŸĞ¾Ğ¿Ñ€Ğ¾Ğ±ÑƒĞ¹Ñ‚Ğµ Ğ¿Ğ¾Ğ·Ğ¶Ğµ.")
+                await event.answer("âš ï¸ Ğ¡Ğ»Ğ¸ÑˆĞºĞ¾Ğ¼ Ğ¼Ğ½Ğ¾Ğ³Ğ¾ Ğ·Ğ°Ğ¿Ñ€Ğ¾ÑŒĞ¾Ğ²! ĞŸĞ¾Ğ¿Ñ€Ğ¾Ğ±ÑƒĞ¹Ñ‚Ğµ Ğ¿Ğ¾Ğ·Ğ¶Ğµ.")
                 return
             
-            # ĞŸÑ€Ğ¾Ğ²ĞµÑ€Ñ�ĞµĞ¼ Ğ¿Ğ¾Ğ»ÑŒĞ·Ğ¾Ğ²Ğ°Ñ‚ĞµĞ»ÑŒÑ�ĞºĞ¸Ğ¹ Ğ»Ğ¸Ğ¼Ğ¸Ñ‚
+            # ĞŸÑ€Ğ¾Ğ²ĞµÑ€ÑŒĞµĞ¼ Ğ¿Ğ¾Ğ»ÑŒĞ·Ğ¾Ğ²Ğ°Ñ‚ĞµĞ»ÑŒÑŒĞºĞ¸Ğ¹ Ğ»Ğ¸Ğ¼Ğ¸Ñ‚
             if not await user_rate_limiter.is_allowed(user_id, 'general'):
                 logger.warning(f"ğŸš« User rate limit exceeded for user {user_id}")
-                await event.answer("âš ï¸� Ğ¡Ğ»Ğ¸ÑˆĞºĞ¾Ğ¼ Ğ¼Ğ½Ğ¾Ğ³Ğ¾ Ğ·Ğ°Ğ¿Ñ€Ğ¾Ñ�Ğ¾Ğ²! ĞŸĞ¾Ğ´Ğ¾Ğ¶Ğ´Ğ¸Ñ‚Ğµ Ğ½ĞµĞ¼Ğ½Ğ¾Ğ³Ğ¾.")
+                await event.answer("âš ï¸ Ğ¡Ğ»Ğ¸ÑˆĞºĞ¾Ğ¼ Ğ¼Ğ½Ğ¾Ğ³Ğ¾ Ğ·Ğ°Ğ¿Ñ€Ğ¾ÑŒĞ¾Ğ²! ĞŸĞ¾Ğ´Ğ¾Ğ¶Ğ´Ğ¸Ñ‚Ğµ Ğ½ĞµĞ¼Ğ½Ğ¾Ğ³Ğ¾.")
                 return
             
             return await handler(event, data)
@@ -280,6 +317,9 @@ async def main():
                 logger.info("Agent cleanup completed")
             except Exception as e:
                 logger.error(f"Agent cleanup error: {e}")
+                logger.info("Retrying agent cleanup in 5 minutes due to error")
+                await asyncio.sleep(300)  # Wait 5 minutes on error
+                continue
             await asyncio.sleep(3600)  # Каждый час
     
     asyncio.create_task(cleanup_agents_task())
@@ -295,6 +335,9 @@ async def main():
                 logger.info("Daily water goal update completed")
             except Exception as e:
                 logger.exception(f"Error in periodic weather update: {e}")
+                logger.info("Retrying weather update in 1 hour due to error")
+                await asyncio.sleep(3600)  # Wait 1 hour on error
+                continue
             # Ждём 24 часа (86400 секунд)
             await asyncio.sleep(86400)
     
@@ -311,6 +354,9 @@ async def main():
                 logger.info("FSM cleanup completed")
             except Exception as e:
                 logger.exception(f"Error in periodic FSM cleanup: {e}")
+                logger.info("Retrying FSM cleanup in 30 minutes due to error")
+                await asyncio.sleep(1800)  # Wait 30 minutes on error
+                continue
             # Ждём 1 час (3600 секунд)
             await asyncio.sleep(3600)
     

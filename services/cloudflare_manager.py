@@ -22,11 +22,10 @@ class CloudflareAIManager:
         self.api_token = os.getenv("CLOUDFLARE_API_TOKEN")
         
         if not self.account_id or not self.api_token:
-            error_msg = "â�Œ FATAL: Cloudflare AI credentials not found!"
-            logger.error(error_msg)
-            logger.error("Set CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN in environment variables.")
-            logger.error("Bot cannot start without AI functionality.")
-            raise RuntimeError(error_msg)
+            logger.warning("âš ï¸� Cloudflare AI credentials not found! AI functionality will be limited.")
+            logger.warning("Set CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN in environment variables for full AI functionality.")
+            self.base_url = None
+            self.headers = None
         else:
             self.base_url = f"https://api.cloudflare.com/client/v4/accounts/{self.account_id}/ai/run/"
             self.headers = {
@@ -110,7 +109,7 @@ class CloudflareAIManager:
                             logger.warning(f"âš ï¸� Rate limit for {model_key} (attempt {attempt+1})")
                         else:
                             error_text = await resp.text()
-                            logger.warning(f"âš ï¸� Attempt {attempt+1} failed for {model_key}: {resp.status} - {error_text[:200]}")
+                            logger.warning(f"âš ï¸ Attempt {attempt+1} failed for {model_key}: {resp.status} - HTTP error")
                             
             except asyncio.TimeoutError:
                 logger.warning(f"â�±ï¸� Timeout for {model_key} (attempt {attempt+1})")
@@ -470,7 +469,8 @@ class CloudflareAIManager:
             form_data = aiohttp.FormData()
             form_data.add_field('audio', audio_bytes, filename='audio.ogg', content_type='audio/ogg')
             
-            async with aiohttp.ClientSession() as session:
+            timeout = aiohttp.ClientTimeout(total=60, connect=10, sock_read=30)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
                 async with session.post(url, headers={"Authorization": f"Bearer {self.api_token}"}, data=form_data) as resp:
                     if resp.status == 200:
                         result = await resp.json()

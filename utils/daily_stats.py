@@ -236,12 +236,12 @@ async def get_period_stats(user_id: int, period: str = "day", user_timezone: str
             
             # Вес
             if start_date:
-                weight_conditions = [WeightEntry.user_id == user_id, WeightEntry.datetime >= start_date]
+                weight_conditions = [Weight.user_id == user_id, Weight.datetime >= start_date]
             else:
-                weight_conditions = [WeightEntry.user_id == user_id]
+                weight_conditions = [Weight.user_id == user_id]
                 
             weight_result = await session.execute(
-                select(WeightEntry.weight, WeightEntry.datetime).where(*weight_conditions).order_by(WeightEntry.datetime.desc())
+                select(Weight.weight, Weight.datetime).where(*weight_conditions).order_by(Weight.datetime.desc())
             )
             weight_entries = weight_result.all()
             
@@ -294,14 +294,23 @@ async def get_daily_calories(user_id: int) -> int:
     """
     try:
         from database.db import get_session
-        from database.models import Meal
+        from database.models import Meal, User
         from sqlalchemy import select, func
         
         async with get_session() as session:
+            # Получаем часовой пояс пользователя
+            user_result = await session.execute(
+                select(User.timezone).where(User.telegram_id == user_id)
+            )
+            user_tz = user_result.scalar() or 'UTC'
+            
+            # Получаем локальную дату пользователя
+            today_local = get_user_local_date(user_tz)
+            
             result = await session.execute(
                 select(func.sum(Meal.calories)).where(
                     Meal.user_id == user_id,
-                    func.date(Meal.datetime) == datetime.now(timezone.utc).date()
+                    func.date(Meal.datetime) == today_local
                 )
             )
             return result.scalar() or 0
@@ -322,14 +331,23 @@ async def get_daily_protein(user_id: int) -> int:
     """
     try:
         from database.db import get_session
-        from database.models import Meal
+        from database.models import Meal, User
         from sqlalchemy import select, func
         
         async with get_session() as session:
+            # Получаем часовой пояс пользователя
+            user_result = await session.execute(
+                select(User.timezone).where(User.telegram_id == user_id)
+            )
+            user_tz = user_result.scalar() or 'UTC'
+            
+            # Получаем локальную дату пользователя
+            today_local = get_user_local_date(user_tz)
+            
             result = await session.execute(
                 select(func.sum(Meal.protein)).where(
                     Meal.user_id == user_id,
-                    func.date(Meal.datetime) == datetime.now(timezone.utc).date()
+                    func.date(Meal.datetime) == today_local
                 )
             )
             return result.scalar() or 0
@@ -350,14 +368,23 @@ async def get_daily_fat(user_id: int) -> int:
     """
     try:
         from database.db import get_session
-        from database.models import Meal
+        from database.models import Meal, User
         from sqlalchemy import select, func
         
         async with get_session() as session:
+            # Получаем часовой пояс пользователя
+            user_result = await session.execute(
+                select(User.timezone).where(User.telegram_id == user_id)
+            )
+            user_tz = user_result.scalar() or 'UTC'
+            
+            # Получаем локальную дату пользователя
+            today_local = get_user_local_date(user_tz)
+            
             result = await session.execute(
                 select(func.sum(Meal.fat)).where(
                     Meal.user_id == user_id,
-                    func.date(Meal.datetime) == datetime.now(timezone.utc).date()
+                    func.date(Meal.datetime) == today_local
                 )
             )
             return result.scalar() or 0
@@ -378,14 +405,23 @@ async def get_daily_carbs(user_id: int) -> int:
     """
     try:
         from database.db import get_session
-        from database.models import Meal
+        from database.models import Meal, User
         from sqlalchemy import select, func
         
         async with get_session() as session:
+            # Получаем часовой пояс пользователя
+            user_result = await session.execute(
+                select(User.timezone).where(User.telegram_id == user_id)
+            )
+            user_tz = user_result.scalar() or 'UTC'
+            
+            # Получаем локальную дату пользователя
+            today_local = get_user_local_date(user_tz)
+            
             result = await session.execute(
                 select(func.sum(Meal.carbs)).where(
                     Meal.user_id == user_id,
-                    func.date(Meal.datetime) == datetime.now(timezone.utc).date()
+                    func.date(Meal.datetime) == today_local
                 )
             )
             return result.scalar() or 0
@@ -409,27 +445,34 @@ async def get_daily_stats(user_id: int) -> Dict[str, Any]:
         from database.models import User
         from sqlalchemy import select
         
-        today = datetime.now(timezone.utc).date()
-        
         async with get_session() as session:
-            # Получаем статистику за день
-            calories = await get_daily_calories(user_id)
-            protein = await get_daily_protein(user_id)
-            fat = await get_daily_fat(user_id)
-            carbs = await get_daily_carbs(user_id)
-            water = await get_daily_water(user_id)
-            calories_burned = await get_daily_activity_calories(user_id)
+            # Получаем часовой пояс пользователя
+            user_result = await session.execute(
+                select(User.timezone).where(User.telegram_id == user_id)
+            )
+            user_tz = user_result.scalar() or 'UTC'
             
-            return {
-                'date': today.isoformat(),
-                'calories': calories,
-                'protein': protein,
-                'fat': fat,
-                'carbs': carbs,
-                'water_ml': water,
-                'calories_burned': calories_burned,
-                'net_calories': calories - calories_burned
-            }
+            # Получаем локальную дату пользователя
+            today_local = get_user_local_date(user_tz)
+        
+        # Получаем статистику за день
+        calories = await get_daily_calories(user_id)
+        protein = await get_daily_protein(user_id)
+        fat = await get_daily_fat(user_id)
+        carbs = await get_daily_carbs(user_id)
+        water = await get_daily_water(user_id)
+        calories_burned = await get_daily_activity_calories(user_id)
+        
+        return {
+            'date': today_local.isoformat(),
+            'calories': calories,
+            'protein': protein,
+            'fat': fat,
+            'carbs': carbs,
+            'water_ml': water,
+            'calories_burned': calories_burned,
+            'net_calories': calories - calories_burned
+        }
             
     except Exception as e:
         logger.error(f"Error getting daily stats for user {user_id}: {e}")

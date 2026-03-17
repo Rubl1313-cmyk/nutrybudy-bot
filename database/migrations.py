@@ -6,7 +6,8 @@ from typing import List, Dict, Any
 from datetime import datetime
 import sqlalchemy
 from .migration_add_timezone import add_timezone_column
-import text, inspect
+from sqlalchemy import text
+import inspect
 import re
 from database.db import get_session
 from database.models import Base

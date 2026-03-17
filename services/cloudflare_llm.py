@@ -5,7 +5,7 @@ Cloudflare LLM обёртка для LangChain с поддержкой function 
 import os
 import logging
 from typing import List, Dict, Any, Optional
-from langchain_community.chat_models import ChatCloudflareWorkersAI
+from langchain_community.chat_models.cloudflare_workersai import ChatCloudflareWorkersAI
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 
 logger = logging.getLogger(__name__)

@@ -193,16 +193,16 @@ async def cmd_stats(message: Message, state: FSMContext):
         stats = await get_period_stats(user.id, session, today)
         
         # Прогресс
-        calorie_progress = (stats['total_cal_consumed'] / user.daily_calorie_goal * 100) if user.daily_calorie_goal > 0 else 0
-        water_progress = (stats['total_water'] / user.daily_water_goal * 100) if user.daily_water_goal > 0 else 0
+        calorie_progress = (stats['total_calories'] / user.daily_calorie_goal * 100) if user.daily_calorie_goal > 0 else 0
+        water_progress = (stats['total_water_ml'] / user.daily_water_goal * 100) if user.daily_water_goal > 0 else 0
         
         await message.answer(
             f"📊 <b>Статистика за сегодня</b>\n\n"
-            f"🔥 Калории: {stats['total_cal_consumed']:.0f}/{user.daily_calorie_goal:.0f} ккал ({calorie_progress:.1f}%)\n"
-            f"💧 Вода: {stats['total_water']:.0f}/{user.daily_water_goal:.0f} мл ({water_progress:.1f}%)\n"
-            f"🥪 Белки: {stats['total_protein']:.1f}/{user.daily_protein_goal:.0f} г\n"
-            f"🧈 Жиры: {stats['total_fat']:.1f}/{user.daily_fat_goal:.0f} г\n"
-            f"🍞 Углеводы: {stats['total_carbs']:.1f}/{user.daily_carbs_goal:.0f} г\n\n"
+            f"🔥 Калории: {stats['total_calories']:.0f}/{user.daily_calorie_goal:.0f} ккал ({calorie_progress:.1f}%)\n"
+            f"💧 Вода: {stats['total_water_ml']:.0f}/{user.daily_water_goal:.0f} мл ({water_progress:.1f}%)\n"
+            f"🥪 Белки: {stats['total_protein']:.1f} г\n"
+            f"🧈 Жиры: {stats['total_fat']:.1f} г\n"
+            f"🍞 Углеводы: {stats['total_carbs']:.1f} г\n\n"
             f"🍽️ Приемов пищи: {stats['meals_count']}\n"
             f"🏃 Активность: {stats['activities_count']} раз",
             reply_markup=get_main_keyboard_v2(),

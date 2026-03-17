@@ -109,10 +109,27 @@ class LangChainAgent:
                 if not food_items:
                     return "❌ Не удалось распознать продукты в вашем сообщении."
                 
-                # Сохраняем через save_food_to_db с детальными ингредиентами
+                # Конвертируем данные из формата _per_100g в формат для save_food_to_db
+                converted_food_items = []
+                for item in food_items:
+                    weight = item.get('quantity', 0)
+                    factor = weight / 100.0
+                    
+                    converted_item = {
+                        'name': item.get('name', 'Неизвестный продукт'),
+                        'quantity': weight,
+                        'unit': item.get('unit', 'г'),
+                        'calories': item.get('calories_per_100g', 0) * factor,
+                        'protein': item.get('protein_per_100g', 0) * factor,
+                        'fat': item.get('fat_per_100g', 0) * factor,
+                        'carbs': item.get('carbs_per_100g', 0) * factor
+                    }
+                    converted_food_items.append(converted_item)
+                
+                # Сохраняем через save_food_to_db с конвертированными ингредиентами
                 save_result = await food_save_service.save_food_to_db(
                     self.user_id, 
-                    food_items, 
+                    converted_food_items, 
                     meal_type
                 )
                 

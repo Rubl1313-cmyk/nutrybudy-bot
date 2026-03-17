@@ -174,7 +174,10 @@ async def transcribe_voice(message: Message) -> str:
     """
     Транскрибация голосового сообщения
     """
-    try:
+    from utils.retry_utils import with_retry
+    
+    @with_retry(max_attempts=3, delay_seconds=1)
+    async def _transcribe():
         from services.cloudflare_manager import cf_manager
         
         # Скачиваем голосовое сообщение
@@ -197,7 +200,9 @@ async def transcribe_voice(message: Message) -> str:
                 parse_mode="HTML"
             )
             return None
-            
+    
+    try:
+        return await _transcribe()
     except Exception as e:
         logger.error(f"❌ Error in transcribe_voice: {e}")
         await message.answer(

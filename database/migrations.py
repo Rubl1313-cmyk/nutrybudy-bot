@@ -94,7 +94,7 @@ class MigrationManager:
             "1.2.0",
             "Add anthropometry fields to users table",
             """
-            -- Добавляем поля антропометрии если их нет
+            -- Добавляем поля антропометрии если их нет (PostgreSQL)
             ALTER TABLE users ADD COLUMN IF NOT EXISTS neck_cm FLOAT;
             ALTER TABLE users ADD COLUMN IF NOT EXISTS waist_cm FLOAT;
             ALTER TABLE users ADD COLUMN IF NOT EXISTS hip_cm FLOAT;
@@ -262,17 +262,25 @@ ALTER TABLE drink_entries DROP COLUMN IF EXISTS reference_id;
             return [row[0] for row in result.fetchall()]
     
     async def apply_migration(self, migration: Migration):
-        """Применение миграции с поддержкой asyncpg и детальным логированием"""
+        """Применение миграции с поддержкой PostgreSQL и SQLite"""
         logger.info(f"Applying migration {migration.version}: {migration.description}")
         
         async with get_session() as session:
             try:
                 if migration.up_sql:
+                    # Определяем тип базы данных
+                    is_sqlite = "sqlite" in str(session.bind.url)
+                    
                     # Разделяем по точке с запятой, фильтруем пустые строки и комментарии
                     commands = []
                     for cmd in migration.up_sql.split(';'):
                         cmd = cmd.strip()
                         if cmd and not cmd.startswith('--'):
+                            # Для SQLite заменяем ALTER TABLE ... IF NOT EXISTS на проверку
+                            if is_sqlite and "ALTER TABLE" in cmd and "IF NOT EXISTS" in cmd:
+                                # Пропускаем миграции с IF NOT EXISTS для SQLite
+                                logger.info(f"Skipping SQLite-incompatible command: {cmd}")
+                                continue
                             commands.append(cmd)
                     
                     logger.info(f"Executing {len(commands)} SQL commands for migration {migration.version}")

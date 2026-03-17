@@ -210,6 +210,118 @@ async def get_period_stats(user_id: int, period: str = "day") -> Dict[str, Any]:
             'net_calories': 0
         }
 
+async def get_daily_calories(user_id: int) -> int:
+    """
+    Получает калории из еды за сегодня
+    
+    Args:
+        user_id: ID пользователя
+        
+    Returns:
+        int: Калории из еды
+    """
+    try:
+        from database.db import get_session
+        from database.models import Meal
+        from sqlalchemy import select, func
+        
+        async with get_session() as session:
+            result = await session.execute(
+                select(func.sum(Meal.calories)).where(
+                    Meal.user_id == user_id,
+                    func.date(Meal.datetime) == date.today()
+                )
+            )
+            return result.scalar() or 0
+            
+    except Exception as e:
+        logger.error(f"Error getting daily calories for user {user_id}: {e}")
+        return 0
+
+async def get_daily_protein(user_id: int) -> int:
+    """
+    Получает белок из еды за сегодня
+    
+    Args:
+        user_id: ID пользователя
+        
+    Returns:
+        int: Белок в граммах
+    """
+    try:
+        from database.db import get_session
+        from database.models import Meal
+        from sqlalchemy import select, func
+        
+        async with get_session() as session:
+            result = await session.execute(
+                select(func.sum(Meal.protein)).where(
+                    Meal.user_id == user_id,
+                    func.date(Meal.datetime) == date.today()
+                )
+            )
+            return result.scalar() or 0
+            
+    except Exception as e:
+        logger.error(f"Error getting daily protein for user {user_id}: {e}")
+        return 0
+
+async def get_daily_fat(user_id: int) -> int:
+    """
+    Получает жиры из еды за сегодня
+    
+    Args:
+        user_id: ID пользователя
+        
+    Returns:
+        int: Жиры в граммах
+    """
+    try:
+        from database.db import get_session
+        from database.models import Meal
+        from sqlalchemy import select, func
+        
+        async with get_session() as session:
+            result = await session.execute(
+                select(func.sum(Meal.fat)).where(
+                    Meal.user_id == user_id,
+                    func.date(Meal.datetime) == date.today()
+                )
+            )
+            return result.scalar() or 0
+            
+    except Exception as e:
+        logger.error(f"Error getting daily fat for user {user_id}: {e}")
+        return 0
+
+async def get_daily_carbs(user_id: int) -> int:
+    """
+    Получает углеводы из еды за сегодня
+    
+    Args:
+        user_id: ID пользователя
+        
+    Returns:
+        int: Углеводы в граммах
+    """
+    try:
+        from database.db import get_session
+        from database.models import Meal
+        from sqlalchemy import select, func
+        
+        async with get_session() as session:
+            result = await session.execute(
+                select(func.sum(Meal.carbs)).where(
+                    Meal.user_id == user_id,
+                    func.date(Meal.datetime) == date.today()
+                )
+            )
+            return result.scalar() or 0
+            
+    except Exception as e:
+        logger.error(f"Error getting daily carbs for user {user_id}: {e}")
+        return 0
+
 async def get_daily_stats(user_id: int) -> Dict[str, Any]:
     """
     Получает статистику за текущий день
@@ -218,13 +330,12 @@ async def get_daily_stats(user_id: int) -> Dict[str, Any]:
         user_id: ID пользователя
         
     Returns:
-        dict: Статистика за день
+        Dict с дневной статистикой
     """
     try:
         from database.db import get_session
-        from database.models import Meal, DrinkEntry, Activity
-        from sqlalchemy import select, func
-        from datetime import date
+        from database.models import User
+        from sqlalchemy import select
         
         today = date.today()
         

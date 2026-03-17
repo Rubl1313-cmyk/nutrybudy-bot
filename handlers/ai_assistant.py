@@ -91,10 +91,13 @@ async def process_ai_question(message: Message, state: FSMContext):
         # Отправляем "печатает..."
         await message.bot.send_chat_action(message.chat.id, "typing")
         
+        # Конвертируем историю в формат для cloudflare_manager
+        converted_history = [{'role': item['role'], 'content': item['message']} for item in conversation_history]
+        
         # Запрос к AI с правильными параметрами и историей
         response_dict = await cf_manager.ai_assistant(
             message=user_question,
-            history=conversation_history,  # Передаем историю
+            history=converted_history,  # Передаем историю в правильном формате
             user_profile=user_profile
         )
         

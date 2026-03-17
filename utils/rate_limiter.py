@@ -49,6 +49,10 @@ class UserRateLimiter(RateLimiter):
     def __init__(self):
         # Читаем лимиты из переменных окружения
         self.limits = {
+            'general': RateLimiter(
+                max_requests=int(os.getenv('RATE_LIMIT_GENERAL_REQUESTS', '30')),  # 30 по умолчанию
+                time_window=int(os.getenv('RATE_LIMIT_GENERAL_WINDOW', '60'))     # 60 секунд
+            ),
             'ai_requests': RateLimiter(
                 max_requests=int(os.getenv('RATE_LIMIT_AI_REQUESTS', '20')),  # 20 по умолчанию
                 time_window=int(os.getenv('RATE_LIMIT_AI_WINDOW', '60'))     # 60 секунд
@@ -68,7 +72,8 @@ class UserRateLimiter(RateLimiter):
         }
         
         # Логируем установленные лимиты
-        logger.info(f"Rate limits configured: AI={self.limits['ai_requests'].max_requests}/min, "
+        logger.info(f"Rate limits configured: General={self.limits['general'].max_requests}/min, "
+                   f"AI={self.limits['ai_requests'].max_requests}/min, "
                    f"DB={self.limits['db_operations'].max_requests}/min, "
                    f"Photo={self.limits['photo_upload'].max_requests}/min, "
                    f"Profile={self.limits['profile_updates'].max_requests}/min")

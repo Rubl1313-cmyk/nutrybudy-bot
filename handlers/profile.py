@@ -980,31 +980,7 @@ async def process_edit_bicep(message: Message, state: FSMContext):
     """Обработка изменения обхвата бицепса"""
     await process_measurement_edit(message, state, "bicep_cm", "обхват бицепса")
 
-# Обработчики для расширенных антропометрических замеров (только message обработчики)
-@router.message(ProfileStates.waiting_for_chest)
-async def process_chest(message: Message, state: FSMContext):
-    """Обработка изменения обхвата груди"""
-    await process_measurement_edit(message, state, "chest_cm", "обхват груди")
-
-@router.message(ProfileStates.waiting_for_forearm)
-async def process_forearm(message: Message, state: FSMContext):
-    """Обработка изменения обхвата предплечья"""
-    await process_measurement_edit(message, state, "forearm_cm", "обхват предплечья")
-
-@router.message(ProfileStates.waiting_for_calf)
-async def process_calf(message: Message, state: FSMContext):
-    """Обработка изменения обхвата голени"""
-    await process_measurement_edit(message, state, "calf_cm", "обхват голени")
-
-@router.message(ProfileStates.waiting_for_shoulder_width)
-async def process_shoulder_width(message: Message, state: FSMContext):
-    """Обработка изменения ширины плеч"""
-    await process_measurement_edit(message, state, "shoulder_width_cm", "ширина плеч")
-
-@router.message(ProfileStates.waiting_for_hip_width)
-async def process_hip_width(message: Message, state: FSMContext):
-    """Обработка изменения ширины таза"""
-    await process_measurement_edit(message, state, "hip_width_cm", "ширина таза")
+# Дублирующие обработчики удалены - используется универсальный process_measurement_edit
 
 async def process_measurement_edit(message: Message, state: FSMContext, field_name: str, field_display: str):
     """Универсальная функция обработки изменения замера"""

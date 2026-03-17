@@ -270,26 +270,25 @@ async def _create_progress_message(user, stats: dict, period_name: str, period: 
     """Создание сообщения с прогрессом"""
     
     # Определяем статусы и мотивацию
-    calorie_status = "🎯" if stats['avg_cal_consumed'] <= user.daily_calorie_goal else "⚠️"
-    water_status = "💧" if stats['avg_water'] >= user.daily_water_goal else "💦"
+    calorie_status = "🎯" if stats['total_calories'] <= user.daily_calorie_goal else "⚠️"
+    water_status = "💧" if stats['total_water_ml'] >= user.daily_water_goal else "💦"
     
     # Формируем сообщение
     message = f"📊 <b>Статистика {period_name}</b>\n\n"
     
     # Калории
-    message += f"🔥 <b>Калории:</b> {stats['total_cal_consumed']:.0f} ккал\n"
-    message += f"   Среднее: {stats['avg_cal_consumed']:.0f} ккал/день {calorie_status}\n"
-    message += f"   Норма: {user.daily_calorie_goal:.0f} ккал\n\n"
+    message += f"🔥 <b>Калории:</b> {stats['total_calories']:.0f} ккал\n"
+    message += f"   Норма: {user.daily_calorie_goal:.0f} ккал {calorie_status}\n\n"
     
     # БЖУ
-    message += f"🥩 <b>Белки:</b> {stats['total_protein']:.0f}г (среднее {stats['avg_protein']:.0f}г/день)\n"
-    message += f"🥑 <b>Жиры:</b> {stats['total_fat']:.0f}г (среднее {stats['avg_fat']:.0f}г/день)\n"
-    message += f"🍚 <b>Углеводы:</b> {stats['total_carbs']:.0f}г (среднее {stats['avg_carbs']:.0f}г/день)\n\n"
+    message += f"🍽️ <b>БЖУ:</b>\n"
+    message += f"   🥩 Белки: {stats['total_protein']:.1f}г\n"
+    message += f"   🥑 Жиры: {stats['total_fat']:.1f}г\n"
+    message += f"   🍚 Углеводы: {stats['total_carbs']:.1f}г\n\n"
     
     # Вода
-    message += f"💧 <b>Вода:</b> {stats['total_water']:.0f} мл\n"
-    message += f"   Среднее: {stats['avg_water']:.0f} мл/день {water_status}\n"
-    message += f"   Норма: {user.daily_water_goal:.0f} мл\n\n"
+    message += f"💧 <b>Вода:</b> {stats['total_water_ml']:.0f} мл\n"
+    message += f"   Норма: {user.daily_water_goal:.0f} мл {water_status}\n\n"
     
     # Активность
     if stats['total_cal_burned'] > 0:

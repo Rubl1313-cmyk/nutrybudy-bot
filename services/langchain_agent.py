@@ -196,7 +196,7 @@ class LangChainAgent:
                 return weight_card(
                     weight_kg, 
                     result.get('change'), 
-                    self.user.target_weight
+                    self.user.goal_weight
                 )
                 
             except Exception as e:
@@ -219,7 +219,7 @@ class LangChainAgent:
                     duration_min, 
                     result.get('calories', 0),
                     daily_total,
-                    self.user.daily_activity_goal
+                    300  # Фиксированная цель по активности в ккал
                 )
                 
             except Exception as e:

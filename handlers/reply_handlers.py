@@ -7,6 +7,7 @@ from aiogram import Router, F
 from aiogram.types import Message
 from aiogram.fsm.context import FSMContext
 from keyboards.reply_v2 import get_main_keyboard_v2
+from services.tool_caller import ToolCaller
 
 logger = logging.getLogger(__name__)
 router = Router()
@@ -123,7 +124,6 @@ async def water_quick_variants(message: Message, state: FSMContext):
         return  # Не обрабатываем другие кнопки
     
     # Вызываем обработчик воды
-    from services.tool_caller import ToolCaller
     await ToolCaller.handle_log_water(f"выпил {amount} мл", message.from_user.id, message, state)
 
 # Обработчики для быстрых вариантов активности
@@ -147,7 +147,6 @@ async def activity_quick_variants(message: Message, state: FSMContext):
     for button_text, activity_text in activity_map.items():
         if button_text in text:
             # Вызываем обработчик активности
-            from services.tool_caller import ToolCaller
             await ToolCaller.handle_log_activity(activity_text, message.from_user.id, message, state)
             break
 

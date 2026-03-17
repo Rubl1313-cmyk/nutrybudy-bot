@@ -119,7 +119,7 @@ class GamificationSystem:
         new_achievements = []
         
         # Получаем или создаем прогресс пользователя из БД
-        user_progress = await self._get_user_progress_from_db(user_id)
+        user_progress = await self._get_user_progress(user_id)
         
         # Обновляем статистику
         await self._update_progress_in_db(user_progress, event_type, data)
@@ -134,7 +134,7 @@ class GamificationSystem:
         
         return new_achievements
     
-    async def _get_user_progress_from_db(self, user_id: int) -> UserGamification:
+    async def _get_user_progress(self, user_id: int) -> UserGamification:
         """Получение прогресса пользователя из БД"""
         async with get_session() as session:
             # Сначала ищем пользователя в основной таблице

@@ -6,6 +6,7 @@ import os
 import time
 from typing import Dict, Set, Optional
 from collections import defaultdict, deque
+import asyncio
 from datetime import datetime, timedelta
 from aiogram.types import Message
 

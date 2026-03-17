@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 
 from keyboards.reply_v2 import get_main_keyboard_v2
 from keyboards.inline import get_progress_menu
+from utils.localized_commands import create_localized_command_filter
 
 router = Router()
 
@@ -231,7 +232,22 @@ async def period_callback_internal(callback: CallbackQuery, state: FSMContext):
                 period_name = "за всё время"
 
             # Получаем статистику за период
-            stats = await _get_period_stats(user.id, session, start_date)
+            from utils.daily_stats import get_period_stats as unified_get_period_stats
+            
+            # Определяем период на основе start_date
+            from datetime import datetime, timedelta
+            today = datetime.now().date()
+            
+            if start_date == today:
+                period = "day"
+            elif start_date == today - timedelta(days=7):
+                period = "week"
+            elif start_date == today - timedelta(days=30):
+                period = "month"
+            else:
+                period = "all"
+            
+            stats = await unified_get_period_stats(user.id, period)
             
             # Создаем сообщение с прогрессом
             progress_message = await _create_progress_message(user, stats, period_name, period)
@@ -249,11 +265,6 @@ async def period_callback_internal(callback: CallbackQuery, state: FSMContext):
             reply_markup=get_main_keyboard_v2()
         )
 
-async def _get_period_stats(user_id: int, session, start_date) -> dict:
-    """Получение статистики за период - использует unified функцию"""
-    from utils.daily_stats import get_period_stats as unified_get_period_stats
-    
-    return await unified_get_period_stats(user_id, session, start_date)
 
 async def _create_progress_message(user, stats: dict, period_name: str, period: str) -> str:
     """Создание сообщения с прогрессом"""

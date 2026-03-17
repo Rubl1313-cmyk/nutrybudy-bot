@@ -209,3 +209,54 @@ async def get_period_stats(user_id: int, period: str = "day") -> Dict[str, Any]:
             'calories_burned': 0,
             'net_calories': 0
         }
+
+async def get_daily_stats(user_id: int) -> Dict[str, Any]:
+    """
+    Получает статистику за текущий день
+    
+    Args:
+        user_id: ID пользователя
+        
+    Returns:
+        dict: Статистика за день
+    """
+    try:
+        from database.db import get_session
+        from database.models import Meal, DrinkEntry, Activity
+        from sqlalchemy import select, func
+        from datetime import date
+        
+        today = date.today()
+        
+        async with get_session() as session:
+            # Получаем статистику за день
+            calories = await get_daily_calories(user_id)
+            protein = await get_daily_protein(user_id)
+            fat = await get_daily_fat(user_id)
+            carbs = await get_daily_carbs(user_id)
+            water = await get_daily_water(user_id)
+            calories_burned = await get_daily_calories_burned(user_id)
+            
+            return {
+                'date': today.isoformat(),
+                'calories': calories,
+                'protein': protein,
+                'fat': fat,
+                'carbs': carbs,
+                'water_ml': water,
+                'calories_burned': calories_burned,
+                'net_calories': calories - calories_burned
+            }
+            
+    except Exception as e:
+        logger.error(f"Error getting daily stats for user {user_id}: {e}")
+        return {
+            'date': date.today().isoformat(),
+            'calories': 0,
+            'protein': 0,
+            'fat': 0,
+            'carbs': 0,
+            'water_ml': 0,
+            'calories_burned': 0,
+            'net_calories': 0
+        }

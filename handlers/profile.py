@@ -31,14 +31,12 @@ async def cmd_set_profile(message: Message, state: FSMContext):
     await message.answer(
         "ğŸ‘¤ <b>Ğ�Ğ°Ñ�Ñ‚Ñ€Ğ¾Ğ¹ĞºĞ° Ğ¿Ñ€Ğ¾Ñ„Ğ¸Ğ»Ñ�</b>\n\n"
         "Ğ”Ğ°Ğ²Ğ°Ğ¹Ñ‚Ğµ Ğ½Ğ°Ñ�Ñ‚Ñ€Ğ¾Ğ¸Ğ¼ Ğ²Ğ°Ñˆ Ğ¿ĞµÑ€Ñ�Ğ¾Ğ½Ğ°Ğ»ÑŒĞ½Ñ‹Ğ¹ Ğ¿Ñ€Ğ¾Ñ„Ğ¸Ğ»ÑŒ Ğ´Ğ»Ñ� Ñ‚Ğ¾Ñ‡Ğ½Ğ¾Ğ³Ğ¾ Ñ€Ğ°Ñ�Ñ‡ĞµÑ‚Ğ° ĞšĞ‘Ğ–Ğ£.\n\n"
-        "Ğ�Ğ°Ñ‡Ğ½ĞµĞ¼ Ñ� Ğ¾Ñ�Ğ½Ğ¾Ğ²Ğ½Ğ¾Ğ³Ğ¾:\n\n"
-        "ğŸ“� <b>Ğ’Ğ°Ñˆ Ğ²ĞµÑ� (Ğ² ĞºĞ³):</b>\n"
-        "Ğ�Ğ°Ğ¿Ñ€Ğ¸Ğ¼ĞµÑ€: 70.5",
+        "Ğ”Ğ°Ğ»ĞµĞµ ĞºĞ¾Ğ´ Ğ±ĞµĞ· Ğ¸Ğ·Ğ¼ĞµĞ½ĞµĞ½Ğ¸Ğ¹...",
         parse_mode="HTML"
     )
-    await state.set_state(ProfileStates.weight)
-
-@router.message(ProfileStates.weight)
+    await state.set_state(ProfileStates.waiting_for_weight)
+    
+@router.message(ProfileStates.waiting_for_weight)
 async def process_weight(message: Message, state: FSMContext):
     """Ğ�Ğ±Ñ€Ğ°Ğ±Ğ¾Ñ‚ĞºĞ° Ğ²ĞµÑ�Ğ° Ñ� Ğ±ĞµĞ·Ğ¾Ğ¿Ğ°Ñ�Ğ½Ñ‹Ğ¼ Ğ¿Ğ°Ñ€Ñ�Ğ¸Ğ½Ğ³Ğ¾Ğ¼"""
     from utils.safe_parser import safe_parse_float
@@ -67,9 +65,9 @@ async def process_weight(message: Message, state: FSMContext):
         "Ğ�Ğ°Ğ¿Ñ€Ğ¸Ğ¼ĞµÑ€: 175",
         parse_mode="HTML"
     )
-    await state.set_state(ProfileStates.height)
-
-@router.message(ProfileStates.height)
+    await state.set_state(ProfileStates.waiting_for_height)
+    
+@router.message(ProfileStates.waiting_for_height)
 async def process_height(message: Message, state: FSMContext):
     """Ğ�Ğ±Ñ€Ğ°Ğ±Ğ¾Ñ‚ĞºĞ° Ñ€Ğ¾Ñ�Ñ‚Ğ° Ñ� Ğ±ĞµĞ·Ğ¾Ğ¿Ğ°Ñ�Ğ½Ñ‹Ğ¼ Ğ¿Ğ°Ñ€Ñ�Ğ¸Ğ½Ğ³Ğ¾Ğ¼"""
     from utils.safe_parser import safe_parse_int
@@ -79,23 +77,23 @@ async def process_height(message: Message, state: FSMContext):
     if error:
         await message.answer(
             f"â�Œ {error}\n\n"
-            "ğŸ’¡ <b>ĞŸÑ€Ğ¸Ğ¼ĞµÑ€Ñ‹:</b>\n"
-            "â€¢ 175\n"
-            "â€¢ 180 Ñ�Ğ¼\n"
-            "â€¢ 165",
+            "👧 <b>Ğ’Ğ¾Ğ·Ñ€Ğ°Ñ�Ñ‚:</b>\n"
+            "• 175\n"
+            "• 180 Ñ�Ğ¼\n"
+            "• 165",
             parse_mode="HTML"
         )
         return
     
     await state.update_data(height=height)
     await message.answer(
-        "ğŸ�‚ <b>Ğ’Ğ°Ñˆ Ğ²Ğ¾Ğ·Ñ€Ğ°Ñ�Ñ‚:</b>\n"
-        "Ğ�Ğ°Ğ¿Ñ€Ğ¸Ğ¼ĞµÑ€: 25",
+        "📏 <b>Ğ’Ğ¾Ğ·Ñ€Ğ°Ñ�Ñ‚:</b>\n"
+        "📏 Ğ’Ğ¾Ğ·Ñ€Ğ°Ñ�Ñ‚: 25",
         parse_mode="HTML"
     )
-    await state.set_state(ProfileStates.age)
-
-@router.message(ProfileStates.age)
+    await state.set_state(ProfileStates.waiting_for_age)
+    
+@router.message(ProfileStates.waiting_for_age)
 async def process_age(message: Message, state: FSMContext):
     """Ğ�Ğ±Ñ€Ğ°Ğ±Ğ¾Ñ‚ĞºĞ° Ğ²Ğ¾Ğ·Ñ€Ğ°Ñ�Ñ‚Ğ° Ñ� Ğ±ĞµĞ·Ğ¾Ğ¿Ğ°Ñ�Ğ½Ñ‹Ğ¼ Ğ¿Ğ°Ñ€Ñ�Ğ¸Ğ½Ğ³Ğ¾Ğ¼"""
     from utils.safe_parser import safe_parse_int
@@ -120,9 +118,9 @@ async def process_age(message: Message, state: FSMContext):
         parse_mode="HTML",
         reply_markup=get_gender_keyboard()
     )
-    await state.set_state(ProfileStates.gender)
+    await state.set_state(ProfileStates.waiting_for_gender)
 
-@router.message(ProfileStates.gender)
+@router.message(ProfileStates.waiting_for_gender)
 async def process_gender(message: Message, state: FSMContext):
     """Ğ�Ğ±Ñ€Ğ°Ğ±Ğ¾Ñ‚ĞºĞ° Ğ¿Ğ¾Ğ»Ğ°"""
     gender_text = message.text.lower()
@@ -360,13 +358,11 @@ async def show_activity_keyboard(message: Message, state: FSMContext):
         parse_mode="HTML"
     )
     await state.set_state(ProfileStates.activity)
-
+    
 @router.message(ProfileStates.activity)
 async def process_activity(message: Message, state: FSMContext):
     """Ğ�Ğ±Ñ€Ğ°Ğ±Ğ¾Ñ‚ĞºĞ° ÑƒÑ€Ğ¾Ğ²Ğ½Ñ� Ğ°ĞºÑ‚Ğ¸Ğ²Ğ½Ğ¾Ñ�Ñ‚Ğ¸"""
     activity = message.text.lower()
-    
-    activity_map = {
         "Ğ¼Ğ¸Ğ½Ğ¸Ğ¼Ğ°Ğ»ÑŒĞ½Ğ°Ñ�": 1.2,
         "Ğ»ĞµĞ³ĞºĞ°Ñ�": 1.375,
         "ÑƒĞ¼ĞµÑ€ĞµĞ½Ğ½Ğ°Ñ�": 1.55,
@@ -402,9 +398,9 @@ async def process_activity(message: Message, state: FSMContext):
         reply_markup=keyboard,
         parse_mode="HTML"
     )
-    await state.set_state(ProfileStates.goal)
-
-@router.message(ProfileStates.goal)
+    await state.set_state(ProfileStates.waiting_for_goal)
+    
+@router.message(ProfileStates.waiting_for_goal)
 async def process_goal(message: Message, state: FSMContext):
     """Ğ�Ğ±Ñ€Ğ°Ğ±Ğ¾Ñ‚ĞºĞ° Ñ†ĞµĞ»Ğ¸"""
     goal = message.text.lower()
@@ -478,7 +474,7 @@ async def process_city(message: Message, state: FSMContext):
         reply_markup=get_timezone_keyboard(),
         parse_mode="HTML"
     )
-    await state.set_state(ProfileStates.timezone)
+    await state.set_state(ProfileStates.waiting_for_timezone)
     
     # Заставляем начать расширенную антропометрию
     # Ğ—Ğ°Ñ‚ĞµĞ¼ Ğ½Ğ°Ñ‡Ğ¸Ğ½Ğ°ĞµĞ¼ Ñ€Ğ°Ñ�ÑˆĞ¸Ñ€ĞµĞ½Ğ½ÑƒÑ� Ğ°Ğ½Ñ‚Ñ€Ğ¾Ğ¿Ğ¾Ğ¼ĞµÑ‚Ñ€Ğ¸Ñ�

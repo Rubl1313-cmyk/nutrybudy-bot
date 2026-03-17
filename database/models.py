@@ -29,6 +29,7 @@ class User(Base):
     daily_fat_goal = Column(Float)
     daily_carbs_goal = Column(Float)
     daily_steps_goal = Column(Integer, default=10000)  # Цель по шагам по умолчанию
+    daily_activity_goal = Column(Integer, default=300)  # Цель по калориям активности по умолчанию
     reminder_enabled = Column(Boolean, default=True)
     
     # Поля антропометрии для расширенного анализа

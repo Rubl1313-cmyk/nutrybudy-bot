@@ -224,6 +224,10 @@ class LangChainAgent:
             """Записывает активность. activity_type: тип активности, duration_min: длительность в минутах."""
             try:
                 from services.activity_service import save_activity
+                from utils.activity_calculator import calculate_activity_calorie_goal
+                from database.db import get_session
+                from database.models import User
+                from sqlalchemy import select
                 
                 # Сохраняем
                 result = await save_activity(self.user_id, activity_type, duration_min)
@@ -231,12 +235,25 @@ class LangChainAgent:
                 # Получаем статистику за день
                 daily_total = await get_daily_activity_calories(self.user_id)
                 
+                # Получаем пользователя для расчета цели
+                async with get_session() as session:
+                    user_result = await session.execute(
+                        select(User).where(User.telegram_id == self.user_id)
+                    )
+                    user = user_result.scalar_one_or_none()
+                
+                # Рассчитываем персонализированную цель активности
+                if user:
+                    activity_goal = calculate_activity_calorie_goal(user)
+                else:
+                    activity_goal = 300  # Значение по умолчанию
+                
                 return activity_card(
                     activity_type, 
                     duration_min, 
                     result.get('calories', 0),
                     daily_total,
-                    300  # Фиксированная цель по активности в ккал
+                    activity_goal  # Персонализированная цель
                 )
                 
             except Exception as e:

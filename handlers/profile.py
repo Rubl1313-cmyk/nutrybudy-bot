@@ -701,6 +701,10 @@ async def save_profile(message: Message, state: FSMContext, clear_state=False):
             user.daily_carbs_goal = round(daily_carbs_goal)
             user.daily_water_goal = round(daily_water_goal)
             
+            # Рассчитываем и сохраняем цель активности
+            from utils.activity_calculator import calculate_activity_calorie_goal
+            user.daily_activity_goal = calculate_activity_calorie_goal(user)
+            
             # Сохраняем антропометрические данные
             if gender == "female":
                 user.neck_cm = profile_data.get('neck_cm')
@@ -1368,6 +1372,10 @@ async def process_edit_goal(message: Message, state: FSMContext):
             user.daily_protein_goal = round(daily_protein_goal)
             user.daily_fat_goal = round(daily_fat_goal)
             user.daily_carbs_goal = round(daily_carbs_goal)
+            
+            # Рассчитываем и сохраняем цель активности при изменении цели
+            from utils.activity_calculator import calculate_activity_calorie_goal
+            user.daily_activity_goal = calculate_activity_calorie_goal(user)
             
             await session.commit()
             

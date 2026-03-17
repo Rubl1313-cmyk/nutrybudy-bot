@@ -17,6 +17,29 @@ _SEARCH_CACHE: Dict[str, Tuple[List[Dict], float]] = {}
 _CACHE_TTL = 300  # 5 минут
 _CACHE_LIMIT = 200
 
+def _is_cache_expired(timestamp: float) -> bool:
+    """Проверяет, истекло ли время жизни кэша"""
+    import time
+    return time.time() - timestamp > _CACHE_TTL
+
+def _cleanup_expired_cache():
+    """Очищает устаревшие записи кэша"""
+    import time
+    current_time = time.time()
+    expired_keys = []
+    
+    for key, (data, timestamp) in _SEARCH_CACHE.items():
+        if current_time - timestamp > _CACHE_TTL:
+            expired_keys.append(key)
+    
+    for key in expired_keys:
+        del _SEARCH_CACHE[key]
+    
+    if expired_keys:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"🧹 Cleaned up {len(expired_keys)} expired cache entries")
+
 # ========== ЛОКАЛЬНАЯ БАЗА ИНГРЕДИЕНТОВ ==========
 # Все продукты, которые требуют термической обработки,
 # представлены только в готовом виде (варёные, жареные, запечённые и т.д.)
@@ -3348,28 +3371,49 @@ def get_morphological_variations(base_name: str) -> List[str]:
     return variations.get(base_name, [base_name])
 
 async def search_food(query: str, limit: int = 10) -> List[Dict]:
-    """Поиск продуктов в локальной базе."""
+    """Поиск продуктов в локальной базе с кэшированием и TTL."""
+    import time
+    
     query_lower = query.lower().strip()
+    cache_key = f"search:{query_lower}:{limit}"
+    
+    # Проверяем кэш
+    if cache_key in _SEARCH_CACHE:
+        cached_results, timestamp = _SEARCH_CACHE[cache_key]
+        if not _is_cache_expired(timestamp):
+            logger.debug(f"🎯 Cache hit for search: {query_lower}")
+            return cached_results
+        else:
+            # Удаляем устаревший кэш
+            del _SEARCH_CACHE[cache_key]
+    
+    # Очищаем другие устаревшие записи
+    _cleanup_expired_cache()
+    
     results = []
 
     # Точное совпадение
     if query_lower in LOCAL_FOOD_DB:
-        return [LOCAL_FOOD_DB[query_lower]]
-
-    # Частичное совпадение ключа
-    for key, item in LOCAL_FOOD_DB.items():
-        if query_lower in key or query_lower in item['name'].lower():
-            results.append(item)
-            if len(results) >= limit:
-                break
-
-    # Если мало, ищем по алиасам
-    if len(results) < limit:
+        results = [LOCAL_FOOD_DB[query_lower]]
+    else:
+        # Частичное совпадение ключа
         for key, item in LOCAL_FOOD_DB.items():
-            if any(query_lower in alias.lower() for alias in item.get('aliases', [])):
-                if item not in results:
-                    results.append(item)
-                    if len(results) >= limit:
-                        break
+            if query_lower in key or query_lower in item['name'].lower():
+                results.append(item)
+                if len(results) >= limit:
+                    break
 
+        # Если мало, ищем по алиасам
+        if len(results) < limit:
+            for key, item in LOCAL_FOOD_DB.items():
+                if any(query_lower in alias.lower() for alias in item.get('aliases', [])):
+                    if item not in results:
+                        results.append(item)
+                        if len(results) >= limit:
+                            break
+    
+    # Сохраняем в кэш
+    _SEARCH_CACHE[cache_key] = (results, time.time())
+    logger.debug(f"💾 Cached search results for: {query_lower}")
+    
     return results

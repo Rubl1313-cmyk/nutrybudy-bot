@@ -217,6 +217,7 @@ class GamificationSystem:
             # Активность сегодня - серия продолжается
             if progress.current_streak == 0:
                 progress.current_streak = 1
+            # Если уже была активность сегодня, серия не меняется
         elif today == last_activity + timedelta(days=1):
             # Активность вчера - увеличиваем серию
             progress.current_streak += 1

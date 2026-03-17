@@ -250,52 +250,10 @@ async def period_callback_internal(callback: CallbackQuery, state: FSMContext):
         )
 
 async def _get_period_stats(user_id: int, session, start_date) -> dict:
-    """Получение статистики за период"""
-    from database.models import Meal, Activity, WaterEntry, WeightEntry
-    from sqlalchemy import select, func
-    from datetime import datetime
+    """Получение статистики за период - использует unified функцию"""
+    from utils.daily_stats import get_period_stats as unified_get_period_stats
     
-    # Статистика приемов пищи
-    meals_result = await session.execute(
-        select(Meal).where(
-            Meal.user_id == user_id,
-            func.date(Meal.datetime) >= start_date,
-        )
-    )
-    meals = meals_result.scalars().all()
-
-    # Статистика активности
-    activities_result = await session.execute(
-        select(Activity).where(
-            Activity.user_id == user_id,
-            func.date(Activity.datetime) >= start_date,
-        )
-    )
-    activities = activities_result.scalars().all()
-
-    # Статистика воды
-    water_result = await session.execute(
-        select(WaterEntry).where(
-            WaterEntry.user_id == user_id,
-            func.date(WaterEntry.datetime) >= start_date,
-        )
-    )
-    water_entries = water_result.scalars().all()
-
-    # Статистика веса
-    weight_result = await session.execute(
-        select(WeightEntry).where(
-            WeightEntry.user_id == user_id,
-            func.date(WeightEntry.datetime) >= start_date,
-        )
-    )
-    weight_entries = weight_result.scalars().all()
-
-    # Суммируем за период
-    total_cal_consumed = sum(m.total_calories or 0 for m in meals)
-    total_protein = sum(m.total_protein or 0 for m in meals)
-    total_fat = sum(m.total_fat or 0 for m in meals)
-    total_carbs = sum(m.total_carbs or 0 for m in meals)
+    return await unified_get_period_stats(user_id, session, start_date)
     total_cal_burned = sum(a.calories_burned or 0 for a in activities)
     total_water = sum(w.amount or 0 for w in water_entries)
 

@@ -43,18 +43,15 @@ class CloudflareAIManager:
             "fallback": "@cf/zai-org/glm-4.7-flash"
         }
 
-    @with_timeout(timeout_seconds=90)
-    @with_retry(max_attempts=5, delay_seconds=1.0)
     async def _call(
         self,
         model_key: str,
         messages: List[Dict[str, Any]],
         response_format: Optional[Dict] = None,
         temperature: float = 0.3,
-        max_tokens: int = 1000,
-        retries: int = 2
+        max_tokens: int = 1000
     ) -> Dict[str, Any]:
-        """Универсальный метод вызова любой модели с повторными попытками и fallback"""
+        """Универсальный метод вызова любой модели с встроенными ретраями"""
         
         # Если нет credentials, используем эмуляцию
         if not self.base_url:
@@ -74,49 +71,60 @@ class CloudflareAIManager:
         if response_format and model_key in ["food_parser", "assistant"]:
             payload["response_format"] = response_format
 
-        for attempt in range(retries):
+        # Встроенные ретраи с экспоненциальной задержкой
+        max_attempts = 3
+        base_delay = 1.0
+        
+        for attempt in range(max_attempts):
             try:
-                async with aiohttp.ClientSession() as session:
+                timeout = aiohttp.ClientTimeout(total=60, connect=10)
+                async with aiohttp.ClientSession(timeout=timeout) as session:
                     async with session.post(
                         f"{self.base_url}{model_id}",
                         headers=self.headers,
-                        json=payload,
-                        timeout=60
+                        json=payload
                     ) as resp:
                         if resp.status == 200:
                             result = await resp.json()
-                            logger.info(f"Raw response from {model_key}: {result}")
+                            logger.info(f"✅ Success from {model_key} (attempt {attempt+1})")
                             
                             # Извлечение текста ответа
                             content = result.get("result", {}).get("response")
                             if not content:
                                 # Пробуем другой формат
                                 content = result.get("choices", [{}])[0].get("message", {}).get("content")
+                            if not content:
+                                # Пробуем формат для Llama Vision
+                                content = result.get("result", {}).get("description")
                             
                             if content:
-                                logger.info(f"✅ {model_key} response received successfully")
                                 return {
-                                    "success": True, 
-                                    "data": content, 
+                                    "success": True,
+                                    "content": content, 
                                     "model_used": model_key,
                                     "tokens_used": result.get("result", {}).get("usage", {}).get("total_tokens", 0)
                                 }
                             else:
                                 logger.error(f"❌ Empty response from {model_key}")
+                        elif resp.status == 429:
+                            logger.warning(f"⚠️ Rate limit for {model_key} (attempt {attempt+1})")
                         else:
                             error_text = await resp.text()
-                            logger.warning(f"⚠️ Attempt {attempt+1} failed for {model_key}: {resp.status} - {error_text}")
+                            logger.warning(f"⚠️ Attempt {attempt+1} failed for {model_key}: {resp.status} - {error_text[:200]}")
                             
-                            if attempt == retries - 1:
-                                # Последняя попытка - пробуем fallback
-                                return await self._call_fallback(messages, response_format, temperature, max_tokens)
-                            
-                            await asyncio.sleep(1)
+            except asyncio.TimeoutError:
+                logger.warning(f"⏱️ Timeout for {model_key} (attempt {attempt+1})")
             except Exception as e:
-                logger.exception(f"❌ Exception calling {model_key}: {e}")
-                if attempt == retries - 1:
-                    return await self._call_fallback(messages, response_format, temperature, max_tokens)
-                await asyncio.sleep(1)
+                logger.exception(f"❌ Exception calling {model_key} (attempt {attempt+1}): {e}")
+            
+            # Если это последняя попытка, пробуем fallback
+            if attempt == max_attempts - 1:
+                return await self._call_fallback(messages, response_format, temperature, max_tokens)
+            
+            # Экспоненциальная задержка с jitter
+            delay = base_delay * (2 ** attempt) + (0.1 * attempt)
+            logger.info(f"⏳ Retrying {model_key} in {delay:.1f}s...")
+            await asyncio.sleep(delay)
 
         return {"success": False, "error": "All attempts failed"}
 

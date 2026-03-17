@@ -117,6 +117,29 @@ class MigrationManager:
             """
         ))
         
+        # Версия 1.3.0: Создание отдельной таблицы для воды
+        self.migrations.append(Migration(
+            "1.3.0",
+            "Create separate water_entries table",
+            """
+            -- Создаем отдельную таблицу для записей о воде
+            CREATE TABLE IF NOT EXISTS water_entries (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                volume_ml FLOAT NOT NULL,
+                datetime TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            
+            -- Индекс для производительности
+            CREATE INDEX IF NOT EXISTS idx_water_entries_user_id ON water_entries(user_id);
+            CREATE INDEX IF NOT EXISTS idx_water_entries_datetime ON water_entries(datetime);
+            """,
+            """
+            -- Удаление таблицы water_entries (если понадобится откат)
+            DROP TABLE IF EXISTS water_entries;
+            """
+        ))
+        
         # Версия 1.3.0: Fix water_entries amount field
         self.migrations.append(Migration(
             "1.3.0",

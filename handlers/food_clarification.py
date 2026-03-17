@@ -19,9 +19,6 @@ class FoodClarificationStates(StatesGroup):
     waiting_for_weight = State()           # ожидание ввода веса
     waiting_for_manual_name = State()      # ручной ввод названия
 
-# Хранилище временных данных: {user_id: {"original_items": [...], "current_index": int, "clarified_items": [...]}}
-_temp_storage = {}
-
 @router.message(F.text, flags={"rate_limit": "food"})
 async def handle_food_text(message: Message, state: FSMContext):
     """Начало обработки текста как еды (вызывается из ai_handler, если AI вернул food_items)."""
@@ -80,12 +77,14 @@ async def handle_food_text(message: Message, state: FSMContext):
             await message.answer("❌ Ошибка при сохранении супа. Попробуйте ещё раз.")
             return True
 
-    # 3. Инициализируем временное хранилище для обычной еды
-    _temp_storage[user_id] = {
-        "original_items": food_items,
-        "current_index": 0,
-        "clarified_items": []
-    }
+    # 3. Сохраняем данные в FSM state
+    await state.update_data({
+        "food_clarification": {
+            "original_items": food_items,
+            "current_index": 0,
+            "clarified_items": []
+        }
+    })
 
     # 4. Начинаем уточнение первого продукта
     await clarify_next_product(message, user_id, state)
@@ -93,7 +92,8 @@ async def handle_food_text(message: Message, state: FSMContext):
 
 async def clarify_next_product(message: Message, user_id: int, state: FSMContext):
     """Уточняет следующий продукт в списке."""
-    storage = _temp_storage.get(user_id)
+    data = await state.get_data()
+    storage = data.get("food_clarification")
     if not storage:
         return
 
@@ -152,12 +152,14 @@ async def clarify_next_product(message: Message, user_id: int, state: FSMContext
             "weight": None  # будет заполнено позже
         })
         storage["current_index"] += 1
+        await state.update_data({"food_clarification": storage})
         # Запрашиваем вес
         await ask_weight(message, user_id, idx, state)
 
 async def ask_weight(message: Message, user_id: int, idx: int, state: FSMContext):
     """Запрашивает вес для продукта с индексом idx (уже добавленного в clarified_items)."""
-    storage = _temp_storage.get(user_id)
+    data = await state.get_data()
+    storage = data.get("food_clarification")
     if not storage or idx >= len(storage["clarified_items"]):
         return
 
@@ -173,8 +175,8 @@ async def ask_weight(message: Message, user_id: int, idx: int, state: FSMContext
 @router.message(FoodClarificationStates.waiting_for_weight)
 async def process_weight(message: Message, state: FSMContext):
     user_id = message.from_user.id
-    storage = _temp_storage.get(user_id)
     data = await state.get_data()
+    storage = data.get("food_clarification")
     idx = data.get("current_clarify_idx")
 
     weight, error = safe_parse_float(message.text, "вес")
@@ -190,6 +192,7 @@ async def process_weight(message: Message, state: FSMContext):
     storage["clarified_items"][idx]["weight"] = weight
     # Переходим к следующему продукту
     storage["current_index"] += 1
+    await state.update_data({"food_clarification": storage})
     await clarify_next_product(message, user_id, state)
 
 @router.callback_query(F.data.startswith("clr_var_"))
@@ -199,7 +202,8 @@ async def variant_chosen(callback: CallbackQuery, state: FSMContext):
     idx = int(data[2])
     var_idx = int(data[3])
     user_id = callback.from_user.id
-    storage = _temp_storage.get(user_id)
+    state_data = await state.get_data()
+    storage = state_data.get("food_clarification")
     if not storage or idx >= len(storage["original_items"]):
         await callback.message.edit_text("❌ Ошибка, начните заново.")
         return
@@ -214,9 +218,10 @@ async def variant_chosen(callback: CallbackQuery, state: FSMContext):
         "protein_per_100g": chosen.get("protein", 0),
         "fat_per_100g": chosen.get("fat", 0),
         "carbs_per_100g": chosen.get("carbs", 0),
-        "weight": None
+        "weight": None  # будет заполнено позже
     })
-
+    await state.update_data({"food_clarification": storage})
+    
     # Удаляем клавиатуру
     await callback.message.edit_text(f"✅ Выбрано: {chosen['name']}")
     await ask_weight(callback.message, user_id, len(storage["clarified_items"]) - 1, state)
@@ -232,7 +237,8 @@ async def process_manual_name(message: Message, state: FSMContext):
     # Просто принимаем название, потом запросим вес
     # Здесь можно также поискать в базе, но упростим
     user_id = message.from_user.id
-    storage = _temp_storage.get(user_id)
+    state_data = await state.get_data()
+    storage = state_data.get("food_clarification")
     if not storage:
         await state.clear()
         return
@@ -247,28 +253,33 @@ async def process_manual_name(message: Message, state: FSMContext):
         "carbs_per_100g": 0,
         "weight": None
     })
+    await state.update_data({"food_clarification": storage})
     await ask_weight(message, user_id, len(storage["clarified_items"]) - 1, state)
 
 @router.callback_query(F.data.startswith("clr_skip_"))
 async def skip_product(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
     user_id = callback.from_user.id
-    storage = _temp_storage.get(user_id)
+    data = await state.get_data()
+    storage = data.get("food_clarification")
     if storage:
         # Пропускаем этот продукт (не добавляем)
         storage["current_index"] += 1
+        await state.update_data({"food_clarification": storage})
         await callback.message.edit_text("⏭️ Продукт пропущен.")
         await clarify_next_product(callback.message, user_id, state)
 
 async def finish_clarification(message: Message, user_id: int, state: FSMContext):
     """Сохраняет уточнённые продукты в базу и отправляет итог."""
-    storage = _temp_storage.pop(user_id, None)
+    data = await state.get_data()
+    storage = data.get("food_clarification")
     if not storage:
         return
 
     clarified = storage["clarified_items"]
     if not clarified:
         await message.answer("❌ Нет продуктов для сохранения.")
+        await state.clear()
         return
 
     # Преобразуем в формат, ожидаемый food_save_service

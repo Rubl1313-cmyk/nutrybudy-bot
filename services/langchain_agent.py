@@ -29,8 +29,8 @@ from utils.daily_stats import get_daily_water, get_daily_drink_calories, get_dai
 
 logger = logging.getLogger(__name__)
 
-# Кеш агентов (в production заменить на Redis)
-_agents: Dict[int, 'LangChainAgent'] = {}
+# Кеш агентов с отслеживанием времени использования
+_agents: Dict[int, Dict[str, Any]] = {}
 
 class LangChainAgent:
     """AI агент с инструментами для NutriBuddy"""
@@ -42,6 +42,7 @@ class LangChainAgent:
         self.memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
         self.user = None
         self.tools = self._create_tools()
+        self.last_used = time.time()
         
         # LLM всегда доступен (без эмуляции)
         self.agent = create_react_agent(
@@ -314,24 +315,40 @@ class LangChainAgent:
     @classmethod
     def get_for_user(cls, user_id: int, state: FSMContext):
         """Получает или создаёт агента для пользователя"""
+        import time
         if user_id not in _agents:
-            _agents[user_id] = cls(user_id, state)
-        return _agents[user_id]
+            agent = cls(user_id, state)
+            _agents[user_id] = {
+                'agent': agent,
+                'last_used': time.time()
+            }
+            logger.info(f"🤖 Created new agent for user {user_id}")
+        else:
+            # Обновляем время последнего использования
+            _agents[user_id]['last_used'] = time.time()
+            _agents[user_id]['agent'].last_used = time.time()
+        
+        return _agents[user_id]['agent']
 
     @classmethod
     def cleanup_inactive(cls, max_age_hours: int = 1):
         """Очищает неактивных агентов"""
         import time
         current_time = time.time()
+        max_age_seconds = max_age_hours * 3600
         to_remove = []
         
-        for user_id, agent in _agents.items():
-            # Здесь можно добавить отслеживание времени последнего использования
-            # Пока просто очищаем всех старше max_age_hours
-            # В реальной реализации нужно хранить время последнего использования
-            pass
+        for user_id, agent_data in _agents.items():
+            age_seconds = current_time - agent_data['last_used']
+            if age_seconds > max_age_seconds:
+                to_remove.append(user_id)
+                logger.info(f"🧹 Agent for user {user_id} inactive for {age_seconds/3600:.1f}h")
         
         for user_id in to_remove:
             del _agents[user_id]
-            logger.info(f"🧹 Cleaned up agent for user {user_id}")
-
+            logger.info(f"🗑️ Cleaned up agent for user {user_id}")
+        
+        if to_remove:
+            logger.info(f"🧹 Cleaned {len(to_remove)} inactive agents. Active agents: {len(_agents)}")
+        else:
+            logger.debug(f"🧹 No inactive agents to clean. Active agents: {len(_agents)}")

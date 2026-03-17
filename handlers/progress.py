@@ -93,86 +93,10 @@ async def period_callback(callback: CallbackQuery, state: FSMContext):
     await progress_callback(callback, state)
 
 async def get_period_stats(user_id: int, session, start_date) -> dict:
-    """Получение статистики за период"""
-    # Статистика приемов пищи
-    meals_result = await session.execute(
-        select(Meal).where(
-            Meal.user_id == user_id,
-            func.date(Meal.datetime) >= start_date,
-        )
-    )
-    meals = meals_result.scalars().all()
+    """Получение статистики за период - использует unified функцию из utils.daily_stats"""
+    from utils.daily_stats import get_period_stats as unified_get_period_stats
     
-    # Статистика активности
-    activities_result = await session.execute(
-        select(Activity).where(
-            Activity.user_id == user_id,
-            func.date(Activity.datetime) >= start_date,
-        )
-    )
-    activities = activities_result.scalars().all()
-    
-    # Статистика воды
-    water_result = await session.execute(
-        select(func.sum(WaterEntry.amount)).where(
-            WaterEntry.user_id == user_id,
-            func.date(WaterEntry.datetime) >= start_date,
-        )
-    )
-    total_water = water_result.scalar() or 0
-    
-    # Статистика веса
-    weight_result = await session.execute(
-        select(WeightEntry).where(
-            WeightEntry.user_id == user_id,
-            func.date(WeightEntry.datetime) >= start_date,
-        ).order_by(WeightEntry.datetime)
-    )
-    weight_entries = weight_result.scalars().all()
-    
-    # Суммируем за период
-    total_cal_consumed = sum(m.total_calories or 0 for m in meals)
-    total_protein = sum(m.total_protein or 0 for m in meals)
-    total_fat = sum(m.total_fat or 0 for m in meals)
-    total_carbs = sum(m.total_carbs or 0 for m in meals)
-    total_cal_burned = sum(a.calories_burned or 0 for a in activities)
-    
-    # Расчёт средних
-    from datetime import datetime
-    days_count = (datetime.now().date() - start_date).days + 1
-    avg_cal_consumed = total_cal_consumed / days_count if days_count else 0
-    avg_protein = total_protein / days_count if days_count else 0
-    avg_fat = total_fat / days_count if days_count else 0
-    avg_carbs = total_carbs / days_count if days_count else 0
-    avg_cal_burned = total_cal_burned / days_count if days_count else 0
-    avg_water = total_water / days_count if days_count else 0
-    
-    # Тренды веса
-    weight_trend = None
-    if len(weight_entries) >= 2:
-        start_weight = weight_entries[0].weight
-        end_weight = weight_entries[-1].weight
-        weight_trend = end_weight - start_weight
-    
-    return {
-        'total_cal_consumed': total_cal_consumed,
-        'total_protein': total_protein,
-        'total_fat': total_fat,
-        'total_carbs': total_carbs,
-        'total_cal_burned': total_cal_burned,
-        'total_water': total_water,
-        'avg_cal_consumed': avg_cal_consumed,
-        'avg_protein': avg_protein,
-        'avg_fat': avg_fat,
-        'avg_carbs': avg_carbs,
-        'avg_cal_burned': avg_cal_burned,
-        'avg_water': avg_water,
-        'days_count': days_count,
-        'meals_count': len(meals),
-        'activities_count': len(activities),
-        'weight_trend': weight_trend,
-        'latest_weight': weight_entries[-1].weight if weight_entries else None
-    }
+    return await unified_get_period_stats(user_id, session, start_date)
 
 async def create_progress_message(user, stats: dict, period_name: str) -> str:
     """Создание сообщения с прогрессом"""

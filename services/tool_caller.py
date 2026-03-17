@@ -370,7 +370,8 @@ class ToolCaller:
                     water_goal = calculate_water_goal(
                         weight=weight_kg,
                         activity_level=user.activity_level,
-                        temperature=20.0
+                        temperature=20.0,
+                        goal=user.goal  # Добавляем цель для расчета воды
                     )
                     
                     # Обновляем нормы

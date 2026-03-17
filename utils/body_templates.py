@@ -46,17 +46,20 @@ def get_body_analysis_text(user, previous_weights: list = None) -> str:
 🧬 <b>Полный анализ вашего тела</b>
 
 📊 <b>Композиция тела:</b>
-• ИМТ: {body_analysis['bmi']} {body_analysis['bmi_color']} — <i>{body_analysis['bmi_status']}</i>
+• Индекс массы тела (ИМТ): {body_analysis['bmi']} {body_analysis['bmi_color']} — <i>{body_analysis['bmi_status']}</i>
 • Идеальный вес: {body_analysis['ideal_weights']['healthy_range']} кг
 • Процент жира: {body_analysis['body_fat']}% {'🎯' if body_analysis['has_navy_data'] else '📊'}
 • Мышечная масса: {body_analysis['muscle_mass']} кг
-• Вода в организме: {body_analysis['body_water']} л
+💡 <i>ИМТ показывает соотношение веса к росту. Процент жира и мышечная масса помогают оценить состав тела.</i>
+• Вода в организме: {body_analysis['body_water']} л ({round((body_analysis['body_water']/user.weight)*100, 1)}% от веса)
+💡 <i>Вода составляет основную часть тела. Оптимальный уровень - 60-70% от веса.</i>
 """
         
         # Добавляем новые метрики
         if body_analysis.get('whtr'):
             status = "✅ норма" if body_analysis['whtr'] < 0.5 else "⚠️ выше нормы"
-            text += f"• Отношение талия/рост: {body_analysis['whtr']} ({status})\n  💡 Показатель <0.5 – низкий риск заболеваний. Стремитесь к талии менее {round(0.5*user.height)} см.\n"
+            text += f"• Отношение талии/рост: {body_analysis['whtr']} ({status})\n"
+            text += f"  💡 <i>WHTR помогает оценить риски для здоровья. Значение <0.5 считается оптимальным. Ваша целевая талия: < {round(0.5*user.height)} см</i>\n"
         
         if body_analysis.get('metabolic_age'):
             age_diff = body_analysis['metabolic_age'] - user.age
@@ -66,10 +69,12 @@ def get_body_analysis_text(user, previous_weights: list = None) -> str:
                 age_comment = f"на {age_diff} лет старше – стоит обратить внимание на состав тела."
             else:
                 age_comment = "совпадает с вашим возрастом."
-            text += f"• Метаболический возраст: {body_analysis['metabolic_age']} лет ({age_comment})\n  💡 Отражает, какому возрасту соответствует ваш обмен веществ.\n"
+            text += f"• Метаболический возраст: {body_analysis['metabolic_age']} лет ({age_comment})\n"
+            text += f"  💡 <i>Показывает 'возраст' вашего обмена веществ. Если младше реального – отлично, если старше – стоит улучшить физическую активность.</i>\n"
         
         if body_analysis.get('absi') and body_analysis.get('absi_risk'):
-            text += f"• Индекс формы тела (ABSI): {body_analysis['absi']:.3f} – {body_analysis['absi_risk']} риск\n  💡 Учитывает распределение жира. Чем ниже, тем лучше.\n"
+            text += f"• Индекс формы тела (ABSI): {body_analysis['absi']:.3f} – {body_analysis['absi_risk']} риск\n"
+            text += f"  💡 <i>ABSI помогает оценить распределение жира в организме. Это дополнительный показатель для мониторинга здоровья.</i>\n"
         
         if body_analysis.get('muscle_segments'):
             ms = body_analysis['muscle_segments']
@@ -78,20 +83,24 @@ def get_body_analysis_text(user, previous_weights: list = None) -> str:
         # Добавляем информацию о риске висцерального жира
         if body_analysis['visceral_risk']:
             text += f"• Риск висцерального жира: {body_analysis['visceral_risk']} {body_analysis['visceral_risk_color']}\n"
+            text += f"  💡 <i>Висцеральный жир – это жир вокруг внутренних органов. Его уровень важен для оценки общего состояния здоровья.</i>\n"
         
         # Добавляем тип телосложения
         if body_analysis['body_type'] != "Не определен":
             text += f"• Тип телосложения: {body_analysis['body_type']}\n"
+            text += f"  💡 <i>Определяется по строению скелета. Влияет на распределение жира и мышц, но не является ограничением для достижения целей.</i>\n"
         
         text += f"""
 🔥 <b>Обмен веществ:</b>
-• Основной обмен (BMR): ~{int(user.daily_calorie_goal * 0.7)} ккал/день
+• Базовый метаболизм (BMR): ~{int(user.daily_calorie_goal * 0.7)} ккал/день
 • Общий расход (TDEE): {user.daily_calorie_goal} ккал/день
-• Термический эффект пищи: ~{int(user.daily_calorie_goal * 0.1)} ккал/день
+• Энергия на переваривание пищи: ~{int(user.daily_calorie_goal * 0.1)} ккал/день
+💡 <i>Базовый метаболизм - это энергия, которую тело тратит в состоянии покоя (дыхание, сердцебиение). Общий расход включает все ежедневные активности.</i>
 
 💧 <b>Водный баланс:</b>
-• Норма воды: {user.daily_water_goal} мл/день
-• % от веса: {round((user.daily_water_goal / user.weight) * 100, 1)}%
+• Общая норма жидкости: {user.daily_water_goal} мл/день
+• В том числе чистой воды: ~{int(user.daily_water_goal * 0.75)} мл/день
+💡 <i>При цели "похудение" норма увеличена на 500 мл (дополнительная вода перед едой). Исследования 2024-2026 показывают: 500 мл перед едой снижают потребление на 111 ккал.</i>
 """
         
         # Добавляем тренд веса
@@ -99,8 +108,9 @@ def get_body_analysis_text(user, previous_weights: list = None) -> str:
             text += f"""
 📈 <b>Динамика веса:</b>
 • Тренд: {weight_trend['trend_emoji']} {weight_trend['trend']}
-• Изменение: {weight_trend['change']:+.1f} кг за {weight_trend['period']} измерений
-• Темп: {weight_trend['rate']:+.2f} кг/измерение
+• Изменение: {weight_trend['change']:+.1f} кг за {weight_trend['period']} взвешиваний
+• Средний темп: {weight_trend['rate']:+.2f} кг за неделю
+💡 <i>Показывает, как меняется ваш вес со временем. Положительный темп - набор веса, отрицательный - похудение.</i>
 """
         
         # Добавляем рекомендации на основе анализа

@@ -676,7 +676,8 @@ async def save_profile(message: Message, state: FSMContext, clear_state=False):
     water_goal = calculate_water_goal(
         weight=weight,
         activity_level=activity_level,
-        temperature=temperature  # Реальная температура
+        temperature=temperature,  # Реальная температура
+        goal=goal  # Добавляем цель для расчета воды
     )
     daily_water_goal = water_goal
     
@@ -1122,7 +1123,8 @@ async def process_edit_weight(message: Message, state: FSMContext):
             water_goal = calculate_water_goal(
                 weight=weight,
                 activity_level=user.activity_level,
-                temperature=temperature
+                temperature=temperature,
+                goal=user.goal  # Добавляем цель для расчета воды
             )
             
             user.daily_calorie_goal = round(daily_calorie_goal)
@@ -1292,7 +1294,8 @@ async def process_edit_city(message: Message, state: FSMContext):
                 water_goal = calculate_water_goal(
                     weight=user.weight,
                     activity_level=user.activity_level,
-                    temperature=temperature
+                    temperature=temperature,
+                    goal=user.goal  # Добавляем цель для расчета воды
                 )
                 user.daily_water_goal = round(water_goal)
                 

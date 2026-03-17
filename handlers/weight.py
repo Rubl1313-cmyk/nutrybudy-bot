@@ -104,7 +104,8 @@ async def process_weight(message: Message, state: FSMContext):
             water_goal = calculate_water_goal(
                 weight=weight,
                 activity_level=normalized_activity,
-                temperature=temperature  # Реальная температура
+                temperature=temperature,  # Реальная температура
+                goal=user.goal  # Добавляем цель для расчета воды
             )
             user.daily_water_goal = water_goal
             

@@ -15,11 +15,12 @@ from database.models import User
 from keyboards.reply_v2 import get_main_keyboard_v2, get_profile_keyboard
 from keyboards.reply import get_gender_keyboard
 from utils.states import ProfileStates
+from utils.localized_commands import create_localized_command_filter
 
 logger = logging.getLogger(__name__)
 router = Router()
 
-@router.message(Command("set_profile"))
+@router.message(Command("set_profile") | create_localized_command_filter("настроить_профиль"))
 async def cmd_set_profile(message: Message, state: FSMContext):
     """Начало настройки профиля"""
     await state.clear()
@@ -741,7 +742,7 @@ async def save_profile(message: Message, state: FSMContext, clear_state=False):
             parse_mode="HTML"
         )
 
-@router.message(Command("profile"))
+@router.message(Command("profile") | create_localized_command_filter("профиль"))
 async def cmd_profile(message: Message, state: FSMContext):
     """Просмотр текущего профиля"""
     await state.clear()

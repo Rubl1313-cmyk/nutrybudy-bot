@@ -14,7 +14,7 @@ from keyboards.inline import get_progress_menu
 
 router = Router()
 
-@router.message(CommandStart())
+@router.message(Command("start") | create_localized_command_filter("старт"))
 async def cmd_start(message: Message, state: FSMContext):
     """Приветствие нового пользователя"""
     await state.clear()
@@ -51,7 +51,7 @@ async def cmd_start(message: Message, state: FSMContext):
         parse_mode="HTML"
     )
 
-@router.message(Command("help"))
+@router.message(Command("help") | create_localized_command_filter("помощь"))
 async def cmd_help(message: Message, state: FSMContext):
     """Вызывает интерактивное меню помощи."""
     await state.clear()
@@ -254,44 +254,6 @@ async def _get_period_stats(user_id: int, session, start_date) -> dict:
     from utils.daily_stats import get_period_stats as unified_get_period_stats
     
     return await unified_get_period_stats(user_id, session, start_date)
-    total_cal_burned = sum(a.calories_burned or 0 for a in activities)
-    total_water = sum(w.amount or 0 for w in water_entries)
-
-    # Расчёт средних
-    days_count = (datetime.now().date() - start_date).days + 1
-    avg_cal_consumed = total_cal_consumed / days_count if days_count else 0
-    avg_protein = total_protein / days_count if days_count else 0
-    avg_fat = total_fat / days_count if days_count else 0
-    avg_carbs = total_carbs / days_count if days_count else 0
-    avg_cal_burned = total_cal_burned / days_count if days_count else 0
-    avg_water = total_water / days_count if days_count else 0
-
-    # Тренды веса
-    weight_trend = None
-    if len(weight_entries) >= 2:
-        start_weight = weight_entries[0].weight
-        end_weight = weight_entries[-1].weight
-        weight_trend = end_weight - start_weight
-
-    return {
-        'total_cal_consumed': total_cal_consumed,
-        'total_protein': total_protein,
-        'total_fat': total_fat,
-        'total_carbs': total_carbs,
-        'total_cal_burned': total_cal_burned,
-        'total_water': total_water,
-        'avg_cal_consumed': avg_cal_consumed,
-        'avg_protein': avg_protein,
-        'avg_fat': avg_fat,
-        'avg_carbs': avg_carbs,
-        'avg_cal_burned': avg_cal_burned,
-        'avg_water': avg_water,
-        'days_count': days_count,
-        'meals_count': len(meals),
-        'activities_count': len(activities),
-        'weight_trend': weight_trend,
-        'latest_weight': weight_entries[-1].weight if weight_entries else None
-    }
 
 async def _create_progress_message(user, stats: dict, period_name: str, period: str) -> str:
     """Создание сообщения с прогрессом"""

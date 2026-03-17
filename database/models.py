@@ -55,7 +55,7 @@ class User(Base):
 
     meals = relationship("Meal", back_populates="user", cascade="all, delete-orphan")
     drink_entries = relationship("DrinkEntry", back_populates="user", cascade="all, delete-orphan")
-    water_entries = relationship("WaterEntry", back_populates="user", cascade="all, delete-orphan")
+    # water_entries удалены - используем drink_entries для всех жидкостей
     weight_entries = relationship("WeightEntry", back_populates="user", cascade="all, delete-orphan")
     activities = relationship("Activity", back_populates="user", cascade="all, delete-orphan")
     steps_entries = relationship("StepsEntry", back_populates="user", cascade="all, delete-orphan")
@@ -97,27 +97,21 @@ class FoodItem(Base):
     meal = relationship("Meal", back_populates="foods")
 
 class DrinkEntry(Base):
+    """Универсальные записи о жидкостях (напитки + вода из еды)"""
     __tablename__ = 'drink_entries'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(Integer, ForeignKey('users.id', ondelete="CASCADE"), nullable=False, index=True)
-    name = Column(String(100), nullable=False, default="вода")  # Название напитка
+    name = Column(String(100), nullable=False, default="вода")  # Название: "вода", "сок", "вода из супа борщ"
     volume_ml = Column(Float, nullable=False)                    # Объём в мл
-    calories = Column(Float, default=0.0)                        # Калории в этой порции
+    calories = Column(Float, default=0.0)                        # Калории (для соков, чая с сахаром)
+    source = Column(String(20), default='drink')                # Источник: 'drink' (напиток), 'food' (из еды)
+    reference_id = Column(Integer, nullable=True)               # ID связанной записи (meal_id для супа)
     datetime = Column(DateTime, default=datetime.utcnow, index=True)
 
     user = relationship("User", back_populates="drink_entries")
 
-class WaterEntry(Base):
-    """Записи о потреблении воды (отдельная таблица для чистоты данных)"""
-    __tablename__ = 'water_entries'
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(Integer, ForeignKey('users.id', ondelete="CASCADE"), nullable=False, index=True)
-    volume_ml = Column(Float, nullable=False)                    # Объём воды в мл
-    datetime = Column(DateTime, default=datetime.utcnow, index=True)
-
-    user = relationship("User", back_populates="water_entries")
+# WaterEntry удалена - используем единую DrinkEntry для всех жидкостей
 
 class WeightEntry(Base):
     __tablename__ = 'weight_entries'

@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import io
 from datetime import datetime, timedelta
-from database.models import WeightEntry, WaterEntry, Meal, Activity
+from database.models import WeightEntry, DrinkEntry, Meal, Activity
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import Optional, Literal
@@ -110,7 +110,7 @@ async def generate_water_plot(
     return await _generate_consumption_plot(
         user_id=user_id,
         session=session,
-        model=WaterEntry,
+        model=DrinkEntry,
         amount_field='volume_ml',
         ylabel='Вода (мл)',
         title='💧 Потребление воды',

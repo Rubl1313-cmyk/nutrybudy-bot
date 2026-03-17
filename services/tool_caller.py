@@ -183,7 +183,7 @@ class ToolCaller:
             if amount and amount > 0:
                 # Сохраняем в базу
                 from database.db import get_session
-                from database.models import User, WaterEntry
+                from database.models import User, DrinkEntry
                 from datetime import datetime
                 
                 async with get_session() as session:
@@ -201,9 +201,11 @@ class ToolCaller:
                         return False
                     
                     # Создаем запись о воде
-                    water_entry = WaterEntry(
+                    water_entry = DrinkEntry(
                         user_id=user.id,
-                        amount=amount,
+                        name='вода',
+                        volume_ml=amount,
+                        source='drink',
                         datetime=datetime.now()
                     )
                     session.add(water_entry)
@@ -214,11 +216,11 @@ class ToolCaller:
                     from sqlalchemy import func, extract
                     
                     today_stats = await session.execute(
-                        select(func.sum(WaterEntry.amount)).where(
-                            WaterEntry.user_id == user.id,
-                            extract('day', WaterEntry.datetime) == datetime.now().day,
-                            extract('month', WaterEntry.datetime) == datetime.now().month,
-                            extract('year', WaterEntry.datetime) == datetime.now().year
+                        select(func.sum(DrinkEntry.volume_ml)).where(
+                            DrinkEntry.user_id == user.id,
+                            extract('day', DrinkEntry.datetime) == datetime.now().day,
+                            extract('month', DrinkEntry.datetime) == datetime.now().month,
+                            extract('year', DrinkEntry.datetime) == datetime.now().year
                         )
                     )
                     today_total = today_stats.scalar() or 0

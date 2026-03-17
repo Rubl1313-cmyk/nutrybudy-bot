@@ -26,6 +26,7 @@ from aiohttp import web
 from database.db import init_db, close_db, engine
 from sqlalchemy import text
 from aiogram.fsm.strategy import FSMStrategy
+from utils.rate_limiter import user_rate_limiter, global_rate_limiter
 
 load_dotenv('.env')
 
@@ -206,23 +207,43 @@ async def main():
     # Создаем диспетчер с FSM
     dp = Dispatcher(storage=storage, fsm_strategy=FSMStrategy.GLOBAL_USER)
     
-    # Middleware для логирования всех входящих сообщений
+    # Middleware для логирования и rate limiting
     from aiogram import BaseMiddleware
     from aiogram.types import Message
+    from aiogram.filters import Command
     
     class LoggingMiddleware(BaseMiddleware):
         async def __call__(self, handler, event: Message, data: dict):
             logger.info(f"📨 Incoming message: {repr(event.text)}")
             return await handler(event, data)
     
+    class RateLimitMiddleware(BaseMiddleware):
+        async def __call__(self, handler, event: Message, data: dict):
+            user_id = event.from_user.id
+            
+            # Проверяем глобальный лимит
+            if not await global_rate_limiter.is_allowed():
+                logger.warning(f"🚫 Global rate limit exceeded for user {user_id}")
+                await event.answer("⚠️ Слишком много запросов! Попробуйте позже.")
+                return
+            
+            # Проверяем пользовательский лимит
+            if not await user_rate_limiter.is_allowed(user_id, 'general'):
+                logger.warning(f"🚫 User rate limit exceeded for user {user_id}")
+                await event.answer("⚠️ Слишком много запросов! Подождите немного.")
+                return
+            
+            return await handler(event, data)
+    
     dp.message.middleware(LoggingMiddleware())
+    dp.message.middleware(RateLimitMiddleware())
     
     # Подключение роутеров в правильном порядке:
     # 1. Команды и специфические обработчики (должны быть первыми)
     # 2. Медиа и AI обработчики
-    # 3. Универсальный обработчик текста (dialog) - должен быть последним
+    # 3. Универсальный обработчик текста (universal) - должен быть последним
     
-    from handlers import universal, dialog, ai_handler, common, profile, water, drinks, progress, activity, weight, meal_plan, ai_assistant, reply_handlers, achievements, food_clarification
+    from handlers import universal, ai_handler, common, profile, water, drinks, progress, activity, weight, meal_plan, ai_assistant, reply_handlers, achievements, food_clarification
 
     # Команды и специфические обработчики
     dp.include_router(common.router)           # /start, /help, /cancel и т.д.

@@ -284,6 +284,13 @@ async def meal_type_callback(callback: CallbackQuery, state: FSMContext):
         
         await callback.answer("✅ Приём пищи сохранён!")
         
+        # Очищаем данные анализа из FSM после сохранения
+        photo_analysis = state_data.get("photo_analysis", {})
+        if analysis_id in photo_analysis:
+            del photo_analysis[analysis_id]
+            await state.update_data(photo_analysis=photo_analysis)
+            logger.info(f"🧹 Cleaned up photo_analysis for {analysis_id}")
+        
     except Exception as e:
         logger.error(f"❌ Error in meal_type_callback: {e}")
         await callback.answer(

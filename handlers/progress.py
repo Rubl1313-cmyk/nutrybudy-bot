@@ -10,7 +10,7 @@ from aiogram import F, Router
 from sqlalchemy import select, func
 
 from database.db import get_session
-from database.models import User, Meal, Activity, WaterEntry, WeightEntry
+from database.models import User, Meal, Activity, DrinkEntry, WeightEntry
 from keyboards.reply_v2 import get_main_keyboard_v2
 from keyboards.inline import get_progress_menu
 

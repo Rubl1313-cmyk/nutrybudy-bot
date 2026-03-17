@@ -140,35 +140,63 @@ class MigrationManager:
             """
         ))
         
-        # Версия 1.3.0: Fix water_entries amount field
+        # Версия 1.4.0: Миграция на единую таблицу DrinkEntry
         self.migrations.append(Migration(
-            "1.3.0",
-            "Fix water_entries amount field",
+            "1.4.0",
+            "Migrate to unified DrinkEntry table",
             """
--- Переименовываем amount_ml в amount, если такая колонка существует
+-- Добавляем поля source и reference_id в drink_entries
 DO $$
 BEGIN
-    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'water_entries' AND column_name = 'amount_ml') THEN
-        ALTER TABLE water_entries RENAME COLUMN amount_ml TO amount;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'drink_entries' AND column_name = 'source') THEN
+        ALTER TABLE drink_entries ADD COLUMN source VARCHAR(20) DEFAULT 'drink';
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'drink_entries' AND column_name = 'reference_id') THEN
+        ALTER TABLE drink_entries ADD COLUMN reference_id INTEGER;
     END IF;
 END;
 $$;
 
--- Добавляем колонку amount, если её нет
-DO $$
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'water_entries' AND column_name = 'amount') THEN
-        ALTER TABLE water_entries ADD COLUMN amount FLOAT;
-    END IF;
-END;
-$$;
+-- Переносим данные из water_entries в drink_entries
+INSERT INTO drink_entries (user_id, name, volume_ml, calories, source, datetime)
+SELECT user_id, 'вода', volume_ml, 0.0, 'drink', datetime
+FROM water_entries
+WHERE NOT EXISTS (
+    SELECT 1 FROM drink_entries 
+    WHERE drink_entries.user_id = water_entries.user_id 
+    AND drink_entries.datetime = water_entries.datetime
+    AND drink_entries.name = 'вода'
+);
+
+-- Удаляем таблицу water_entries
+DROP TABLE IF EXISTS water_entries;
             """,
-            None
+            """
+-- Откат миграции (если понадобится)
+-- Создаем таблицу water_entries
+CREATE TABLE water_entries (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    volume_ml FLOAT NOT NULL,
+    datetime TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Переносим данные обратно
+INSERT INTO water_entries (user_id, volume_ml, datetime)
+SELECT user_id, volume_ml, datetime
+FROM drink_entries
+WHERE name = 'вода' AND source = 'drink';
+
+-- Удаляем поля из drink_entries
+ALTER TABLE drink_entries DROP COLUMN IF EXISTS source;
+ALTER TABLE drink_entries DROP COLUMN IF EXISTS reference_id;
+            """
         ))
         
-        # Версия 1.4: Добавление поля бицепса для мужчин
+        # Версия 1.5.0: Добавление поля бицепса для мужчин
         self.migrations.append(Migration(
-            "1.4.0",
+            "1.5.0",
             "Add bicep_cm field for male anthropometry",
             """
             -- Добавляем поле бицепса если его нет

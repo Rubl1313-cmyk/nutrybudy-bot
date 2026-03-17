@@ -10,14 +10,15 @@ from aiogram import F, Router
 from sqlalchemy import select, func
 
 from database.db import get_session
-from database.models import User, WaterEntry
+from database.models import User, DrinkEntry
 from keyboards.reply_v2 import get_main_keyboard_v2
 from utils.water_parser import parse_water_amount
+from utils.localized_commands import create_localized_command_filter
 
 logger = logging.getLogger(__name__)
 router = Router()
 
-@router.message(Command("log_water"))
+@router.message(Command("log_water") | create_localized_command_filter("записать_воду"))
 async def cmd_log_water(message: Message, state: FSMContext):
     """Запись потребления воды"""
     await state.clear()
@@ -70,9 +71,11 @@ async def process_water(message: Message, state: FSMContext):
                 return
             
             # Создаем запись о воде
-            water_entry = WaterEntry(
+            water_entry = DrinkEntry(
                 user_id=user.id,
-                amount=amount_ml,
+                name='вода',
+                volume_ml=amount_ml,
+                source='drink',
                 datetime=message.date
             )
             
@@ -82,9 +85,9 @@ async def process_water(message: Message, state: FSMContext):
             # Получаем статистику за сегодня
             today = message.date
             water_result = await session.execute(
-                select(func.sum(WaterEntry.amount)).where(
-                    WaterEntry.user_id == user.id,
-                    func.date(WaterEntry.datetime) == today
+                select(func.sum(DrinkEntry.volume_ml)).where(
+                    DrinkEntry.user_id == user.id,
+                    func.date(DrinkEntry.datetime) == today
                 )
             )
             total_water = water_result.scalar() or 0
@@ -109,7 +112,7 @@ async def process_water(message: Message, state: FSMContext):
             reply_markup=get_main_keyboard_v2()
         )
 
-@router.message(Command("water"))
+@router.message(Command("water") | create_localized_command_filter("вода"))
 async def cmd_water(message: Message, state: FSMContext):
     """Статистика потребления воды"""
     await state.clear()
@@ -131,21 +134,19 @@ async def cmd_water(message: Message, state: FSMContext):
         # Статистика за сегодня
         today = message.date
         water_result = await session.execute(
-            select(func.sum(WaterEntry.amount)).where(
-                WaterEntry.user_id == user.id,
-                func.date(WaterEntry.datetime) == today
+            select(func.sum(DrinkEntry.volume_ml)).where(
+                DrinkEntry.user_id == user.id,
+                func.date(DrinkEntry.datetime) == today
             )
         )
         total_water = water_result.scalar() or 0
         
-        # Статистика за неделю
-        from datetime import datetime, timedelta
         week_ago = today - timedelta(days=7)
         
         week_result = await session.execute(
-            select(func.sum(WaterEntry.amount)).where(
-                WaterEntry.user_id == user.id,
-                func.date(WaterEntry.datetime) >= week_ago
+            select(func.sum(DrinkEntry.volume_ml)).where(
+                DrinkEntry.user_id == user.id,
+                func.date(DrinkEntry.datetime) >= week_ago
             )
         )
         week_total = week_result.scalar() or 0

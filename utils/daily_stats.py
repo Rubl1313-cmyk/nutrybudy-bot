@@ -182,14 +182,35 @@ async def get_period_stats(user_id: int, period: str = "day") -> Dict[str, Any]:
             
             # Активность
             activity_result = await session.execute(
-                select(func.sum(Activity.calories_burned)).where(*activity_conditions)
+                select(func.sum(Activity.calories_burned), func.count(Activity.id)).where(*activity_conditions)
             )
-            calories_activity = activity_result.scalar() or 0
+            calories_activity, activities_count = activity_result.first() or (0, 0)
+            
+            # Вес
+            if start_date:
+                weight_conditions = [WeightEntry.user_id == user_id, WeightEntry.datetime >= start_date]
+            else:
+                weight_conditions = [WeightEntry.user_id == user_id]
+                
+            weight_result = await session.execute(
+                select(WeightEntry.weight, WeightEntry.datetime).where(*weight_conditions).order_by(WeightEntry.datetime.desc())
+            )
+            weight_entries = weight_result.all()
+            
+            latest_weight = weight_entries[0].weight if weight_entries else None
+            weight_trend = None
+            if len(weight_entries) >= 2:
+                first_weight = weight_entries[-1].weight
+                latest_weight = weight_entries[0].weight
+                weight_trend = latest_weight - first_weight
             
             stats.update({
                 'total_water_ml': water_total or 0,
                 'calories_from_drinks': calories_drinks or 0,
                 'calories_burned': calories_activity,
+                'activities_count': activities_count,
+                'latest_weight': latest_weight,
+                'weight_trend': weight_trend,
                 'net_calories': stats['total_calories'] - calories_activity
             })
             
@@ -207,6 +228,9 @@ async def get_period_stats(user_id: int, period: str = "day") -> Dict[str, Any]:
             'total_water_ml': 0,
             'calories_from_drinks': 0,
             'calories_burned': 0,
+            'activities_count': 0,
+            'latest_weight': None,
+            'weight_trend': None,
             'net_calories': 0
         }
 

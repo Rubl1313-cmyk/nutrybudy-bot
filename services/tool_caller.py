@@ -74,9 +74,58 @@ class ToolCaller:
             result = await ai_processor.process_text_input(text, user_id)
             
             if result.get("success"):
-                # Форматируем и сохраняем
-                from handlers.ai_handler import save_food_and_respond
-                await save_food_and_respond(message, result["parameters"])
+                # Сохраняем через food_save_service
+                from services.food_save_service import food_save_service
+                from utils.ui_templates import meal_card
+                
+                food_items = result["parameters"].get("food_items", [])
+                meal_type = result["parameters"].get("meal_type", "main")
+                
+                save_result = await food_save_service.save_food_to_db(
+                    user_id, 
+                    food_items, 
+                    meal_type
+                )
+                
+                if save_result.get("success"):
+                    # Получаем статистику и отправляем карточку
+                    from utils.daily_stats import get_daily_stats
+                    from database.db import get_session
+                    from database.models import User
+                    from sqlalchemy import select
+                    
+                    async with get_session() as session:
+                        user_result = await session.execute(
+                            select(User).where(User.telegram_id == user_id)
+                        )
+                        user = user_result.scalar_one_or_none()
+                    
+                    daily_stats = await get_daily_stats(user_id)
+                    
+                    # Формируем описание из ингредиентов
+                    description_from_items = ", ".join([
+                        f"{item.get('quantity','')} {item.get('unit','г')} {item['name']}" 
+                        for item in food_items
+                    ])
+                    
+                    # Форматируем данные для карточки
+                    food_data = {
+                        'description': description_from_items,
+                        'total_calories': save_result.get('total_calories', 0),
+                        'total_protein': save_result.get('total_protein', 0),
+                        'total_fat': save_result.get('total_fat', 0),
+                        'total_carbs': save_result.get('total_carbs', 0),
+                        'meal_type': meal_type
+                    }
+                    
+                    await message.answer(
+                        meal_card(food_data, user, daily_stats),
+                        parse_mode="HTML"
+                    )
+                else:
+                    await message.answer(
+                        f"❌ Ошибка сохранения: {save_result.get('error', 'Неизвестная ошибка')}"
+                    )
                 return True
             else:
                 # Если AI не смог распознать, предлагаем альтернативы

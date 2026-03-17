@@ -115,17 +115,12 @@ async def create_progress_message(user, stats: dict, period_name: str) -> str:
     """Создание сообщения с прогрессом"""
     
     # Определяем статусы
-    user = stats.get('user')  # Получаем пользователя из stats
-    if not user:
-        calorie_status = "🎯"
-        water_status = "💧"
-    else:
-        calorie_status = "🎯" if stats['avg_cal_consumed'] <= user.daily_calorie_goal else "⚠️"
-        water_status = "💧" if stats['avg_water'] >= user.daily_water_goal else "💦"
+    calorie_status = "🎯" if stats['total_calories'] <= user.daily_calorie_goal else "⚠️"
+    water_status = "💧" if stats['total_water_ml'] >= user.daily_water_goal else "💦"
     
     # Прогресс в процентах
-    calorie_progress = (stats['avg_cal_consumed'] / user.daily_calorie_goal * 100) if user and user.daily_calorie_goal > 0 else 0
-    water_progress = (stats['avg_water'] / user.daily_water_goal * 100) if user and user.daily_water_goal > 0 else 0
+    calorie_progress = (stats['total_calories'] / user.daily_calorie_goal * 100) if user.daily_calorie_goal > 0 else 0
+    water_progress = (stats['total_water_ml'] / user.daily_water_goal * 100) if user.daily_water_goal > 0 else 0
     
     # Тренд веса
     trend_emoji = "📈" if stats['weight_trend'] and stats['weight_trend'] < 0 else "📊"
@@ -134,23 +129,22 @@ async def create_progress_message(user, stats: dict, period_name: str) -> str:
     message = (
         f"📊 <b>Ваш прогресс {period_name}</b>\n\n"
         f"🔥 <b>Калории:</b>\n"
-        f"   {calorie_status} Потреблено: {stats['total_cal_consumed']:.0f} ккал\n"
-        f"   🔥 Сожжено: {stats['total_cal_burned']:.0f} ккал\n"
-        f"   ⚖️ Баланс: {stats['total_cal_consumed'] - stats['total_cal_burned']:+.0f} ккал\n"
-        f"   📊 Среднее: {stats['avg_cal_consumed']:.0f}/{user.daily_calorie_goal:.0f} ккал/день\n"
+        f"   {calorie_status} Потреблено: {stats['total_calories']:.0f} ккал\n"
+        f"   🔥 Сожжено: {stats['calories_burned']:.0f} ккал\n"
+        f"   ⚖️ Баланс: {stats['total_calories'] - stats['calories_burned']:+.0f} ккал\n"
+        f"   📊 Среднее: {stats['total_calories']:.0f}/{user.daily_calorie_goal:.0f} ккал\n"
         f"   📈 Прогресс: {calorie_progress:.1f}%\n\n"
         f"💧 <b>Вода:</b>\n"
-        f"   {water_status} Всего: {stats['total_water']:.0f} мл\n"
-        f"   📊 Среднее: {stats['avg_water']:.0f}/{user.daily_water_goal:.0f} мл/день\n"
+        f"   {water_status} Всего: {stats['total_water_ml']:.0f} мл\n"
+        f"   📊 Цель: {user.daily_water_goal:.0f} мл\n"
         f"   📈 Прогресс: {water_progress:.1f}%\n\n"
-        f"🥩 <b>БЖУ (среднее в день):</b>\n"
-        f"   🥪 Белки: {stats['avg_protein']:.1f}/{user.daily_protein_goal:.0f} г\n"
-        f"   🧈 Жиры: {stats['avg_fat']:.1f}/{user.daily_fat_goal:.0f} г\n"
-        f"   🍞 Углеводы: {stats['avg_carbs']:.1f}/{user.daily_carbs_goal:.0f} г\n\n"
+        f"🥩 <b>БЖУ:</b>\n"
+        f"   🥪 Белки: {stats['total_protein']:.1f} г\n"
+        f"   🧈 Жиры: {stats['total_fat']:.1f} г\n"
+        f"   🍞 Углеводы: {stats['total_carbs']:.1f} г\n\n"
         f"📈 <b>Активность:</b>\n"
         f"   🍽️ Приемов пищи: {stats['meals_count']}\n"
         f"   🏃 Тренировок: {stats['activities_count']}\n"
-        f"   📅 Дней в периоде: {stats['days_count']}\n"
     )
     
     if weight_info:

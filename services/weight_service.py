@@ -3,7 +3,7 @@ services/weight_service.py
 Сервис для сохранения и обработки веса
 """
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any, Optional, List
 from database.db import get_session
 from database.models import WeightEntry, User
@@ -12,8 +12,6 @@ from sqlalchemy import select, func
 logger = logging.getLogger(__name__)
 
 async def save_weight(user_id: int, weight_kg: float, 
-                      body_fat_percent: Optional[float] = None,
-                      muscle_mass_percent: Optional[float] = None,
                       notes: Optional[str] = None) -> Dict[str, Any]:
     """
     Сохраняет запись веса пользователя
@@ -21,8 +19,6 @@ async def save_weight(user_id: int, weight_kg: float,
     Args:
         user_id: ID пользователя
         weight_kg: Вес в килограммах
-        body_fat_percent: Процент жира в теле
-        muscle_mass_percent: Процент мышечной массы
         notes: Заметки
         
     Returns:
@@ -34,7 +30,7 @@ async def save_weight(user_id: int, weight_kg: float,
             weight_entry = WeightEntry(
                 user_id=user_id,
                 weight=weight_kg,
-                datetime=datetime.now()
+                datetime=datetime.now(timezone.utc)
             )
             
             session.add(weight_entry)

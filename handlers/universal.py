@@ -242,10 +242,32 @@ async def meal_type_callback(callback: CallbackQuery, state: FSMContext):
         
         # Используем save_food_to_db с детальными ингредиентами
         food_items = food_data.get("food_items", [])
-        if not food_items:
-            # Если нет детальных ингредиентов, создаем их из food_data
-            # Конвертируем старый формат в новый
-            food_items = [{
+        
+        # Всегда конвертируем ингредиенты из формата _per_100g в итоговые значения
+        converted_food_items = []
+        for item in food_items:
+            # Проверяем, есть ли ключи _per_100g
+            if 'calories_per_100g' in item:
+                weight = item.get('quantity', 0)
+                factor = weight / 100.0
+                
+                converted_item = {
+                    'name': item.get('name', 'Неизвестный продукт'),
+                    'quantity': weight,
+                    'unit': item.get('unit', 'г'),
+                    'calories': item.get('calories_per_100g', 0) * factor,
+                    'protein': item.get('protein_per_100g', 0) * factor,
+                    'fat': item.get('fat_per_100g', 0) * factor,
+                    'carbs': item.get('carbs_per_100g', 0) * factor
+                }
+                converted_food_items.append(converted_item)
+            else:
+                # Если уже в правильном формате, просто добавляем
+                converted_food_items.append(item)
+        
+        # Если после конвертации нет ингредиентов, создаем из food_data
+        if not converted_food_items:
+            converted_food_items = [{
                 'name': food_data.get('dish_name', 'Блюдо'),
                 'quantity': food_data.get('total_weight', 100),
                 'unit': 'г',
@@ -255,10 +277,10 @@ async def meal_type_callback(callback: CallbackQuery, state: FSMContext):
                 'carbs': food_data.get('total_carbs', 0)
             }]
         
-        # Сохраняем через save_food_to_db
+        # Сохраняем через save_food_to_db с конвертированными ингредиентами
         save_result = await food_save_service.save_food_to_db(
             callback.from_user.id,
-            food_items,
+            converted_food_items,
             meal_type
         )
         

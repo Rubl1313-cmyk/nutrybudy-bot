@@ -291,8 +291,8 @@ async def _create_progress_message(user, stats: dict, period_name: str, period: 
     message += f"   Норма: {user.daily_water_goal:.0f} мл {water_status}\n\n"
     
     # Активность
-    if stats['total_cal_burned'] > 0:
-        message += f"🏃 <b>Активность:</b> {stats['total_cal_burned']:.0f} ккал сожжено\n"
+    if stats['calories_burned'] > 0:
+        message += f"🏃 <b>Активность:</b> {stats['calories_burned']:.0f} ккал сожжено\n"
         message += f"   Тренировок: {stats['activities_count']}\n\n"
     
     # Вес
@@ -303,11 +303,11 @@ async def _create_progress_message(user, stats: dict, period_name: str, period: 
             message += f"   Изменение: {stats['weight_trend']:+.1f} кг за {period_name}\n\n"
     
     # Мотивация
-    if stats['avg_cal_consumed'] <= user.daily_calorie_goal and stats['avg_water'] >= user.daily_water_goal:
+    if stats['total_calories'] <= user.daily_calorie_goal and stats['total_water_ml'] >= user.daily_water_goal:
         message += "🎉 <b>Отличная работа!</b> Вы придерживаетесь норм калорий и воды!"
-    elif stats['avg_cal_consumed'] <= user.daily_calorie_goal:
+    elif stats['total_calories'] <= user.daily_calorie_goal:
         message += "💪 <b>Хорошо!</b> Калории в норме, не забывайте пить воду!"
-    elif stats['avg_water'] >= user.daily_water_goal:
+    elif stats['total_water_ml'] >= user.daily_water_goal:
         message += "💧 <b>Отлично!</b> Водный режим соблюден, следите за калориями!"
     else:
         message += "📝 <b>Совет:</b> Старайтесь соблюдать нормы калорий и пить больше воды."

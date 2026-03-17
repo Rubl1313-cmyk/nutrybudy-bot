@@ -426,9 +426,9 @@ async def process_goal(message: Message, state: FSMContext):
         "Ğ�Ğ°Ğ¿Ñ€Ğ¸Ğ¼ĞµÑ€: ĞœĞ¾Ñ�ĞºĞ²Ğ°",
         parse_mode="HTML"
     )
-    await state.set_state(ProfileStates.city)
+    await state.set_state(ProfileStates.waiting_for_city)
 
-@router.message(ProfileStates.city)
+@router.message(ProfileStates.waiting_for_city)
 async def process_city(message: Message, state: FSMContext):
     """Обработка города и автоматическое определение часового пояса"""
     # Получаем реальную city из FSMContext
@@ -973,7 +973,7 @@ async def process_edit_callback(callback: CallbackQuery, state: FSMContext):
         await state.set_state(ProfileStates.gender)
     elif action == "city":
         await callback.message.answer("ğŸ�™ï¸� Ğ’Ğ²ĞµĞ´Ğ¸Ñ‚Ğµ Ğ½Ğ¾Ğ²Ñ‹Ğ¹ Ğ³Ğ¾Ñ€Ğ¾Ğ´:")
-        await state.set_state(ProfileStates.city)
+        await state.set_state(ProfileStates.waiting_for_city)
     elif action == "goal":
         await show_goal_keyboard(callback.message, state)
     elif action == "measurements":
@@ -1342,7 +1342,7 @@ async def process_edit_gender(message: Message, state: FSMContext):
     
     await state.clear()
 
-@router.message(ProfileStates.city)
+@router.message(ProfileStates.waiting_for_city)
 async def process_edit_city(message: Message, state: FSMContext):
     """Ğ�Ğ±Ñ€Ğ°Ğ±Ğ¾Ñ‚ĞºĞ° Ğ¸Ğ·Ğ¼ĞµĞ½ĞµĞ½Ğ¸Ñ� Ğ³Ğ¾Ñ€Ğ¾Ğ´Ğ°"""
     city = message.text.strip()

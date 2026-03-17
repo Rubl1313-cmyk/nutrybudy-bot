@@ -730,15 +730,15 @@ AI_TO_DB_MAPPING = {
     "pie with dried apricots": "Ğ¿Ğ¸Ñ€Ğ¾Ğ³ Ñ� ĞºÑƒÑ€Ğ°Ğ³Ğ¾Ğ¹",
     "pie with prunes": "Ğ¿Ğ¸Ñ€Ğ¾Ğ³ Ñ� Ñ‡ĞµÑ€Ğ½Ğ¾Ñ�Ğ»Ğ¸Ğ²Ğ¾Ğ¼",
     "pie with dates": "Ğ¿Ğ¸Ñ€Ğ¾Ğ³ Ñ� Ñ„Ğ¸Ğ½Ğ¸ĞºĞ°Ğ¼Ğ¸",
-    "pie with figs": "Ğ¿Ğ¸Ñ€Ğ¾Ğ³ Ñ� Ğ¸Ğ½Ğ¶Ğ¸Ñ€Ğ¾Ğ¼",
+    "pie with figs": "пирог с семенами чиа",
     "pie with poppy seeds": "Ğ¿Ğ¸Ñ€Ğ¾Ğ³ Ñ� Ğ¼Ğ°ĞºĞ¾Ğ¼",
     "pie with sesame seeds": "Ğ¿Ğ¸Ñ€Ğ¾Ğ³ Ñ� ĞºÑƒĞ½Ğ¶ÑƒÑ‚Ğ¾Ğ¼",
     "pie with sunflower seeds": "Ğ¿Ğ¸Ñ€Ğ¾Ğ³ Ñ� Ñ�ĞµĞ¼ĞµÑ‡ĞºĞ°Ğ¼Ğ¸",
     "pie with pumpkin seeds": "Ğ¿Ğ¸Ñ€Ğ¾Ğ³ Ñ� Ñ‚Ñ‹ĞºĞ²ĞµĞ½Ğ½Ñ‹Ğ¼Ğ¸ Ñ�ĞµĞ¼ĞµÑ‡ĞºĞ°Ğ¼Ğ¸",
-    "pie with chia seeds": "Ğ¿Ğ¸Ñ€Ğ¾Ğ³ Ñ� Ñ�ĞµĞ¼ĞµĞ½Ğ°Ğ¼Ğ¸ Ñ‡Ğ¸Ğ°",
+    "pie with chia seeds": "пирог с семенами чиа",
+}
 
-
-# ĞšÑ�Ñˆ Ğ¿ĞµÑ€ĞµĞ²Ğ¾Ğ´Ğ¾Ğ²
+# Кэш переводов
 from collections import OrderedDict
 import time
 
@@ -790,6 +790,10 @@ class LRUCache:
     
     def clear(self) -> None:
         self.cache.clear()
+    
+    def __contains__(self, key: str) -> bool:
+        """Support 'in' operator for cache checking"""
+        return key in self.cache and self.get(key) is not None
 
 _translation_cache = LRUCache(max_size=MAX_TRANSLATION_CACHE_SIZE, ttl=TRANSLATION_CACHE_TTL)
 
@@ -805,6 +809,7 @@ async def translate_to_russian(text: str) -> str:
     
     # 1. ĞŸÑ€Ğ¾Ğ²ĞµÑ€ĞºĞ° ĞºÑ�ÑˆĞ°
     if text_lower in _translation_cache:
+        return _translation_cache.get(text_lower)
     
     # 2. ĞŸÑ€Ñ�Ğ¼Ğ¾Ğµ Ğ¼Ğ°Ğ¿Ğ¿Ğ¸Ñ€Ğ¾Ğ²Ğ°Ğ½Ğ¸Ğµ AI â†’ Ğ±Ğ°Ğ·Ğ° (ĞŸĞ Ğ˜Ğ�Ğ Ğ˜Ğ¢Ğ•Ğ¢)
     if text_lower in AI_TO_DB_MAPPING:

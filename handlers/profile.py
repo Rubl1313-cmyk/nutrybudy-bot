@@ -958,19 +958,19 @@ async def process_edit_callback(callback: CallbackQuery, state: FSMContext):
     # Ğ£Ñ�Ñ‚Ğ°Ğ½Ğ°Ğ²Ğ»Ğ¸Ğ²Ğ°ĞµĞ¼ Ñ�Ğ¾Ñ�Ñ‚Ğ¾Ñ�Ğ½Ğ¸Ğµ Ğ² Ğ·Ğ°Ğ²Ğ¸Ñ�Ğ¸Ğ¼Ğ¾Ñ�Ñ‚Ğ¸ Ğ¾Ñ‚ Ğ²Ñ‹Ğ±Ñ€Ğ°Ğ½Ğ½Ğ¾Ğ³Ğ¾ Ğ¿Ğ°Ñ€Ğ°Ğ¼ĞµÑ‚Ñ€Ğ°
     if action == "weight":
         await callback.message.answer("ğŸ“� Ğ’Ğ²ĞµĞ´Ğ¸Ñ‚Ğµ Ğ½Ğ¾Ğ²Ñ‹Ğ¹ Ğ²ĞµÑ� (Ğ² ĞºĞ³):")
-        await state.set_state(ProfileStates.weight)
+        await state.set_state(ProfileStates.waiting_for_weight)
     elif action == "height":
         await callback.message.answer("ğŸ“� Ğ’Ğ²ĞµĞ´Ğ¸Ñ‚Ğµ Ğ½Ğ¾Ğ²Ñ‹Ğ¹ Ñ€Ğ¾Ñ�Ñ‚ (Ğ² Ñ�Ğ¼):")
-        await state.set_state(ProfileStates.height)
+        await state.set_state(ProfileStates.waiting_for_height)
     elif action == "age":
         await callback.message.answer("ğŸ�‚ Ğ’Ğ²ĞµĞ´Ğ¸Ñ‚Ğµ Ğ½Ğ¾Ğ²Ñ‹Ğ¹ Ğ²Ğ¾Ğ·Ñ€Ğ°Ñ�Ñ‚:")
-        await state.set_state(ProfileStates.age)
+        await state.set_state(ProfileStates.waiting_for_age)
     elif action == "gender":
         await callback.message.answer(
             "âš§ï¸� Ğ’Ñ‹Ğ±ĞµÑ€Ğ¸Ñ‚Ğµ Ğ¿Ğ¾Ğ»:",
             reply_markup=get_gender_keyboard()
         )
-        await state.set_state(ProfileStates.gender)
+        await state.set_state(ProfileStates.waiting_for_gender)
     elif action == "city":
         await callback.message.answer("ğŸ�™ï¸� Ğ’Ğ²ĞµĞ´Ğ¸Ñ‚Ğµ Ğ½Ğ¾Ğ²Ñ‹Ğ¹ Ğ³Ğ¾Ñ€Ğ¾Ğ´:")
         await state.set_state(ProfileStates.waiting_for_city)
@@ -1120,7 +1120,7 @@ async def show_goal_keyboard(message: Message, state: FSMContext):
         reply_markup=keyboard,
         parse_mode="HTML"
     )
-    await state.set_state(ProfileStates.goal)
+    await state.set_state(ProfileStates.waiting_for_goal)
 
 async def show_measurements_keyboard(message: Message, state: FSMContext):
     """ĞŸĞ¾ĞºĞ°Ğ· ĞºĞ»Ğ°Ğ²Ğ¸Ğ°Ñ‚ÑƒÑ€Ñ‹ Ğ´Ğ»Ñ� Ğ²Ñ‹Ğ±Ğ¾Ñ€Ğ° Ğ·Ğ°Ğ¼ĞµÑ€Ğ¾Ğ²"""
@@ -1142,7 +1142,7 @@ async def show_measurements_keyboard(message: Message, state: FSMContext):
             parse_mode="HTML"
         )
 
-@router.message(ProfileStates.weight)
+@router.message(ProfileStates.waiting_for_weight)
 async def process_edit_weight(message: Message, state: FSMContext):
     """Ğ�Ğ±Ñ€Ğ°Ğ±Ğ¾Ñ‚ĞºĞ° Ğ¸Ğ·Ğ¼ĞµĞ½ĞµĞ½Ğ¸Ñ� Ğ²ĞµÑ�Ğ°"""
     from utils.safe_parser import safe_parse_float
@@ -1226,7 +1226,7 @@ async def process_edit_weight(message: Message, state: FSMContext):
     
     await state.clear()
 
-@router.message(ProfileStates.height)
+@router.message(ProfileStates.waiting_for_height)
 async def process_edit_height(message: Message, state: FSMContext):
     """Ğ�Ğ±Ñ€Ğ°Ğ±Ğ¾Ñ‚ĞºĞ° Ğ¸Ğ·Ğ¼ĞµĞ½ĞµĞ½Ğ¸Ñ� Ñ€Ğ¾Ñ�Ñ‚Ğ°"""
     from utils.safe_parser import safe_parse_int
@@ -1263,7 +1263,7 @@ async def process_edit_height(message: Message, state: FSMContext):
     
     await state.clear()
 
-@router.message(ProfileStates.age)
+@router.message(ProfileStates.waiting_for_age)
 async def process_edit_age(message: Message, state: FSMContext):
     """Ğ�Ğ±Ñ€Ğ°Ğ±Ğ¾Ñ‚ĞºĞ° Ğ¸Ğ·Ğ¼ĞµĞ½ĞµĞ½Ğ¸Ñ� Ğ²Ğ¾Ğ·Ñ€Ğ°Ñ�Ñ‚Ğ°"""
     from utils.safe_parser import safe_parse_int
@@ -1300,7 +1300,7 @@ async def process_edit_age(message: Message, state: FSMContext):
     
     await state.clear()
 
-@router.message(ProfileStates.gender)
+@router.message(ProfileStates.waiting_for_gender)
 async def process_edit_gender(message: Message, state: FSMContext):
     """Ğ�Ğ±Ñ€Ğ°Ğ±Ğ¾Ñ‚ĞºĞ° Ğ¸Ğ·Ğ¼ĞµĞ½ĞµĞ½Ğ¸Ñ� Ğ¿Ğ¾Ğ»Ğ°"""
     gender_text = message.text.lower()
@@ -1393,7 +1393,7 @@ async def process_edit_city(message: Message, state: FSMContext):
     
     await state.clear()
 
-@router.message(ProfileStates.goal)
+@router.message(ProfileStates.waiting_for_goal)
 async def process_edit_goal(message: Message, state: FSMContext):
     """Ğ�Ğ±Ñ€Ğ°Ğ±Ğ¾Ñ‚ĞºĞ° Ğ¸Ğ·Ğ¼ĞµĞ½ĞµĞ½Ğ¸Ñ� Ñ†ĞµĞ»Ğ¸"""
     goal_text = message.text.lower()

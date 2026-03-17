@@ -2,7 +2,7 @@
 Сервис для сохранения супов (еда + жидкость)
 """
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import select
 from database.db import get_session
 from database.models import User, Meal, DrinkEntry
@@ -147,7 +147,9 @@ async def save_soup(user_id: int, dish_name: str, volume_ml: float, meal_type: s
                 name=f"вода из {dish_name}",
                 volume_ml=water_volume,
                 calories=0.0,  # Воду из супа считаем безкалорийной
-                datetime=datetime.now()
+                source='food',  # Источник - еда (суп)
+                reference_id=meal.id,  # Ссылка на связанный прием пищи
+                datetime=datetime.now(timezone.utc)
             )
             session.add(drink)
             await session.commit()
@@ -195,7 +197,8 @@ async def save_drink(user_id: int, text: str):
                 name=drink_name,
                 volume_ml=volume,
                 calories=calories,
-                datetime=datetime.now()
+                source='drink',  # Источник - напиток
+                datetime=datetime.now(timezone.utc)
             )
             session.add(drink)
             await session.commit()

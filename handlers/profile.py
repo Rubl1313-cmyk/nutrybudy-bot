@@ -363,6 +363,8 @@ async def show_activity_keyboard(message: Message, state: FSMContext):
 async def process_activity(message: Message, state: FSMContext):
     """Ğ�Ğ±Ñ€Ğ°Ğ±Ğ¾Ñ‚ĞºĞ° ÑƒÑ€Ğ¾Ğ²Ğ½Ñ� Ğ°ĞºÑ‚Ğ¸Ğ²Ğ½Ğ¾Ñ�Ñ‚Ğ¸"""
     activity = message.text.lower()
+    
+    activity_map = {
         "Ğ¼Ğ¸Ğ½Ğ¸Ğ¼Ğ°Ğ»ÑŒĞ½Ğ°Ñ�": 1.2,
         "Ğ»ĞµĞ³ĞºĞ°Ñ�": 1.375,
         "ÑƒĞ¼ĞµÑ€ĞµĞ½Ğ½Ğ°Ñ�": 1.55,

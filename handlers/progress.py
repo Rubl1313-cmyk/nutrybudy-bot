@@ -96,18 +96,36 @@ async def get_period_stats(user_id: int, session, start_date) -> dict:
     """Получение статистики за период - использует unified функцию из utils.daily_stats"""
     from utils.daily_stats import get_period_stats as unified_get_period_stats
     
-    return await unified_get_period_stats(user_id, session, start_date)
+    # Определяем период на основе start_date
+    from datetime import datetime, timedelta
+    today = datetime.now().date()
+    
+    if start_date == today:
+        period = "day"
+    elif start_date == today - timedelta(days=7):
+        period = "week"
+    elif start_date == today - timedelta(days=30):
+        period = "month"
+    else:
+        period = "all"
+    
+    return await unified_get_period_stats(user_id, period)
 
 async def create_progress_message(user, stats: dict, period_name: str) -> str:
     """Создание сообщения с прогрессом"""
     
     # Определяем статусы
-    calorie_status = "🎯" if stats['avg_cal_consumed'] <= user.daily_calorie_goal else "⚠️"
-    water_status = "💧" if stats['avg_water'] >= user.daily_water_goal else "💦"
+    user = stats.get('user')  # Получаем пользователя из stats
+    if not user:
+        calorie_status = "🎯"
+        water_status = "💧"
+    else:
+        calorie_status = "🎯" if stats['avg_cal_consumed'] <= user.daily_calorie_goal else "⚠️"
+        water_status = "💧" if stats['avg_water'] >= user.daily_water_goal else "💦"
     
     # Прогресс в процентах
-    calorie_progress = (stats['avg_cal_consumed'] / user.daily_calorie_goal * 100) if user.daily_calorie_goal > 0 else 0
-    water_progress = (stats['avg_water'] / user.daily_water_goal * 100) if user.daily_water_goal > 0 else 0
+    calorie_progress = (stats['avg_cal_consumed'] / user.daily_calorie_goal * 100) if user and user.daily_calorie_goal > 0 else 0
+    water_progress = (stats['avg_water'] / user.daily_water_goal * 100) if user and user.daily_water_goal > 0 else 0
     
     # Тренд веса
     trend_emoji = "📈" if stats['weight_trend'] and stats['weight_trend'] < 0 else "📊"

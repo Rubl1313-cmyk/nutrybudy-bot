@@ -216,7 +216,7 @@ class IntentClassifier:
                     'keywords': keywords_found,
                     'confidence': min(1.0, score / 3.0)  # Нормализация
                 }
-        
+            
         if not scores:
             return {'intent': 'unknown', 'confidence': 0.0, 'entities': {}}
         

@@ -32,20 +32,16 @@ def get_main_keyboard_v2() -> ReplyKeyboardMarkup:
 
 def get_profile_keyboard() -> ReplyKeyboardMarkup:
     """
-    Клавиатура профиля с кнопкой полного анализа
+    Клавиатура для действий в профиле
     """
     builder = ReplyKeyboardBuilder()
     
-    # Первая строка
     builder.add(KeyboardButton(text="📝 Редактировать профиль"))
     builder.add(KeyboardButton(text="🧬 Полный анализ"))
-    builder.add(KeyboardButton(text="⚖️ Записывать вес"))
-    
-    # Вторая строка
+    builder.add(KeyboardButton(text="⚖️ Записать вес"))
     builder.add(KeyboardButton(text="🔙 Главное меню"))
     
-    # Настройка
-    builder.adjust(3, 2)  # 3 кнопки в первой строке, 1 во второй
+    builder.adjust(2, 2)
     
     return builder.as_markup(
         resize_keyboard=True,
@@ -92,12 +88,13 @@ def get_profile_keyboard() -> ReplyKeyboardMarkup:
     """
     builder = ReplyKeyboardBuilder()
     
-    builder.add(KeyboardButton(text="📝 Редактировать профиль"))
-    builder.add(KeyboardButton(text="🧬 Полный анализ"))
-    builder.add(KeyboardButton(text="⚖️ Записать вес"))
+    builder.add(KeyboardButton(text="� 1 стакан"))
+    builder.add(KeyboardButton(text="💧 2 стакана"))
+    builder.add(KeyboardButton(text="💧 500 мл"))
+    builder.add(KeyboardButton(text="💧 1 литр"))
     builder.add(KeyboardButton(text="🔙 Главное меню"))
     
-    builder.adjust(2, 2)
+    builder.adjust(3, 2)
     
     return builder.as_markup(
         resize_keyboard=True,

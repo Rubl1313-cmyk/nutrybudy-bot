@@ -4,6 +4,7 @@
 """
 
 import logging
+import re
 from typing import Dict, List, Any
 from sqlalchemy import select
 from database.db import get_session
@@ -71,7 +72,6 @@ class FoodSaveService:
                     try:
                         if isinstance(quantity_str, str):
                             # Ищем число в строке
-                            import re
                             match = re.search(r'[-+]?\d*\.?\d+', quantity_str)
                             if match:
                                 quantity = float(match.group())

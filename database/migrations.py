@@ -208,20 +208,34 @@ ALTER TABLE drink_entries DROP COLUMN IF EXISTS reference_id;
             """
         ))
         
-        # Версия 1.5.0: Расширенная антропометрия (только обхваты)
+        # Версия 1.6.0: Добавление поля goal_weight
         self.migrations.append(Migration(
-            "1.5.0",
+            "1.6.0",
+            "Add goal_weight field for target weight tracking",
+            """
+            -- Добавляем поле целевого веса если его нет
+            ALTER TABLE users ADD COLUMN IF NOT EXISTS goal_weight FLOAT;
+            """,
+            """
+            -- Удаление поля целевого веса (если понадобится откат)
+            ALTER TABLE users DROP COLUMN IF EXISTS goal_weight;
+            """
+        ))
+        
+        # Версия 1.7.0: Расширенная антропометрия (только обхваты)
+        self.migrations.append(Migration(
+            "1.7.0",
             "Add advanced anthropometry fields (girths only)",
             """
             -- Добавляем новые антропометрические поля
-            ALTER TABLE users ADD COLUMN chest_cm FLOAT;
-            ALTER TABLE users ADD COLUMN forearm_cm FLOAT;
-            ALTER TABLE users ADD COLUMN calf_cm FLOAT;
-            ALTER TABLE users ADD COLUMN shoulder_width_cm FLOAT;
-            ALTER TABLE users ADD COLUMN hip_width_cm FLOAT;
+            ALTER TABLE users ADD COLUMN IF NOT EXISTS chest_cm FLOAT;
+            ALTER TABLE users ADD COLUMN IF NOT EXISTS forearm_cm FLOAT;
+            ALTER TABLE users ADD COLUMN IF NOT EXISTS calf_cm FLOAT;
+            ALTER TABLE users ADD COLUMN IF NOT EXISTS shoulder_width_cm FLOAT;
+            ALTER TABLE users ADD COLUMN IF NOT EXISTS hip_width_cm FLOAT;
             """,
             """
-            -- Удаление новых полей (если понадобится откат)
+            -- Удаление полей (если понадобится откат)
             ALTER TABLE users DROP COLUMN IF EXISTS chest_cm;
             ALTER TABLE users DROP COLUMN IF EXISTS forearm_cm;
             ALTER TABLE users DROP COLUMN IF EXISTS calf_cm;
@@ -320,8 +334,8 @@ ALTER TABLE drink_entries DROP COLUMN IF EXISTS reference_id;
         async with get_session() as session:
             try:
                 # Создаем все таблицы из моделей
-                Base.metadata.create_all(bind=session.bind)
-                GamificationBase.metadata.create_all(bind=session.bind)
+                await session.run_sync(Base.metadata.create_all)
+                await session.run_sync(GamificationBase.metadata.create_all)
                 
                 # Записываем начальную миграцию
                 await session.execute(text("""

@@ -50,6 +50,9 @@ class User(Base):
     last_muscle_mass = Column(Float, nullable=True) # Последняя мышечная масса
     last_body_water = Column(Float, nullable=True)  # Последняя расчетная вода
     
+    # Целевые показатели
+    goal_weight = Column(Float, nullable=True)      # Целевой вес
+    
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

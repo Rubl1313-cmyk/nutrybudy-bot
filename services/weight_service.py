@@ -6,7 +6,7 @@ import logging
 from datetime import datetime
 from typing import Dict, Any, Optional, List
 from database.db import get_session
-from database.models import Weight, User
+from database.models import WeightEntry, User
 from sqlalchemy import select, func
 
 logger = logging.getLogger(__name__)
@@ -31,12 +31,9 @@ async def save_weight(user_id: int, weight_kg: float,
     try:
         async with get_session() as session:
             # Создаем запись о весе
-            weight_entry = Weight(
+            weight_entry = WeightEntry(
                 user_id=user_id,
-                weight_kg=weight_kg,
-                body_fat_percent=body_fat_percent,
-                muscle_mass_percent=muscle_mass_percent,
-                notes=notes,
+                weight=weight_kg,
                 datetime=datetime.now()
             )
             
@@ -50,9 +47,6 @@ async def save_weight(user_id: int, weight_kg: float,
                 "success": True,
                 "weight_id": weight_entry.id,
                 "weight_kg": weight_kg,
-                "body_fat_percent": body_fat_percent,
-                "muscle_mass_percent": muscle_mass_percent,
-                "notes": notes,
                 "datetime": weight_entry.datetime
             }
             
@@ -63,7 +57,7 @@ async def save_weight(user_id: int, weight_kg: float,
             "error": str(e)
         }
 
-async def get_user_weights(user_id: int, days: int = 30) -> List[Weight]:
+async def get_user_weights(user_id: int, days: int = 30) -> List[WeightEntry]:
     """
     Получает записи веса пользователя за последние дни
     
@@ -72,7 +66,7 @@ async def get_user_weights(user_id: int, days: int = 30) -> List[Weight]:
         days: Количество дней для выборки
         
     Returns:
-        List[Weight]: Список записей веса
+        List[WeightEntry]: Список записей веса
     """
     try:
         from datetime import timedelta
@@ -80,10 +74,10 @@ async def get_user_weights(user_id: int, days: int = 30) -> List[Weight]:
         
         async with get_session() as session:
             result = await session.execute(
-                select(Weight).where(
-                    Weight.user_id == user_id,
-                    Weight.datetime >= start_date
-                ).order_by(Weight.datetime.desc())
+                select(WeightEntry).where(
+                    WeightEntry.user_id == user_id,
+                    WeightEntry.datetime >= start_date
+                ).order_by(WeightEntry.datetime.desc())
             )
             weights = result.scalars().all()
             return list(weights)
@@ -117,16 +111,16 @@ async def get_weight_stats(user_id: int, days: int = 30) -> Dict[str, Any]:
                 "trend": "no_data"
             }
         
-        current_weight = weights[0].weight_kg  # Самая свежая запись
-        oldest_weight = weights[-1].weight_kg  # Самая старая запись
+        current_weight = weights[0].weight  # Самая свежая запись
+        oldest_weight = weights[-1].weight  # Самая старая запись
         weight_change = current_weight - oldest_weight
         
         # Средний вес
-        avg_weight = sum(w.weight_kg for w in weights) / len(weights)
+        avg_weight = sum(w.weight for w in weights) / len(weights)
         
         # Минимальный и максимальный вес
-        min_weight = min(w.weight_kg for w in weights)
-        max_weight = max(w.weight_kg for w in weights)
+        min_weight = min(w.weight for w in weights)
+        max_weight = max(w.weight for w in weights)
         
         # Определяем тренд
         if abs(weight_change) < 0.5:  # Менее 0.5 кг изменения
@@ -159,7 +153,7 @@ async def get_weight_stats(user_id: int, days: int = 30) -> Dict[str, Any]:
             "trend": "no_data"
         }
 
-async def get_latest_weight(user_id: int) -> Optional[Weight]:
+async def get_latest_weight(user_id: int) -> Optional[WeightEntry]:
     """
     Получает последнюю запись веса пользователя
     
@@ -167,14 +161,14 @@ async def get_latest_weight(user_id: int) -> Optional[Weight]:
         user_id: ID пользователя
         
     Returns:
-        Optional[Weight]: Последняя запись веса или None
+        Optional[WeightEntry]: Последняя запись веса или None
     """
     try:
         async with get_session() as session:
             result = await session.execute(
-                select(Weight).where(
-                    Weight.user_id == user_id
-                ).order_by(Weight.datetime.desc()).limit(1)
+                select(WeightEntry).where(
+                    WeightEntry.user_id == user_id
+                ).order_by(WeightEntry.datetime.desc()).limit(1)
             )
             return result.scalar_one_or_none()
             
@@ -209,7 +203,7 @@ async def update_user_weight_goal(user_id: int, goal_weight_kg: float) -> Dict[s
                 return {
                     "success": True,
                     "goal_weight_kg": goal_weight_kg,
-                    "previous_goal": getattr(user, '_goal_weight_before_update', None)
+                    "previous_goal": getattr(user, 'goal_weight', None)
                 }
             else:
                 return {

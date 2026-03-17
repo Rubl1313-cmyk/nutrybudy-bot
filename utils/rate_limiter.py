@@ -1,13 +1,13 @@
 """
 Rate limiting для защиты от спама
 """
-import time
-import asyncio
+import logging
 import os
-from typing import Dict, Optional
+import time
+from typing import Dict, Set, Optional
 from collections import defaultdict, deque
 from datetime import datetime, timedelta
-import logging
+from aiogram.types import Message
 
 logger = logging.getLogger(__name__)
 
@@ -125,7 +125,6 @@ def rate_limit_decorator(request_type: str):
             
             if user_id and not await check_rate_limit(user_id, request_type):
                 # Если превышен лимит, отправляем сообщение
-                from aiogram.types import Message
                 message = args[0] if args and isinstance(args[0], Message) else None
                 if message:
                     await message.answer(

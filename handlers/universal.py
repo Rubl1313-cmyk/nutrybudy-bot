@@ -27,7 +27,7 @@ async def universal_handler(message: Message, state: FSMContext):
         
         # Обрабатываем разные типы сообщений
         if message.photo:
-            await handle_photo(message, agent)
+            await handle_photo(message, agent, state)
         elif message.voice:
             await handle_voice(message, agent)
         elif message.text:
@@ -45,7 +45,7 @@ async def universal_handler(message: Message, state: FSMContext):
             parse_mode="HTML"
         )
 
-async def handle_photo(message: Message, agent: LangChainAgent):
+async def handle_photo(message: Message, agent: LangChainAgent, state: FSMContext):
     """Обработка фото с параллельным анализом"""
     try:
         # Показываем загрузку
@@ -56,7 +56,7 @@ async def handle_photo(message: Message, agent: LangChainAgent):
         
         # Запускаем анализ фото в фоне
         import asyncio
-        asyncio.create_task(analyze_photo_parallel(message, agent))
+        asyncio.create_task(analyze_photo_parallel(message, agent, state))
         
     except Exception as e:
         logger.error(f"❌ Error in handle_photo: {e}")
@@ -104,7 +104,7 @@ async def handle_voice(message: Message, agent: LangChainAgent):
             parse_mode="HTML"
         )
 
-async def analyze_photo_parallel(message: Message, agent: LangChainAgent):
+async def analyze_photo_parallel(message: Message, agent: LangChainAgent, state: FSMContext):
     """
     Параллельный анализ фото с выбором типа приёма пищи
     """

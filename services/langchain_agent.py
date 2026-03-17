@@ -3,9 +3,10 @@ services/langchain_agent.py
 LangChain Agent с инструментами для автоматизации NutriBuddy Bot
 """
 import os
-import json
 import logging
-from typing import Dict, List, Any, Optional
+import asyncio
+import time
+from typing import Dict, Any, Optional, List
 from aiogram.types import Message
 from aiogram.fsm.context import FSMContext
 from langchain.agents import create_react_agent, AgentExecutor

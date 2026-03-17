@@ -127,7 +127,6 @@ async def init_db():
             logger.info(f"✅ Tables in DB: {tables}")
             
         logger.info("✅ Database initialized successfully")
-        await engine.dispose()
         logger.info("💾 Database ready")
         return True
 

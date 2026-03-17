@@ -6,7 +6,7 @@ import logging
 from datetime import datetime, date, timedelta
 from typing import Dict, Any, Optional
 from database.db import get_session
-from database.models import Meal, DrinkEntry, Activity, Weight, User
+from database.models import Meal, DrinkEntry, Activity, WeightEntry, User
 from sqlalchemy import select, func, extract
 from utils.daily_stats import get_daily_stats, get_daily_water, get_daily_drink_calories, get_daily_activity_calories
 
@@ -201,13 +201,13 @@ async def get_weight_progress(user_id: int, start_date: Optional[date] = None) -
     try:
         async with get_session() as session:
             # Базовые условия
-            conditions = [Weight.user_id == user_id]
+            conditions = [WeightEntry.user_id == user_id]
             if start_date:
-                conditions.append(Weight.datetime >= start_date)
+                conditions.append(WeightEntry.datetime >= start_date)
             
             # Получаем записи веса
             result = await session.execute(
-                select(Weight).where(*conditions).order_by(Weight.datetime.desc())
+                select(WeightEntry).where(*conditions).order_by(WeightEntry.datetime.desc())
             )
             weights = result.scalars().all()
             
@@ -219,11 +219,11 @@ async def get_weight_progress(user_id: int, start_date: Optional[date] = None) -
                     "trend": "no_data"
                 }
             
-            current_weight = weights[0].weight_kg
+            current_weight = weights[0].weight
             weight_change = 0
             
             if len(weights) > 1:
-                oldest_weight = weights[-1].weight_kg
+                oldest_weight = weights[-1].weight
                 weight_change = current_weight - oldest_weight
             
             # Определяем тренд

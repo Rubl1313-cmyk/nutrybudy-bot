@@ -213,7 +213,7 @@ class CloudflareAIManager:
         """Вызов fallback модели (Hermes 2 Pro) при сбое основной"""
         logger.warning("⚠️ Using fallback model (Hermes 2 Pro)")
         
-        return await self._call("fallback", messages, response_format, temperature, max_tokens, retries=1)
+        return await self._call("fallback", messages, response_format, temperature, max_tokens)
 
     # === Публичные методы ===
     

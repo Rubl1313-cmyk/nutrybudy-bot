@@ -36,14 +36,14 @@ async def update_all_users_water_goal():
                 city_users[user.city] = []
             city_users[user.city].append(user)
         
-        logger.info(f"🌍 Обновляем нормы воды для {len(users)} пользователей в {len(city_users)} городах")
+        logger.info(f"[WORLD] Обновляем нормы воды для {len(users)} пользователей в {len(city_users)} городах")
         
         # Обрабатываем каждый город отдельно
         for city, city_user_list in city_users.items():
             try:
                 # Получаем температуру один раз для всех пользователей города
                 temperature = await get_temperature(city)
-                logger.info(f"🌡️ Температура в {city}: {temperature}°C для {len(city_user_list)} пользователей")
+                logger.info(f"[TEMP] Температура в {city}: {temperature}°C для {len(city_user_list)} пользователей")
                 
                 # Обновляем норму воды для всех пользователей города
                 for user in city_user_list:
@@ -64,27 +64,13 @@ async def update_all_users_water_goal():
                         user.daily_water_goal = water_goal
                         
                     except Exception as e:
-                        logger.error(f"❌ Ошибка обновления нормы воды для пользователя {user.id}: {e}")
+                        logger.error(f"[ERROR] Ошибка обновления нормы воды для пользователя {user.id}: {e}")
                         continue
                         
                 await session.commit()
                 
             except Exception as e:
-                logger.error(f"❌ Ошибка получения погоды для города {city}: {e}")
+                logger.error(f"[ERROR] Ошибка получения погоды для города {city}: {e}")
                 continue
 
-    logger.info(f"✅ Обновление норм воды завершено для {len(city_users)} городов")
-                async with get_session() as update_session:
-                    await update_session.merge(user)
-                    await update_session.commit()
-                updated_count += 1
-                logger.debug(f"Updated user {user.id}: new water goal {new_goal} ml")
-
-            # Небольшая задержка, чтобы не перегружать БД (необязательно)
-            await asyncio.sleep(0.1)
-
-        except Exception as e:
-            logger.error(f"Failed to update user {user.id} ({user.city}): {e}")
-            continue
-
-    logger.info(f"Daily water goal update completed. Updated {updated_count} users.")
+    logger.info(f"[DONE] Обновление норм воды завершено для {len(city_users)} городов")

@@ -49,9 +49,12 @@ async def get_weather(city: str) -> Dict:
         logger.warning("âš ï¸� WEATHERAPI_KEY not set, using default weather data")
         return {
             'temp': 20.0,
-            'condition': 'Ğ¾Ğ±Ğ»Ğ°Ñ‡Ğ½Ğ¾',
+            'condition': 'неизвестно',
             'humidity': 50,
-            'wind': 3.0
+            'wind': 3.0,
+            'timezone': 'UTC',
+            'localtime': None,
+            'city': city
         }
 
     try:
@@ -69,13 +72,19 @@ async def get_weather(city: str) -> Dict:
                     
                     # Ğ˜Ğ·Ğ²Ğ»ĞµĞºĞ°ĞµĞ¼ Ğ½ÑƒĞ¶Ğ½Ñ‹Ğµ Ğ´Ğ°Ğ½Ğ½Ñ‹Ğµ
                     current = data["current"]
+                    location = data.get("location", {})
+                    
                     weather_data = {
                         'temp': float(current["temp_c"]),
                         'condition': current["condition"]["text"],
                         'humidity': current["humidity"],
                         'wind': float(current["wind_kph"] / 3.6),  # ĞšĞ¾Ğ½Ğ²ĞµÑ€Ñ‚Ğ¸Ñ€ÑƒĞµĞ¼ Ğ² Ğ¼/Ñ�
                         'pressure': current["pressure_mb"],
-                        'feels_like': float(current["feelslike_c"])
+                        'feels_like': float(current["feelslike_c"]),
+                        # Ğ”Ğ¾Ğ±Ğ°Ğ²Ğ»Ñ�ĞµĞ¼ Ğ´Ğ°Ğ½Ğ½Ñ‹Ğµ Ğ¾ Ğ§Ğ°Ñ�Ğ¾Ğ²Ğ¾Ğ¼ Ğ¿Ğ¾Ñ�Ğ°Ñ�Ğµ
+                        'timezone': location.get("tz_id", "UTC"),
+                        'localtime': location.get("localtime"),
+                        'city': location.get("name", city)
                     }
                     
                     # ĞšÑ�ÑˆĞ¸Ñ€ÑƒĞµĞ¼ Ñ€ĞµĞ·ÑƒĞ»ÑŒÑ‚Ğ°Ñ‚
@@ -96,7 +105,10 @@ async def get_weather(city: str) -> Dict:
     # Fallback
     return {
         'temp': 20.0,
-        'condition': 'Ğ½ĞµĞ¸Ğ·Ğ²ĞµÑ�Ñ‚Ğ½Ğ¾',
+        'condition': 'неизвестно',
         'humidity': 50,
-        'wind': 3.0
+        'wind': 3.0,
+        'timezone': 'UTC',
+        'localtime': None,
+        'city': city
     }

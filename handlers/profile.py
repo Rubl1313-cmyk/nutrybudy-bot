@@ -431,30 +431,55 @@ async def process_goal(message: Message, state: FSMContext):
 
 @router.message(ProfileStates.city)
 async def process_city(message: Message, state: FSMContext):
-    """Ğ�Ğ±Ñ€Ğ°Ğ±Ğ¾Ñ‚ĞºĞ° Ğ³Ğ¾Ñ€Ğ¾Ğ´Ğ° Ğ¸ Ñ�Ğ¾Ñ…Ñ€Ğ°Ğ½ĞµĞ½Ğ¸Ğµ Ğ¾Ñ�Ğ½Ğ¾Ğ²Ğ½Ğ¾Ğ³Ğ¾ Ğ¿Ñ€Ğ¾Ñ„Ğ¸Ğ»Ñ�"""
-    # ĞŸĞ¾Ğ»ÑƒÑ‡Ğ°ĞµĞ¼ Ñ€ĞµĞ°Ğ»ÑŒĞ½ÑƒÑ� Ğ¿Ğ¾Ğ»Ğµ city Ğ¸Ğ· FSMContext
+    """Обработка города и автоматическое определение часового пояса"""
+    # Получаем реальную city из FSMContext
     city = message.text.strip()
     await state.update_data(city=city)
     
-    # ĞŸĞ¾Ğ»ÑƒÑ‡Ğ°ĞµĞ¼ Ñ‚ĞµĞ¼Ğ¿ĞµÑ€Ğ°Ñ‚ÑƒÑ€Ñƒ Ð´Ğ»Ñ� Ğ¿Ğ¾Ğ³Ğ¾Ğ´Ñ‹
+    # Автоматическое определение часового пояса
+    from utils.timezone_auto import get_timezone_by_city, auto_detect_timezone_from_weather
+    
+    # Сначала пробуем определить по словарю
+    timezone = get_timezone_by_city(city)
+    
+    # Если не нашли в словаре, пробуем получить из Weather API
+    if timezone == 'UTC':
+        try:
+            weather_timezone = await auto_detect_timezone_from_weather(city)
+            if weather_timezone:
+                timezone = weather_timezone
+                logger.info(f"🌍 Часовой пояс из Weather API: {timezone}")
+        except Exception as e:
+            logger.warning(f"⚠️ Не удалось определить часовой пояс из Weather API: {e}")
+    
+    # Сохраняем автоматически определенный часовой пояс
+    await state.update_data(timezone=timezone)
+    
+    # Получаем температуру для погоды
     try:
         from services.weather import get_temperature
         temperature = await get_temperature(city)
         await state.update_data(temperature=temperature)
     except Exception as e:
-        logger.warning(f"Ğ�Ğµ ÑƒĞ´Ğ°Ğ»Ğ¾Ñ�ÑŒ Ğ¿Ğ¾Ğ»ÑƒÑ‡Ğ¸Ñ‚ÑŒ Ñ‚ĞµĞ¼Ğ¿ĞµÑ€Ğ°Ñ‚ÑƒÑ€Ñƒ Ğ´Ğ»Ñ� {city}: {e}")
+        logger.warning(f"Не удалось получить температуру для {city}: {e}")
         await state.update_data(temperature=20.0)
     
-    # Ğ—Ğ°Ğ¿Ñ€Ğ°ÑˆĞ¸Ğ²Ğ°ĞµĞ¼ Ğ§Ğ°Ñ�Ğ¾Ğ²Ğ¾Ğ¹ Ğ¿Ğ¾Ñ�Ñ�
+    # Показываем пользователю автоматически определенный часовой пояс
+    from utils.timezone_utils import get_timezone_display_name
+    timezone_display = get_timezone_display_name(timezone)
+    
     await message.answer(
-        "ğ•ï¸ <b>Ğ’Ğ°Ñˆ Ñ‡Ğ°Ñ�Ğ¾Ğ²Ğ¾Ğ¹ Ğ¿Ğ¾Ñ�Ñ�:</b>\n\n"
-        "Ğ’Ñ‹Ğ±ĞµÑ€Ğ¸Ñ‚Ğµ Ğ²Ğ°Ñˆ Ğ³Ğ¾Ñ€Ğ¾Ğ´ Ğ¸Ğ· Ñ�Ğ¿Ğ¸Ñ�ĞºĞ°, Ñ‡Ñ‚Ğ¾Ğ±Ñ‹ Ğ²Ğ²ĞµÑ�Ñ‚Ğ¸ Ñ�Ğ¼ĞµÑ‰ĞµĞ½Ğ¸Ğµ Ð¼Ğ°Ğ½ÑƒĞ°Ğ»ÑŒĞ½Ğ¾.\n\n"
-        "ğŸ¡Ğ°Ğ²Ğ¸Ğ»ÑŒĞ½Ğ¾Ğµ Ñ‡Ğ°Ñ�Ğ¾Ğ²Ğ¾Ğ³Ğ¾ Ğ¿Ğ¾Ñ�Ñ�Ğ° Ð¾Ğ±ĞµÑ�Ğ¿ĞµÑ‡Ğ¸Ğ²Ğ°ĞµÑ‚ Ñ�Ñ‚Ğ°Ñ‚Ğ¸Ñ�Ñ‚Ğ¸ĞºÑƒ Ğ¿Ğ¾ ÑƒĞ¶Ğ´Ğ°Ñ�!",
+        f"🌍 <b>Часовой пояс определен автоматически!</b>\n\n"
+        f"📍 <b>Город:</b> {city}\n"
+        f"🕐 <b>Часовой пояс:</b> {timezone_display}\n\n"
+        f"✅ Часовой пояс был автоматически привязан к вашему городу.\n"
+        f"Если нужно изменить, выберите другой из списка:",
         reply_markup=get_timezone_keyboard(),
         parse_mode="HTML"
     )
     await state.set_state(ProfileStates.timezone)
     
+    # Заставляем начать расширенную антропометрию
     # Ğ—Ğ°Ñ‚ĞµĞ¼ Ğ½Ğ°Ñ‡Ğ¸Ğ½Ğ°ĞµĞ¼ Ñ€Ğ°Ñ�ÑˆĞ¸Ñ€ĞµĞ½Ğ½ÑƒÑ� Ğ°Ğ½Ñ‚Ñ€Ğ¾Ğ¿Ğ¾Ğ¼ĞµÑ‚Ñ€Ğ¸Ñ�
     await ask_measurement(
         message, state,
@@ -657,7 +682,30 @@ async def save_profile(message: Message, state: FSMContext, clear_state=False):
     activity_level = profile_data['activity_level']
     goal = profile_data['goal']
     city = profile_data['city']
-    timezone = profile_data.get('timezone', 'UTC')
+    
+    # Автоматическое определение часового пояса по городу
+    from utils.timezone_auto import get_timezone_by_city, auto_detect_timezone_from_weather
+    
+    # Сначала пробуем определить по словарю
+    timezone = get_timezone_by_city(city)
+    
+    # Если не нашли в словаре, пробуем получить из Weather API
+    if timezone == 'UTC':
+        try:
+            weather_timezone = await auto_detect_timezone_from_weather(city)
+            if weather_timezone:
+                timezone = weather_timezone
+                logger.info(f"🌍 Часовой пояс из Weather API: {timezone}")
+        except Exception as e:
+            logger.warning(f"⚠️ Не удалось определить часовой пояс из Weather API: {e}")
+    
+    # Позволяем пользователю переопределить, если нужно
+    user_timezone = profile_data.get('timezone')
+    if user_timezone and user_timezone != 'UTC':
+        timezone = user_timezone
+        logger.info(f"🕐 Использован часовой пояс пользователя: {timezone}")
+    
+    logger.info(f"🌍 Итоговый часовой пояс для города '{city}': {timezone}")
     
     # ĞŸÑ€ĞµĞ¾Ğ±Ñ€Ğ°Ğ·ÑƒĞµĞ¼ Ñ€ÑƒÑ�Ñ�ĞºĞ¾Ğµ Ğ½Ğ°Ğ·Ğ²Ğ°Ğ½Ğ¸Ğµ Ğ°ĞºÑ‚Ğ¸Ğ²Ğ½Ğ¾Ñ�Ñ‚Ğ¸ Ğ² Ğ°Ğ½Ğ³Ğ»Ğ¸Ğ¹Ñ�ĞºĞ¸Ğ¹ ĞºĞ¾Ğ´ Ğ´Ğ»Ñ� ĞºĞ°Ğ»ÑŒĞºÑƒĞ»Ñ�Ñ‚Ğ¾Ñ€Ğ°
     activity_map_calc = {
@@ -718,6 +766,9 @@ async def save_profile(message: Message, state: FSMContext, clear_state=False):
             user.goal = goal
             user.city = city
             user.timezone = timezone
+            
+            # Логируем установленный часовой пояс
+            logger.info(f"🌍 Установлен часовой пояс для пользователя {user.telegram_id}: {timezone} (город: {city})")
             user.daily_calorie_goal = round(daily_calorie_goal)
             user.daily_protein_goal = round(daily_protein_goal)
             user.daily_fat_goal = round(daily_fat_goal)

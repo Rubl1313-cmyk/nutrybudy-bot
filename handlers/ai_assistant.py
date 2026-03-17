@@ -170,6 +170,24 @@ async def cmd_weather(message: Message, state: FSMContext):
             
             if weather_data:
                 temp = weather_data.get('temp', 'N/A')
+                
+                # ĞĞ²Ñ‚Ğ¾Ğ¼Ğ°Ñ‚Ğ¸Ñ‡ĞµÑ�ĞºĞ¸ Ğ¾Ğ±Ğ½Ğ¾Ğ²Ğ»Ñ�ĞµĞ¼ Ğ§Ğ°Ñ�Ğ¾Ğ²Ğ¾Ğ¹ Ğ¿Ğ¾Ñ�Ğ°Ñ‰ĞµĞ½Ğ¸Ğµ, ĞµÑ�Ğ»Ğ¸ Ğ¾Ğ½Ğ¾ Ğ¾Ñ‚Ğ»Ğ¸Ñ‡Ğ°ĞµÑ‚Ñ�Ñ�
+                if 'timezone' in weather_data and weather_data['timezone'] != user.timezone:
+                    from database.db import get_session
+                    from database.models import User
+                    from sqlalchemy import select
+                    
+                    async with get_session() as session:
+                        await session.execute(
+                            select(User).where(User.telegram_id == message.from_user.id)
+                        )
+                        user_obj = await session.scalar_one_or_none()
+                        
+                        if user_obj:
+                            old_timezone = user_obj.timezone
+                            user_obj.timezone = weather_data['timezone']
+                            await session.commit()
+                            logger.info(f"🌍 ĞĞ²Ñ‚Ğ¾Ğ¼Ğ°Ñ‚Ğ¸Ñ‡ĞµÑ�ĞºĞ¸ Ğ¾Ğ±Ğ½Ğ¾Ğ²Ğ»ĞµĞ½ Ğ§Ğ°Ñ�Ğ¾Ğ²Ğ¾Ğ¹ Ğ¿Ğ¾Ñ�Ğ°Ñ‰ĞµĞ½Ğ¸Ğµ: {old_timezone} → {weather_data['timezone']} (Ğ³Ğ¾Ñ€Ğ¾Ğ´: {city})")
                 condition = weather_data.get('condition', 'Ğ½ĞµĞ¸Ğ·Ğ²ĞµÑ�Ñ‚Ğ½Ğ¾')
                 humidity = weather_data.get('humidity', 'N/A')
                 wind = weather_data.get('wind', 'N/A')

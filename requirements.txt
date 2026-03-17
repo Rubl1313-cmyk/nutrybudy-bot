@@ -20,10 +20,8 @@ aiofiles>=0.8.0
 pytz==2023.3
 # LangChain и AI зависимости
 langchain==0.3.21
-
-langchain-community==0.3.19
-
-langchain-core==0.3.40
+langchain-community==0.3.21
+langchain-core==0.3.21
 
 # Redis для FSM и кеширования
 redis>=5.0.0

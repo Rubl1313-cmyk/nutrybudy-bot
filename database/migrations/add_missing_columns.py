@@ -35,9 +35,22 @@ async def add_missing_columns():
     
     async with get_session() as session:
         try:
-            # Получаем информацию о таблице для SQLite
-            result = await session.execute(text("PRAGMA table_info(users)"))
-            existing_columns = {row[1] for row in result.fetchall()}
+            # Получаем информацию о таблице для разных БД
+            from database.db import engine
+            
+            if engine.dialect.name == 'postgresql':
+                # PostgreSQL
+                result = await session.execute(text(f"""
+                    SELECT column_name 
+                    FROM information_schema.columns 
+                    WHERE table_name = 'users' 
+                    AND table_schema = 'public'
+                """))
+                existing_columns = {row[0] for row in result.fetchall()}
+            else:
+                # SQLite
+                result = await session.execute(text("PRAGMA table_info(users)"))
+                existing_columns = {row[1] for row in result.fetchall()}
             
             for column_name, column_type in columns_to_add:
                 if column_name not in existing_columns:

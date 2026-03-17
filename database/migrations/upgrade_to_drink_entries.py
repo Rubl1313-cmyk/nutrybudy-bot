@@ -8,26 +8,52 @@ async def upgrade():
     """Создание таблицы drink_entries с миграцией данных"""
     
     async with engine.begin() as conn:
-        # Проверяем существование таблицы water_entries
-        result = await conn.execute(text("""
-            SELECT name FROM sqlite_master 
-            WHERE type='table' AND name='water_entries'
-        """))
-        water_exists = result.fetchone()
+        # Проверяем существование таблицы water_entries (универсальный способ)
+        try:
+            if engine.dialect.name == 'postgresql':
+                # PostgreSQL
+                result = await conn.execute(text("""
+                    SELECT table_name FROM information_schema.tables 
+                    WHERE table_schema = 'public' AND table_name = 'water_entries'
+                """))
+            else:
+                # SQLite
+                result = await conn.execute(text("""
+                    SELECT name FROM sqlite_master 
+                    WHERE type='table' AND name='water_entries'
+                """))
+            
+            water_exists = result.fetchone()
+        except Exception:
+            water_exists = None
         
         if water_exists:
-            # Создаем новую таблицу drink_entries
-            await conn.execute(text("""
-                CREATE TABLE IF NOT EXISTS drink_entries (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    user_id INTEGER NOT NULL,
-                    name VARCHAR(100) NOT NULL DEFAULT 'вода',
-                    volume_ml FLOAT NOT NULL,
-                    calories FLOAT DEFAULT 0.0,
-                    datetime DATETIME DEFAULT CURRENT_TIMESTAMP,
-                    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
-                )
-            """))
+            # Создаем новую таблицу drink_entries с учетом типа БД
+            if engine.dialect.name == 'postgresql':
+                await conn.execute(text("""
+                    CREATE TABLE IF NOT EXISTS drink_entries (
+                        id SERIAL PRIMARY KEY,
+                        user_id INTEGER NOT NULL,
+                        name VARCHAR(100) NOT NULL DEFAULT 'вода',
+                        volume_ml FLOAT NOT NULL,
+                        calories FLOAT DEFAULT 0.0,
+                        datetime TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+                    )
+                """))
+            else:
+                # SQLite
+                await conn.execute(text("""
+                    CREATE TABLE IF NOT EXISTS drink_entries (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        user_id INTEGER NOT NULL,
+                        name VARCHAR(100) NOT NULL DEFAULT 'вода',
+                        volume_ml FLOAT NOT NULL,
+                        calories FLOAT DEFAULT 0.0,
+                        datetime DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+                    )
+                """))
             
             # Копируем данные из water_entries в drink_entries
             await conn.execute(text("""

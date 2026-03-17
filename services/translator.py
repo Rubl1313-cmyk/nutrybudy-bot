@@ -736,13 +736,62 @@ AI_TO_DB_MAPPING = {
     "pie with sunflower seeds": "Ğ¿Ğ¸Ñ€Ğ¾Ğ³ Ñ� Ñ�ĞµĞ¼ĞµÑ‡ĞºĞ°Ğ¼Ğ¸",
     "pie with pumpkin seeds": "Ğ¿Ğ¸Ñ€Ğ¾Ğ³ Ñ� Ñ‚Ñ‹ĞºĞ²ĞµĞ½Ğ½Ñ‹Ğ¼Ğ¸ Ñ�ĞµĞ¼ĞµÑ‡ĞºĞ°Ğ¼Ğ¸",
     "pie with chia seeds": "Ğ¿Ğ¸Ñ€Ğ¾Ğ³ Ñ� Ñ�ĞµĞ¼ĞµĞ½Ğ°Ğ¼Ğ¸ Ñ‡Ğ¸Ğ°",
-    "pie with flax seeds": "Ğ¿Ğ¸Ñ€Ğ¾Ğ³ Ñ� Ñ�ĞµĞ¼ĞµĞ½Ğ°Ğ¼Ğ¸ Ğ»ÑŒĞ½Ğ°",
-    "pie with hemp seeds": "Ğ¿Ğ¸Ñ€Ğ¾Ğ³ Ñ� ĞºĞ¾Ğ½Ğ¾Ğ¿Ğ»Ñ�Ğ½Ñ‹Ğ¼Ğ¸ Ñ�ĞµĞ¼ĞµĞ½Ğ°Ğ¼Ğ¸"
-}
 
 
 # ĞšÑ�Ñˆ Ğ¿ĞµÑ€ĞµĞ²Ğ¾Ğ´Ğ¾Ğ²
-_translation_cache: Dict[str, str] = {}
+from collections import OrderedDict
+import time
+
+MAX_TRANSLATION_CACHE_SIZE = 1000
+TRANSLATION_CACHE_TTL = 3600  # 1 hour in seconds
+
+class LRUCache:
+    """LRU Cache with TTL for translations"""
+    def __init__(self, max_size: int, ttl: int):
+        self.max_size = max_size
+        self.ttl = ttl
+        self.cache = OrderedDict()
+    
+    def get(self, key: str) -> str:
+        current_time = time.time()
+        
+        if key in self.cache:
+            value, timestamp = self.cache[key]
+            if current_time - timestamp < self.ttl:
+                # Move to the end (LRU)
+                self.cache.move_to_end(key)
+                return value
+            else:
+                # Expired cache, delete
+                del self.cache[key]
+        
+        return None
+    
+    def put(self, key: str, value: str) -> None:
+        current_time = time.time()
+        
+        # If the key already exists, update
+        if key in self.cache:
+            self.cache[key] = (value, current_time)
+            self.cache.move_to_end(key)
+            return
+        
+        # Add a new key
+        self.cache[key] = (value, current_time)
+        
+        # Check the cache size
+        if len(self.cache) > self.max_size:
+            # Delete the oldest element
+            oldest_key = next(iter(self.cache))
+            del self.cache[oldest_key]
+    
+    def size(self) -> int:
+        return len(self.cache)
+    
+    def clear(self) -> None:
+        self.cache.clear()
+
+_translation_cache = LRUCache(max_size=MAX_TRANSLATION_CACHE_SIZE, ttl=TRANSLATION_CACHE_TTL)
 
 async def translate_to_russian(text: str) -> str:
     """
@@ -756,20 +805,19 @@ async def translate_to_russian(text: str) -> str:
     
     # 1. ĞŸÑ€Ğ¾Ğ²ĞµÑ€ĞºĞ° ĞºÑ�ÑˆĞ°
     if text_lower in _translation_cache:
-        return _translation_cache[text_lower]
     
     # 2. ĞŸÑ€Ñ�Ğ¼Ğ¾Ğµ Ğ¼Ğ°Ğ¿Ğ¿Ğ¸Ñ€Ğ¾Ğ²Ğ°Ğ½Ğ¸Ğµ AI â†’ Ğ±Ğ°Ğ·Ğ° (ĞŸĞ Ğ˜Ğ�Ğ Ğ˜Ğ¢Ğ•Ğ¢)
     if text_lower in AI_TO_DB_MAPPING:
         translated = AI_TO_DB_MAPPING[text_lower]
-        _translation_cache[text_lower] = translated
-        logger.info(f"ğŸ”„ AI Mapping: '{original}' â†’ '{translated}'")
+        _translation_cache.put(text_lower, translated)
+        logger.info(f"âœ¨ AI Mapping: '{original}' â†’ '{translated}'")
         return translated
     
     # 3. ĞŸĞ¾Ğ¸Ñ�Ğº Ğ¿Ğ¾ Ğ¿Ğ¾Ğ»Ğ½Ğ¾Ğ¼Ñƒ Ñ�Ğ¾Ğ²Ğ¿Ğ°Ğ´ĞµĞ½Ğ¸Ñ� Ğ² Ğ¼Ğ°Ğ¿Ğ¿Ğ¸Ğ½Ğ³Ğµ (Ğ±Ğ¾Ğ»ĞµĞµ Ñ�Ñ‚Ñ€Ğ¾Ğ³Ğ¸Ğ¹)
     for key, value in AI_TO_DB_MAPPING.items():
         if key == text_lower:  # Ğ¢Ğ¾Ğ»ÑŒĞºĞ¾ Ğ¿Ğ¾Ğ»Ğ½Ğ¾Ğµ Ñ�Ğ¾Ğ²Ğ¿Ğ°Ğ´ĞµĞ½Ğ¸Ğµ
-            _translation_cache[text_lower] = value
-            logger.info(f"ğŸ”„ Exact AI Mapping: '{original}' â†’ '{value}'")
+            _translation_cache.put(text_lower, value)
+            logger.info(f"âœ¨ Exact AI Mapping: '{original}' â†’ '{value}'")
             return value
     
     # 4. Google Translate (fallback) - Ñ‚Ğ¾Ğ»ÑŒĞºĞ¾ ĞµÑ�Ğ»Ğ¸ Ğ½ĞµÑ‚ Ğ¿Ğ¾Ğ»Ğ½Ğ¾Ğ³Ğ¾ Ñ�Ğ¾Ğ²Ğ¿Ğ°Ğ´ĞµĞ½Ğ¸Ñ�
@@ -778,7 +826,7 @@ async def translate_to_russian(text: str) -> str:
         translator = GoogleTranslator(source='en', target='ru')
         translated = translator.translate(original)
         if translated and translated != original:
-            _translation_cache[text_lower] = translated
+            _translation_cache.put(text_lower, translated)
             logger.info(f"ğŸŒ� Google: '{original}' â†’ '{translated}'")
             return translated
     except Exception as e:
@@ -816,7 +864,7 @@ async def translate_smart_dish_name(english_name: str) -> str:
     # 2. ĞŸÑ€Ñ�Ğ¼Ğ¾Ğµ Ğ¼Ğ°Ğ¿Ğ¿Ğ¸Ñ€Ğ¾Ğ²Ğ°Ğ½Ğ¸Ğµ AI â†’ Ğ±Ğ°Ğ·Ğ° (ĞŸĞ Ğ˜Ğ�Ğ Ğ˜Ğ¢Ğ•Ğ¢)
     if text_lower in AI_TO_DB_MAPPING:
         translated = AI_TO_DB_MAPPING[text_lower]
-        _translation_cache[text_lower] = translated
+        _translation_cache.put(text_lower, translated)
         logger.info(f"ğŸ”„ Dish AI Mapping: '{original}' â†’ '{translated}'")
         return translated
     
@@ -827,7 +875,7 @@ async def translate_smart_dish_name(english_name: str) -> str:
             translator = GoogleTranslator(source='en', target='ru')
             translated = translator.translate(original)
             if translated and translated != original:
-                _translation_cache[text_lower] = translated
+                _translation_cache.put(text_lower, translated)
                 logger.info(f"ğŸŒ� Google Dish: '{original}' â†’ '{translated}'")
                 return translated
         except Exception as e:

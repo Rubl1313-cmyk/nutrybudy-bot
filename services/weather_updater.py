@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 async def update_all_users_water_goal():
     """
     Обновляет daily_water_goal для всех пользователей, у которых указан город.
-    Использует текущую температуру в городе.
+    Группирует пользователей по городам для оптимизации запросов к API.
     Запросы к API кэшируются на день, поэтому повторные обращения к тому же городу
     в течение дня не создают лишней нагрузки.
     """
@@ -28,31 +28,52 @@ async def update_all_users_water_goal():
             select(User).where(User.city.isnot(None))
         )
         users = result.scalars().all()
+        
+        # Группируем пользователей по городам для оптимизации запросов
+        city_users = {}
+        for user in users:
+            if user.city not in city_users:
+                city_users[user.city] = []
+            city_users[user.city].append(user)
+        
+        logger.info(f"🌍 Обновляем нормы воды для {len(users)} пользователей в {len(city_users)} городах")
+        
+        # Обрабатываем каждый город отдельно
+        for city, city_user_list in city_users.items():
+            try:
+                # Получаем температуру один раз для всех пользователей города
+                temperature = await get_temperature(city)
+                logger.info(f"🌡️ Температура в {city}: {temperature}°C для {len(city_user_list)} пользователей")
+                
+                # Обновляем норму воды для всех пользователей города
+                for user in city_user_list:
+                    try:
+                        # Нормализуем уровень активности
+                        normalized_activity = normalize_activity_level(user.activity_level)
+                        
+                        # Рассчитываем новую норму воды
+                        water_goal = calculate_water_goal(
+                            weight=user.weight,
+                            activity_level=normalized_activity,
+                            temperature=temperature,
+                            goal=user.goal,
+                            gender=user.gender
+                        )
+                        
+                        # Обновляем норму воды
+                        user.daily_water_goal = water_goal
+                        
+                    except Exception as e:
+                        logger.error(f"❌ Ошибка обновления нормы воды для пользователя {user.id}: {e}")
+                        continue
+                        
+                await session.commit()
+                
+            except Exception as e:
+                logger.error(f"❌ Ошибка получения погоды для города {city}: {e}")
+                continue
 
-    logger.info(f"Starting daily water goal update for {len(users)} users")
-
-    updated_count = 0
-    for user in users:
-        try:
-            # Получаем текущую температуру (из кэша или API)
-            temp = await get_temperature(user.city)
-
-            # Нормализуем уровень активности (если нужно)
-            activity_norm = normalize_activity_level(user.activity_level)
-
-            # Пересчитываем норму воды
-            new_goal = calculate_water_goal(
-                weight=user.weight,
-                activity_level=activity_norm,
-                temperature=temp,
-                goal=user.goal,
-                gender=user.gender
-            )
-            new_goal = round(new_goal)
-
-            # Если значение изменилось, обновляем
-            if user.daily_water_goal != new_goal:
-                user.daily_water_goal = new_goal
+    logger.info(f"✅ Обновление норм воды завершено для {len(city_users)} городов")
                 async with get_session() as update_session:
                     await update_session.merge(user)
                     await update_session.commit()

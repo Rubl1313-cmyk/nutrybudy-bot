@@ -14,6 +14,9 @@ from utils.premium_templates import loading_card, error_card
 logger = logging.getLogger(__name__)
 router = Router()
 
+# Семафоры для обработки фото по пользователям
+user_photo_semaphores = {}
+
 @router.message(~F.command)
 async def universal_handler(message: Message, state: FSMContext):
     """
@@ -66,9 +69,14 @@ async def handle_photo(message: Message, agent: LangChainAgent, state: FSMContex
             parse_mode="HTML"
         )
         
-        # Ğ—Ğ°Ğ¿ÑƒÑ�ĞºĞ°ĞµĞ¼ Ğ°Ğ½Ğ°Ğ»Ğ¸Ğ· Ñ„Ğ¾Ñ‚Ğ¾ Ğ² Ñ„Ğ¾Ğ½Ğµ
+        # Проверяем, не обрабатывается ли уже фото для этого пользователя
+        user_id = message.from_user.id
+        if user_id not in user_photo_semaphores:
+            user_photo_semaphores[user_id] = asyncio.Semaphore(1)
+        
+        # Запускаем анализ фото с семафором
         import asyncio
-        asyncio.create_task(analyze_photo_parallel(message, agent, state))
+        asyncio.create_task(analyze_photo_with_semaphore(message, agent, state, user_photo_semaphores[user_id]))
         
     except Exception as e:
         logger.error(f"â�Œ Error in handle_photo: {e}")
@@ -116,64 +124,65 @@ async def handle_voice(message: Message, agent: LangChainAgent):
             parse_mode="HTML"
         )
 
-async def analyze_photo_parallel(message: Message, agent: LangChainAgent, state: FSMContext):
+async def analyze_photo_with_semaphore(message: Message, agent: LangChainAgent, state: FSMContext, semaphore: asyncio.Semaphore):
     """
-    ĞŸĞ°Ñ€Ğ°Ğ»Ğ»ĞµĞ»ÑŒĞ½Ñ‹Ğ¹ Ğ°Ğ½Ğ°Ğ»Ğ¸Ğ· Ñ„Ğ¾Ñ‚Ğ¾ Ñ� Ğ²Ñ‹Ğ±Ğ¾Ñ€Ğ¾Ğ¼ Ñ‚Ğ¸Ğ¿Ğ° Ğ¿Ñ€Ğ¸Ñ‘Ğ¼Ğ° Ğ¿Ğ¸Ñ‰Ğ¸
+    ĞŸĞ°Ñ€Ğ°Ğ»Ğ»ĞµĞ»ÑŒĞ½Ñ‹Ğ¹ Ğ°Ğ½Ğ°Ğ»Ğ¸Ğ· Ñ„Ğ¾Ñ‚Ğ¾ Ñ� Ğ²Ñ‹Ğ±Ğ¾Ñ€Ğ¾Ğ¼ Ñ‚Ğ¸Ğ¿Ğ° Ğ¿Ñ€Ğ¸Ñ‘Ğ¼Ğ° Ğ¿Ğ¸Ñ‰Ğ¸ Ñ� Ñ�ĞµĞ¼Ğ°Ñ„Ğ¾Ñ€Ğ¾Ğ¼
     """
-    try:
-        from services.cloudflare_manager import cf_manager
-        from services.food_save_service import food_save_service
-        from utils.premium_templates import meal_card
-        
-        # Ğ¡ĞºĞ°Ñ‡Ğ¸Ğ²Ğ°ĞµĞ¼ Ñ„Ğ¾Ñ‚Ğ¾
-        file = await message.bot.get_file(message.photo[-1].file_id)
-        photo_bytes = await message.bot.download_file(file.file_path)
-        
-        # Ğ�Ğ½Ğ°Ğ»Ğ¸Ğ·Ğ¸Ñ€ÑƒĞµĞ¼ Ñ„Ğ¾Ñ‚Ğ¾ Ñ‡ĞµÑ€ĞµĞ· AI Ñ� Ğ¿Ğ¾Ğ´Ğ¿Ğ¸Ñ�ÑŒÑ�
-        caption = message.caption or ""
-        analysis_result = await cf_manager.analyze_food_photo(photo_bytes.read(), caption)
-        
-        if not analysis_result.get("success"):
-            error_msg = analysis_result.get("error", "Ğ�Ğµ ÑƒĞ´Ğ°Ğ»Ğ¾Ñ�ÑŒ Ğ¿Ñ€Ğ¾Ğ°Ğ½Ğ°Ğ»Ğ¸Ğ·Ğ¸Ñ€Ğ¾Ğ²Ğ°Ñ‚ÑŒ Ñ„Ğ¾Ñ‚Ğ¾")
-            logger.error(f"Photo analysis failed: {error_msg}")
+    async with semaphore:
+        try:
+            from services.cloudflare_manager import cf_manager
+            from services.food_save_service import food_save_service
+            from utils.premium_templates import meal_card
+            
+            # Ğ¡ĞºĞ°Ñ‡Ğ¸Ğ²Ğ°ĞµĞ¼ Ñ„Ğ¾Ñ‚Ğ¾
+            file = await message.bot.get_file(message.photo[-1].file_id)
+            photo_bytes = await message.bot.download_file(file.file_path)
+            
+            # Ğ�Ğ½Ğ°Ğ»Ğ¸Ğ·Ğ¸Ñ€ÑƒĞµĞ¼ Ñ„Ğ¾Ñ‚Ğ¾ Ñ‡ĞµÑ€ĞµĞ· AI Ñ� Ğ¿Ğ¾Ğ´Ğ¿Ğ¸Ñ�ÑŒÑ�
+            caption = message.caption or ""
+            analysis_result = await cf_manager.analyze_food_photo(photo_bytes.read(), caption)
+            
+            if not analysis_result.get("success"):
+                error_msg = analysis_result.get("error", "Ğ�Ğµ ÑƒĞ´Ğ°Ğ»Ğ¾Ñ�ÑŒ Ğ¿Ñ€Ğ¾Ğ°Ğ½Ğ°Ğ»Ğ¸Ğ·Ğ¸Ñ€Ğ¾Ğ²Ğ°Ñ‚ÑŒ Ñ„Ğ¾Ñ‚Ğ¾")
+                logger.error(f"Photo analysis failed: {error_msg}")
+                await message.answer(
+                    error_card("ai", f"Ğ�Ğµ ÑƒĞ´Ğ°Ğ»Ğ¾Ñ�ÑŒ Ğ¿Ñ€Ğ¾Ğ°Ğ½Ğ°Ğ»Ğ¸Ğ·Ğ¸Ñ€Ğ¾Ğ²Ğ°Ñ‚ÑŒ Ñ„Ğ¾Ñ‚Ğ¾: {error_msg}. ĞŸĞ¾Ğ¿Ñ€Ğ¾Ğ±ÑƒĞ¹Ñ‚Ğµ ĞµÑ‰Ñ‘ Ñ€Ğ°Ğ·."),
+                    parse_mode="HTML"
+                )
+                return
+            
+            # ĞŸĞ¾Ğ»ÑƒÑ‡Ğ°ĞµĞ¼ Ğ´Ğ°Ğ½Ğ½Ñ‹Ğµ Ğ¾ ĞµĞ´Ğµ
+            food_data = analysis_result["data"]
+            
+            # Ğ“ĞµĞ½ĞµÑ€Ğ¸Ñ€ÑƒĞµĞ¼ ÑƒĞ½Ğ¸ĞºĞ°Ğ»ÑŒĞ½Ñ‹Ğ¹ ID Ğ¸ Ñ�Ğ¾Ñ…Ñ€Ğ°Ğ½Ñ�ĞµĞ¼ Ğ´Ğ°Ğ½Ğ½Ñ‹Ğµ Ğ²Ğ¾Ğ²Ñ€ĞµĞ¼Ğ½Ğ¾Ğµ Ñ…Ñ€Ğ°Ğ½Ğ¸Ğ»Ğ¸Ñ‰Ğµ
+            import uuid
+            analysis_id = str(uuid.uuid4())[:8]
+            
+            # Ğ¡Ğ¾Ñ…Ñ€Ğ°Ğ½Ñ�ĞµĞ¼ Ğ´Ğ°Ğ½Ğ½Ñ‹Ğµ Ğ² FSM
+            await state.update_data(photo_analysis={analysis_id: food_data})
+            
+            # ĞŸĞ¾ĞºĞ°Ğ·Ñ‹Ğ²Ğ°ĞµĞ¼ ĞºĞ»Ğ°Ğ²Ğ¸Ğ°Ñ‚ÑƒÑ€Ñƒ Ğ²Ñ‹Ğ±Ğ¾Ñ€Ğ° Ñ‚Ğ¸Ğ¿Ğ° Ğ¿Ñ€Ğ¸Ñ‘Ğ¼Ğ° Ğ¿Ğ¸Ñ‰Ğ¸
+            keyboard = InlineKeyboardBuilder()
+            keyboard.button(text="ğŸŒ… Ğ—Ğ°Ğ²Ñ‚Ñ€Ğ°Ğº", callback_data=f"meal_type_breakfast_{analysis_id}")
+            keyboard.button(text="â˜€ï¸� Ğ�Ğ±ĞµĞ´", callback_data=f"meal_type_lunch_{analysis_id}")
+            keyboard.button(text="ğŸŒ† Ğ£Ğ¶Ğ¸Ğ½", callback_data=f"meal_type_dinner_{analysis_id}")
+            keyboard.button(text="ğŸ�� ĞŸĞµÑ€ĞµĞºÑƒÑ�", callback_data=f"meal_type_snack_{analysis_id}")
+            keyboard.adjust(2)
+            
             await message.answer(
-                error_card("ai", f"Ğ�Ğµ ÑƒĞ´Ğ°Ğ»Ğ¾Ñ�ÑŒ Ğ¿Ñ€Ğ¾Ğ°Ğ½Ğ°Ğ»Ğ¸Ğ·Ğ¸Ñ€Ğ¾Ğ²Ğ°Ñ‚ÑŒ Ñ„Ğ¾Ñ‚Ğ¾: {error_msg}. ĞŸĞ¾Ğ¿Ñ€Ğ¾Ğ±ÑƒĞ¹Ñ‚Ğµ ĞµÑ‰Ñ‘ Ñ€Ğ°Ğ·."),
+                "ğŸ“¸ <b>Ğ¤Ğ¾Ñ‚Ğ¾ Ğ¿Ñ€Ğ¾Ğ°Ğ½Ğ°Ğ»Ğ¸Ğ·Ğ¸Ñ€Ğ¾Ğ²Ğ°Ğ½Ğ¾!</b>\n\n"
+                f"ğŸ�½ï¸� <b>Ğ Ğ°Ñ�Ğ¿Ğ¾Ğ·Ğ½Ğ°Ğ½Ğ¾:</b> {food_data.get('dish_name', 'Ğ‘Ğ»Ñ�Ğ´Ğ¾')}\n\n"
+                "ğŸ�½ï¸� <b>Ğ’Ñ‹Ğ±ĞµÑ€Ğ¸Ñ‚Ğµ Ñ‚Ğ¸Ğ¿ Ğ¿Ñ€Ğ¸Ñ‘Ğ¼Ğ° Ğ¿Ğ¸Ñ‰Ğ¸:</b>",
+                reply_markup=keyboard.as_markup(),
                 parse_mode="HTML"
             )
-            return
-        
-        # ĞŸĞ¾Ğ»ÑƒÑ‡Ğ°ĞµĞ¼ Ğ´Ğ°Ğ½Ğ½Ñ‹Ğµ Ğ¾ ĞµĞ´Ğµ
-        food_data = analysis_result["data"]
-        
-        # Ğ“ĞµĞ½ĞµÑ€Ğ¸Ñ€ÑƒĞµĞ¼ ÑƒĞ½Ğ¸ĞºĞ°Ğ»ÑŒĞ½Ñ‹Ğ¹ ID Ğ¸ Ñ�Ğ¾Ñ…Ñ€Ğ°Ğ½Ñ�ĞµĞ¼ Ğ´Ğ°Ğ½Ğ½Ñ‹Ğµ Ğ²Ğ¾ Ğ²Ñ€ĞµĞ¼ĞµĞ½Ğ½Ğ¾Ğµ Ñ…Ñ€Ğ°Ğ½Ğ¸Ğ»Ğ¸Ñ‰Ğµ
-        import uuid
-        analysis_id = str(uuid.uuid4())[:8]
-        
-        # Ğ¡Ğ¾Ñ…Ñ€Ğ°Ğ½Ñ�ĞµĞ¼ Ğ´Ğ°Ğ½Ğ½Ñ‹Ğµ Ğ² FSM
-        await state.update_data(photo_analysis={analysis_id: food_data})
-        
-        # ĞŸĞ¾ĞºĞ°Ğ·Ñ‹Ğ²Ğ°ĞµĞ¼ ĞºĞ»Ğ°Ğ²Ğ¸Ğ°Ñ‚ÑƒÑ€Ñƒ Ğ²Ñ‹Ğ±Ğ¾Ñ€Ğ° Ñ‚Ğ¸Ğ¿Ğ° Ğ¿Ñ€Ğ¸Ñ‘Ğ¼Ğ° Ğ¿Ğ¸Ñ‰Ğ¸
-        keyboard = InlineKeyboardBuilder()
-        keyboard.button(text="ğŸŒ… Ğ—Ğ°Ğ²Ñ‚Ñ€Ğ°Ğº", callback_data=f"meal_type_breakfast_{analysis_id}")
-        keyboard.button(text="â˜€ï¸� Ğ�Ğ±ĞµĞ´", callback_data=f"meal_type_lunch_{analysis_id}")
-        keyboard.button(text="ğŸŒ† Ğ£Ğ¶Ğ¸Ğ½", callback_data=f"meal_type_dinner_{analysis_id}")
-        keyboard.button(text="ğŸ�� ĞŸĞµÑ€ĞµĞºÑƒÑ�", callback_data=f"meal_type_snack_{analysis_id}")
-        keyboard.adjust(2)
-        
-        await message.answer(
-            "ğŸ“¸ <b>Ğ¤Ğ¾Ñ‚Ğ¾ Ğ¿Ñ€Ğ¾Ğ°Ğ½Ğ°Ğ»Ğ¸Ğ·Ğ¸Ñ€Ğ¾Ğ²Ğ°Ğ½Ğ¾!</b>\n\n"
-            f"ğŸ�½ï¸� <b>Ğ Ğ°Ñ�Ğ¿Ğ¾Ğ·Ğ½Ğ°Ğ½Ğ¾:</b> {food_data.get('dish_name', 'Ğ‘Ğ»Ñ�Ğ´Ğ¾')}\n\n"
-            "ğŸ�½ï¸� <b>Ğ’Ñ‹Ğ±ĞµÑ€Ğ¸Ñ‚Ğµ Ñ‚Ğ¸Ğ¿ Ğ¿Ñ€Ğ¸Ñ‘Ğ¼Ğ° Ğ¿Ğ¸Ñ‰Ğ¸:</b>",
-            reply_markup=keyboard.as_markup(),
-            parse_mode="HTML"
-        )
-        
-    except Exception as e:
-        logger.error(f"â�Œ Error in analyze_photo_parallel: {e}")
-        await message.answer(
-            error_card("ai", f"Ğ�ÑˆĞ¸Ğ±ĞºĞ° Ğ°Ğ½Ğ°Ğ»Ğ¸Ğ·Ğ° Ñ„Ğ¾Ñ‚Ğ¾: {str(e)}"),
-            parse_mode="HTML"
-        )
+            
+        except Exception as e:
+            logger.error(f"â�Œ Error in analyze_photo_with_semaphore: {e}")
+            await message.answer(
+                error_card("ai", f"Ğ�ÑˆĞ¸Ğ±ĞºĞ° Ğ°Ğ½Ğ°Ğ»Ğ¸Ğ·Ğ° Ñ„Ğ¾Ñ‚Ğ¾: {str(e)}"),
+                parse_mode="HTML"
+            )
 
 async def transcribe_voice(message: Message) -> str:
     """

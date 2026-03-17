@@ -301,6 +301,22 @@ async def main():
     asyncio.create_task(periodic_weather_update())
     logger.info("Weather update task started")
     
+    # Запускаем фоновую задачу для очистки FSM-данных
+    async def start_fsm_cleanup():
+        """Запускает периодическую очистку FSM-данных"""
+        while True:
+            try:
+                from utils.fsm_cleanup import periodic_fsm_cleanup
+                await periodic_fsm_cleanup(storage)
+                logger.info("FSM cleanup completed")
+            except Exception as e:
+                logger.exception(f"Error in periodic FSM cleanup: {e}")
+            # Ждём 1 час (3600 секунд)
+            await asyncio.sleep(3600)
+    
+    asyncio.create_task(start_fsm_cleanup())
+    logger.info("FSM cleanup task started")
+    
     app = create_app()
     app['bot'] = bot
     app['dp'] = dp  # ĞŸĞµÑ€ĞµĞ´Ğ°ĞµĞ¼ Ğ´Ğ¸Ñ�Ğ¿ĞµÑ‚Ñ‡ĞµÑ€ Ğ² ĞºĞ¾Ğ½Ñ‚ĞµĞºÑ�Ñ‚

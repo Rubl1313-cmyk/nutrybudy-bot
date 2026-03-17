@@ -127,13 +127,15 @@ async def process_weight(message: Message, state: FSMContext):
         )
 
 async def send_weight_statistics(message: Message, user, session, current_weight):
-    """Ğ�Ñ‚Ğ¿Ñ€Ğ°Ğ²ĞºĞ° Ñ�Ñ‚Ğ°Ñ‚Ğ¸Ñ�Ñ‚Ğ¸ĞºĞ¸ Ğ¿Ğ¾ Ğ²ĞµÑ�Ñƒ"""
+    """Отправляет статистику по весу"""
     from datetime import datetime, timedelta
+    from utils.timezone_utils import get_user_local_date
     
-    today = message.date
+    # Используем локальную дату пользователя
+    today_local = get_user_local_date(user)
     
-    # Ğ’Ñ‡ĞµÑ€Ğ°
-    yesterday = today - timedelta(days=1)
+    # Вчера (в локальном времени пользователя)
+    yesterday = today_local - timedelta(days=1)
     yesterday_result = await session.execute(
         select(WeightEntry.weight).where(
             WeightEntry.user_id == user.id,
@@ -142,8 +144,8 @@ async def send_weight_statistics(message: Message, user, session, current_weight
     )
     yesterday_weight = yesterday_result.scalar_one_or_none()
     
-    # Ğ�ĞµĞ´ĞµĞ»Ñ� Ğ½Ğ°Ğ·Ğ°Ğ´
-    week_ago = today - timedelta(days=7)
+    # Неделю назад (в локальном времени пользователя)
+    week_ago = today_local - timedelta(days=7)
     week_result = await session.execute(
         select(WeightEntry.weight).where(
             WeightEntry.user_id == user.id,
@@ -152,8 +154,8 @@ async def send_weight_statistics(message: Message, user, session, current_weight
     )
     week_weight = week_result.scalar_one_or_none()
     
-    # ĞœĞµÑ�Ñ�Ñ† Ğ½Ğ°Ğ·Ğ°Ğ´
-    month_ago = today - timedelta(days=30)
+    # Месяц назад (в локальном времени пользователя)
+    month_ago = today_local - timedelta(days=30)
     month_result = await session.execute(
         select(WeightEntry.weight).where(
             WeightEntry.user_id == user.id,
@@ -162,8 +164,8 @@ async def send_weight_statistics(message: Message, user, session, current_weight
     )
     month_weight = month_result.scalar_one_or_none()
     
-    # ĞœĞ¸Ğ½Ğ¸Ğ¼Ğ°Ğ»ÑŒĞ½Ñ‹Ğ¹ Ğ¸ Ğ¼Ğ°ĞºÑ�Ğ¸Ğ¼Ğ°Ğ»ÑŒĞ½Ñ‹Ğ¹ Ğ²ĞµÑ� Ğ·Ğ° Ğ¿Ğ¾Ñ�Ğ»ĞµĞ´Ğ½Ğ¸Ğµ 30 Ğ´Ğ½ĞµĞ¹
-    thirty_days_ago = today - timedelta(days=30)
+    # Минимальный и максимальный за последние 30 дней (в локальном времени пользователя)
+    thirty_days_ago = today_local - timedelta(days=30)
     min_max_result = await session.execute(
         select(
             func.min(WeightEntry.weight),

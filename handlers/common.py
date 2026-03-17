@@ -189,38 +189,31 @@ async def help_message(message: Message, state: FSMContext):
 
 # Ğ�Ğ±Ñ€Ğ°Ğ±Ğ¾Ñ‚Ñ‡Ğ¸Ğº Ğ´Ğ»Ñ� callback Ğ¿Ñ€Ğ¾Ğ³Ñ€ĞµÑ�Ñ�Ğ°
 async def period_callback_internal(callback: CallbackQuery, state: FSMContext):
-    """Ğ’Ğ½ÑƒÑ‚Ñ€ĞµĞ½Ğ½Ğ¸Ğ¹ Ğ¾Ğ±Ñ€Ğ°Ğ±Ğ¾Ñ‚Ñ‡Ğ¸Ğº Ğ²Ñ‹Ğ±Ğ¾Ñ€Ğ° Ğ¿ĞµÑ€Ğ¸Ğ¾Ğ´Ğ°"""
+    """Внутренний обработчик выбора периода с улучшенной проверкой пользователя"""
     try:
         period = callback.data.split("_")[1]  # day / week / month / all
         user_id = callback.from_user.id
 
-        await callback.answer(f"ğŸ“Š Ğ—Ğ°Ğ³Ñ€ÑƒĞ¶Ğ°Ñ� Ñ�Ñ‚Ğ°Ñ‚Ğ¸Ñ�Ñ‚Ğ¸ĞºÑƒ...")
+        await callback.answer(f"📊 Загружаем статистику...")
         await callback.message.delete()
         await state.clear()
 
-        from database.db import get_session
-        from database.models import User
-        from sqlalchemy import select
-        from datetime import datetime, timedelta
-
-        async with get_session() as session:
-            # ĞŸĞ¾Ğ»ÑƒÑ‡Ğ°ĞµĞ¼ Ğ¿Ğ¾Ğ»ÑŒĞ·Ğ¾Ğ²Ğ°Ñ‚ĞµĞ»Ñ�
-            result = await session.execute(
-                select(User).where(User.telegram_id == user_id)
+        # Используем улучшенную утилиту для получения пользователя
+        from utils.user_utils import get_user_by_telegram_id
+        
+        user = await get_user_by_telegram_id(user_id)
+        if not user:
+            await callback.message.answer(
+                "❌ Пользователь не найден. Пожалуйста, используйте команду /start для регистрации.",
+                reply_markup=get_main_keyboard_v2()
             )
-            user = result.scalar_one_or_none()
-            if not user:
-                await callback.message.answer(
-                    "â�Œ ĞŸĞ¾Ğ»ÑŒĞ·Ğ¾Ğ²Ğ°Ñ‚ĞµĞ»ÑŒ Ğ½Ğµ Ğ½Ğ°Ğ¹Ğ´ĞµĞ½.",
-                    reply_markup=get_main_keyboard_v2()
-                )
-                return
+            return
 
             # Ğ�Ğ¿Ñ€ĞµĞ´ĞµĞ»Ñ�ĞµĞ¼ Ğ´Ğ¸Ğ°Ğ¿Ğ°Ğ·Ğ¾Ğ½ Ğ´Ğ°Ñ‚
             today = datetime.now().date()
             if period == "day":
                 start_date = today
-                period_name = "Ñ�ĞµĞ³Ğ¾Ğ´Ğ½Ñ�"
+                period_name = "сегодня"
             elif period == "week":
                 start_date = today - timedelta(days=7)
                 period_name = "Ğ·Ğ° Ğ½ĞµĞ´ĞµĞ»Ñ�"
@@ -314,34 +307,59 @@ async def _create_progress_message(user, stats: dict, period_name: str, period: 
     
     return message
 
-# Ğ£Ğ½Ğ¸Ğ²ĞµÑ€Ñ�Ğ°Ğ»ÑŒĞ½Ñ‹Ğ¹ Ğ¾Ğ±Ñ€Ğ°Ğ±Ğ¾Ñ‚Ñ‡Ğ¸Ğº callback
+# Ğ£Ğ½Ğ¸Ğ²ĞµÑ€Ñ�Ğ°Ğ»ÑŒĞ½Ñ‹Ğ¹# Универсальный обработчик callback с улучшенной обработкой ошибок
 @router.callback_query()
 async def universal_callback_handler(callback: CallbackQuery, state: FSMContext):
-    """Ğ£Ğ½Ğ¸Ğ²ĞµÑ€Ñ�Ğ°Ğ»ÑŒĞ½Ñ‹Ğ¹ Ğ¾Ğ±Ñ€Ğ°Ğ±Ğ¾Ñ‚Ñ‡Ğ¸Ğº Ğ²Ñ�ĞµÑ… callback"""
+    """Универсальный обработчик всех callback с полной защитой от ошибок"""
     data = callback.data
     
-    # Ğ�Ğ±Ñ€Ğ°Ğ±Ğ¾Ñ‚ĞºĞ° period_ callback
-    if data.startswith("period_"):
-        await period_callback_internal(callback, state)
-        return
-    
-    # Ğ�Ğ±Ñ€Ğ°Ğ±Ğ¾Ñ‚ĞºĞ° progress_ callback
-    if data.startswith("progress_"):
-        await period_callback_internal(callback, state)
-        return
-    
-    # Ğ�Ğ±Ñ€Ğ°Ğ±Ğ¾Ñ‚ĞºĞ° help_ callback
-    if data.startswith("help_"):
-        await help_callbacks(callback)
-        return
-    
-    # Ğ�Ğ±Ñ€Ğ°Ğ±Ğ¾Ñ‚ĞºĞ° edit_ callback - Ğ¿ĞµÑ€ĞµĞ½Ğ°Ğ¿Ñ€Ğ°Ğ²Ğ»Ñ�ĞµĞ¼ Ğ² profile.py
-    if data.startswith("edit_"):
-        # Ğ˜Ğ¼Ğ¿Ğ¾Ñ€Ñ‚Ğ¸Ñ€ÑƒĞµĞ¼ Ğ¸ Ğ²Ñ‹Ğ·Ñ‹Ğ²Ğ°ĞµĞ¼ Ğ¾Ğ±Ñ€Ğ°Ğ±Ğ¾Ñ‚Ñ‡Ğ¸Ğº Ğ¸Ğ· profile.py
-        from handlers.profile import process_edit_callback
-        await process_edit_callback(callback, state)
-        return
-    
-    # Ğ”Ñ€ÑƒĞ³Ğ¸Ğµ callback
-    logger.warning(f"Unknown callback: {data}")
-    await callback.answer()
+    try:
+        # Обрабатываем period_ callback
+        if data.startswith("period_"):
+            await period_callback_internal(callback, state)
+            return
+        
+        # Обрабатываем progress_ callback
+        if data.startswith("progress_"):
+            await period_callback_internal(callback, state)
+            return
+        
+        # Обрабатываем help_ callback
+        if data.startswith("help_"):
+            await help_callbacks(callback)
+            return
+        
+        # Обрабатываем edit_ callback - перенаправляем в profile.py
+        if data.startswith("edit_"):
+            # Импортируем и вызываем из profile.py
+            from handlers.profile import process_edit_callback
+            await process_edit_callback(callback, state)
+            return
+        
+        # Другой callback
+        logger.warning(f"Unknown callback: {data}")
+        await callback.answer()
+        
+    except Exception as e:
+        # Полная обработка всех ошибок в callback handlers
+        logger.error(f"❌ Error in universal_callback_handler: {e}")
+        logger.error(f"❌ Callback data: {data}")
+        logger.error(f"❌ User ID: {callback.from_user.id}")
+        
+        import traceback
+        logger.error(f"❌ Traceback: {traceback.format_exc()}")
+        
+        try:
+            # Показываем пользователю дружелюбное сообщение об ошибке
+            await callback.message.answer(
+                "❌ Произошла ошибка. Попробуйте еще раз.",
+                reply_markup=get_main_keyboard_v2()
+            )
+            await callback.answer("❌ Произошла ошибка", show_alert=True)
+        except Exception as answer_error:
+            logger.error(f"❌ Error sending error message: {answer_error}")
+            # Финальный fallback - просто отвечаем на callback
+            try:
+                await callback.answer("❌ Ошибка")
+            except:
+                pass  # Последний уровень защиты

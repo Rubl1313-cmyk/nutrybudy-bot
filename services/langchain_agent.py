@@ -32,6 +32,7 @@ logger = logging.getLogger(__name__)
 
 # ĞšĞµÑˆ Ğ°Ğ³ĞµĞ½Ñ‚Ğ¾Ğ² Ñ� Ğ¾Ñ‚Ñ�Ğ»ĞµĞ¶Ğ¸Ğ²Ğ°Ğ½Ğ¸ĞµĞ¼ Ğ²Ñ€ĞµĞ¼ĞµĞ½Ğ¸ Ğ¸Ñ�Ğ¿Ğ¾Ğ»ÑŒĞ·Ğ¾Ğ²Ğ°Ğ½Ğ¸Ñ�
 _agents: Dict[int, Dict[str, Any]] = {}
+_agents_lock = asyncio.Lock()  # Блокировка для потокобезопасности
 
 class LangChainAgent:
     """AI Ğ°Ğ³ĞµĞ½Ñ‚ Ñ� Ğ¸Ğ½Ñ�Ñ‚Ñ€ÑƒĞ¼ĞµĞ½Ñ‚Ğ°Ğ¼Ğ¸ Ğ´Ğ»Ñ� NutriBuddy"""
@@ -348,22 +349,23 @@ class LangChainAgent:
             )
 
     @classmethod
-    def get_for_user(cls, user_id: int, state: FSMContext):
+    async def get_for_user(cls, user_id: int, state: FSMContext):
         """ĞŸĞ¾Ğ»ÑƒÑ‡Ğ°ĞµÑ‚ Ğ¸Ğ»Ğ¸ Ñ�Ğ¾Ğ·Ğ´Ğ°Ñ‘Ñ‚ Ğ°Ğ³ĞµĞ½Ñ‚Ğ° Ğ´Ğ»Ñ� Ğ¿Ğ¾Ğ»ÑŒĞ·Ğ¾Ğ²Ğ°Ñ‚ĞµĞ»Ñ�"""
         import time
-        if user_id not in _agents:
-            agent = cls(user_id, state)
-            _agents[user_id] = {
-                'agent': agent,
-                'last_used': time.time()
-            }
-            logger.info(f"ğŸ¤– Created new agent for user {user_id}")
-        else:
-            # Ğ�Ğ±Ğ½Ğ¾Ğ²Ğ»Ñ�ĞµĞ¼ Ğ²Ñ€ĞµĞ¼Ñ� Ğ¿Ğ¾Ñ�Ğ»ĞµĞ´Ğ½ĞµĞ³Ğ¾ Ğ¸Ñ�Ğ¿Ğ¾Ğ»ÑŒĞ·Ğ¾Ğ²Ğ°Ğ½Ğ¸Ñ�
-            _agents[user_id]['last_used'] = time.time()
-            _agents[user_id]['agent'].last_used = time.time()
-        
-        return _agents[user_id]['agent']
+        async with _agents_lock:
+            if user_id not in _agents:
+                agent = cls(user_id, state)
+                _agents[user_id] = {
+                    'agent': agent,
+                    'last_used': time.time()
+                }
+                logger.info(f"🤖 Created new agent for user {user_id}")
+            else:
+                # Ğ�Ğ±Ğ½Ğ¾Ğ²Ğ»Ñ�ĞµĞ¼ Ğ²Ñ€ĞµĞ¼Ñ� Ğ¿Ğ¾Ñ�Ğ»ĞµĞ´Ğ½ĞµĞ³Ğ¾ Ğ¸Ñ�Ğ¿Ğ¾Ğ»ÑŒĞ·Ğ¾Ğ²Ğ°Ğ½Ğ¸Ñ�
+                _agents[user_id]['last_used'] = time.time()
+                _agents[user_id]['agent'].last_used = time.time()
+            
+            return _agents[user_id]['agent']
 
     @classmethod
     def cleanup_inactive(cls, max_age_hours: int = 1):

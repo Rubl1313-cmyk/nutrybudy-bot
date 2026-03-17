@@ -21,7 +21,6 @@ pytz==2023.3
 # LangChain и AI зависимости
 langchain==0.3.27
 langchain-community==0.3.27
-langchain-core==0.3.27
 
 # Redis для FSM и кеширования
 redis>=5.0.0

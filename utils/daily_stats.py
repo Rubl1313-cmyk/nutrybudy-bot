@@ -136,7 +136,7 @@ async def get_daily_meals_count(user_id: int, user_timezone: str = 'UTC') -> int
     """
     try:
         from database.db import get_session
-        from database.models import Meal, User
+        from database.models import FoodEntry, User
         from sqlalchemy import select, func
         
         async with get_session() as session:
@@ -150,9 +150,9 @@ async def get_daily_meals_count(user_id: int, user_timezone: str = 'UTC') -> int
             today_local = get_user_local_date(user_tz)
             
             result = await session.execute(
-                select(func.count(Meal.id)).where(
-                    Meal.user_id == user_id,
-                    func.date(Meal.datetime) == today_local
+                select(func.count(FoodEntry.id)).where(
+                    FoodEntry.user_id == user_id,
+                    func.date(FoodEntry.created_at) == today_local
                 )
             )
             return result.scalar() or 0
@@ -175,7 +175,7 @@ async def get_period_stats(user_id: int, period: str = "day", user_timezone: str
     """
     try:
         from database.db import get_session
-        from database.models import Meal, DrinkEntry, Activity, Weight, User
+        from database.models import FoodEntry, DrinkEntry, Activity, Weight, User
         from sqlalchemy import select, func
         from datetime import timedelta
         
@@ -197,21 +197,21 @@ async def get_period_stats(user_id: int, period: str = "day", user_timezone: str
                 start_date = None
             
             # Базовые условия
-            conditions = [Meal.user_id == user_id]
+            conditions = [FoodEntry.user_id == user_id]
             if start_date:
-                conditions.append(Meal.datetime >= start_date)
+                conditions.append(FoodEntry.created_at >= start_date)
             
             # Статистика по приемам пищи
-            meals_result = await session.execute(select(Meal).where(*conditions))
+            meals_result = await session.execute(select(FoodEntry).where(*conditions))
             meals = meals_result.scalars().all()
             
             stats = {
                 'period': period,
                 'meals_count': len(meals),
-                'total_calories': sum(m.total_calories or 0 for m in meals),
-                'total_protein': sum(m.total_protein or 0 for m in meals),
-                'total_fat': sum(m.total_fat or 0 for m in meals),
-                'total_carbs': sum(m.total_carbs or 0 for m in meals),
+                'total_calories': sum(m.calories or 0 for m in meals),
+                'total_protein': sum(m.protein or 0 for m in meals),
+                'total_fat': sum(m.fat or 0 for m in meals),
+                'total_carbs': sum(m.carbs or 0 for m in meals),
             }
             
             # Добавляем статистику по жидкости и активности
@@ -294,7 +294,7 @@ async def get_daily_calories(user_id: int) -> int:
     """
     try:
         from database.db import get_session
-        from database.models import Meal, User
+        from database.models import FoodEntry, User
         from sqlalchemy import select, func
         
         async with get_session() as session:
@@ -308,9 +308,9 @@ async def get_daily_calories(user_id: int) -> int:
             today_local = get_user_local_date(user_tz)
             
             result = await session.execute(
-                select(func.sum(Meal.calories)).where(
-                    Meal.user_id == user_id,
-                    func.date(Meal.datetime) == today_local
+                select(func.sum(FoodEntry.calories)).where(
+                    FoodEntry.user_id == user_id,
+                    func.date(FoodEntry.created_at) == today_local
                 )
             )
             return result.scalar() or 0
@@ -331,7 +331,7 @@ async def get_daily_protein(user_id: int) -> int:
     """
     try:
         from database.db import get_session
-        from database.models import Meal, User
+        from database.models import FoodEntry, User
         from sqlalchemy import select, func
         
         async with get_session() as session:
@@ -345,9 +345,9 @@ async def get_daily_protein(user_id: int) -> int:
             today_local = get_user_local_date(user_tz)
             
             result = await session.execute(
-                select(func.sum(Meal.protein)).where(
-                    Meal.user_id == user_id,
-                    func.date(Meal.datetime) == today_local
+                select(func.sum(FoodEntry.protein)).where(
+                    FoodEntry.user_id == user_id,
+                    func.date(FoodEntry.created_at) == today_local
                 )
             )
             return result.scalar() or 0
@@ -368,7 +368,7 @@ async def get_daily_fat(user_id: int) -> int:
     """
     try:
         from database.db import get_session
-        from database.models import Meal, User
+        from database.models import FoodEntry, User
         from sqlalchemy import select, func
         
         async with get_session() as session:
@@ -382,9 +382,9 @@ async def get_daily_fat(user_id: int) -> int:
             today_local = get_user_local_date(user_tz)
             
             result = await session.execute(
-                select(func.sum(Meal.fat)).where(
-                    Meal.user_id == user_id,
-                    func.date(Meal.datetime) == today_local
+                select(func.sum(FoodEntry.fat)).where(
+                    FoodEntry.user_id == user_id,
+                    func.date(FoodEntry.created_at) == today_local
                 )
             )
             return result.scalar() or 0
@@ -405,7 +405,7 @@ async def get_daily_carbs(user_id: int) -> int:
     """
     try:
         from database.db import get_session
-        from database.models import Meal, User
+        from database.models import FoodEntry, User
         from sqlalchemy import select, func
         
         async with get_session() as session:
@@ -419,9 +419,9 @@ async def get_daily_carbs(user_id: int) -> int:
             today_local = get_user_local_date(user_tz)
             
             result = await session.execute(
-                select(func.sum(Meal.carbs)).where(
-                    Meal.user_id == user_id,
-                    func.date(Meal.datetime) == today_local
+                select(func.sum(FoodEntry.carbs)).where(
+                    FoodEntry.user_id == user_id,
+                    func.date(FoodEntry.created_at) == today_local
                 )
             )
             return result.scalar() or 0

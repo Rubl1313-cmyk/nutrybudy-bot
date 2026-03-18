@@ -9,7 +9,7 @@ from typing import Dict, Any, List, Optional
 from datetime import datetime, timezone
 
 from database.db import get_session
-from database.models import User, Meal, FoodItem
+from database.models import User, FoodEntry, FoodItem
 from utils.unit_converter import convert_to_grams
 
 logger = logging.getLogger(__name__)
@@ -48,20 +48,22 @@ class FoodSaveService:
                         "error": "Пользователь не найден"
                     }
                 
-                # Создаем прием пищи
-                meal = Meal(
+                # Создаем запись еды
+                food_entry = FoodEntry(
                     user_id=user.id,
+                    food_name=item.get('name', 'Неизвестный продукт'),
+                    calories=item_calories,
+                    protein=item_protein,
+                    fat=item_fat,
+                    carbs=item_carbs,
+                    fiber=item.get('fiber', 0),
+                    sugar=item.get('sugar', 0),
+                    sodium=item.get('sodium', 0),
                     meal_type=meal_type,
-                    date=datetime.now(timezone.utc).date(),
+                    quantity=weight_grams,
+                    unit='г',
                     created_at=datetime.now(timezone.utc)
                 )
-                session.add(meal)
-                await session.flush()  # Получаем ID meal
-                
-                total_calories = 0
-                total_protein = 0
-                total_fat = 0
-                total_carbs = 0
                 
                 # Сохраняем продукты
                 for item in food_items:
@@ -92,45 +94,32 @@ class FoodSaveService:
                     food_fat = item.get('fat', 0) * factor
                     food_carbs = item.get('carbs', 0) * factor
                     
-                    # Создаем FoodItem с пересчитанными значениями
-                    food_item = FoodItem(
-                        meal_id=meal.id,
-                        name=item.get('name', 'Неизвестный продукт'),
-                        quantity=weight_grams,
-                        unit='г',
+                    # Создаем запись еды
+                    food_entry = FoodEntry(
+                        user_id=user.id,
+                        food_name=item.get('name', 'Неизвестный продукт'),
                         calories=food_calories,
                         protein=food_protein,
                         fat=food_fat,
                         carbs=food_carbs,
+                        fiber=item.get('fiber', 0),
+                        sugar=item.get('sugar', 0),
+                        sodium=item.get('sodium', 0),
+                        meal_type=meal_type,
+                        quantity=weight_grams,
+                        unit='г',
                         created_at=datetime.now(timezone.utc)
                     )
-                    session.add(food_item)
-                    
-                    # Накапливаем totals
-                    total_calories += food_calories
-                    total_protein += food_protein
-                    total_fat += food_fat
-                    total_carbs += food_carbs
-                
-                # Обновляем totals в meal
-                meal.total_calories = total_calories
-                meal.total_protein = total_protein
-                meal.total_fat = total_fat
-                meal.total_carbs = total_carbs
+                    session.add(food_entry)
                 
                 # Сохраняем всё в базе
                 await session.commit()
                 
-                logger.info(f"[FOOD_SAVE] Сохранен прием пищи: {meal_type}, {len(food_items)} продуктов, {total_calories:.0f} ккал")
+                logger.info(f"[FOOD_SAVE] Сохранен прием пищи: {meal_type}, {len(food_items)} продуктов")
                 
                 return {
                     "success": True,
-                    "meal_id": meal.id,
-                    "total_calories": total_calories,
-                    "total_protein": total_protein,
-                    "total_fat": total_fat,
-                    "total_carbs": total_carbs,
-                    "items_count": len(food_items)
+                    "message": f"Сохранено {len(food_items)} продуктов на {total_calories:.0f} ккал"
                 }
                 
         except Exception as e:
@@ -159,7 +148,7 @@ class FoodSaveService:
             async with get_session() as session:
                 # Получаем прием пищи
                 meal_result = await session.execute(
-                    select(Meal).where(Meal.id == meal_id)
+                    select(FoodEntry).where(FoodEntry.id == meal_id)
                 )
                 meal = meal_result.scalar_one_or_none()
                 
@@ -202,7 +191,7 @@ class FoodSaveService:
             async with get_session() as session:
                 # Получаем прием пищи
                 meal_result = await session.execute(
-                    select(Meal).where(Meal.id == meal_id)
+                    select(FoodEntry).where(FoodEntry.id == meal_id)
                 )
                 meal = meal_result.scalar_one_or_none()
                 
@@ -250,9 +239,9 @@ class FoodSaveService:
             async with get_session() as session:
                 # Получаем прием пищи с продуктами
                 result = await session.execute(
-                    select(Meal, FoodItem)
-                    .join(FoodItem, Meal.id == FoodItem.meal_id)
-                    .where(Meal.id == meal_id)
+                    select(FoodEntry, FoodItem)
+                    .join(FoodItem, FoodEntry.id == FoodItem.meal_id)
+                    .where(FoodEntry.id == meal_id)
                 )
                 
                 records = result.all()
@@ -260,7 +249,7 @@ class FoodSaveService:
                 if not records:
                     return None
                 
-                # Берем первую запись для данных Meal
+                # Берем первую запись для данных FoodEntry
                 meal = records[0][0]
                 
                 # Собираем все продукты
@@ -315,16 +304,16 @@ class FoodSaveService:
         try:
             async with get_session() as session:
                 # Базовый запрос
-                query = select(Meal).where(Meal.user_id == user_id)
+                query = select(FoodEntry).where(FoodEntry.user_id == user_id)
                 
                 # Добавляем фильтры по датам
                 if date_from:
-                    query = query.where(Meal.date >= date_from)
+                    query = query.where(FoodEntry.date >= date_from)
                 if date_to:
-                    query = query.where(Meal.date <= date_to)
+                    query = query.where(FoodEntry.date <= date_to)
                 
                 # Добавляем сортировку и лимит
-                query = query.order_by(Meal.date.desc(), Meal.created_at.desc()).limit(limit)
+                query = query.order_by(FoodEntry.date.desc(), FoodEntry.created_at.desc()).limit(limit)
                 
                 result = await session.execute(query)
                 meals = result.scalars().all()
@@ -366,7 +355,7 @@ class FoodSaveService:
             async with get_session() as session:
                 # Получаем прием пищи
                 meal_result = await session.execute(
-                    select(Meal).where(Meal.id == meal_id)
+                    select(FoodEntry).where(FoodEntry.id == meal_id)
                 )
                 meal = meal_result.scalar_one_or_none()
                 

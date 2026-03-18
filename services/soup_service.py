@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from typing import Dict, Optional
 
 from database.db import get_session
-from database.models import User, Meal, FoodItem
+from database.models import User, FoodEntry
 from utils.unit_converter import convert_to_grams
 
 logger = logging.getLogger(__name__)
@@ -128,8 +128,8 @@ async def save_soup(user_id: int, dish_name: str, volume_ml: float, meal_type: s
             if not user:
                 raise ValueError(f"User {user_id} not found")
             
-            # 1. Сохраняем как прием пищи (Meal)
-            meal = Meal(
+            # 1. Сохраняем как прием пищи (FoodEntry)
+            meal = FoodEntry(
                 user_id=user.id,
                 meal_type=meal_type,
                 date=datetime.now(timezone.utc).date(),
@@ -142,20 +142,6 @@ async def save_soup(user_id: int, dish_name: str, volume_ml: float, meal_type: s
             )
             session.add(meal)
             await session.flush()
-            
-            # 2. Сохраняем ингредиенты для супа
-            food_item = FoodItem(
-                meal_id=meal.id,
-                name=dish_name,
-                quantity=volume_ml,
-                unit='мл',
-                calories=nutrition['calories'],
-                protein=nutrition['protein'],
-                fat=nutrition['fat'],
-                carbs=nutrition['carbs'],
-                created_at=datetime.now(timezone.utc)
-            )
-            session.add(food_item)
             
             # 3. Сохраняем как запись воды (если есть поддержка)
             try:
@@ -237,18 +223,16 @@ async def analyze_user_soup_preferences(user_id: int) -> Dict:
     """
     try:
         async with get_session() as session:
-            # Получаем все приемы супов пользователя
+            # Получаем все супы пользователя
             result = await session.execute(
-                select(Meal, FoodItem)
-                .join(FoodItem, Meal.id == FoodItem.meal_id)
-                .where(
-                    Meal.user_id == user_id,
-                    Meal.ai_description.ilike('%борщ%') |
-                    Meal.ai_description.ilike('%щи%') |
-                    Meal.ai_description.ilike('%суп%') |
-                    Meal.ai_description.ilike('%уха%')
+                select(FoodEntry).where(
+                    FoodEntry.user_id == user_id,
+                    FoodEntry.ai_description.ilike('%борщ%') |
+                    FoodEntry.ai_description.ilike('%щи%') |
+                    FoodEntry.ai_description.ilike('%суп%') |
+                    FoodEntry.ai_description.ilike('%уха%')
                 )
-                .order_by(Meal.date.desc())
+                .order_by(FoodEntry.date.desc())
             )
             
             soup_records = result.all()
@@ -350,15 +334,13 @@ async def get_daily_soup_stats(user_id: int, target_date: datetime.date = None) 
         async with get_session() as session:
             # Получаем все супы за день
             result = await session.execute(
-                select(Meal, FoodItem)
-                .join(FoodItem, Meal.id == FoodItem.meal_id)
-                .where(
-                    Meal.user_id == user_id,
-                    Meal.date == target_date,
-                    Meal.ai_description.ilike('%борщ%') |
-                    Meal.ai_description.ilike('%щи%') |
-                    Meal.ai_description.ilike('%суп%') |
-                    Meal.ai_description.ilike('%уха%')
+                select(FoodEntry).where(
+                    FoodEntry.user_id == user_id,
+                    FoodEntry.date == target_date,
+                    FoodEntry.ai_description.ilike('%борщ%') |
+                    FoodEntry.ai_description.ilike('%щи%') |
+                    FoodEntry.ai_description.ilike('%суп%') |
+                    FoodEntry.ai_description.ilike('%уха%')
                 )
             )
             

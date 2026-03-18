@@ -9,7 +9,7 @@ from typing import Dict, Any, List, Optional
 from datetime import datetime, timezone
 
 from database.db import get_session
-from database.models import User, FoodEntry, FoodItem
+from database.models import User, FoodEntry
 from utils.unit_converter import convert_to_grams
 
 logger = logging.getLogger(__name__)

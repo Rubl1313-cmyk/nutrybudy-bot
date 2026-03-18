@@ -448,6 +448,9 @@ class GamificationSystem:
 # Глобальная экземпляр системы геймификации
 gamification_system = GamificationSystem()
 
+# Алиас для совместимости с импортами
+gamification = gamification_system
+
 async def check_achievements(user_id: int, action: str, data: Dict = None) -> List[Achievement]:
     """Проверяет достижения для пользователя"""
     return await gamification_system.check_achievements(user_id, action, data)

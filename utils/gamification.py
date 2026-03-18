@@ -221,7 +221,7 @@ class GamificationSystem:
     async def _get_user_streak(self, user_id: int, session) -> int:
         """Получает серию дней использования бота"""
         try:
-            from database.models import MealEntry, DrinkEntry, ActivityEntry
+            from database.models import FoodEntry, DrinkEntry, ActivityEntry
             from datetime import date
             
             today = date.today()
@@ -233,9 +233,9 @@ class GamificationSystem:
                 
                 # Проверяем, была ли активность в этот день
                 has_activity = (
-                    session.query(MealEntry).filter(
-                        MealEntry.user_id == user_id,
-                        MealEntry.date == check_date
+                    session.query(FoodEntry).filter(
+                        FoodEntry.user_id == user_id,
+                        FoodEntry.date == check_date
                     ).first() or
                     session.query(DrinkEntry).filter(
                         DrinkEntry.user_id == user_id,

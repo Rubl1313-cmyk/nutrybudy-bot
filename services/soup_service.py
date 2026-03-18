@@ -134,10 +134,10 @@ async def save_soup(user_id: int, dish_name: str, volume_ml: float, meal_type: s
                 meal_type=meal_type,
                 date=datetime.now(timezone.utc).date(),
                 created_at=datetime.now(timezone.utc),
-                total_calories=nutrition['calories'],
-                total_protein=nutrition['protein'],
-                total_fat=nutrition['fat'],
-                total_carbs=nutrition['carbs'],
+                calories=nutrition['calories'],
+                protein=nutrition['protein'],
+                fat=nutrition['fat'],
+                carbs=nutrition['carbs'],
                 ai_description=f"{dish_name} ({volume_ml} мл)"
             )
             session.add(meal)
@@ -167,7 +167,6 @@ async def save_soup(user_id: int, dish_name: str, volume_ml: float, meal_type: s
             
             return {
                 'meal_id': meal.id,
-                'food_item_id': food_item.id,
                 'water_volume': water_volume,
                 'nutrition': nutrition
             }
@@ -370,7 +369,7 @@ async def get_daily_soup_stats(user_id: int, target_date: datetime.date = None) 
                     'quantity': volume,
                     'unit': 'мл'
                 }])
-                total_calories += meal.total_calories
+                total_calories += meal.calories
                 
                 # Считаем типы
                 soup_type = 'other'

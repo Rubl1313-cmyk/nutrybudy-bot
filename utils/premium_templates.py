@@ -47,7 +47,7 @@ def meal_card(food_data: Dict, user, daily_stats: Dict) -> str:
 [FOOD] <b>Прием пищи записан!</b>
 
 {'=' * 35}
-[MEAL] <b>{description}</b>
+[FOOD] <b>{description}</b>
 
 [CALORIES] <b>Питательность:</b>
 [CALORIES] Калории: {calories:.0f} ккал
@@ -243,7 +243,7 @@ def daily_summary(stats: Dict, user) -> str:
 {emoji} <b>Ваша статистика за сегодня</b>
 
 {'=' * 40}
-[MEALS] <b>Приемы пищи:</b> {stats.get('meals_count', 0)}
+[FOOD_ENTRIES] <b>Приемы пищи:</b> {stats.get('meals_count', 0)}
 [CALORIES] <b>Калории:</b> {stats.get('calories_consumed', 0):.0f} / {user.daily_calorie_goal:.0f} ккал
 {cal_bar} {cal_progress:.0f}%
 
@@ -285,7 +285,7 @@ def weekly_summary(stats: Dict, user) -> str:
 {emoji} <b>Ваша статистика за неделю</b>
 
 {'=' * 40}
-[MEALS] <b>Приемы пищи:</b> {stats.get('meals_count', 0)}
+[FOOD_ENTRIES] <b>Приемы пищи:</b> {stats.get('meals_count', 0)}
 [CALORIES] <b>Средние калории:</b> {avg_calories:.0f} / {user.daily_calorie_goal:.0f} ккал ({cal_progress:.0f}%)
 [WATER] <b>Средняя вода:</b> {avg_water:.0f} / {user.daily_water_goal:.0f} мл ({water_progress:.0f}%)
 [ACTIVITY] <b>Средняя активность:</b> {avg_activity:.0f} минут в день

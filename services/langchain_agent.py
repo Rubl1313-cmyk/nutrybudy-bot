@@ -85,7 +85,7 @@ class LangChainAgent:
     def _create_tools(self) -> List[StructuredTool]:
         """Создает инструменты для агента"""
         
-        async def log_meal(description: str) -> str:
+        async def log_food(description: str) -> str:
             """Записывает прием пищи. description: описание еды (например, "200г курицы с гречкой"). Возвращает карточку с КБЖУ."""
             try:
                 # Парсим еду через ai_processor
@@ -101,7 +101,7 @@ class LangChainAgent:
                 
                 # Сохраняем через food_save_service
                 from services.food_save_service import food_save_service
-                from utils.ui_templates import meal_card
+                from utils.ui_templates import food_entry_card
                 
                 save_result = await food_save_service.save_food_entry(
                     user_id=self.user_id,
@@ -128,13 +128,13 @@ class LangChainAgent:
                         'meal_type': meal_type
                     }
                     
-                    card_text = meal_card(food_data, user, daily_stats)
+                    card_text = food_entry_card(food_data, user, daily_stats)
                     return f"[SUCCESS] Прием пищи записан!\n\n{card_text}"
                 else:
                     return f"[ERROR] Ошибка сохранения: {save_result.get('error')}"
                     
             except Exception as e:
-                logger.error(f"[AGENT] Error in log_meal: {e}")
+                logger.error(f"[AGENT] Error in log_food: {e}")
                 return "[ERROR] Ошибка при записи приема пищи"
 
         async def log_water(amount: str) -> str:
@@ -218,7 +218,7 @@ class LangChainAgent:
                     f"[STATS] Ваша статистика за сегодня:\n\n"
                     f"[CALORIES] Калории: {stats.get('calories_consumed', 0):.0f}/{self.user.daily_calorie_goal if self.user else 2000:.0f} ккал ({progress_cal:.0f}%)\n"
                     f"[WATER] Вода: {stats.get('water_consumed', 0):.0f}/{self.user.daily_water_goal if self.user else 2000:.0f} мл ({progress_water:.0f}%)\n"
-                    f"[MEALS] Приемов пищи: {stats.get('meals_count', 0)}\n"
+                    f"[FOOD_ENTRIES] Приемов пищи: {stats.get('meals_count', 0)}\n"
                     f"[ACTIVITY] Активность: {stats.get('activity_minutes', 0)} минут\n"
                     f"[STEPS] Шаги: {stats.get('steps_count', 0)}"
                 )
@@ -296,8 +296,8 @@ class LangChainAgent:
         # Создаем инструменты
         tools = [
             StructuredTool.from_function(
-                log_meal,
-                name="log_meal",
+                log_food,
+                name="log_food",
                 description="Записывает прием пищи. Используй когда пользователь хочет поесть или описывает еду."
             ),
             StructuredTool.from_function(

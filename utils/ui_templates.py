@@ -176,12 +176,12 @@ class UITemplates:
         """.strip()
     
     @staticmethod
-    def meal_card(meal) -> str:
-        """Карточка приема пищи"""
+    def food_entry_card(food_entry) -> str:
+        """Карточка записи питания"""
         return f"""
-🍽 <b>{meal.dish_name}</b>
-{meal.calories:.0f} ккал | Б:{meal.protein:.0f}г Ж:{meal.fat:.0f}г У:{meal.carbs:.0f}г
-<i>{meal.datetime.strftime('%H:%M')}</i>
+🍽 <b>{food_entry.ai_description or 'Запись питания'}</b>
+{food_entry.calories:.0f} ккал | Б:{food_entry.protein:.0f}г Ж:{food_entry.fat:.0f}г У:{food_entry.carbs:.0f}г
+<i>{food_entry.created_at.strftime('%H:%M')}</i>
         """.strip()
     
     @staticmethod

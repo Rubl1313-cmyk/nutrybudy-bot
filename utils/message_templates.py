@@ -99,7 +99,7 @@ class MessageTemplates:
         
         text = (
             f"{emoji} <b>Приём пищи сохранён!</b>\n\n"
-            f"[MEAL] <b>{dish_name}</b>\n\n"
+            f"[FOOD] <b>{dish_name}</b>\n\n"
             f"[NUTRITION] <b>Питательность:</b>\n"
             f"[CALORIES] Калории: {calories:.0f} ккал\n"
             f"[PROTEIN] Белки: {protein:.1f} г\n"
@@ -213,7 +213,7 @@ class MessageTemplates:
         
         text = (
             f"[PROGRESS] <b>Ваш прогресс {period_name}:</b>\n\n"
-            f"[MEALS] Приёмов пищи: {stats.get('meals_count', 0)}\n"
+            f"[FOOD_ENTRIES] Приёмов пищи: {stats.get('meals_count', 0)}\n"
             f"[CALORIES] Калории: {stats.get('calories_consumed', 0):.0f} / {user.daily_calorie_goal:.0f} ккал ({cal_progress:.0f}%)\n"
             f"[WATER] Вода: {stats.get('water_consumed', 0):.0f} / {user.daily_water_goal:.0f} мл\n"
             f"[ACTIVITY] Активность: {stats.get('activity_minutes', 0)} минут\n"
@@ -289,7 +289,7 @@ class MessageTemplates:
         """Сообщение-напоминание"""
         reminder_messages = {
             "water": "[WATER] Не забывайте пить воду! 💧",
-            "meal": "[MEAL] Время приёма пищи! 🍽️",
+            "meal": "[FOOD] Время приёма пищи! 🍽️",
             "activity": "[ACTIVITY] Время для активности! 🏃",
             "sleep": "[SLEEP] Время отдыхать! 😴",
             "weigh": "[WEIGHT] Время взвеситься! ⚖️"
@@ -351,7 +351,7 @@ class MessageTemplates:
             f"[CARBS] Углеводы: {user.daily_carbs_goal:.0f} г\n"
             f"[WATER] Вода: {user.daily_water_goal:.0f} мл\n\n"
             f"[TODAY] <b>Сегодня:</b>\n"
-            f"[MEALS] Приёмов: {stats.get('meals_count', 0)}\n"
+            f"[FOOD_ENTRIES] Приёмов: {stats.get('meals_count', 0)}\n"
             f"[CALORIES] Калории: {stats.get('calories_consumed', 0):.0f}/{user.daily_calorie_goal:.0f}\n"
             f"[WATER] Вода: {stats.get('water_consumed', 0):.0f}/{user.daily_water_goal:.0f} мл"
         )

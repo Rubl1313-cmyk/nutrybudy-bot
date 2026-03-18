@@ -64,7 +64,7 @@ async def update_all_users_water_goal():
                         user.daily_water_goal = water_goal
                         # Обновляем updated_at без timezone для PostgreSQL
                         from datetime import datetime, timezone
-                        user.updated_at = datetime.now(timezone.utc)
+                        user.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
                         
                     except Exception as e:
                         logger.error(f"[ERROR] Ошибка обновления нормы воды для пользователя {user.id}: {e}")

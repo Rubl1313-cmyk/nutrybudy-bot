@@ -201,8 +201,33 @@ async def _verify_database_integrity(conn):
             row = result.first()
             if not row:
                 logger.warning(f"⚠️ Missing {table}.{column}")
-            elif expected_type not in row[0]:
-                logger.warning(f"⚠️ {table}.{column} has wrong type: {row[0]} (expected {expected_type})")
+            else:
+                # Нормализуем типы для сравнения (приводим к нижнему регистру)
+                actual_type = row[0].lower().replace(' ', '')
+                expected_normalized = expected_type.lower().replace(' ', '')
+                
+                # Проверяем синонимы типов
+                type_synonyms = {
+                    'bigint': ['bigint', 'int8'],
+                    'varchar': ['varchar', 'character varying', 'char varying'],
+                    'integer': ['integer', 'int', 'int4'],
+                    'timestamp': ['timestamp', 'timestamp without time zone'],
+                    'timestamptz': ['timestamptz', 'timestamp with time zone']
+                }
+                
+                # Проверяем, является ли фактический тип синонимом ожидаемого
+                is_valid_type = False
+                for base_type, synonyms in type_synonyms.items():
+                    if expected_normalized == base_type.lower():
+                        if actual_type in [s.lower().replace(' ', '') for s in synonyms]:
+                            is_valid_type = True
+                            break
+                    elif actual_type == expected_normalized:
+                        is_valid_type = True
+                        break
+                
+                if not is_valid_type:
+                    logger.warning(f"⚠️ {table}.{column} has wrong type: {row[0]} (expected {expected_type})")
         
         logger.info(f"[DB] Database integrity check completed. Tables: {len(tables)}")
         

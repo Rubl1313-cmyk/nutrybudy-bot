@@ -98,7 +98,7 @@ async def get_daily_activity_calories(user_id: int, user_timezone: str = 'UTC') 
     """
     try:
         from database.db import get_session
-        from database.models import Activity, User
+        from database.models import ActivityEntry, User
         from sqlalchemy import select, func
         
         async with get_session() as session:
@@ -112,9 +112,9 @@ async def get_daily_activity_calories(user_id: int, user_timezone: str = 'UTC') 
             today_local = get_user_local_date(user_tz)
             
             result = await session.execute(
-                select(func.sum(Activity.calories_burned)).where(
-                    Activity.user_id == user_id,
-                    func.date(Activity.datetime) == today_local
+                select(func.sum(ActivityEntry.calories_burned)).where(
+                    ActivityEntry.user_id == user_id,
+                    func.date(ActivityEntry.created_at) == today_local
                 )
             )
             return result.scalar() or 0
@@ -175,7 +175,7 @@ async def get_period_stats(user_id: int, period: str = "day", user_timezone: str
     """
     try:
         from database.db import get_session
-        from database.models import FoodEntry, DrinkEntry, Activity, Weight, User
+        from database.models import FoodEntry, DrinkEntry, ActivityEntry, Weight, User
         from sqlalchemy import select, func
         from datetime import timedelta
         
@@ -217,10 +217,10 @@ async def get_period_stats(user_id: int, period: str = "day", user_timezone: str
             # Добавляем статистику по жидкости и активности
             if start_date:
                 drink_conditions = [DrinkEntry.user_id == user_id, DrinkEntry.datetime >= start_date]
-                activity_conditions = [Activity.user_id == user_id, Activity.datetime >= start_date]
+                activity_conditions = [ActivityEntry.user_id == user_id, ActivityEntry.created_at >= start_date]
             else:
                 drink_conditions = [DrinkEntry.user_id == user_id]
-                activity_conditions = [Activity.user_id == user_id]
+                activity_conditions = [ActivityEntry.user_id == user_id]
             
             # Жидкость
             drink_result = await session.execute(
@@ -230,7 +230,7 @@ async def get_period_stats(user_id: int, period: str = "day", user_timezone: str
             
             # Активность
             activity_result = await session.execute(
-                select(func.sum(Activity.calories_burned), func.count(Activity.id)).where(*activity_conditions)
+                select(func.sum(ActivityEntry.calories_burned), func.count(ActivityEntry.id)).where(*activity_conditions)
             )
             calories_activity, activities_count = activity_result.first() or (0, 0)
             

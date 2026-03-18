@@ -6,7 +6,7 @@ import logging
 from datetime import datetime
 from typing import Dict, Any, Optional
 from database.db import get_session
-from database.models import Activity, User
+from database.models import ActivityEntry, User
 from sqlalchemy import select
 
 logger = logging.getLogger(__name__)
@@ -68,20 +68,20 @@ async def save_activity(user_id: int, activity_type: str, duration_min: int,
                 calories_burned = estimate_calories_burned(activity_type, duration_min, weight_kg)
             
             # Создаем запись об активности
-            activity = Activity(
+            activity = ActivityEntry(
                 user_id=user_id,
                 activity_type=activity_type,
-                duration_min=duration_min,
+                duration=duration_min,
                 calories_burned=calories_burned,
                 description=description or f"{activity_type} {duration_min} мин",
-                datetime=datetime.now()
+                created_at=datetime.now()
             )
             
             session.add(activity)
             await session.commit()
             await session.refresh(activity)
             
-            logger.info(f"Activity saved: {activity_type} for user {user_id}, {calories_burned} cal")
+            logger.info(f"ActivityEntry saved: {activity_type} for user {user_id}, {calories_burned} cal")
             
             return {
                 "success": True,
@@ -90,7 +90,7 @@ async def save_activity(user_id: int, activity_type: str, duration_min: int,
                 "duration_min": duration_min,
                 "calories_burned": calories_burned,
                 "description": description,
-                "datetime": activity.datetime
+                "created_at": activity.created_at
             }
             
     except Exception as e:
@@ -117,10 +117,10 @@ async def get_user_activities(user_id: int, days: int = 7) -> list:
         
         async with get_session() as session:
             result = await session.execute(
-                select(Activity).where(
-                    Activity.user_id == user_id,
-                    Activity.datetime >= start_date
-                ).order_by(Activity.datetime.desc())
+                select(ActivityEntry).where(
+                    ActivityEntry.user_id == user_id,
+                    ActivityEntry.created_at >= start_date
+                ).order_by(ActivityEntry.created_at.desc())
             )
             activities = result.scalars().all()
             return list(activities)

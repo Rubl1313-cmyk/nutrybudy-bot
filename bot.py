@@ -75,33 +75,33 @@ dp = None
 async def set_bot_commands(bot: Bot):
     """Ğ£Ñ�Ñ‚Ğ°Ğ½Ğ¾Ğ²ĞºĞ° ĞºĞ¾Ğ¼Ğ°Ğ½Ğ´ Ğ±Ğ¾Ñ‚Ğ°"""
     commands = [
-        BotCommand(command="start", description="ğŸš€ Ğ—Ğ°Ğ¿ÑƒÑ�Ñ‚Ğ¸Ñ‚ÑŒ Ğ±Ğ¾Ñ‚Ğ°"),
-        BotCommand(command="help", description="ğŸ“š ĞŸĞ¾Ğ¼Ğ¾Ñ‰ÑŒ"),
-        BotCommand(command="set_profile", description="ğŸ‘¤ Ğ�Ğ°Ñ�Ñ‚Ñ€Ğ¾Ğ¸Ñ‚ÑŒ Ğ¿Ñ€Ğ¾Ñ„Ğ¸Ğ»ÑŒ"),
-        BotCommand(command="profile", description="ğŸ‘¤ ĞœĞ¾Ğ¹ Ğ¿Ñ€Ğ¾Ñ„Ğ¸Ğ»ÑŒ"),
-        BotCommand(command="log_food", description="ğŸ½ï¸ Ğ”Ğ¾Ğ±Ğ°Ğ²Ğ¸Ñ‚ÑŒ ĞµĞ´Ñƒ"),
-        BotCommand(command="log_drink", description="ğŸ’§ Ğ—Ğ°Ğ¿Ğ¸Ñ�Ğ°Ñ‚ÑŒ Ğ¶Ğ¸Ğ´ĞºĞ¾Ñ�Ñ‚ÑŒ"),
-        BotCommand(command="log_water", description="ğŸ’§ Ğ—Ğ°Ğ¿Ğ¸Ñ�Ğ°Ñ‚ÑŒ Ğ²Ğ¾Ğ´Ñƒ"),
-        BotCommand(command="drink", description="ğŸ’§ Ğ¡Ñ‚Ğ°Ñ‚Ğ¸Ñ�Ñ‚Ğ¸ĞºĞ° Ğ¶Ğ¸Ğ´ĞºĞ¾Ñ�Ñ‚Ğ¸"),
-        BotCommand(command="water", description="ğŸ’§ Ğ¡Ñ‚Ğ°Ñ‚Ğ¸Ñ�Ñ‚Ğ¸ĞºĞ° Ğ²Ğ¾Ğ´Ñ‹"),
-        BotCommand(command="log_weight", description="âš–ï¸� Ğ—Ğ°Ğ¿Ğ¸Ñ�Ğ°Ñ‚ÑŒ Ğ²ĞµÑ�"),
-        BotCommand(command="weight", description="âš–ï¸� Ğ¡Ñ‚Ğ°Ñ‚Ğ¸Ñ�Ñ‚Ğ¸ĞºĞ° Ğ²ĞµÑ�Ğ°"),
-        BotCommand(command="fitness", description="ğŸ�ƒ Ğ”Ğ¾Ğ±Ğ°Ğ²Ğ¸Ñ‚ÑŒ Ğ°ĞºÑ‚Ğ¸Ğ²Ğ½Ğ¾Ñ�Ñ‚ÑŒ"),
-        BotCommand(command="activity", description="ğŸ�ƒ Ğ¡Ñ‚Ğ°Ñ‚Ğ¸Ñ�Ñ‚Ğ¸ĞºĞ° Ğ°ĞºÑ‚Ğ¸Ğ²Ğ½Ğ¾Ñ�Ñ‚Ğ¸"),
-        BotCommand(command="progress", description="ğŸ“Š ĞœĞ¾Ğ¹ Ğ¿Ñ€Ğ¾Ğ³Ñ€ĞµÑ�Ñ�"),
-        BotCommand(command="stats", description="ğŸ“Š Ğ¡Ñ‚Ğ°Ñ‚Ğ¸Ñ�Ñ‚Ğ¸ĞºĞ° Ğ·Ğ° Ñ�ĞµĞ³Ğ¾Ğ´Ğ½Ñ�"),
-        BotCommand(command="ask", description="ğŸ’¬ AI Ğ°Ñ�Ñ�Ğ¸Ñ�Ñ‚ĞµĞ½Ñ‚"),  # Ğ¾Ñ�Ğ½Ğ¾Ğ²Ğ½Ğ°Ñ�
-        # BotCommand(command="ai", description="ğŸ’¬ AI Ğ°Ñ�Ñ�Ğ¸Ñ�Ñ‚ĞµĞ½Ñ‚"),  # ÑƒĞ±Ñ€Ğ°Ğ½Ğ¾
-        BotCommand(command="weather", description="ğŸŒ¦ï¸� ĞŸĞ¾Ğ³Ğ¾Ğ´Ğ°"),
-        BotCommand(command="recipe", description="ğŸ�³ Ğ ĞµÑ†ĞµĞ¿Ñ‚"),
-        BotCommand(command="calculate", description="ğŸ§® Ğ Ğ°Ñ�Ñ�Ñ‡Ğ¸Ñ‚Ğ°Ñ‚ÑŒ ĞšĞ‘Ğ–Ğ£"),
-        BotCommand(command="meal_plan", description="ğŸ�½ï¸� ĞŸĞ»Ğ°Ğ½ Ğ¿Ğ¸Ñ‚Ğ°Ğ½Ğ¸Ñ�"),
-        # BotCommand(command="diet", description="ğŸ�½ï¸� ĞŸĞ»Ğ°Ğ½ Ğ¿Ğ¸Ñ‚Ğ°Ğ½Ğ¸Ñ�"),  # ÑƒĞ±Ñ€Ğ°Ğ½Ğ¾
-        BotCommand(command="nutrition", description="ğŸ¥— Ğ¡Ğ¾Ğ²ĞµÑ‚Ñ‹ Ğ¿Ğ¾ Ğ¿Ğ¸Ñ‚Ğ°Ğ½Ğ¸Ñ�"),
-        BotCommand(command="cancel", description="â�Œ Ğ�Ñ‚Ğ¼ĞµĞ½Ğ°")
+        BotCommand(command="start", description="[START] Запустить бота"),
+        BotCommand(command="help", description="[HELP] Помощь"),
+        BotCommand(command="set_profile", description="[PROFILE] Настроить профиль"),
+        BotCommand(command="profile", description="[PROFILE] Мой профиль"),
+        BotCommand(command="log_food", description="[FOOD] Добавить еду"),
+        BotCommand(command="log_drink", description="[DRINK] Записать напиток"),
+        BotCommand(command="log_water", description="[WATER] Записать воду"),
+        BotCommand(command="drink", description="[WATER] Статистика воды"),
+        BotCommand(command="water", description="[WATER] Статистика воды"),
+        BotCommand(command="log_weight", description="[WEIGHT] Записать вес"),
+        BotCommand(command="weight", description="[WEIGHT] Статистика веса"),
+        BotCommand(command="fitness", description="[FITNESS] Добавить активность"),
+        BotCommand(command="activity", description="[FITNESS] Статистика активности"),
+        BotCommand(command="progress", description="[PROGRESS] Мой прогресс"),
+        BotCommand(command="stats", description="[STATS] Статистика за период"),
+        BotCommand(command="ask", description="[AI] AI ассистент"),
+        # BotCommand(command="ai", description="[AI] AI ассистент"),
+        BotCommand(command="weather", description="[WEATHER] Погода"),
+        BotCommand(command="recipe", description="[FOOD] Рецепт"),
+        BotCommand(command="calculate", description="[FOOD] Рассчитать КБЖУ"),
+        BotCommand(command="meal_plan", description="[FOOD] План питания"),
+        # BotCommand(command="diet", description="[FOOD] План питания"),
+        BotCommand(command="nutrition", description="[FOOD] Советы по питанию"),
+        BotCommand(command="cancel", description="[CANCEL] Отмена")
     ]
     await bot.set_my_commands(commands)
-    logger.info("âœ… Bot commands set")
+    logger.info("[STARTUP] Bot commands set")
 
 async def send_startup_notification(bot: Bot):
     """Ğ�Ñ‚Ğ¿Ñ€Ğ°Ğ²ĞºĞ° ÑƒĞ²ĞµĞ´Ğ¾Ğ¼Ğ»ĞµĞ½Ğ¸Ñ� Ğ¾ Ğ·Ğ°Ğ¿ÑƒÑ�ĞºĞµ Ğ°Ğ´Ğ¼Ğ¸Ğ½Ñƒ"""
@@ -110,16 +110,16 @@ async def send_startup_notification(bot: Bot):
     try:
         bot_info = await bot.get_me()
         startup_message = (
-            f"ğŸŸ¢ <b>NutriBuddy Ğ·Ğ°Ğ¿ÑƒÑ‰ĞµĞ½!</b>\n"
-            f"ğŸ¤– Ğ‘Ğ¾Ñ‚: @{bot_info.username}\n"
-            f"ğŸ“… Ğ’Ñ€ĞµĞ¼Ñ�: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} UTC\n"
-            f"ğŸŒ� Railway: {os.getenv('RAILWAY_ENVIRONMENT', 'development')}\n"
-            f"âœ… Ğ¡Ñ‚Ğ°Ñ‚ÑƒÑ�: Ğ³Ğ¾Ñ‚Ğ¾Ğ² Ğº Ñ€Ğ°Ğ±Ğ¾Ñ‚Ğµ"
+            f"[STARTUP] <b>NutriBuddy запущен!</b>\n"
+            f"[BOT] Бот: @{bot_info.username}\n"
+            f"[TIME] Время: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} UTC\n"
+            f"[ENV] Railway: {os.getenv('RAILWAY_ENVIRONMENT', 'development')}\n"
+            f"[STATUS] Статус: готов к работе"
         )
         await bot.send_message(chat_id=int(ADMIN_ID), text=startup_message, parse_mode="HTML")
-        logger.info(f"ğŸ“¬ Startup notification sent to admin {ADMIN_ID}")
+        logger.info(f"[STARTUP] Startup notification sent to admin {ADMIN_ID}")
     except Exception as e:
-        logger.error(f"â�Œ Failed to send startup notification: {e}")
+        logger.error(f"[ERROR] Failed to send startup notification: {e}")
 
 async def webhook_handler(request):
     """Ğ�Ğ±Ñ€Ğ°Ğ±Ğ¾Ñ‚Ñ‡Ğ¸Ğº Ğ²ĞµĞ±Ñ…ÑƒĞºĞ°"""
@@ -131,7 +131,7 @@ async def webhook_handler(request):
         await dp.feed_update(bot, update_obj)
         return web.Response(status=200)
     except Exception as e:
-        logger.error(f"â�Œ Webhook handler error: {e}", exc_info=True)
+        logger.error(f"[ERROR] Webhook handler error: {e}", exc_info=True)
         return web.Response(status=500)
 
 async def health_handler(request):
@@ -151,7 +151,7 @@ async def health_handler(request):
             "bot": "running"
         })
     except Exception as e:
-        logger.error(f"â�Œ Health check failed: {e}")
+        logger.error(f"[ERROR] Health check failed: {e}")
         return web.json_response({
             "status": "unhealthy",
             "error": str(e),
@@ -162,15 +162,15 @@ async def on_startup(app):
     """Ğ—Ğ°Ğ¿ÑƒÑ�Ğº Ğ±Ğ¾Ñ‚Ğ°"""
     bot = app['bot']
     try:
-        logger.info("ğŸ”§ Starting database initialization...")
+        logger.info("[STARTUP] Starting database initialization...")
         db_ok = await init_db()
         if not db_ok:
-            logger.error("â�Œ Database initialization failed")
+            logger.error("[ERROR] Database initialization failed")
             raise Exception("Database init failed")
-        logger.info("ğŸ’¾ Database ready")
+        logger.info("[DB] Database ready")
 
         bot_info = await bot.get_me()
-        logger.info(f"ğŸ¤– Connected as @{bot_info.username}")
+        logger.info(f"[BOT] Connected as @{bot_info.username}")
 
         # Ğ£Ñ�Ñ‚Ğ°Ğ½Ğ¾Ğ²ĞºĞ° Ğ²ĞµĞ±Ñ…ÑƒĞºĞ° Ñ‚Ğ¾Ğ»ÑŒĞºĞ¾ ĞµÑ�Ğ»Ğ¸ ÑƒĞºĞ°Ğ·Ğ°Ğ½ WEBHOOK_URL
         if WEBHOOK_URL:
@@ -182,14 +182,14 @@ async def on_startup(app):
                     allowed_updates=dp.resolve_used_update_types(),
                     drop_pending_updates=True
                 )
-                logger.info(f"âœ… Webhook set to {webhook_full_url}")
+                logger.info(f"[WEBHOOK] Webhook set to {webhook_full_url}")
         else:
-            logger.warning("âš ï¸� WEBHOOK_URL not set, webhook not configured")
+            logger.warning("[WARNING] WEBHOOK_URL not set, webhook not configured")
 
         await set_bot_commands(bot)
         
     except Exception as e:
-        logger.error(f"â�Œ Startup error: {e}", exc_info=True)
+        logger.error(f"[ERROR] Startup error: {e}", exc_info=True)
         raise
 
 async def on_shutdown(app):
@@ -199,9 +199,9 @@ async def on_shutdown(app):
         await bot.delete_webhook(drop_pending_updates=True)
         await close_db()
         await bot.session.close()
-        logger.info("ğŸ”´ Bot stopped")
+        logger.info("[SHUTDOWN] Bot stopped")
     except Exception as e:
-        logger.error(f"â�Œ Shutdown error: {e}")
+        logger.error(f"[ERROR] Shutdown error: {e}")
 
 def create_app():
     """Ğ¡Ğ¾Ğ·Ğ´Ğ°Ğ½Ğ¸Ğµ Ğ¿Ñ€Ğ¸Ğ»Ğ¾Ğ¶ĞµĞ½Ğ¸Ñ�"""
@@ -236,7 +236,7 @@ async def main():
     try:
         redis_client = await redis.from_url(redis_url)
         storage = RedisStorage(redis_client, key_builder=DefaultKeyBuilder(with_destiny=True))
-        logger.info("âœ… Redis storage initialized")
+        logger.info("[REDIS] Redis storage initialized")
     except Exception as e:
         logger.warning(f"Redis unavailable ({e}), using MemoryStorage")
         from aiogram.fsm.storage.memory import MemoryStorage
@@ -252,7 +252,7 @@ async def main():
     
     class LoggingMiddleware(BaseMiddleware):
         async def __call__(self, handler, event: Message, data: dict):
-            logger.info(f"ğŸ“¨ Incoming message: {repr(event.text)}")
+            logger.info(f"[MESSAGE] Incoming message: {repr(event.text)}")
             return await handler(event, data)
     
     class RateLimitMiddleware(BaseMiddleware):

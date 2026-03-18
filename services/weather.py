@@ -1,7 +1,7 @@
 """
-Ğ¡ĞµÑ€Ğ²Ğ¸Ñ� Ğ¿Ğ¾Ğ³Ğ¾Ğ´Ñ‹ Ğ´Ğ»Ñ� NutriBuddy
-âœ… Ğ˜Ñ�Ğ¿Ğ¾Ğ»ÑŒĞ·ÑƒĞµÑ‚ WeatherAPI.com (1M Ğ·Ğ°Ğ¿Ñ€Ğ¾Ñ�Ğ¾Ğ²/Ğ¼ĞµÑ� Ğ±ĞµÑ�Ğ¿Ğ»Ğ°Ñ‚Ğ½Ğ¾)
-âœ… ĞšÑ�ÑˆĞ¸Ñ€Ğ¾Ğ²Ğ°Ğ½Ğ¸Ğµ Ğ½Ğ° Ğ´ĞµĞ½ÑŒ
+Сервис погоды для NutriBuddy
+[WEATHER] Использует WeatherAPI.com (1M запросов/месяц бесплатно)
+[WEATHER] Кэширование на день
 """
 import aiohttp
 import asyncio
@@ -12,16 +12,16 @@ from typing import Dict
 
 logger = logging.getLogger(__name__)
 
-WEATHERAPI_KEY = os.getenv("WEATHERAPI_KEY")  # Ğ¿Ğ¾Ğ»ÑƒÑ‡Ğ¸Ñ‚Ğµ Ğ½Ğ° https://www.weatherapi.com
+WEATHERAPI_KEY = os.getenv("WEATHERAPI_KEY")  # Получите на https://www.weatherapi.com
 
-# ĞšÑ�Ñˆ: {Ğ³Ğ¾Ñ€Ğ¾Ğ´: (Ğ´Ğ°Ñ‚Ğ°, Ğ´Ğ°Ğ½Ğ½Ñ‹Ğµ_Ğ¾_Ğ¿Ğ¾Ğ³Ğ¾Ğ´Ğµ)}
+# Кэш: {город: (дата, данные_о_погоде)}
 _weather_cache: Dict[str, tuple[date, Dict]] = {}
 
 
 async def get_temperature(city: str) -> float:
     """
-    ĞŸĞ¾Ğ»ÑƒÑ‡Ğ°ĞµÑ‚ Ñ‚ĞµĞ¼Ğ¿ĞµÑ€Ğ°Ñ‚ÑƒÑ€Ñƒ Ñ‡ĞµÑ€ĞµĞ· WeatherAPI.com Ñ� ĞºÑ�ÑˆĞ¸Ñ€Ğ¾Ğ²Ğ°Ğ½Ğ¸ĞµĞ¼ Ğ½Ğ° Ğ´ĞµĞ½ÑŒ.
-    Ğ’Ğ¾Ğ·Ğ²Ñ€Ğ°Ñ‰Ğ°ĞµÑ‚ 20.0 Ğ¿Ñ€Ğ¸ Ğ¾ÑˆĞ¸Ğ±ĞºĞµ.
+    Получает температуру через WeatherAPI.com с кэшированием на день.
+    Возвращает 20.0 при ошибке.
     """
     weather_data = await get_weather(city)
     return weather_data.get('temp', 20.0)
@@ -29,24 +29,24 @@ async def get_temperature(city: str) -> float:
 
 async def get_weather(city: str) -> Dict:
     """
-    ĞŸĞ¾Ğ»ÑƒÑ‡Ğ°ĞµÑ‚ Ğ¿Ğ¾Ğ»Ğ½Ñ‹Ğµ Ğ´Ğ°Ğ½Ğ½Ñ‹Ğµ Ğ¾ Ğ¿Ğ¾Ğ³Ğ¾Ğ´Ğµ Ñ‡ĞµÑ€ĞµĞ· WeatherAPI.com Ñ� ĞºÑ�ÑˆĞ¸Ñ€Ğ¾Ğ²Ğ°Ğ½Ğ¸ĞµĞ¼ Ğ½Ğ° Ğ´ĞµĞ½ÑŒ.
-    Ğ’Ğ¾Ğ·Ğ²Ñ€Ğ°Ñ‰Ğ°ĞµÑ‚ Ñ�Ğ»Ğ¾Ğ²Ğ°Ñ€ÑŒ Ñ� Ñ‚ĞµĞ¼Ğ¿ĞµÑ€Ğ°Ñ‚ÑƒÑ€Ğ¾Ğ¹, Ñ�Ğ¾Ñ�Ñ‚Ğ¾Ñ�Ğ½Ğ¸ĞµĞ¼, Ğ²Ğ»Ğ°Ğ¶Ğ½Ğ¾Ñ�Ñ‚ÑŒÑ� Ğ¸ Ğ²ĞµÑ‚Ñ€Ğ¾Ğ¼.
+    Получает полные данные о погоде через WeatherAPI.com с кэшированием на день.
+    Возвращает полный словарь с температурой, условиями, влажностью, ветром.
     """
     today = date.today()
     city_clean = city.strip().lower()
 
-    # ĞŸÑ€Ğ¾Ğ²ĞµÑ€ĞºĞ° ĞºÑ�ÑˆĞ°
+    # Проверка кэша
     if city_clean in _weather_cache:
         cache_date, weather_data = _weather_cache[city_clean]
         if cache_date == today:
-            logger.info(f"â™»ï¸� Using cached weather for {city}: {weather_data.get('temp', 'N/A')}Â°C")
+            logger.info(f"[CACHE] Using cached weather for {city}: {weather_data.get('temp', 'N/A')}°C")
             return weather_data
         else:
             del _weather_cache[city_clean]
 
-    # Ğ•Ñ�Ğ»Ğ¸ Ğ½ĞµÑ‚ ĞºĞ»Ñ�Ñ‡Ğ° â€” Ğ²Ğ¾Ğ·Ğ²Ñ€Ğ°Ñ‰Ğ°ĞµĞ¼ Ğ·Ğ°Ğ³Ğ»ÑƒÑˆĞºÑƒ
+    # Если нет ключа API
     if not WEATHERAPI_KEY:
-        logger.warning("âš ï¸� WEATHERAPI_KEY not set, using default weather data")
+        logger.warning("[WARNING] WEATHERAPI_KEY not set, using default weather data")
         return {
             'temp': 20.0,
             'condition': 'неизвестно',
@@ -70,7 +70,7 @@ async def get_weather(city: str) -> Dict:
                 if resp.status == 200:
                     data = await resp.json()
                     
-                    # Ğ˜Ğ·Ğ²Ğ»ĞµĞºĞ°ĞµĞ¼ Ğ½ÑƒĞ¶Ğ½Ñ‹Ğµ Ğ´Ğ°Ğ½Ğ½Ñ‹Ğµ
+                    # Извлечение необходимых данных
                     current = data["current"]
                     location = data.get("location", {})
                     
@@ -78,29 +78,29 @@ async def get_weather(city: str) -> Dict:
                         'temp': float(current["temp_c"]),
                         'condition': current["condition"]["text"],
                         'humidity': current["humidity"],
-                        'wind': float(current["wind_kph"] / 3.6),  # ĞšĞ¾Ğ½Ğ²ĞµÑ€Ñ‚Ğ¸Ñ€ÑƒĞµĞ¼ Ğ² Ğ¼/Ñ�
+                        'wind': float(current["wind_kph"]) / 3.6,  # Конвертация в м/с
                         'pressure': current["pressure_mb"],
                         'feels_like': float(current["feelslike_c"]),
-                        # Ğ”Ğ¾Ğ±Ğ°Ğ²Ğ»Ñ�ĞµĞ¼ Ğ´Ğ°Ğ½Ğ½Ñ‹Ğµ Ğ¾ Ğ§Ğ°Ñ�Ğ¾Ğ²Ğ¾Ğ¼ Ğ¿Ğ¾Ñ�Ğ°Ñ�Ğµ
+                        # Добавление данных о времени
                         'timezone': location.get("tz_id", "UTC"),
                         'localtime': location.get("localtime"),
                         'city': location.get("name", city)
                     }
                     
-                    # ĞšÑ�ÑˆĞ¸Ñ€ÑƒĞµĞ¼ Ñ€ĞµĞ·ÑƒĞ»ÑŒÑ‚Ğ°Ñ‚
+                    # Кэширование результата
                     _weather_cache[city_clean] = (today, weather_data)
-                    logger.info(f"âœ… WeatherAPI for {city}: {weather_data['temp']}Â°C, {weather_data['condition']}")
+                    logger.info(f"[WEATHER] WeatherAPI for {city}: {weather_data['temp']}°C, {weather_data['condition']}")
                     return weather_data
                     
                 elif resp.status == 429:
-                    logger.warning("âš ï¸� WeatherAPI rate limit exceeded (429)")
+                    logger.warning("[WARNING] WeatherAPI rate limit exceeded (429)")
                 else:
                     text = await resp.text()
-                    logger.error(f"â�Œ WeatherAPI error {resp.status}: {text[:200]}")
+                    logger.error(f"[ERROR] WeatherAPI error {resp.status}: {text[:200]}")
     except asyncio.TimeoutError:
-        logger.warning("â�±ï¸� WeatherAPI timeout")
+        logger.warning("[WARNING] WeatherAPI timeout")
     except Exception as e:
-        logger.error(f"ğŸ’¥ WeatherAPI exception: {e}")
+        logger.error(f"[ERROR] WeatherAPI exception: {e}")
 
     # Fallback
     return {

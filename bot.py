@@ -217,7 +217,7 @@ async def create_app():
         if request.method == 'POST':
             update_data = await request.json()
             update = Update.model_validate(update_data, context={"bot": dp.bot})
-            await dp.feed_update(bot, update)
+            await dp.feed_update(update)
             return web.Response(status=200)
         return web.Response(status=405)
     

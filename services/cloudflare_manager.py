@@ -104,7 +104,7 @@ class CloudflareAIManager:
             return {"error": str(e), "success": False}
 
     @with_timeout(30)
-    @with_retry(max_attempts=3, delay=1)
+    @with_retry(max_attempts=3, delay_seconds=1)
     @ai_circuit_breaker(failure_threshold=5, recovery_timeout=60)
     async def parse_food_image(self, image_data: bytes) -> Dict[str, Any]:
         """Parse food from image using vision model"""
@@ -245,7 +245,7 @@ Respond in JSON format:
             return {"success": False, "error": result.get("error")}
 
     @with_timeout(25)
-    @with_retry(max_attempts=2, delay=1)
+    @with_retry(max_attempts=2, delay_seconds=1)
     async def parse_food_text(self, food_description: str) -> Dict[str, Any]:
         """Parse food from text description"""
         
@@ -339,7 +339,7 @@ Respond in JSON format:
             return {"success": False, "error": result.get("error")}
 
     @with_timeout(20)
-    @with_retry(max_attempts=2, delay=1)
+    @with_retry(max_attempts=2, delay_seconds=1)
     async def get_assistant_response(self, user_message: str, context: Optional[Dict] = None) -> Dict[str, Any]:
         """Get AI assistant response for general queries"""
         

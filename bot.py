@@ -179,6 +179,17 @@ def register_handlers():
     
     logger.info("All handlers registered")
     
+async def schedule_reminders(reminder_service):
+    """Планировщик напоминаний"""
+    import asyncio
+    while True:
+        try:
+            await reminder_service.check_weekly_reminders()
+            await asyncio.sleep(6 * 3600)  # Проверка каждые 6 часов
+        except Exception as e:
+            logger.error(f"Error in reminder scheduler: {e}")
+            await asyncio.sleep(3600)  # При ошибке ждем 1 час
+
     # Запуск фоновых задач
     logger.info("Starting background tasks...")
     
@@ -191,17 +202,6 @@ def register_handlers():
         logger.info("Reminder service started")
     else:
         logger.info("Reminders disabled")
-
-async def schedule_reminders(reminder_service: ReminderService):
-    """Планировщик напоминаний"""
-    import asyncio
-    while True:
-        try:
-            await reminder_service.check_weekly_reminders()
-            await asyncio.sleep(6 * 3600)  # Проверка каждые 6 часов
-        except Exception as e:
-            logger.error(f"Error in reminder scheduler: {e}")
-            await asyncio.sleep(3600)  # При ошибке ждем 1 час
 
 async def create_app():
     """Создание веб-приложения для webhook"""

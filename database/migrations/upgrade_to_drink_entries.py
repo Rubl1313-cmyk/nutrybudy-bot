@@ -7,10 +7,23 @@ from database.db import engine
 async def upgrade():
     """Создание таблицы drink_entries с миграцией данных"""
     
+    # Импортируем engine и DATABASE_URL для актуального состояния
+    from database.db import engine
+    import os
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    # Определяем тип БД более надежным способом
+    DATABASE_URL = os.getenv("DATABASE_URL", "")
+    is_postgresql = "postgresql" in DATABASE_URL
+    
+    logger.info(f"[MIGRATION] Database dialect: {engine.dialect.name}")
+    logger.info(f"[MIGRATION] DATABASE_URL contains postgresql: {is_postgresql}")
+    
     async with engine.begin() as conn:
         # Проверяем существование таблицы water_entries (универсальный способ)
         try:
-            if engine.dialect.name == 'postgresql':
+            if is_postgresql:
                 # PostgreSQL
                 result = await conn.execute(text("""
                     SELECT table_name FROM information_schema.tables 
@@ -29,7 +42,8 @@ async def upgrade():
         
         if water_exists:
             # Создаем новую таблицу drink_entries с учетом типа БД
-            if engine.dialect.name == 'postgresql':
+            if is_postgresql:
+                logger.info("[MIGRATION] Creating PostgreSQL table")
                 await conn.execute(text("""
                     CREATE TABLE IF NOT EXISTS drink_entries (
                         id SERIAL PRIMARY KEY,
@@ -42,6 +56,7 @@ async def upgrade():
                     )
                 """))
             else:
+                logger.info("[MIGRATION] Creating SQLite table")
                 # SQLite
                 await conn.execute(text("""
                     CREATE TABLE IF NOT EXISTS drink_entries (

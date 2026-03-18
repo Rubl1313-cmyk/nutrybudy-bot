@@ -16,6 +16,10 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Глобальные переменные
+dp = None
+bot = None
+
 # Импортируем Redis (обязательная зависимость)
 from aiogram.fsm.storage.redis import RedisStorage, DefaultKeyBuilder
 import redis.asyncio as redis
@@ -97,13 +101,13 @@ async def on_startup(dispatcher: Dispatcher):
     logger.info("Database initialized")
     
     # Настройка команд бота
-    await setup_bot_commands(dispatcher.bot)
+    await setup_bot_commands(bot)
     logger.info("Bot commands configured")
     
     # Уведомление админа
     if ADMIN_ID:
         try:
-            await dispatcher.bot.send_message(
+            await bot.send_message(
                 ADMIN_ID,
                 "🚀 NutriBuddy Bot запущен!\n\n"
                 f"📅 Время запуска: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
@@ -234,7 +238,7 @@ async def create_app():
 
 async def main():
     """Основная функция"""
-    global dp
+    global dp, bot
     logging.info("Starting NutriBuddy Bot...")
     
     # Запускаем миграции БД

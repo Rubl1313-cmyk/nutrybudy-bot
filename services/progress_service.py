@@ -6,7 +6,7 @@ import logging
 from datetime import datetime, date, timedelta
 from typing import Dict, Any, Optional
 from database.db import get_session
-from database.models import Meal, DrinkEntry, Activity, WeightEntry, User
+from database.models import FoodEntry, DrinkEntry, ActivityEntry, WeightEntry, User
 from sqlalchemy import select, func, extract
 from utils.daily_stats import get_daily_stats, get_daily_water, get_daily_drink_calories, get_daily_activity_calories
 
@@ -96,18 +96,18 @@ async def get_nutrition_stats(user_id: int, start_date: Optional[date] = None) -
     try:
         async with get_session() as session:
             # Базовые условия
-            conditions = [Meal.user_id == user_id]
+            conditions = [FoodEntry.user_id == user_id]
             if start_date:
-                conditions.append(Meal.datetime >= start_date)
+                conditions.append(FoodEntry.created_at >= start_date)
             
             # Статистика по приемам пищи
             result = await session.execute(
                 select(
-                    func.count(Meal.id).label('total_meals'),
-                    func.sum(Meal.total_calories).label('total_calories'),
-                    func.sum(Meal.total_protein).label('total_protein'),
-                    func.sum(Meal.total_fat).label('total_fat'),
-                    func.sum(Meal.total_carbs).label('total_carbs')
+                    func.count(FoodEntry.id).label('total_meals'),
+                    func.sum(FoodEntry.calories).label('total_calories'),
+                    func.sum(FoodEntry.protein).label('total_protein'),
+                    func.sum(FoodEntry.fat).label('total_fat'),
+                    func.sum(FoodEntry.carbs).label('total_carbs')
                 ).where(*conditions)
             )
             stats = result.first()
@@ -146,16 +146,16 @@ async def get_activity_stats(user_id: int, start_date: Optional[date] = None) ->
     try:
         async with get_session() as session:
             # Базовые условия
-            conditions = [Activity.user_id == user_id]
+            conditions = [ActivityEntry.user_id == user_id]
             if start_date:
-                conditions.append(Activity.datetime >= start_date)
+                conditions.append(ActivityEntry.created_at >= start_date)
             
             # Статистика по активности
             result = await session.execute(
                 select(
-                    func.count(Activity.id).label('total_activities'),
-                    func.sum(Activity.duration_min).label('total_duration'),
-                    func.sum(Activity.calories_burned).label('total_calories')
+                    func.count(ActivityEntry.id).label('total_activities'),
+                    func.sum(ActivityEntry.duration).label('total_duration'),
+                    func.sum(ActivityEntry.calories_burned).label('total_calories')
                 ).where(*conditions)
             )
             stats = result.first()
@@ -163,9 +163,9 @@ async def get_activity_stats(user_id: int, start_date: Optional[date] = None) ->
             # Самый частый тип активности
             type_result = await session.execute(
                 select(
-                    Activity.activity_type,
-                    func.count(Activity.id).label('count')
-                ).where(*conditions).group_by(Activity.activity_type).order_by(func.count(Activity.id).desc()).limit(1)
+                    ActivityEntry.activity_type,
+                    func.count(ActivityEntry.id).label('count')
+                ).where(*conditions).group_by(ActivityEntry.activity_type).order_by(func.count(ActivityEntry.id).desc()).limit(1)
             )
             most_common = type_result.first()
             
@@ -203,11 +203,11 @@ async def get_weight_progress(user_id: int, start_date: Optional[date] = None) -
             # Базовые условия
             conditions = [WeightEntry.user_id == user_id]
             if start_date:
-                conditions.append(WeightEntry.datetime >= start_date)
+                conditions.append(WeightEntry.created_at >= start_date)
             
             # Получаем записи веса
             result = await session.execute(
-                select(WeightEntry).where(*conditions).order_by(WeightEntry.datetime.desc())
+                select(WeightEntry).where(*conditions).order_by(WeightEntry.created_at.desc())
             )
             weights = result.scalars().all()
             
@@ -266,7 +266,7 @@ async def get_hydration_stats(user_id: int, start_date: Optional[date] = None) -
             # Базовые условия
             conditions = [DrinkEntry.user_id == user_id]
             if start_date:
-                conditions.append(DrinkEntry.datetime >= start_date)
+                conditions.append(DrinkEntry.created_at >= start_date)
             
             # Статистика по напиткам
             result = await session.execute(

@@ -33,7 +33,8 @@ async def add_missing_columns():
         ("updated_at", "TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP")
     ]
     
-    async with get_session() as session:
+    session_gen = get_session()
+    async with session_gen() as session:
         try:
             # Получаем информацию о таблице для разных БД
             from database.db import engine

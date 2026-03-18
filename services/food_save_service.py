@@ -201,12 +201,7 @@ class FoodSaveService:
                         "error": "Прием пищи не найден"
                     }
                 
-                # Удаляем все связанные FoodItem (каскадное удаление должно работать, но для надежности)
-                await session.execute(
-                    delete(FoodItem).where(FoodItem.meal_id == meal_id)
-                )
-                
-                # Удаляем сам прием пищи
+                # Удаляем сам прием пищи (FoodItem больше нет)
                 await session.delete(meal)
                 await session.commit()
                 
@@ -237,11 +232,9 @@ class FoodSaveService:
         """
         try:
             async with get_session() as session:
-                # Получаем прием пищи с продуктами
+                # Получаем прием пищи (FoodItem больше нет)
                 result = await session.execute(
-                    select(FoodEntry, FoodItem)
-                    .join(FoodItem, FoodEntry.id == FoodItem.meal_id)
-                    .where(FoodEntry.id == meal_id)
+                    select(FoodEntry).where(FoodEntry.id == meal_id)
                 )
                 
                 records = result.all()
@@ -249,21 +242,11 @@ class FoodSaveService:
                 if not records:
                     return None
                 
-                # Берем первую запись для данных FoodEntry
-                meal = records[0][0]
+                # Берем запись для данных FoodEntry
+                meal = records.scalar_one_or_none()
                 
-                # Собираем все продукты
-                food_items = []
-                for meal_record, food_item in records:
-                    food_items.append({
-                        'name': food_item.name,
-                        'quantity': food_item.quantity,
-                        'unit': food_item.unit,
-                        'calories': food_item.calories,
-                        'protein': food_item.protein,
-                        'fat': food_item.fat,
-                        'carbs': food_item.carbs
-                    })
+                if not meal:
+                    return None
                 
                 return {
                     'meal_id': meal.id,
@@ -271,11 +254,10 @@ class FoodSaveService:
                     'date': meal.date,
                     'created_at': meal.created_at,
                     'ai_description': meal.ai_description,
-                    'total_calories': meal.total_calories,
-                    'total_protein': meal.total_protein,
-                    'total_fat': meal.total_fat,
-                    'total_carbs': meal.total_carbs,
-                    'food_items': food_items
+                    'calories': meal.calories,
+                    'protein': meal.protein,
+                    'fat': meal.fat,
+                    'carbs': meal.carbs
                 }
                 
         except Exception as e:
@@ -327,10 +309,10 @@ class FoodSaveService:
                         'date': meal.date,
                         'created_at': meal.created_at,
                         'ai_description': meal.ai_description,
-                        'total_calories': meal.total_calories,
-                        'total_protein': meal.total_protein,
-                        'total_fat': meal.total_fat,
-                        'total_carbs': meal.total_carbs
+                        'calories': meal.calories,
+                        'protein': meal.protein,
+                        'fat': meal.fat,
+                        'carbs': meal.carbs
                     })
                 
                 return meals_list

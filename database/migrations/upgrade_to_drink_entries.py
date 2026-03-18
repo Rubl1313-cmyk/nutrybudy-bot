@@ -15,10 +15,16 @@ async def upgrade():
     
     # Определяем тип БД более надежным способом
     DATABASE_URL = os.getenv("DATABASE_URL", "")
-    is_postgresql = "postgresql" in DATABASE_URL
+    is_postgresql = "postgresql" in DATABASE_URL.lower()
+    
+    # Принудительно используем PostgreSQL, если есть DATABASE_URL
+    if DATABASE_URL and not is_postgresql:
+        logger.warning(f"[MIGRATION] DATABASE_URL found but no postgresql keyword, forcing PostgreSQL")
+        is_postgresql = True
     
     logger.info(f"[MIGRATION] Database dialect: {engine.dialect.name}")
     logger.info(f"[MIGRATION] DATABASE_URL contains postgresql: {is_postgresql}")
+    logger.info(f"[MIGRATION] DATABASE_URL length: {len(DATABASE_URL)}")
     
     async with engine.begin() as conn:
         # Проверяем существование таблицы water_entries (универсальный способ)
@@ -69,16 +75,47 @@ async def upgrade():
                         FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
                     )
                 """))
-            
-            # Копируем данные из water_entries в drink_entries
-            await conn.execute(text("""
-                INSERT INTO drink_entries (user_id, name, volume_ml, calories, datetime)
-                SELECT user_id, 'вода', amount, 0.0, datetime 
-                FROM water_entries
-            """))
-            
-            # Удаляем старую таблицу
-            await conn.execute(text("DROP TABLE water_entries"))
+                
+            # Дополнительная проверка - если все еще ошибка, пробуем принудительно PostgreSQL
+            try:
+                # Копируем данные из water_entries в drink_entries
+                await conn.execute(text("""
+                    INSERT INTO drink_entries (user_id, name, volume_ml, calories, datetime)
+                    SELECT user_id, 'вода', amount, 0.0, datetime 
+                    FROM water_entries
+                """))
+                
+                # Удаляем старую таблицу
+                await conn.execute(text("DROP TABLE water_entries"))
+                
+                logger.info("✅ Миграция завершена: water_entries → drink_entries")
+                
+            except Exception as e:
+                if "AUTOINCREMENT" in str(e) and is_postgresql:
+                    logger.error("[MIGRATION] PostgreSQL detected but SQLite syntax used, forcing PostgreSQL recreation")
+                    # Пересоздаем таблицу с правильным синтаксисом
+                    await conn.execute(text("DROP TABLE IF EXISTS drink_entries"))
+                    await conn.execute(text("""
+                        CREATE TABLE drink_entries (
+                            id SERIAL PRIMARY KEY,
+                            user_id INTEGER NOT NULL,
+                            name VARCHAR(100) NOT NULL DEFAULT 'вода',
+                            volume_ml FLOAT NOT NULL,
+                            calories FLOAT DEFAULT 0.0,
+                            datetime TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                            FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+                        )
+                    """))
+                    # Повторяем копирование данных
+                    await conn.execute(text("""
+                        INSERT INTO drink_entries (user_id, name, volume_ml, calories, datetime)
+                        SELECT user_id, 'вода', amount, 0.0, datetime 
+                        FROM water_entries
+                    """))
+                    await conn.execute(text("DROP TABLE water_entries"))
+                    logger.info("✅ Миграция завершена с принудительным PostgreSQL синтаксисом")
+                else:
+                    raise e
             
             print("✅ Миграция завершена: water_entries → drink_entries")
         else:

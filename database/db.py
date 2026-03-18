@@ -1,6 +1,6 @@
 """
-ĞŸĞ¾Ğ´ĞºĞ»Ñ�Ñ‡ĞµĞ½Ğ¸Ğµ Ğº Ğ±Ğ°Ğ·Ğµ Ğ´Ğ°Ğ½Ğ½Ñ‹Ñ… Ğ´Ğ»Ñ� NutriBuddy.
-Ğ“Ğ°Ñ€Ğ°Ğ½Ñ‚Ğ¸Ñ€Ğ¾Ğ²Ğ°Ğ½Ğ½Ğ¾ Ñ�Ğ¾Ğ·Ğ´Ğ°Ñ‘Ñ‚ Ğ½ĞµĞ´Ğ¾Ñ�Ñ‚Ğ°Ñ�Ñ‰Ğ¸Ğµ ĞºĞ¾Ğ»Ğ¾Ğ½ĞºĞ¸ Ğ¸ Ğ¿Ñ€Ğ¸Ğ²Ğ¾Ğ´Ğ¸Ñ‚ Ñ‚Ğ¸Ğ¿Ñ‹ Ğº BIGINT Ñ‡ĞµÑ€ĞµĞ· Ñ�Ğ²Ğ½Ñ‹Ğµ SQL-Ğ·Ğ°Ğ¿Ñ€Ğ¾Ñ�Ñ‹.
+Подключение к базе данных NutriBuddy.
+Гарантирует создание недостающих колонок и приводит типы к BIGINT через синхронный SQL-запрос.
 """
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import declarative_base
@@ -19,224 +19,330 @@ if DATABASE_URL:
         DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+asyncpg://", 1)
     elif DATABASE_URL.startswith("postgresql://") and "postgresql+asyncpg://" not in DATABASE_URL:
         DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
-    logger.info("[DB] Using PostgreSQL")
+    logger.info("[DB] Используется PostgreSQL")
 else:
     DATABASE_URL = "sqlite+aiosqlite:///nutribudy.db"
-    logger.warning("[DB] Using SQLite")
+    logger.warning("[DB] Используется SQLite")
 
 engine = create_async_engine(
     DATABASE_URL,
     echo=False,
     pool_pre_ping=True,
-    pool_recycle=3600,
-    connect_args={
-        "server_settings": {"application_name": "nutribudy-bot"},
-    } if "postgresql" in DATABASE_URL else {}
+    pool_recycle=300,
+    poolclass=None if "sqlite" in DATABASE_URL else None,
 )
 
-async_session = async_sessionmaker(
-    engine,
+# Создание фабрики сессий
+AsyncSessionLocal = async_sessionmaker(
+    bind=engine,
     class_=AsyncSession,
     expire_on_commit=False,
-    autocommit=False,
-    autoflush=False
 )
 
-async def _ensure_bigint_columns(conn):
-    """
-    ĞŸÑ€Ğ¾Ğ²ĞµÑ€Ñ�ĞµÑ‚ Ğ¸ Ğ¸Ğ·Ğ¼ĞµĞ½Ñ�ĞµÑ‚ Ñ‚Ğ¸Ğ¿ ĞºĞ¾Ğ»Ğ¾Ğ½Ğ¾Ğº, Ñ…Ñ€Ğ°Ğ½Ñ�Ñ‰Ğ¸Ñ… Telegram ID, Ñ� INTEGER Ğ½Ğ° BIGINT.
-    Ğ’Ñ‹Ğ¿Ğ¾Ğ»Ğ½Ñ�ĞµÑ‚Ñ�Ñ� Ñ‚Ğ¾Ğ»ÑŒĞºĞ¾ Ğ´Ğ»Ñ� PostgreSQL.
-    """
-    if "postgresql" not in DATABASE_URL:
-        logger.info("[DB] Skipping BIGINT migration for non-PostgreSQL database")
-        return
-
-    # 1. ĞšĞ¾Ğ»Ğ¾Ğ½ĞºĞ° telegram_id Ğ² Ñ‚Ğ°Ğ±Ğ»Ğ¸Ñ†Ğµ users
-    result = await conn.execute(text(
-        "SELECT data_type FROM information_schema.columns "
-        "WHERE table_name='users' AND column_name='telegram_id'"
-    ))
-    row = result.first()
-    if row and row[0] == 'integer':
-        logger.info("[DB] Migrating users.telegram_id from INTEGER to BIGINT...")
-        await conn.execute(text("ALTER TABLE users ALTER COLUMN telegram_id TYPE BIGINT;"))
-        logger.info("[DB] users.telegram_id is now BIGINT")
-    else:
-        logger.info("[DB] users.telegram_id already BIGINT or not found")
-
-    # 2. ĞšĞ¾Ğ»Ğ¾Ğ½ĞºĞ° telegram_id Ğ² Ñ‚Ğ°Ğ±Ğ»Ğ¸Ñ†Ğµ meals
-    result = await conn.execute(text(
-        "SELECT data_type FROM information_schema.columns "
-        "WHERE table_name='meals' AND column_name='telegram_id'"
-    ))
-    row = result.first()
-    if row and row[0] == 'integer':
-        logger.info("[DB] Migrating meals.telegram_id from INTEGER to BIGINT...")
-        await conn.execute(text("ALTER TABLE meals ALTER COLUMN telegram_id TYPE BIGINT;"))
-        logger.info("[DB] meals.telegram_id is now BIGINT")
-    else:
-        logger.info("[DB] meals.telegram_id already BIGINT or not found")
+async def get_session() -> AsyncSession:
+    """Получить сессию базы данных"""
+    async with AsyncSessionLocal() as session:
+        yield session
 
 async def init_db():
-    """
-    Ğ£Ğ»ÑƒÑ‡ÑˆĞµĞ½Ğ½Ğ°Ñ� Ğ¸Ğ½Ğ¸Ñ†Ğ¸Ğ°Ğ»Ğ¸Ğ·Ğ°Ñ†Ğ¸Ñ� Ğ±Ğ°Ğ·Ñ‹ Ğ´Ğ°Ğ½Ğ½Ñ‹Ñ… Ğ´Ğ»Ñ� NutriBuddy.
-    """
+    """Инициализация базы данных"""
     try:
-        logger.info("[DB] Initializing database with improved migrations...")
-        from database import models  # noqa: F401
-
+        # Создаем таблицы
         async with engine.begin() as conn:
-            # Ğ¡Ğ¾Ğ·Ğ´Ğ°Ñ‘Ğ¼ Ñ‚Ğ°Ğ±Ğ»Ğ¸Ñ†Ñ‹
             await conn.run_sync(Base.metadata.create_all)
-            logger.info("[DB] Tables created via create_all()")
-
-            # Ğ£Ğ»ÑƒÑ‡ÑˆĞµĞ½Ğ½Ğ°Ñ� Ğ¼Ğ¸Ğ³Ñ€Ğ°Ñ†Ğ¸Ñ� Ğ´Ğ»Ñ� PostgreSQL
-            if "postgresql" in DATABASE_URL:
-                await _run_postgresql_migrations(conn)
-            else:
-                logger.info("[DB] Skipping PostgreSQL migrations for SQLite")
-
-            # ĞœĞ¸Ğ³Ñ€Ğ°Ñ†Ğ¸Ñ� BIGINT
-            await _ensure_bigint_columns(conn)
-
-            # ĞŸÑ€Ğ¾Ğ²ĞµÑ€Ñ�ĞµĞ¼ Ğ¸Ğ½Ñ‚ĞµĞ³Ñ€Ğ¸Ñ‚ĞµÑ‚ Ğ±Ğ°Ğ·Ñ‹ Ğ´Ğ°Ğ½Ğ½Ñ‹Ñ…
-            await _verify_database_integrity(conn)
-            
-        logger.info("[DB] Database initialized successfully with improved migrations")
-        logger.info("[DB] Database ready")
-        return True
-
-    except Exception as e:
-        logger.error(f"❌ Database init failed: {e}", exc_info=True)
-        return False
-
-async def _run_postgresql_migrations(conn):
-    """
-    Ğ’Ñ‹Ğ¿Ğ¾Ğ»Ğ½Ñ�ĞµÑ‚ Ğ²Ñ�Ğµ Ğ½ĞµĞ¾Ğ±Ñ…Ğ¾Ğ´Ğ¸Ğ¼Ñ‹Ğµ Ğ¼Ğ¸Ğ³Ñ€Ğ°Ñ†Ğ¸Ğ¸ Ğ´Ğ»Ñ� PostgreSQL.
-    """
-    logger.info("[DB] Running PostgreSQL migrations...")
-    
-    migrations = [
-        # 1. Ğ”Ğ¾Ğ±Ğ°Ğ²Ğ»ĞµĞ½Ğ¸Ğµ ĞºĞ¾Ğ»Ğ¾Ğ½ĞºĞ¸ source Ğ² drink_entries
-        {
-            "name": "drink_entries_source",
-            "check": "SELECT column_name FROM information_schema.columns WHERE table_name='drink_entries' AND column_name='source'",
-            "sql": "ALTER TABLE drink_entries ADD COLUMN source VARCHAR(20) DEFAULT 'drink';",
-            "description": "drink_entries.source column"
-        },
-        # 2. Ğ”Ğ¾Ğ±Ğ°Ğ²Ğ»ĞµĞ½Ğ¸Ğµ ĞºĞ¾Ğ»Ğ¾Ğ½ĞºĞ¸ reference_id Ğ² drink_entries  
-        {
-            "name": "drink_entries_reference_id",
-            "check": "SELECT column_name FROM information_schema.columns WHERE table_name='drink_entries' AND column_name='reference_id'",
-            "sql": "ALTER TABLE drink_entries ADD COLUMN reference_id INTEGER;",
-            "description": "drink_entries.reference_id column"
-        },
-        # 3. Ğ”Ğ¾Ğ±Ğ°Ğ²Ğ»ĞµĞ½Ğ¸Ğµ ĞºĞ¾Ğ»Ğ¾Ğ½ĞºĞ¸ daily_steps_goal Ğ² users
-        {
-            "name": "users_daily_steps_goal",
-            "check": "SELECT column_name FROM information_schema.columns WHERE table_name='users' AND column_name='daily_steps_goal'",
-            "sql": "ALTER TABLE users ADD COLUMN daily_steps_goal INTEGER DEFAULT 10000;",
-            "description": "users.daily_steps_goal column"
-        },
-        # 4. Ğ”Ğ¾Ğ±Ğ°Ğ²Ğ»ĞµĞ½Ğ¸Ğµ ĞºĞ¾Ğ»Ğ¾Ğ½ĞºĞ¸ timezone Ğ² users (ĞµÑ�Ğ»Ğ¸ Ğ¾Ñ‚Ñ�ÑƒÑ‚Ñ�Ñ‚Ğ²ÑƒĞµÑ‚)
-        {
-            "name": "users_timezone",
-            "check": "SELECT column_name FROM information_schema.columns WHERE table_name='users' AND column_name='timezone'",
-            "sql": "ALTER TABLE users ADD COLUMN timezone VARCHAR(50) DEFAULT 'UTC';",
-            "description": "users.timezone column"
-        },
-        # 5. Ğ”Ğ¾Ğ±Ğ°Ğ²Ğ»ĞµĞ½Ğ¸Ğµ Ğ¸Ğ½Ğ´ĞµĞºÑ�Ğ° Ğ´Ğ»Ñ� telegram_id Ğ´Ğ»Ñ� Ğ¿Ñ€Ğ¾Ğ¸Ğ·Ğ²Ğ¾Ğ´Ğ¸Ñ‚ĞµĞ»ÑŒĞ½Ğ¾Ñ�Ñ‚Ğ¸
-        {
-            "name": "users_telegram_id_index",
-            "check": "SELECT indexname FROM pg_indexes WHERE indexname = 'ix_users_telegram_id'",
-            "sql": "CREATE INDEX IF NOT EXISTS ix_users_telegram_id ON users (telegram_id);",
-            "description": "users.telegram_id index"
-        }
-    ]
-    
-    for migration in migrations:
-        try:
-            result = await conn.execute(text(migration["check"]))
-            if not result.first():
-                logger.info(f"[DB] Adding {migration['description']}...")
-                await conn.execute(text(migration["sql"]))
-                logger.info(f"[DB] {migration['description']} added")
-            else:
-                logger.info(f"[DB] {migration['description']} already exists")
-        except Exception as e:
-            logger.error(f"[DB] Failed to apply migration {migration['name']}: {e}")
-            # ĞŸĞ¾Ğ´Ğ¾Ğ»Ğ¶Ğ°ĞµĞ¼ Ğ²Ñ‹Ğ¿Ğ¾Ğ»Ğ½ĞµĞ½Ğ¸Ğµ Ğ´Ñ€ÑƒĞ³Ğ¸Ñ… Ğ¼Ğ¸Ğ³Ñ€Ğ°Ñ†Ğ¸Ğ¹
-    
-    logger.info("[DB] PostgreSQL migrations completed")
-
-async def _verify_database_integrity(conn):
-    """
-    ĞŸĞ¾Ğ²ĞµÑ€Ñ�ĞµĞ¼ Ğ¸Ğ½Ñ‚ĞµĞ³Ñ€Ğ¸Ñ‚ĞµÑ‚ Ğ±Ğ°Ğ·Ñ‹ Ğ´Ğ°Ğ½Ğ½Ñ‹Ñ…
-    """
-    try:
-        # ĞŸĞ¾Ğ²ĞµÑ€Ñ�ĞµĞ¼ Ğ¾Ñ�Ğ½Ğ¾Ğ²Ğ½Ñ‹Ğµ Ğ¸ Ğ¼ĞµĞ¶Ğ´Ñƒ Ğ½Ğ¸Ğ¼Ğ¸ Ğ¿Ñ€ĞµĞ´Ğ¾Ğ¿Ñ€ĞµĞ´ĞµĞ»ĞµĞ½Ğ½Ñ‹Ğµ Ğ¸ Ğ¼ĞµĞ¶Ğ´Ñƒ Ğ½Ğ¸Ğ¼Ğ¸ Ğ¾Ğ¿Ñ€ĞµĞ´ĞµĞ»ĞµĞ½Ğ½Ñ‹Ğµ ĞºĞ¾Ğ»Ğ¾Ğ½ĞºĞ¸
-        result = await conn.execute(text(
-            "SELECT table_name FROM information_schema.tables WHERE table_schema='public'"
-        ))
-        tables = [row[0] for row in result]
-        expected_tables = ['users', 'meals', 'weight_entries', 'drink_entries', 'water_entries', 'activity_entries']
         
-        missing_tables = [table for table in expected_tables if table not in tables]
-        if missing_tables:
-            logger.warning(f"⚠️ Missing tables: {missing_tables}")
+        logger.info("[DB] База данных инициализирована")
         
-        # ĞŸĞ¾Ğ²ĞµÑ€Ñ�ĞµĞ¼ ĞºÑ€Ğ¸Ñ‚Ğ¸Ñ‡ĞµÑ�ĞºĞ¸Ğµ ĞºĞ¾Ğ»Ğ¾Ğ½ĞºĞ¸
-        critical_columns = [
-            ('users', 'telegram_id', 'BIGINT'),
-            ('users', 'timezone', 'VARCHAR'),
-            ('meals', 'user_id', 'INTEGER'),
-            ('weight_entries', 'user_id', 'INTEGER'),
-        ]
-        
-        for table, column, expected_type in critical_columns:
-            result = await conn.execute(text(
-                f"SELECT data_type FROM information_schema.columns "
-                f"WHERE table_name='{table}' AND column_name='{column}'"
-            ))
-            row = result.first()
-            if not row:
-                logger.warning(f"⚠️ Missing {table}.{column}")
-            else:
-                # Нормализуем типы для сравнения (приводим к нижнему регистру)
-                actual_type = row[0].lower().replace(' ', '')
-                expected_normalized = expected_type.lower().replace(' ', '')
-                
-                # Проверяем синонимы типов
-                type_synonyms = {
-                    'bigint': ['bigint', 'int8'],
-                    'varchar': ['varchar', 'character varying', 'char varying'],
-                    'integer': ['integer', 'int', 'int4'],
-                    'timestamp': ['timestamp', 'timestamp without time zone'],
-                    'timestamptz': ['timestamptz', 'timestamp with time zone']
-                }
-                
-                # Проверяем, является ли фактический тип синонимом ожидаемого
-                is_valid_type = False
-                for base_type, synonyms in type_synonyms.items():
-                    if expected_normalized == base_type.lower():
-                        if actual_type in [s.lower().replace(' ', '') for s in synonyms]:
-                            is_valid_type = True
-                            break
-                    elif actual_type == expected_normalized:
-                        is_valid_type = True
-                        break
-                
-                if not is_valid_type:
-                    logger.warning(f"⚠️ {table}.{column} has wrong type: {row[0]} (expected {expected_type})")
-        
-        logger.info(f"[DB] Database integrity check completed. Tables: {len(tables)}")
+        # Проверяем и создаем недостающие колонки
+        await ensure_columns_exist()
         
     except Exception as e:
-        logger.error(f"[DB] Database integrity check failed: {e}")
-
-def get_session() -> AsyncSession:
-    return async_session()
+        logger.error(f"[DB] Ошибка инициализации БД: {e}")
+        raise
 
 async def close_db():
+    """Закрытие соединения с базой данных"""
     await engine.dispose()
-    logger.info("[DB] Database connections closed")
+    logger.info("[DB] Соединение с БД закрыто")
+
+async def ensure_columns_exist():
+    """Проверяет и создает недостающие колонки в таблице users"""
+    try:
+        # Список колонок для проверки и добавления
+        columns_to_add = [
+            ("daily_activity_goal", "INTEGER DEFAULT 300"),
+            ("neck_cm", "FLOAT"),
+            ("waist_cm", "FLOAT"),
+            ("hip_cm", "FLOAT"),
+            ("wrist_cm", "FLOAT"),
+            ("bicep_cm", "FLOAT"),
+            ("chest_cm", "FLOAT"),
+            ("forearm_cm", "FLOAT"),
+            ("calf_cm", "FLOAT"),
+            ("shoulder_width_cm", "FLOAT"),
+            ("hip_width_cm", "FLOAT"),
+            ("goal_weight", "FLOAT"),
+            ("last_bodyfat", "FLOAT"),
+            ("last_muscle_mass", "FLOAT"),
+            ("last_body_water", "FLOAT"),
+            ("reminder_enabled", "BOOLEAN DEFAULT TRUE"),
+            ("timezone", "VARCHAR(50) DEFAULT 'UTC'")
+        ]
+        
+        async with engine.begin() as conn:
+            # Получаем существующие колонки
+            if "postgresql" in DATABASE_URL:
+                result = await conn.execute(text("""
+                    SELECT column_name 
+                    FROM information_schema.columns 
+                    WHERE table_name = 'users'
+                """))
+                existing_columns = {row[0] for row in result}
+            else:  # SQLite
+                result = await conn.execute(text("PRAGMA table_info(users)"))
+                existing_columns = {row[1] for row in result}
+            
+            # Добавляем недостающие колонки
+            for column_name, column_def in columns_to_add:
+                if column_name not in existing_columns:
+                    alter_sql = f"ALTER TABLE users ADD COLUMN {column_name} {column_def}"
+                    await conn.execute(text(alter_sql))
+                    logger.info(f"[DB] Добавлена колонка: {column_name}")
+            
+            # Обновляем типы telegram_id и user_id в BIGINT если нужно
+            if "postgresql" in DATABASE_URL:
+                # Проверяем текущие типы колонок
+                result = await conn.execute(text("""
+                    SELECT column_name, data_type 
+                    FROM information_schema.columns 
+                    WHERE table_name = 'users' 
+                    AND column_name IN ('telegram_id', 'user_id')
+                """))
+                
+                for row in result:
+                    column_name, current_type = row
+                    if current_type != 'bigint' and column_name == 'telegram_id':
+                        alter_sql = f"ALTER TABLE users ALTER COLUMN {column_name} TYPE BIGINT"
+                        await conn.execute(text(alter_sql))
+                        logger.info(f"[DB] Обновлен тип колонки {column_name} на BIGINT")
+        
+        logger.info("[DB] Проверка колонок завершена")
+        
+    except Exception as e:
+        logger.error(f"[DB] Ошибка при проверке колонок: {e}")
+        # Не прерываем работу, если не удалось добавить колонки
+
+async def execute_raw_sql(query: str, params: dict = None):
+    """Выполнить произвольный SQL-запрос"""
+    try:
+        async with engine.begin() as conn:
+            if params:
+                result = await conn.execute(text(query), params)
+            else:
+                result = await conn.execute(text(query))
+            return result
+    except Exception as e:
+        logger.error(f"[DB] Ошибка выполнения SQL: {e}")
+        raise
+
+async def get_table_info(table_name: str) -> list:
+    """Получить информацию о таблице"""
+    try:
+        async with engine.begin() as conn:
+            if "postgresql" in DATABASE_URL:
+                result = await conn.execute(text(f"""
+                    SELECT column_name, data_type, is_nullable, column_default
+                    FROM information_schema.columns 
+                    WHERE table_name = '{table_name}'
+                    ORDER BY ordinal_position
+                """))
+            else:  # SQLite
+                result = await conn.execute(text(f"PRAGMA table_info({table_name})"))
+            
+            return result.fetchall()
+    except Exception as e:
+        logger.error(f"[DB] Ошибка получения информации о таблице {table_name}: {e}")
+        return []
+
+async def check_database_health() -> dict:
+    """Проверить здоровье базы данных"""
+    try:
+        health_info = {
+            'connected': True,
+            'tables': {},
+            'errors': []
+        }
+        
+        async with engine.begin() as conn:
+            # Проверяем основные таблицы
+            tables = ['users', 'food_entries', 'water_entries', 'drink_entries', 
+                     'weight_entries', 'activity_entries', 'achievements']
+            
+            for table in tables:
+                try:
+                    result = await conn.execute(text(f"SELECT COUNT(*) FROM {table}"))
+                    count = result.scalar()
+                    health_info['tables'][table] = {
+                        'exists': True,
+                        'rows': count
+                    }
+                except Exception as e:
+                    health_info['tables'][table] = {
+                        'exists': False,
+                        'error': str(e)
+                    }
+                    health_info['errors'].append(f"Таблица {table}: {e}")
+        
+        return health_info
+        
+    except Exception as e:
+        return {
+            'connected': False,
+            'error': str(e),
+            'tables': {},
+            'errors': [str(e)]
+        }
+
+async def backup_database(backup_path: str = None):
+    """Создать резервную копию базы данных (только для SQLite)"""
+    if "sqlite" not in DATABASE_URL:
+        logger.warning("[DB] Бэкап доступен только для SQLite")
+        return False
+    
+    try:
+        import shutil
+        from datetime import datetime
+        
+        if not backup_path:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            backup_path = f"nutribudy_backup_{timestamp}.db"
+        
+        # Копируем файл базы данных
+        shutil.copy2("nutribudy.db", backup_path)
+        logger.info(f"[DB] Бэкап создан: {backup_path}")
+        return True
+        
+    except Exception as e:
+        logger.error(f"[DB] Ошибка создания бэкапа: {e}")
+        return False
+
+async def vacuum_database():
+    """Оптимизировать базу данных (только для SQLite)"""
+    if "sqlite" not in DATABASE_URL:
+        logger.warning("[DB] VACUUM доступен только для SQLite")
+        return False
+    
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(text("VACUUM"))
+        logger.info("[DB] База данных оптимизирована")
+        return True
+        
+    except Exception as e:
+        logger.error(f"[DB] Ошибка оптимизации БД: {e}")
+        return False
+
+async def get_database_stats() -> dict:
+    """Получить статистику базы данных"""
+    try:
+        stats = {
+            'total_users': 0,
+            'total_food_entries': 0,
+            'total_water_entries': 0,
+            'total_weight_entries': 0,
+            'total_activity_entries': 0,
+            'database_size': 0
+        }
+        
+        async with engine.begin() as conn:
+            # Получаем количество записей в каждой таблице
+            tables_stats = {
+                'users': 'total_users',
+                'food_entries': 'total_food_entries',
+                'water_entries': 'total_water_entries',
+                'weight_entries': 'total_weight_entries',
+                'activity_entries': 'total_activity_entries'
+            }
+            
+            for table, stat_key in tables_stats.items():
+                try:
+                    result = await conn.execute(text(f"SELECT COUNT(*) FROM {table}"))
+                    stats[stat_key] = result.scalar()
+                except:
+                    stats[stat_key] = 0
+            
+            # Размер базы данных (только для SQLite)
+            if "sqlite" in DATABASE_URL:
+                try:
+                    import os
+                    stats['database_size'] = os.path.getsize("nutribudy.db")
+                except:
+                    stats['database_size'] = 0
+        
+        return stats
+        
+    except Exception as e:
+        logger.error(f"[DB] Ошибка получения статистики: {e}")
+        return {}
+
+# Функции для работы с транзакциями
+
+async def transaction_rollback():
+    """Откат транзакций"""
+    try:
+        async with engine.begin() as conn:
+            await conn.rollback()
+        logger.info("[DB] Транзакция отменена")
+    except Exception as e:
+        logger.error(f"[DB] Ошибка отката транзакции: {e}")
+
+# Контекстный менеджер для безопасной работы с БД
+class DatabaseSession:
+    """Контекстный менеджер для работы с сессией БД"""
+    
+    def __init__(self):
+        self.session = None
+    
+    async def __aenter__(self) -> AsyncSession:
+        self.session = AsyncSessionLocal()
+        return self.session
+    
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        if exc_type:
+            await self.session.rollback()
+        else:
+            await self.session.commit()
+        
+        await self.session.close()
+        self.session = None
+
+# Утилитарные функции
+
+async def test_connection():
+    """Тест подключения к базе данных"""
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(text("SELECT 1"))
+        logger.info("[DB] Тест подключения прошел успешно")
+        return True
+    except Exception as e:
+        logger.error(f"[DB] Тест подключения не удался: {e}")
+        return False
+
+# Экспорт основных компонентов
+__all__ = [
+    'Base',
+    'engine',
+    'get_session',
+    'init_db',
+    'close_db',
+    'ensure_columns_exist',
+    'execute_raw_sql',
+    'get_table_info',
+    'check_database_health',
+    'backup_database',
+    'vacuum_database',
+    'get_database_stats',
+    'DatabaseSession',
+    'test_connection'
+]

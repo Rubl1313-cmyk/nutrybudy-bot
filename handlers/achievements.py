@@ -1,5 +1,5 @@
 """
-Ğ�Ğ±Ñ€Ğ°Ğ±Ğ¾Ñ‚Ñ‡Ğ¸Ğº Ğ´Ğ¾Ñ�Ñ‚Ğ¸Ğ¶ĞµĞ½Ğ¸Ğ¹ Ğ¸ Ñ�Ñ‚Ğ°Ñ‚Ğ¸Ñ�Ñ‚Ğ¸ĞºĞ¸ Ğ³ĞµĞ¹Ğ¼Ğ¸Ñ„Ğ¸ĞºĞ°Ñ†Ğ¸Ğ¸
+Обработчик достижений и статистики геймификации
 """
 import logging
 from aiogram.types import Message, CallbackQuery
@@ -8,147 +8,192 @@ from aiogram import F, Router
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 from utils.gamification import gamification
+from utils.premium_templates import achievement_notification
+from utils.ui_templates import ProgressBar
 
 logger = logging.getLogger(__name__)
 router = Router()
 
 @router.message(Command("achievements"))
-@router.message(Command("Ğ´Ğ¾Ñ�Ñ‚Ğ¸Ğ¶ĞµĞ½Ğ¸Ñ�"))
+@router.message(Command("достижения"))
 async def cmd_achievements(message: Message):
-    """ĞŸĞ¾ĞºĞ°Ğ·Ğ°Ñ‚ÑŒ Ğ´Ğ¾Ñ�Ñ‚Ğ¸Ğ¶ĞµĞ½Ğ¸Ñ� Ğ¿Ğ¾Ğ»ÑŒĞ·Ğ¾Ğ²Ğ°Ñ‚ĞµĞ»Ñ�"""
+    """Показать достижения пользователя"""
     user_id = message.from_user.id
     stats = gamification.get_user_stats(user_id)
     
-    # Ğ¤Ğ¾Ñ€Ğ¼Ğ¸Ñ€ÑƒĞµĞ¼ Ñ‚ĞµĞºÑ�Ñ‚ Ñ� Ğ¾Ğ±Ñ‰ĞµĞ¹ Ñ�Ñ‚Ğ°Ñ‚Ğ¸Ñ�Ñ‚Ğ¸ĞºĞ¾Ğ¹
-    text = f"ğŸ�† <b>Ğ’Ğ°ÑˆĞ¸ Ğ´Ğ¾Ñ�Ñ‚Ğ¸Ğ¶ĞµĞ½Ğ¸Ñ�</b>\n\n"
-    text += f"ğŸ“Š <b>Ğ£Ñ€Ğ¾Ğ²ĞµĞ½ÑŒ:</b> {stats['level']}\n"
-    text += f"â­� <b>Ğ�Ñ‡ĞºĞ¸:</b> {stats['total_points']}/{stats['level'] * 100}\n"
-    text += f"ğŸ�¯ <b>Ğ”Ğ¾ Ñ�Ğ»ĞµĞ´ÑƒÑ�Ñ‰ĞµĞ³Ğ¾ ÑƒÑ€Ğ¾Ğ²Ğ½Ñ�:</b> {stats['points_to_next']} Ğ¾Ñ‡ĞºĞ¾Ğ²\n"
-    text += f"ğŸ”¥ <b>Ğ¡ĞµÑ€Ğ¸Ñ� Ğ´Ğ½ĞµĞ¹:</b> {stats['streak_days']}\n"
-    text += f"ğŸ�½ï¸� <b>ĞŸÑ€Ğ¸ĞµĞ¼Ğ¾Ğ² Ğ¿Ğ¸Ñ‰Ğ¸ Ğ·Ğ°Ğ¿Ğ¸Ñ�Ğ°Ğ½Ğ¾:</b> {stats['meals_logged']}\n\n"
+    # Формируем текст с общей статистикой
+    text = f"🏆 <b>Ваши достижения</b>\n\n"
+    text += f"📊 <b>Уровень:</b> {stats['level']}\n"
+    text += f"⭐ <b>Очки:</b> {stats['total_points']}/{stats['level'] * 100}\n"
     
-    # ĞŸĞ¾Ğ»ÑƒÑ‡Ğ°ĞµĞ¼ Ğ¿Ğ¾Ğ»ÑƒÑ‡ĞµĞ½Ğ½Ñ‹Ğµ Ğ´Ğ¾Ñ�Ñ‚Ğ¸Ğ¶ĞµĞ½Ğ¸Ñ�
+    # Прогресс до следующего уровня
+    progress_percent = (stats['total_points'] / (stats['level'] * 100)) * 100
+    progress_bar = ProgressBar.create_modern_bar(progress_percent, 100, 15, 'neon')
+    text += f"🎯 <b>Прогресс до следующего уровня:</b>\n{progress_bar}\n"
+    text += f"🔥 <b>Серия дней:</b> {stats['streak_days']}\n"
+    text += f"🍽️ <b>Приёмов пищи записано:</b> {stats['meals_logged']}\n\n"
+    
+    # Получаем полученные достижения
     user_progress = gamification._get_user_progress(user_id)
     earned_ids = user_progress.earned_achievements
     
-    # Ğ¤Ğ¾Ñ€Ğ¼Ğ¸Ñ€ÑƒĞµĞ¼ Ñ�Ğ¿Ğ¸Ñ�Ğ¾Ğº Ğ´Ğ¾Ñ�Ñ‚Ğ¸Ğ¶ĞµĞ½Ğ¸Ğ¹
-    text += "ğŸ“‹ <b>ĞŸĞ¾Ğ»ÑƒÑ‡ĞµĞ½Ğ½Ñ‹Ğµ Ğ´Ğ¾Ñ�Ñ‚Ğ¸Ğ¶ĞµĞ½Ğ¸Ñ�:</b>\n\n"
+    # Формируем список достижений
+    text += "📋 <b>Полученные достижения:</b>\n\n"
     
     if earned_ids:
         for achievement_id in earned_ids:
             achievement = gamification.achievements.get(achievement_id)
             if achievement:
                 text += f"{achievement.icon} {achievement.name}\n"
-                text += f"   {achievement.description} (+{achievement.points} Ğ¾Ñ‡ĞºĞ¾Ğ²)\n\n"
+                text += f"   {achievement.description} (+{achievement.points} очков)\n\n"
     else:
-        text += "Ğ£ Ğ²Ğ°Ñ� Ğ¿Ğ¾ĞºĞ° Ğ½ĞµÑ‚ Ğ´Ğ¾Ñ�Ñ‚Ğ¸Ğ¶ĞµĞ½Ğ¸Ğ¹. Ğ�Ğ°Ñ‡Ğ½Ğ¸Ñ‚Ğµ Ğ·Ğ°Ğ¿Ğ¸Ñ�Ñ‹Ğ²Ğ°Ñ‚ÑŒ ĞµĞ´Ñƒ!\n\n"
+        text += "У вас пока нет достижений. Начните записывать еду!\n\n"
     
-    # Ğ”Ğ¾Ñ�Ñ‚ÑƒĞ¿Ğ½Ñ‹Ğµ Ğ´Ğ¾Ñ�Ñ‚Ğ¸Ğ¶ĞµĞ½Ğ¸Ñ�
-    text += "ğŸ”“ <b>Ğ”Ğ¾Ñ�Ñ‚ÑƒĞ¿Ğ½Ñ‹Ğµ Ğ´Ğ¾Ñ�Ñ‚Ğ¸Ğ¶ĞµĞ½Ğ¸Ñ�:</b>\n\n"
+    # Доступные достижения
+    text += "🎯 <b>Доступные достижения:</b>\n\n"
     
     available_achievements = [a for a in gamification.achievements.values() if a.id not in earned_ids]
     
     if available_achievements:
-        for achievement in available_achievements[:5]:  # ĞŸĞ¾ĞºĞ°Ğ·Ñ‹Ğ²Ğ°ĞµĞ¼ Ğ¿ĞµÑ€Ğ²Ñ‹Ğµ 5
-            text += f"ğŸ”’ {achievement.icon} {achievement.name}\n"
+        # Показываем первые 5 доступных достижений
+        for achievement in available_achievements[:5]:
+            text += f"🔒 {achievement.icon} {achievement.name}\n"
             text += f"   {achievement.description}\n\n"
         
         if len(available_achievements) > 5:
-            text += f"... Ğ¸ ĞµÑ‰Ğµ {len(available_achievements) - 5} Ğ´Ğ¾Ñ�Ñ‚Ğ¸Ğ¶ĞµĞ½Ğ¸Ğ¹\n"
+            text += f"... и ещё {len(available_achievements) - 5} достижений\n"
     else:
-        text += "ğŸ�‰ ĞŸĞ¾Ğ·Ğ´Ñ€Ğ°Ğ²Ğ»Ñ�ĞµĞ¼! Ğ’Ñ‹ Ğ¿Ğ¾Ğ»ÑƒÑ‡Ğ¸Ğ»Ğ¸ Ğ²Ñ�Ğµ Ğ´Ğ¾Ñ�Ñ‚Ğ¸Ğ¶ĞµĞ½Ğ¸Ñ�!\n"
+        text += "🎉 Вы получили все достижения! Вы настоящий чемпион!\n"
     
-    # ĞšĞ»Ğ°Ğ²Ğ¸Ğ°Ñ‚ÑƒÑ€Ğ° Ñ� Ğ´ĞµĞ¹Ñ�Ñ‚Ğ²Ğ¸Ñ�Ğ¼Ğ¸
-    keyboard = InlineKeyboardMarkup(
-        inline_keyboard=[
-            [
-                InlineKeyboardButton(text="ğŸ“Š ĞœĞ¾Ñ� Ñ�Ñ‚Ğ°Ñ‚Ğ¸Ñ�Ñ‚Ğ¸ĞºĞ°", callback_data="stats_detail"),
-                InlineKeyboardButton(text="ğŸ�† Ğ›Ğ¸Ğ´ĞµÑ€Ğ±Ğ¾Ñ€Ğ´", callback_data="leaderboard")
-            ],
-            [
-                InlineKeyboardButton(text="ğŸ�¯ Ğ¦ĞµĞ»Ğ¸ Ğ½Ğ° Ğ´ĞµĞ½ÑŒ", callback_data="daily_goals"),
-                InlineKeyboardButton(text="ğŸ“ˆ ĞŸÑ€Ğ¾Ğ³Ñ€ĞµÑ�Ñ�", callback_data="progress")
-            ]
-        ]
-    )
+    # Кнопка для подробной статистики
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📈 Подробная статистика", callback_data="detailed_stats")],
+        [InlineKeyboardButton(text="🏅 Лидерboard", callback_data="leaderboard")],
+        [InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_main")]
+    ])
     
-    await message.answer(text, reply_markup=keyboard, parse_mode="HTML")
+    await message.answer(text, reply_markup=keyboard)
 
-@router.callback_query(F.data == "stats_detail")
-async def stats_detail_callback(callback: CallbackQuery):
-    """Ğ”ĞµÑ‚Ğ°Ğ»ÑŒĞ½Ğ°Ñ� Ñ�Ñ‚Ğ°Ñ‚Ğ¸Ñ�Ñ‚Ğ¸ĞºĞ°"""
+@router.callback_query(F.data == "detailed_stats")
+async def callback_detailed_stats(callback: CallbackQuery):
+    """Подробная статистика пользователя"""
     user_id = callback.from_user.id
     stats = gamification.get_user_stats(user_id)
-    user_progress = gamification._get_user_progress(user_id)
     
-    text = f"ğŸ“Š <b>Ğ”ĞµÑ‚Ğ°Ğ»ÑŒĞ½Ğ°Ñ� Ñ�Ñ‚Ğ°Ñ‚Ğ¸Ñ�Ñ‚Ğ¸ĞºĞ°</b>\n\n"
-    text += f"ğŸ‘¤ ID Ğ¿Ğ¾Ğ»ÑŒĞ·Ğ¾Ğ²Ğ°Ñ‚ĞµĞ»Ñ�: {user_id}\n"
-    text += f"ğŸ“… ĞŸĞ¾Ñ�Ğ»ĞµĞ´Ğ½Ñ�Ñ� Ğ°ĞºÑ‚Ğ¸Ğ²Ğ½Ğ¾Ñ�Ñ‚ÑŒ: {user_progress.last_activity_date or 'Ğ�ĞµÑ‚ Ğ´Ğ°Ğ½Ğ½Ñ‹Ñ…'}\n"
-    text += f"ğŸ�½ï¸� Ğ’Ñ�ĞµĞ³Ğ¾ Ğ¿Ñ€Ğ¸ĞµĞ¼Ğ¾Ğ² Ğ¿Ğ¸Ñ‰Ğ¸: {user_progress.meals_logged}\n"
-    text += f"ğŸ’§ Ğ’Ñ�ĞµĞ³Ğ¾ Ğ²Ğ¾Ğ´Ñ‹ Ğ²Ñ‹Ğ¿Ğ¸Ñ‚Ğ¾: {user_progress.water_ml} Ğ¼Ğ»\n"
-    text += f"âš–ï¸� Ğ�Ğ°Ñ‡Ğ°Ğ»ÑŒĞ½Ñ‹Ğ¹ Ğ²ĞµÑ�: {user_progress.start_weight or 'Ğ�Ğµ ÑƒĞºĞ°Ğ·Ğ°Ğ½'} ĞºĞ³\n"
-    text += f"âš–ï¸� Ğ¢ĞµĞºÑƒÑ‰Ğ¸Ğ¹ Ğ²ĞµÑ�: {user_progress.current_weight or 'Ğ�Ğµ ÑƒĞºĞ°Ğ·Ğ°Ğ½'} ĞºĞ³\n"
-    text += f"ğŸŒ… Ğ Ğ°Ğ½Ğ½Ğ¸Ñ… Ğ·Ğ°Ğ²Ñ‚Ñ€Ğ°ĞºĞ¾Ğ²: {user_progress.early_breakfasts}\n"
-    text += f"ğŸŒ™ ĞŸĞ¾Ğ·Ğ´Ğ½Ğ¸Ñ… ÑƒĞ¶Ğ¸Ğ½Ğ¾Ğ²: {user_progress.late_dinners}\n\n"
+    text = f"📊 <b>Подробная статистика</b>\n\n"
     
-    # ĞŸÑ€Ğ¾Ğ³Ñ€ĞµÑ�Ñ� Ğ´Ğ¾ Ñ�Ğ»ĞµĞ´ÑƒÑ�Ñ‰ĞµĞ³Ğ¾ ÑƒÑ€Ğ¾Ğ²Ğ½Ñ�
-    current_level_points = (stats['level'] - 1) * 100
-    next_level_points = stats['level'] * 100
-    progress_percent = ((stats['total_points'] - current_level_points) / 100) * 100
+    # Основные показатели
+    text += f"👤 <b>Профиль:</b>\n"
+    text += f"   Уровень: {stats['level']}\n"
+    text += f"   Очки: {stats['total_points']}\n"
+    text += f"   Серия дней: {stats['streak_days']}\n\n"
     
-    text += f"ğŸ“ˆ <b>ĞŸÑ€Ğ¾Ğ³Ñ€ĞµÑ�Ñ� Ğ´Ğ¾ ÑƒÑ€Ğ¾Ğ²Ğ½Ñ� {stats['level'] + 1}:</b>\n"
-    text += f"[{'â–ˆ' * int(progress_percent // 10)}{'â–‘' * (10 - int(progress_percent // 10))}] {progress_percent:.1f}%\n"
-    text += f"{stats['total_points'] - current_level_points} / {next_level_points - current_level_points} Ğ¾Ñ‡ĞºĞ¾Ğ²\n"
+    # Прогресс по категориям
+    text += f"📈 <b>Прогресс по категориям:</b>\n"
     
-    await callback.message.edit_text(text, parse_mode="HTML")
-    await callback.answer()
-
-@router.callback_query(F.data == "daily_goals")
-async def daily_goals_callback(callback: CallbackQuery):
-    """Ğ¦ĞµĞ»Ğ¸ Ğ½Ğ° Ğ´ĞµĞ½ÑŒ"""
-    user_id = callback.from_user.id
+    # Питание
+    nutrition_progress = min(stats['meals_logged'] / 30 * 100, 100)  # 30 приёмов = 100%
+    nutrition_bar = ProgressBar.create_modern_bar(nutrition_progress, 100, 12, 'default')
+    text += f"   🍽️ Питание: {nutrition_bar}\n"
     
-    text = f"ğŸ�¯ <b>Ğ’Ğ°ÑˆĞ¸ Ñ†ĞµĞ»Ğ¸ Ğ½Ğ° Ñ�ĞµĞ³Ğ¾Ğ´Ğ½Ñ�</b>\n\n"
+    # Активность
+    activity_progress = min(stats['activities_completed'] / 20 * 100, 100)  # 20 активностей = 100%
+    activity_bar = ProgressBar.create_modern_bar(activity_progress, 100, 12, 'activity')
+    text += f"   🏃 Активность: {activity_bar}\n"
     
-    # Ğ—Ğ´ĞµÑ�ÑŒ Ğ´Ğ¾Ğ»Ğ¶Ğ½Ğ° Ğ±Ñ‹Ñ‚ÑŒ Ğ¿Ñ€Ğ¾Ğ²ĞµÑ€ĞºĞ° Ñ€ĞµĞ°Ğ»ÑŒĞ½Ğ¾Ğ³Ğ¾ Ğ²Ñ‹Ğ¿Ğ¾Ğ»Ğ½ĞµĞ½Ğ¸Ñ� Ñ†ĞµĞ»ĞµĞ¹
-    # Ğ”Ğ»Ñ� Ğ¿Ñ€Ğ¸Ğ¼ĞµÑ€Ğ° Ğ¸Ñ�Ğ¿Ğ¾Ğ»ÑŒĞ·ÑƒĞµĞ¼ Ğ·Ğ°Ğ³Ğ»ÑƒÑˆĞºĞ¸
-    text += "ğŸ�½ï¸� <b>ĞŸÑ€Ğ¸ĞµĞ¼Ñ‹ Ğ¿Ğ¸Ñ‰Ğ¸:</b>\n"
-    text += "   Ğ—Ğ°Ğ²Ñ‚Ñ€Ğ°Ğº: âœ… Ğ—Ğ°Ğ¿Ğ¸Ñ�Ğ°Ğ½Ğ¾\n"
-    text += "   Ğ�Ğ±ĞµĞ´: â�³ Ğ�Ğ¶Ğ¸Ğ´Ğ°ĞµÑ‚Ñ�Ñ�\n"
-    text += "   Ğ£Ğ¶Ğ¸Ğ½: â�³ Ğ�Ğ¶Ğ¸Ğ´Ğ°ĞµÑ‚Ñ�Ñ�\n\n"
+    # Вес
+    weight_progress = min(stats['weight_logged'] / 10 * 100, 100)  # 10 записей веса = 100%
+    weight_bar = ProgressBar.create_modern_bar(weight_progress, 100, 12, 'default')
+    text += f"   ⚖️ Вес: {weight_bar}\n\n"
     
-    text += "ğŸ’§ <b>Ğ’Ğ¾Ğ´Ğ°:</b>\n"
-    text += "   Ğ¦ĞµĞ»ÑŒ: 2000 Ğ¼Ğ»\n"
-    text += "   Ğ’Ñ‹Ğ¿Ğ¸Ñ‚Ğ¾: 1200 Ğ¼Ğ» (60%)\n\n"
+    # Статистика по времени
+    text += f"⏰ <b>Активность по времени:</b>\n"
+    text += f"   Сегодня: {stats['today_actions']} действий\n"
+    text += f"   За неделю: {stats['week_actions']} действий\n"
+    text += f"   За месяц: {stats['month_actions']} действий\n\n"
     
-    text += "ğŸ”¥ <b>ĞšĞ°Ğ»Ğ¾Ñ€Ğ¸Ğ¸:</b>\n"
-    text += "   Ğ¦ĞµĞ»ÑŒ: 2000 ĞºĞºĞ°Ğ»\n"
-    text += "   ĞŸĞ¾Ñ‚Ñ€ĞµĞ±Ğ»ĞµĞ½Ğ¾: 1450 ĞºĞºĞ°Ğ» (72%)\n\n"
+    # Мотивационное сообщение
+    if stats['streak_days'] >= 7:
+        text += "🔥 <b>Потрясающая серия!</b> Вы на правильном пути!\n"
+    elif stats['streak_days'] >= 3:
+        text += "💪 <b>Хорошая серия!</b> Продолжайте в том же духе!\n"
+    else:
+        text += "🌱 <b>Начало пути!</b> Каждый день делает вас сильнее!\n"
     
-    text += "ğŸ�ƒ <b>Ğ�ĞºÑ‚Ğ¸Ğ²Ğ½Ğ¾Ñ�Ñ‚ÑŒ:</b>\n"
-    text += "   Ğ¦ĞµĞ»ÑŒ: 10000 ÑˆĞ°Ğ³Ğ¾Ğ²\n"
-    text += "   ĞŸÑ€Ğ¾Ğ¹Ğ´ĞµĞ½Ğ¾: 7500 ÑˆĞ°Ğ³Ğ¾Ğ² (75%)\n"
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔙 Назад к достижениям", callback_data="back_to_achievements")]
+    ])
     
-    await callback.message.edit_text(text, parse_mode="HTML")
-    await callback.answer()
-
-@router.callback_query(F.data == "progress")
-async def progress_callback(callback: CallbackQuery):
-    """ĞŸÑ€Ğ¾Ğ³Ñ€ĞµÑ�Ñ�"""
-    await callback.message.edit_text(
-        "ğŸ“ˆ <b>Ğ’Ğ°Ñˆ Ğ¿Ñ€Ğ¾Ğ³Ñ€ĞµÑ�Ñ�</b>\n\n"
-        "Ğ˜Ñ�Ğ¿Ğ¾Ğ»ÑŒĞ·ÑƒĞ¹Ñ‚Ğµ ĞºĞ¾Ğ¼Ğ°Ğ½Ğ´Ñƒ /progress Ğ´Ğ»Ñ� Ğ´ĞµÑ‚Ğ°Ğ»ÑŒĞ½Ğ¾Ğ¹ Ñ�Ñ‚Ğ°Ñ‚Ğ¸Ñ�Ñ‚Ğ¸ĞºĞ¸ Ğ¿Ğ¸Ñ‚Ğ°Ğ½Ğ¸Ñ�",
-        parse_mode="HTML"
-    )
+    await callback.message.edit_text(text, reply_markup=keyboard)
     await callback.answer()
 
 @router.callback_query(F.data == "leaderboard")
-async def leaderboard_callback(callback: CallbackQuery):
-    """Ğ›Ğ¸Ğ´ĞµÑ€Ğ±Ğ¾Ñ€Ğ´ (Ğ·Ğ°Ğ³Ğ»ÑƒÑˆĞºĞ°)"""
-    await callback.message.edit_text(
-        "ğŸ�† <b>Ğ›Ğ¸Ğ´ĞµÑ€Ğ±Ğ¾Ñ€Ğ´</b>\n\n"
-        "ğŸš§ Ğ¤ÑƒĞ½ĞºÑ†Ğ¸Ñ� Ğ² Ñ€Ğ°Ğ·Ñ€Ğ°Ğ±Ğ¾Ñ‚ĞºĞµ...\n\n"
-        "Ğ¡ĞºĞ¾Ñ€Ğ¾ Ğ·Ğ´ĞµÑ�ÑŒ Ğ±ÑƒĞ´ĞµÑ‚ Ñ€ĞµĞ¹Ñ‚Ğ¸Ğ½Ğ³ Ğ»ÑƒÑ‡ÑˆĞ¸Ñ… Ğ¿Ğ¾Ğ»ÑŒĞ·Ğ¾Ğ²Ğ°Ñ‚ĞµĞ»ĞµĞ¹!",
-        parse_mode="HTML"
-    )
+async def callback_leaderboard(callback: CallbackQuery):
+    """Таблица лидеров"""
+    # Получаем топ-10 пользователей по очкам
+    top_users = gamification.get_leaderboard(limit=10)
+    
+    text = f"🏆 <b>Таблица лидеров</b>\n\n"
+    
+    for i, user_data in enumerate(top_users, 1):
+        if i == 1:
+            medal = "🥇"
+        elif i == 2:
+            medal = "🥈"
+        elif i == 3:
+            medal = "🥉"
+        else:
+            medal = f"{i}."
+        
+        username = user_data.get('username', f"User#{user_data['user_id']}")
+        points = user_data['total_points']
+        level = user_data['level']
+        
+        text += f"{medal} {username} — {points} очков (уровень {level})\n"
+    
+    text += f"\n💡 <b>Ваше место:</b> #{gamification.get_user_rank(callback.from_user.id)}"
+    
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔄 Обновить", callback_data="leaderboard")],
+        [InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_achievements")]
+    ])
+    
+    await callback.message.edit_text(text, reply_markup=keyboard)
     await callback.answer()
+
+@router.callback_query(F.data == "back_to_achievements")
+async def callback_back_to_achievements(callback: CallbackQuery):
+    """Возврат к списку достижений"""
+    await cmd_achievements(callback.message)
+
+@router.callback_query(F.data == "back_to_main")
+async def callback_back_to_main(callback: CallbackQuery):
+    """Возврат в главное меню"""
+    from keyboards.improved_keyboards import get_main_keyboard_v2
+    
+    text = "🏠 <b>Главное меню</b>\n\n"
+    text += "Выберите действие:"
+    
+    await callback.message.edit_text(text, reply_markup=get_main_keyboard_v2())
+    await callback.answer()
+
+# Проверка и награждение достижений
+async def check_achievements(user_id: int, action_type: str, value: float = 1):
+    """Проверить и наградить достижения пользователя"""
+    try:
+        new_achievements = gamification.check_achievements(user_id, action_type, value)
+        
+        if new_achievements:
+            for achievement in new_achievements:
+                # Отправляем уведомление о новом достижении
+                notification = achievement_notification(achievement.name, achievement.description)
+                
+                # Здесь должна быть отправка сообщения пользователю
+                # await bot.send_message(user_id, notification)
+                logger.info(f"User {user_id} earned achievement: {achievement.name}")
+                
+    except Exception as e:
+        logger.error(f"Error checking achievements for user {user_id}: {e}")
+
+# Экспорт функции для использования в других обработчиках
+__all__ = ['check_achievements']

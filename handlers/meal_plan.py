@@ -1,6 +1,6 @@
 """
 handlers/meal_plan.py
-ĞŸĞ»Ğ°Ğ½Ğ¸Ñ€Ğ¾Ğ²Ğ°Ğ½Ğ¸Ğµ Ğ¿Ğ¸Ñ‚Ğ°Ğ½Ğ¸Ñ�
+Планирование питания
 """
 import logging
 from aiogram.types import Message, CallbackQuery
@@ -11,67 +11,27 @@ from aiogram import F, Router
 from sqlalchemy import select
 
 from database.db import get_session
-from database.models import User
+from database.models import User, MealPlan
 from services.cloudflare_manager import cf_manager
 from keyboards.reply_v2 import get_main_keyboard_v2
+from utils.premium_templates import loading_card, error_card
+from utils.ui_templates import ProgressBar
 
 logger = logging.getLogger(__name__)
 router = Router()
 
 class MealPlanStates(StatesGroup):
-    """Ğ¡Ğ¾Ñ�Ñ‚Ğ¾Ñ�Ğ½Ğ¸Ñ� Ğ´Ğ»Ñ� Ğ¿Ğ»Ğ°Ğ½Ğ¸Ñ€Ğ¾Ğ²Ğ°Ğ½Ğ¸Ñ� Ğ¿Ğ¸Ñ‚Ğ°Ğ½Ğ¸Ñ�"""
+    """Состояния для планирования питания"""
     waiting_for_preferences = State()
     waiting_for_restrictions = State()
 
 @router.message(Command("meal_plan"))
+@router.message(Command("план_питания"))
 async def cmd_meal_plan(message: Message, state: FSMContext):
-    """ĞŸĞ¾Ğ»ÑƒÑ‡Ğ¸Ñ‚ÑŒ Ğ¿Ğ»Ğ°Ğ½ Ğ¿Ğ¸Ñ‚Ğ°Ğ½Ğ¸Ñ�"""
+    """Получить план питания"""
     await state.clear()
     
-    await message.answer(
-        "ğŸ�½ï¸� <b>ĞŸĞ»Ğ°Ğ½ Ğ¿Ğ¸Ñ‚Ğ°Ğ½Ğ¸Ñ�</b>\n\n"
-        "Ğ¯ Ñ�Ğ¾Ñ�Ñ‚Ğ°Ğ²Ğ»Ñ� Ğ¿ĞµÑ€Ñ�Ğ¾Ğ½Ğ°Ğ»ÑŒĞ½Ñ‹Ğ¹ Ğ¿Ğ»Ğ°Ğ½ Ğ¿Ğ¸Ñ‚Ğ°Ğ½Ğ¸Ñ� Ğ½Ğ° Ğ¾Ñ�Ğ½Ğ¾Ğ²Ğµ Ğ²Ğ°ÑˆĞ¸Ñ… Ñ†ĞµĞ»ĞµĞ¹ Ğ¸ Ğ¿Ñ€ĞµĞ´Ğ¿Ğ¾Ñ‡Ñ‚ĞµĞ½Ğ¸Ğ¹.\n\n"
-        "ğŸ“‹ <b>Ğ’Ğ°ÑˆĞ¸ Ğ¿Ñ€ĞµĞ´Ğ¿Ğ¾Ñ‡Ñ‚ĞµĞ½Ğ¸Ñ�:</b>\n"
-        "â€¢ Ğ”Ğ¸ĞµÑ‚Ğ° (Ğ²ĞµĞ³ĞµÑ‚Ğ°Ñ€Ğ¸Ğ°Ğ½Ñ�ĞºĞ°Ñ�, Ğ±ĞµĞ·Ğ³Ğ»Ñ�Ñ‚ĞµĞ½Ğ¾Ğ²Ğ°Ñ� Ğ¸ Ñ‚.Ğ´.)\n"
-        "â€¢ Ğ�Ğ»Ğ»ĞµÑ€Ğ³Ğ¸Ğ¸ Ğ¸ Ğ½ĞµĞ¿ĞµÑ€ĞµĞ½Ğ¾Ñ�Ğ¸Ğ¼Ğ¾Ñ�Ñ‚Ğ¸\n"
-        "â€¢ Ğ›Ñ�Ğ±Ğ¸Ğ¼Ñ‹Ğµ/Ğ½ĞµĞ»Ñ�Ğ±Ğ¸Ğ¼Ñ‹Ğµ Ğ¿Ñ€Ğ¾Ğ´ÑƒĞºÑ‚Ñ‹\n"
-        "â€¢ ĞšĞ¾Ğ»Ğ¸Ñ‡ĞµÑ�Ñ‚Ğ²Ğ¾ Ğ¿Ñ€Ğ¸ĞµĞ¼Ğ¾Ğ² Ğ¿Ğ¸Ñ‰Ğ¸ Ğ² Ğ´ĞµĞ½ÑŒ\n\n"
-        "Ğ�Ğ°Ğ¿Ğ¸ÑˆĞ¸Ñ‚Ğµ Ğ²Ğ°ÑˆĞ¸ Ğ¿Ñ€ĞµĞ´Ğ¿Ğ¾Ñ‡Ñ‚ĞµĞ½Ğ¸Ñ� Ğ¸Ğ»Ğ¸ Ğ¾Ñ‚Ğ¿Ñ€Ğ°Ğ²ÑŒÑ‚Ğµ 0 ĞµÑ�Ğ»Ğ¸ Ğ½ĞµÑ‚ Ğ¾Ñ�Ğ¾Ğ±Ñ‹Ñ… Ñ‚Ñ€ĞµĞ±Ğ¾Ğ²Ğ°Ğ½Ğ¸Ğ¹:",
-        parse_mode="HTML"
-    )
-    await state.set_state(MealPlanStates.waiting_for_preferences)
-
-@router.message(MealPlanStates.waiting_for_preferences)
-async def process_preferences(message: Message, state: FSMContext):
-    """Ğ�Ğ±Ñ€Ğ°Ğ±Ğ¾Ñ‚ĞºĞ° Ğ¿Ñ€ĞµĞ´Ğ¿Ğ¾Ñ‡Ñ‚ĞµĞ½Ğ¸Ğ¹"""
-    preferences = message.text.strip()
-    
-    if preferences == "0":
-        preferences = "Ğ�ĞµÑ‚ Ğ¾Ñ�Ğ¾Ğ±Ñ‹Ñ… Ğ¿Ñ€ĞµĞ´Ğ¿Ğ¾Ñ‡Ñ‚ĞµĞ½Ğ¸Ğ¹"
-    
-    await state.update_data(preferences=preferences)
-    
-    await message.answer(
-        "ğŸš« <b>Ğ�Ğ³Ñ€Ğ°Ğ½Ğ¸Ñ‡ĞµĞ½Ğ¸Ñ� Ğ¸ Ğ°Ğ»Ğ»ĞµÑ€Ğ³Ğ¸Ğ¸:</b>\n\n"
-        "Ğ£ĞºĞ°Ğ¶Ğ¸Ñ‚Ğµ Ğ¿Ñ€Ğ¾Ğ´ÑƒĞºÑ‚Ñ‹, ĞºĞ¾Ñ‚Ğ¾Ñ€Ñ‹Ğµ Ğ½ÑƒĞ¶Ğ½Ğ¾ Ğ¸Ñ�ĞºĞ»Ñ�Ñ‡Ğ¸Ñ‚ÑŒ:\n\n"
-        "ĞŸÑ€Ğ¸Ğ¼ĞµÑ€Ñ‹:\n"
-        "â€¢ Ğ�Ñ€ĞµÑ…Ğ¸, Ğ¼Ğ¾Ğ»Ğ¾ĞºĞ¾, Ñ�Ğ¹Ñ†Ğ°\n"
-        "â€¢ Ğ“Ğ»Ñ�Ñ‚ĞµĞ½, Ğ»Ğ°ĞºÑ‚Ğ¾Ğ·Ğ°\n"
-        "â€¢ Ğ�Ñ�Ñ‚Ñ€Ğ¾Ğµ, Ğ¶Ğ¸Ñ€Ğ½Ğ¾Ğµ\n\n"
-        "Ğ�Ñ‚Ğ¿Ñ€Ğ°Ğ²ÑŒÑ‚Ğµ 0 ĞµÑ�Ğ»Ğ¸ Ğ½ĞµÑ‚ Ğ¾Ğ³Ñ€Ğ°Ğ½Ğ¸Ñ‡ĞµĞ½Ğ¸Ğ¹:",
-        parse_mode="HTML"
-    )
-    await state.set_state(MealPlanStates.waiting_for_restrictions)
-
-@router.message(MealPlanStates.waiting_for_restrictions)
-async def process_restrictions(message: Message, state: FSMContext):
-    """Ğ�Ğ±Ñ€Ğ°Ğ±Ğ¾Ñ‚ĞºĞ° Ğ¾Ğ³Ñ€Ğ°Ğ½Ğ¸Ñ‡ĞµĞ½Ğ¸Ğ¹ Ğ¸ Ñ�Ğ¾Ğ·Ğ´Ğ°Ğ½Ğ¸Ğµ Ğ¿Ğ»Ğ°Ğ½Ğ°"""
-    restrictions = message.text.strip()
-    
-    if restrictions == "0":
-        restrictions = "Ğ�ĞµÑ‚ Ğ¾Ğ³Ñ€Ğ°Ğ½Ğ¸Ñ‡ĞµĞ½Ğ¸Ğ¹"
-    
-    # ĞŸĞ¾Ğ»ÑƒÑ‡Ğ°ĞµĞ¼ Ğ´Ğ°Ğ½Ğ½Ñ‹Ğµ Ğ¿Ğ¾Ğ»ÑŒĞ·Ğ¾Ğ²Ğ°Ñ‚ĞµĞ»Ñ�
+    # Проверяем наличие профиля
     async with get_session() as session:
         result = await session.execute(
             select(User).where(User.telegram_id == message.from_user.id)
@@ -80,169 +40,307 @@ async def process_restrictions(message: Message, state: FSMContext):
         
         if not user:
             await message.answer(
-                "â�Œ Ğ¡Ğ½Ğ°Ñ‡Ğ°Ğ»Ğ° Ğ½Ğ°Ñ�Ñ‚Ñ€Ğ¾Ğ¹Ñ‚Ğµ Ğ¿Ñ€Ğ¾Ñ„Ğ¸Ğ»ÑŒ ĞºĞ¾Ğ¼Ğ°Ğ½Ğ´Ğ¾Ğ¹ /set_profile",
+                "❌ Сначала настройте профиль с помощью /set_profile",
                 reply_markup=get_main_keyboard_v2()
             )
             return
-        
-        # Ğ¤Ğ¾Ñ€Ğ¼Ğ¸Ñ€ÑƒĞµĞ¼ Ğ¿Ñ€Ğ¾Ñ„Ğ¸Ğ»ÑŒ Ğ¿Ğ¾Ğ»ÑŒĞ·Ğ¾Ğ²Ğ°Ñ‚ĞµĞ»Ñ� Ğ´Ğ»Ñ� AI
-        user_profile = {
-            'name': user.first_name or 'Anonymous',
-            'weight': user.weight,
-            'height': user.height,
-            'age': user.age,
-            'gender': user.gender,
-            'goal': user.goal,
-            'daily_calories': user.daily_calorie_goal,
-            'daily_protein': user.daily_protein_goal,
-            'daily_fat': user.daily_fat_goal,
-            'daily_carbs': user.daily_carbs_goal,
-            'city': user.city
-        }
-        
-        # ĞŸĞ¾Ğ»ÑƒÑ‡Ğ°ĞµĞ¼ Ğ¿Ñ€ĞµĞ´Ğ¿Ğ¾Ñ‡Ñ‚ĞµĞ½Ğ¸Ñ�
-        meal_data = await state.get_data()
-        preferences = meal_data['preferences']
-        
-        # Ğ¤Ğ¾Ñ€Ğ¼Ğ¸Ñ€ÑƒĞµĞ¼ Ğ·Ğ°Ğ¿Ñ€Ğ¾Ñ� Ğº AI
-        ai_query = f"""
-        Ğ¡Ğ¾Ñ�Ñ‚Ğ°Ğ²ÑŒ Ğ´ĞµÑ‚Ğ°Ğ»ÑŒĞ½Ñ‹Ğ¹ Ğ¿Ğ»Ğ°Ğ½ Ğ¿Ğ¸Ñ‚Ğ°Ğ½Ğ¸Ñ� Ğ½Ğ° Ğ¾Ğ´Ğ¸Ğ½ Ğ´ĞµĞ½ÑŒ.
-        
-        Ğ¦ĞµĞ»ÑŒ: {user.goal}
-        ĞšĞ°Ğ»Ğ¾Ñ€Ğ¸Ğ¹Ğ½Ğ¾Ñ�Ñ‚ÑŒ: {user.daily_calorie_goal} ĞºĞºĞ°Ğ»
-        Ğ‘Ğ–Ğ£: Ğ‘{user.daily_protein_goal}Ğ³ Ğ–{user.daily_fat_goal}Ğ³ Ğ£{user.daily_carbs_goal}Ğ³
-        
-        ĞŸÑ€ĞµĞ´Ğ¿Ğ¾Ñ‡Ñ‚ĞµĞ½Ğ¸Ñ�: {preferences}
-        Ğ�Ğ³Ñ€Ğ°Ğ½Ğ¸Ñ‡ĞµĞ½Ğ¸Ñ�: {restrictions}
-        
-        Ğ’ĞºĞ»Ñ�Ñ‡Ğ¸:
-        1. Ğ—Ğ°Ğ²Ñ‚Ñ€Ğ°Ğº, Ğ¾Ğ±ĞµĞ´, ÑƒĞ¶Ğ¸Ğ½ + 1-2 Ğ¿ĞµÑ€ĞµĞºÑƒÑ�Ğ°
-        2. Ğ¢Ğ¾Ñ‡Ğ½Ğ¾Ğµ ĞºĞ¾Ğ»Ğ¸Ñ‡ĞµÑ�Ñ‚Ğ²Ğ¾ ĞºĞ°Ğ¶Ğ´Ğ¾Ğ³Ğ¾ Ğ¸Ğ½Ğ³Ñ€ĞµĞ´Ğ¸ĞµĞ½Ñ‚Ğ° Ğ² Ğ³Ñ€Ğ°Ğ¼Ğ¼Ğ°Ñ…
-        3. ĞšĞ°Ğ»Ğ¾Ñ€Ğ¸Ğ¸ Ğ¸ Ğ‘Ğ–Ğ£ Ğ´Ğ»Ñ� ĞºĞ°Ğ¶Ğ´Ğ¾Ğ³Ğ¾ Ğ¿Ñ€Ğ¸ĞµĞ¼Ğ° Ğ¿Ğ¸Ñ‰Ğ¸
-        4. ĞŸÑ€Ğ¾Ñ�Ñ‚Ñ‹Ğµ Ñ€ĞµÑ†ĞµĞ¿Ñ‚Ñ‹ Ğ¿Ñ€Ğ¸Ğ³Ğ¾Ñ‚Ğ¾Ğ²Ğ»ĞµĞ½Ğ¸Ñ�
-        5. Ğ ĞµĞºĞ¾Ğ¼ĞµĞ½Ğ´Ğ°Ñ†Ğ¸Ğ¸ Ğ¿Ğ¾ Ğ²Ñ€ĞµĞ¼ĞµĞ½Ğ¸ Ğ¿Ñ€Ğ¸ĞµĞ¼Ğ°
-        
-        Ğ¤Ğ¾Ñ€Ğ¼Ğ°Ñ‚: Ñ‡ĞµÑ‚ĞºĞ°Ñ� Ñ�Ñ‚Ñ€ÑƒĞºÑ‚ÑƒÑ€Ğ° Ñ� Ğ·Ğ°Ğ³Ğ¾Ğ»Ğ¾Ğ²ĞºĞ°Ğ¼Ğ¸ Ğ´Ğ»Ñ� ĞºĞ°Ğ¶Ğ´Ğ¾Ğ³Ğ¾ Ğ¿Ñ€Ğ¸ĞµĞ¼Ğ° Ğ¿Ğ¸Ñ‰Ğ¸
-        """
-        
-        try:
-            # Ğ�Ñ‚Ğ¿Ñ€Ğ°Ğ²Ğ»Ñ�ĞµĞ¼ "Ğ¿ĞµÑ‡Ğ°Ñ‚Ğ°ĞµÑ‚..."
-            await message.bot.send_chat_action(message.chat.id, "typing")
-            
-            # Ğ—Ğ°Ğ¿Ñ€Ğ¾Ñ� Ğº AI Ñ� Ğ¿Ñ€Ğ°Ğ²Ğ¸Ğ»ÑŒĞ½Ñ‹Ğ¼Ğ¸ Ğ¿Ğ°Ñ€Ğ°Ğ¼ĞµÑ‚Ñ€Ğ°Ğ¼Ğ¸
-            response_dict = await cf_manager.ai_assistant(
-                message=ai_query,
-                history=[],
-                user_profile=user_profile
-            )
-            
-            response = response_dict.get('response', 'Ğ�Ğµ ÑƒĞ´Ğ°Ğ»Ğ¾Ñ�ÑŒ Ñ�Ğ¾Ğ·Ğ´Ğ°Ñ‚ÑŒ Ğ¿Ğ»Ğ°Ğ½ Ğ¿Ğ¸Ñ‚Ğ°Ğ½Ğ¸Ñ�')
-            
-            await state.clear()
-            
-            await message.answer(
-                f"ğŸ�½ï¸� <b>Ğ’Ğ°Ñˆ Ğ¿ĞµÑ€Ñ�Ğ¾Ğ½Ğ°Ğ»ÑŒĞ½Ñ‹Ğ¹ Ğ¿Ğ»Ğ°Ğ½ Ğ¿Ğ¸Ñ‚Ğ°Ğ½Ğ¸Ñ�</b>\n\n{response}\n\n"
-                f"ğŸ’¡ <b>Ğ¡Ğ¾Ñ…Ñ€Ğ°Ğ½Ğ¸Ñ‚Ğµ Ñ�Ñ‚Ğ¾Ñ‚ Ğ¿Ğ»Ğ°Ğ½ Ğ¸ Ñ�Ğ»ĞµĞ´ÑƒĞ¹Ñ‚Ğµ ĞµĞ¼Ñƒ!</b>\n\n"
-                f"Ğ”Ğ»Ñ� Ğ½Ğ¾Ğ²Ğ¾Ğ³Ğ¾ Ğ¿Ğ»Ğ°Ğ½Ğ° Ğ¸Ñ�Ğ¿Ğ¾Ğ»ÑŒĞ·ÑƒĞ¹Ñ‚Ğµ /meal_plan",
-                reply_markup=get_main_keyboard_v2(),
-                parse_mode="HTML"
-            )
-            
-        except Exception as e:
-            logger.error(f"Ğ�ÑˆĞ¸Ğ±ĞºĞ° Ğ¿Ñ€Ğ¸ Ñ�Ğ¾Ğ·Ğ´Ğ°Ğ½Ğ¸Ğ¸ Ğ¿Ğ»Ğ°Ğ½Ğ° Ğ¿Ğ¸Ñ‚Ğ°Ğ½Ğ¸Ñ�: {e}")
-            await message.answer(
-                "â�Œ Ğ�Ğµ ÑƒĞ´Ğ°Ğ»Ğ¾Ñ�ÑŒ Ñ�Ğ¾Ğ·Ğ´Ğ°Ñ‚ÑŒ Ğ¿Ğ»Ğ°Ğ½ Ğ¿Ğ¸Ñ‚Ğ°Ğ½Ğ¸Ñ�. ĞŸĞ¾Ğ¿Ñ€Ğ¾Ğ±ÑƒĞ¹Ñ‚Ğµ Ğ¿Ğ¾Ğ·Ğ¶Ğµ.",
-                reply_markup=get_main_keyboard_v2()
-            )
+    
+    text = "🍽️ <b>План питания</b>\n\n"
+    text += "Я помогу составить персональный план питания на основе ваших целей.\n\n"
+    text += "📋 <b>Что нужно учесть:</b>\n"
+    text += "• Ваши цели (похудение/набор/поддержание)\n"
+    text += "• Калорийность и БЖУ\n"
+    text += "• Предпочтения в еде\n"
+    text += "• Аллергии и ограничения\n\n"
+    text += "🚀 <b>Начать составление плана?</b>"
+    
+    keyboard = [
+        ["✅ Да, составить план"],
+        ["❌ Нет, спасибо"]
+    ]
+    
+    await message.answer(text, reply_markup=keyboard)
+    await state.set_state(MealPlanStates.waiting_for_preferences)
 
-@router.message(Command("diet"))
-async def cmd_diet(message: Message, state: FSMContext):
-    """Ğ�Ğ»ÑŒÑ‚ĞµÑ€Ğ½Ğ°Ñ‚Ğ¸Ğ²Ğ½Ğ°Ñ� ĞºĞ¾Ğ¼Ğ°Ğ½Ğ´Ğ° Ğ´Ğ»Ñ� Ğ¿Ğ»Ğ°Ğ½Ğ° Ğ¿Ğ¸Ñ‚Ğ°Ğ½Ğ¸Ñ�"""
-    await cmd_meal_plan(message, state)
+@router.message(MealPlanStates.waiting_for_preferences)
+async def process_preferences(message: Message, state: FSMContext):
+    """Обработка предпочтений"""
+    if message.text == "❌ Нет, спасибо":
+        await state.clear()
+        await message.answer("👋 Понял! Если измените решение - используйте /meal_plan", reply_markup=get_main_keyboard_v2())
+        return
+    
+    if message.text != "✅ Да, составить план":
+        await message.answer("❌ Пожалуйста, выберите вариант из меню:")
+        return
+    
+    text = "🍽️ <b>Предпочтения в питании</b>\n\n"
+    text += "Расскажите о ваших предпочтениях:\n\n"
+    text += "💬 <b>Примеры:</b>\n"
+    text += "• Люблю мясо, не ем рыбу\n"
+    text += "• Вегетарианец, ем молочные продукты\n"
+    text += "• Предпочитаю простую еду, без экзотики\n"
+    text += "• Люблю овощи и злаки\n"
+    text += "• Ем всё, кроме острого\n\n"
+    text += "📝 <b>Опишите ваши предпочтения:</b>"
+    
+    await message.answer(text)
+    await state.set_state(MealPlanStates.waiting_for_restrictions)
 
-@router.message(Command("nutrition"))
-async def cmd_nutrition(message: Message, state: FSMContext):
-    """Ğ¡Ğ¾Ğ²ĞµÑ‚Ñ‹ Ğ¿Ğ¾ Ğ¿Ğ¸Ñ‚Ğ°Ğ½Ğ¸Ñ�"""
-    await state.clear()
+@router.message(MealPlanStates.waiting_for_restrictions)
+async def process_restrictions(message: Message, state: FSMContext):
+    """Обработка ограничений и составление плана"""
+    preferences = message.text.strip()
+    
+    if len(preferences) < 5:
+        await message.answer("❌ Слишком коротко. Расскажите подробнее о предпочтениях:")
+        return
+    
+    # Показываем загрузку
+    loading_msg = await message.answer(loading_card("AI составляет план питания..."))
     
     try:
-        # ĞŸĞ¾Ğ»ÑƒÑ‡Ğ°ĞµĞ¼ Ğ¸Ğ½Ñ„Ğ¾Ñ€Ğ¼Ğ°Ñ†Ğ¸Ñ� Ğ¾ Ğ¿Ğ¾Ğ»ÑŒĞ·Ğ¾Ğ²Ğ°Ñ‚ĞµĞ»Ğµ
+        # Получаем данные пользователя
         async with get_session() as session:
             result = await session.execute(
                 select(User).where(User.telegram_id == message.from_user.id)
             )
             user = result.scalar_one_or_none()
-            
-            if not user:
-                await message.answer(
-                    "â�Œ Ğ¡Ğ½Ğ°Ñ‡Ğ°Ğ»Ğ° Ğ½Ğ°Ñ�Ñ‚Ñ€Ğ¾Ğ¹Ñ‚Ğµ Ğ¿Ñ€Ğ¾Ñ„Ğ¸Ğ»ÑŒ ĞºĞ¾Ğ¼Ğ°Ğ½Ğ´Ğ¾Ğ¹ /set_profile",
-                    reply_markup=get_main_keyboard_v2()
-                )
-                return
-            
-            # Ğ¤Ğ¾Ñ€Ğ¼Ğ¸Ñ€ÑƒĞµĞ¼ Ğ¿Ñ€Ğ¾Ñ„Ğ¸Ğ»ÑŒ Ğ¿Ğ¾Ğ»ÑŒĞ·Ğ¾Ğ²Ğ°Ñ‚ĞµĞ»Ñ� Ğ´Ğ»Ñ� AI
-            user_profile = {
-                'name': user.first_name or 'Anonymous',
-                'weight': user.weight,
-                'height': user.height,
-                'age': user.age,
-                'gender': user.gender,
-                'goal': user.goal,
-                'daily_calories': user.daily_calorie_goal,
-                'daily_protein': user.daily_protein_goal,
-                'daily_fat': user.daily_fat_goal,
-                'daily_carbs': user.daily_carbs_goal,
-                'city': user.city
-            }
-            
-            # Ğ—Ğ°Ğ¿Ñ€Ğ¾Ñ� Ğº AI
-            ai_query = f"""
-            Ğ”Ğ°Ğ¹ Ğ¿ĞµÑ€Ñ�Ğ¾Ğ½Ğ°Ğ»ÑŒĞ½Ñ‹Ğµ Ñ€ĞµĞºĞ¾Ğ¼ĞµĞ½Ğ´Ğ°Ñ†Ğ¸Ğ¸ Ğ¿Ğ¾ Ğ¿Ğ¸Ñ‚Ğ°Ğ½Ğ¸Ñ� Ğ´Ğ»Ñ� Ñ†ĞµĞ»Ğ¸: {user.goal}
-            
-            Ğ’ĞºĞ»Ñ�Ñ‡Ğ¸:
-            1. Ğ�Ñ�Ğ½Ğ¾Ğ²Ğ½Ñ‹Ğµ Ğ¿Ñ€Ğ¸Ğ½Ñ†Ğ¸Ğ¿Ñ‹ Ğ¿Ğ¸Ñ‚Ğ°Ğ½Ğ¸Ñ�
-            2. Ğ ĞµĞºĞ¾Ğ¼ĞµĞ½Ğ´ÑƒĞµĞ¼Ñ‹Ğµ Ğ¿Ñ€Ğ¾Ğ´ÑƒĞºÑ‚Ñ‹
-            3. ĞŸÑ€Ğ¾Ğ´ÑƒĞºÑ‚Ñ‹ ĞºĞ¾Ñ‚Ğ¾Ñ€Ñ‹Ñ… Ñ�Ñ‚Ğ¾Ğ¸Ñ‚ Ğ¸Ğ·Ğ±ĞµĞ³Ğ°Ñ‚ÑŒ
-            4. Ğ’Ñ€ĞµĞ¼Ñ� Ğ¿Ñ€Ğ¸ĞµĞ¼Ğ° Ğ¿Ğ¸Ñ‰Ğ¸
-            5. Ğ’Ğ¾Ğ´Ğ½Ñ‹Ğ¹ Ğ±Ğ°Ğ»Ğ°Ğ½Ñ�
-            6. Ğ”Ğ¾Ğ¿Ğ¾Ğ»Ğ½Ğ¸Ñ‚ĞµĞ»ÑŒĞ½Ñ‹Ğµ Ñ�Ğ¾Ğ²ĞµÑ‚Ñ‹
-            
-            Ğ‘ÑƒĞ´ÑŒ ĞºÑ€Ğ°Ñ‚ĞºĞ¸Ğ¼, Ğ½Ğ¾ Ğ¸Ğ½Ñ„Ğ¾Ñ€Ğ¼Ğ°Ñ‚Ğ¸Ğ²Ğ½Ñ‹Ğ¼.
-            """
-            
-            # Ğ�Ñ‚Ğ¿Ñ€Ğ°Ğ²Ğ»Ñ�ĞµĞ¼ "Ğ¿ĞµÑ‡Ğ°Ñ‚Ğ°ĞµÑ‚..."
-            await message.bot.send_chat_action(message.chat.id, "typing")
-            
-            # Ğ—Ğ°Ğ¿Ñ€Ğ¾Ñ� Ğº AI Ñ� Ğ¿Ñ€Ğ°Ğ²Ğ¸Ğ»ÑŒĞ½Ñ‹Ğ¼Ğ¸ Ğ¿Ğ°Ñ€Ğ°Ğ¼ĞµÑ‚Ñ€Ğ°Ğ¼Ğ¸
-            response_dict = await cf_manager.ai_assistant(
-                message=ai_query,
-                history=[],
-                user_profile=user_profile
-            )
-            
-            response = response_dict.get('response', 'Ğ�Ğµ ÑƒĞ´Ğ°Ğ»Ğ¾Ñ�ÑŒ Ğ¿Ğ¾Ğ»ÑƒÑ‡Ğ¸Ñ‚ÑŒ Ñ€ĞµĞºĞ¾Ğ¼ĞµĞ½Ğ´Ğ°Ñ†Ğ¸Ğ¸')
-            
-            await message.answer(
-                f"ğŸ¥— <b>Ğ ĞµĞºĞ¾Ğ¼ĞµĞ½Ğ´Ğ°Ñ†Ğ¸Ğ¸ Ğ¿Ğ¾ Ğ¿Ğ¸Ñ‚Ğ°Ğ½Ğ¸Ñ�</b>\n\n{response}",
-                reply_markup=get_main_keyboard_v2(),
-                parse_mode="HTML"
-            )
-            
-    except Exception as e:
-        logger.error(f"Ğ�ÑˆĞ¸Ğ±ĞºĞ° Ğ¿Ñ€Ğ¸ Ğ¿Ğ¾Ğ»ÑƒÑ‡ĞµĞ½Ğ¸Ğ¸ Ñ€ĞµĞºĞ¾Ğ¼ĞµĞ½Ğ´Ğ°Ñ†Ğ¸Ğ¹: {e}")
-        await message.answer(
-            "â�Œ Ğ�Ğµ ÑƒĞ´Ğ°Ğ»Ğ¾Ñ�ÑŒ Ğ¿Ğ¾Ğ»ÑƒÑ‡Ğ¸Ñ‚ÑŒ Ñ€ĞµĞºĞ¾Ğ¼ĞµĞ½Ğ´Ğ°Ñ†Ğ¸Ğ¸. ĞŸĞ¾Ğ¿Ñ€Ğ¾Ğ±ÑƒĞ¹Ñ‚Ğµ Ğ¿Ğ¾Ğ·Ğ¶Ğµ.",
-            reply_markup=get_main_keyboard_v2()
+        
+        # Формируем промпт для AI
+        prompt = build_meal_plan_prompt(user, preferences)
+        
+        # Получаем план от AI
+        ai_response = await cf_manager.get_assistant_response(
+            question="Составь детальный план питания на день",
+            context=prompt
         )
+        
+        # Удаляем сообщение о загрузке
+        await loading_msg.delete()
+        
+        # Сохраняем план в базу данных
+        await save_meal_plan(user.telegram_id, ai_response, preferences)
+        
+        # Формируем красивый ответ
+        text = "🍽️ <b>Ваш персональный план питания</b>\n\n"
+        text += f"📊 <b>Ваши параметры:</b>\n"
+        text += f"• Цель: {user.goal}\n"
+        text += f"• Калории: {user.daily_calorie_goal} ккал\n"
+        text += f"• Белки: {user.daily_protein_goal} г\n"
+        text += f"• Жиры: {user.daily_fat_goal} г\n"
+        text += f"• Углеводы: {user.daily_carbs_goal} г\n\n"
+        
+        text += "📋 <b>План на день:</b>\n\n"
+        text += ai_response
+        
+        text += "\n\n💡 <b>Советы:</b>\n"
+        text += "• Пейте достаточно воды между приемами пищи\n"
+        text += "• Следите за размером порций\n"
+        text += "• Ешьте медленно и осознанно\n"
+        text += "• Корректируйте план по самочувствию\n\n"
+        
+        text += "🔄 <b>Хотите другой план?</b> Используйте /meal_plan"
+        
+        await message.answer(text, reply_markup=get_main_keyboard_v2())
+        await state.clear()
+        
+    except Exception as e:
+        logger.error(f"Error creating meal plan: {e}")
+        
+        # Удаляем сообщение о загрузке
+        await loading_msg.delete()
+        
+        # Показываем ошибку
+        error_msg = error_card(
+            "Не удалось составить план питания",
+            "Попробуйте еще раз или измените предпочтения"
+        )
+        await message.answer(error_msg, reply_markup=get_main_keyboard_v2())
+        await state.clear()
 
-@router.callback_query(F.data == "meal_plan")
-async def meal_plan_callback(callback: CallbackQuery, state: FSMContext):
-    """Callback Ğ´Ğ»Ñ� Ğ¿Ğ»Ğ°Ğ½Ğ° Ğ¿Ğ¸Ñ‚Ğ°Ğ½Ğ¸Ñ� Ğ¸Ğ· Ğ¼ĞµĞ½Ñ�"""
-    await callback.answer()
-    await cmd_meal_plan(callback.message, state)
+def build_meal_plan_prompt(user: User, preferences: str) -> str:
+    """Построить промпт для составления плана питания"""
+    prompt = f"""
+Ты - профессиональный диетолог и нутрициолог. Составь детальный план питания на день.
 
-@router.callback_query(F.data == "nutrition_tips")
-async def nutrition_tips_callback(callback: CallbackQuery, state: FSMContext):
-    """Callback Ğ´Ğ»Ñ� Ñ�Ğ¾Ğ²ĞµÑ‚Ğ¾Ğ² Ğ¿Ğ¾ Ğ¿Ğ¸Ñ‚Ğ°Ğ½Ğ¸Ñ� Ğ¸Ğ· Ğ¼ĞµĞ½Ñ�"""
-    await callback.answer()
-    await cmd_nutrition(callback.message, state)
+Данные пользователя:
+- Пол: {user.gender}
+- Возраст: {user.age} лет
+- Вес: {user.weight} кг
+- Рост: {user.height} см
+- Уровень активности: {user.activity_level}
+- Цель: {user.goal}
+
+Нормы КБЖУ на день:
+- Калории: {user.daily_calorie_goal} ккал
+- Белки: {user.daily_protein_goal} г
+- Жиры: {user.daily_fat_goal} г
+- Углеводы: {user.daily_carbs_goal} г
+
+Предпочтения пользователя:
+{preferences}
+
+Составь план питания, который:
+1. Соответствует нормам КБЖУ
+2. Учитывает предпочтения
+3. Содержит 5-6 приемов пищи (завтрак, перекус, обед, перекус, ужин)
+4. Указывает примерное время приема
+5. Дает конкретные блюда с размерами порций
+6. Предлагает варианты на выбор
+7. Включает рекомендации по приготовлению
+
+Формат ответа:
+🌅 ЗАВТРАК (7:00-8:00)
+[Блюдо 1] - [вес]г
+[Блюдо 2] - [вес]г
+КБЖУ: [калории] ккал | Б:[белки]г Ж:[жиры]г У:[углеводы]г
+
+🥨 ПЕРЕКУС (10:00-11:00)
+[Блюдо] - [вес]г
+КБЖУ: [калории] ккал | Б:[белки]г Ж:[жиры]г У:[углеводы]г
+
+И так далее для всех приемов пищи.
+
+В конце укажи итоговые КБЖУ за день.
+"""
+    
+    return prompt
+
+async def save_meal_plan(user_id: int, plan_text: str, preferences: str):
+    """Сохранить план питания в базу данных"""
+    from datetime import datetime, timezone
+    
+    async with get_session() as session:
+        # Проверяем, есть ли уже план на сегодня
+        today = datetime.now(timezone.utc).date()
+        
+        existing_plan = session.execute(
+            select(MealPlan).where(
+                MealPlan.user_id == user_id,
+                MealPlan.date == today
+            )
+        ).scalar_one_or_none()
+        
+        if existing_plan:
+            # Обновляем существующий план
+            existing_plan.planned_foods = plan_text
+            existing_plan.updated_at = datetime.now(timezone.utc)
+        else:
+            # Создаем новый план
+            meal_plan = MealPlan(
+                user_id=user_id,
+                date=today,
+                meal_type="daily_plan",
+                planned_foods=plan_text
+            )
+            session.add(meal_plan)
+        
+        await session.commit()
+
+@router.message(Command("my_meal_plan"))
+@router.message(Command("мой_план"))
+async def cmd_my_meal_plan(message: Message):
+    """Показать текущий план питания"""
+    user_id = message.from_user.id
+    
+    async with get_session() as session:
+        # Получаем план на сегодня
+        from datetime import datetime, timezone
+        today = datetime.now(timezone.utc).date()
+        
+        result = await session.execute(
+            select(MealPlan).where(
+                MealPlan.user_id == user_id,
+                MealPlan.date == today
+            )
+        )
+        meal_plan = result.scalar_one_or_none()
+        
+        if not meal_plan:
+            text = "📝 <b>План питания на сегодня</b>\n\n"
+            text += "У вас еще нет плана на сегодня.\n\n"
+            text += "🚀 <b>Составить план:</b> /meal_plan"
+            await message.answer(text)
+            return
+        
+        text = "📝 <b>Ваш план питания на сегодня</b>\n\n"
+        text += meal_plan.planned_foods
+        
+        if meal_plan.actual_foods:
+            text += "\n\n✅ <b>Фактически съедено:</b>\n"
+            text += meal_plan.actual_foods
+        
+        text += f"\n\n🕐 <b>План создан:</b> {meal_plan.created_at.strftime('%H:%M')}"
+        
+        await message.answer(text)
+
+@router.message(Command("meal_stats"))
+@router.message(Command("статистика_питания"))
+async def cmd_meal_stats(message: Message):
+    """Статистика выполнения плана питания"""
+    user_id = message.from_user.id
+    
+    # Получаем статистику за неделю
+    stats = await get_meal_plan_stats(user_id)
+    
+    text = "📊 <b>Статистика выполнения плана питания</b>\n\n"
+    
+    # За сегодня
+    today_completion = stats['today']['completion_rate']
+    today_bar = ProgressBar.create_modern_bar(today_completion, 100, 15, 'default')
+    
+    text += f"📅 <b>Сегодня:</b>\n"
+    text += f"   Выполнение плана: {today_bar}\n"
+    text += f"   Приемов пищи: {stats['today']['completed']}/{stats['today']['planned']}\n\n"
+    
+    # За неделю
+    week_completion = stats['week']['completion_rate']
+    week_bar = ProgressBar.create_modern_bar(week_completion, 100, 15, 'default')
+    
+    text += f"📆 <b>За неделю:</b>\n"
+    text += f"   Выполнение плана: {week_bar}\n"
+    text += f"   Приемов пищи: {stats['week']['completed']}/{stats['week']['planned']}\n\n"
+    
+    # Мотивация
+    if today_completion >= 90:
+        text += "🎉 <b>Отлично!</b> Вы придерживаетесь плана!\n"
+    elif today_completion >= 70:
+        text += "💪 <b>Хорошо!</b> Стараетесь следовать плану!\n"
+    else:
+        text += "💡 <b>Совет:</b> Постарайтесь лучше придерживаться плана для достижения целей!\n"
+    
+    await message.answer(text)
+
+async def get_meal_plan_stats(user_id: int) -> dict:
+    """Получить статистику выполнения плана питания"""
+    from datetime import datetime, timezone, timedelta
+    
+    async with get_session() as session:
+        now = datetime.now(timezone.utc)
+        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        week_start = today_start - timedelta(days=today_start.weekday())
+        
+        def get_period_stats(start_date):
+            result = session.execute(
+                select(MealPlan).where(
+                    MealPlan.user_id == user_id,
+                    MealPlan.date >= start_date
+                )
+            )
+            plans = result.scalars().all()
+            
+            planned = len(plans)
+            completed = sum(1 for plan in plans if plan.is_completed)
+            completion_rate = (completed / planned * 100) if planned > 0 else 0
+            
+            return {
+                'planned': planned,
+                'completed': completed,
+                'completion_rate': completion_rate
+            }
+        
+        return {
+            'today': get_period_stats(today_start),
+            'week': get_period_stats(week_start)
+        }

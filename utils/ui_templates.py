@@ -7,6 +7,46 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+class ProgressBar:
+    """Progress bar utility for creating visual progress indicators"""
+    
+    @staticmethod
+    def create_modern_bar(progress: float, max_value: float = 100, length: int = 10, style: str = 'default') -> str:
+        """Create a modern progress bar with different styles"""
+        # Ensure progress is within bounds
+        progress = max(0, min(progress, max_value))
+        filled_length = int((progress / max_value) * length)
+        
+        # Style definitions
+        styles = {
+            'default': {'filled': '=', 'empty': '-'},
+            'neon': {'filled': '#', 'empty': '-'},
+            'protein': {'filled': 'P', 'empty': '-'},
+            'fat': {'filled': 'F', 'empty': '-'},
+            'carbs': {'filled': 'C', 'empty': '-'},
+            'water': {'filled': 'W', 'empty': '-'},
+            'activity': {'filled': 'A', 'empty': '-'}
+        }
+        
+        style_config = styles.get(style, styles['default'])
+        filled_char = style_config['filled']
+        empty_char = style_config['empty']
+        
+        # Create bar
+        bar = filled_char * filled_length + empty_char * (length - filled_length)
+        percentage = (progress / max_value) * 100
+        
+        return f"{bar} {percentage:.1f}%"
+    
+    @staticmethod
+    def create_simple_bar(progress: float, max_value: float = 100, length: int = 10) -> str:
+        """Create a simple progress bar"""
+        progress = max(0, min(progress, max_value))
+        filled_length = int((progress / max_value) * length)
+        bar = '=' * filled_length + '-' * (length - filled_length)
+        percentage = (progress / max_value) * 100
+        return f"{bar} {percentage:.0f}%"
+
 class UITemplates:
     """Премиальные UI шаблоны"""
     

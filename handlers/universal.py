@@ -21,334 +21,474 @@ user_photo_semaphores = {}
 @router.message(~F.command)
 async def universal_handler(message: Message, state: FSMContext):
     """
-    Ğ£Ğ½Ğ¸Ğ²ĞµÑ€Ñ�Ğ°Ğ»ÑŒĞ½Ñ‹Ğ¹ Ğ¾Ğ±Ñ€Ğ°Ğ±Ğ¾Ñ‚Ñ‡Ğ¸Ğº Ğ²Ñ�ĞµÑ… Ñ�Ğ¾Ğ¾Ğ±Ñ‰ĞµĞ½Ğ¸Ğ¹ (ĞºÑ€Ğ¾Ğ¼Ğµ ĞºĞ¾Ğ¼Ğ°Ğ½Ğ´)
+    Универсальный обработчик всех сообщений (кроме команд)
     """
     user_id = message.from_user.id
     
     try:
-        # ĞŸÑ€Ğ¾Ğ²ĞµÑ€Ñ�ĞµĞ¼ FSM-Ñ�Ğ¾Ñ�Ñ‚Ğ¾Ñ�Ğ½Ğ¸Ğµ Ğ¿ĞµÑ€ĞµĞ´# Проверяем FSM-состояние перед обработкой
+        # Проверяем FSM-состояние перед обработкой
         current_state = await state.get_state()
-        if current_state:
-            logger.info(f"User {user_id} has active FSM state: {current_state}")
-            # Если есть активное состояние, сообщаем пользователю о необходимости завершить действие
-            await message.answer(
-                "⚠️ <b>У вас есть незавершённое действие</b>\n\n"
-                "Пожалуйста, завершите текущее действие или нажмите /cancel для отмены.\n"
-                "После этого вы сможете продолжить работу с ботом.",
-                parse_mode="HTML"
-            )
+        
+        # Если пользователь в состоянии, не обрабатываем здесь
+        if current_state and not current_state.startswith("AIStates:"):
+            # Пользователь в процессе другого действия
             return
         
-        # ĞŸĞ¾Ğ»ÑƒÑ‡Ğ°ĞµĞ¼ Ğ¸Ğ»Ğ¸ Ñ�Ğ¾Ğ·Ğ´Ğ°Ñ‘Ğ¼ Ğ°Ğ³ĞµĞ½Ñ‚Ğ° Ğ´Ğ»Ñ� Ğ¿Ğ¾Ğ»ÑŒĞ·Ğ¾Ğ²Ğ°Ñ‚ĞµĞ»Ñ�
-        agent = LangChainAgent.get_for_user(user_id, state)
-        
-        # Ğ�Ğ±Ñ€Ğ°Ğ±Ğ°Ñ‚Ñ‹Ğ²Ğ°ĞµĞ¼ Ñ€Ğ°Ğ·Ğ½Ñ‹Ğµ Ñ‚Ğ¸Ğ¿Ñ‹ Ñ�Ğ¾Ğ¾Ğ±Ñ‰ĞµĞ½Ğ¸Ğ¹
-        if message.photo:
-            await handle_photo(message, agent, state)
-        elif message.voice:
-            await handle_voice(message, agent)
-        elif message.text:
-            # Сначала пробуем обработать через food_clarification
-            from handlers.food_clarification import handle_food_text
-            if await handle_food_text(message, state):
-                return  # Если food_clarification обработал, выходим
-            # Иначе передаем в AI агент
-            await agent.handle_text(message.text, message)
-        else:
-            await message.answer(
-                "ğŸ¤– Ğ¯ Ğ¿Ğ¾ĞºĞ° Ğ¿Ğ¾Ğ½Ğ¸Ğ¼Ğ°Ñ� Ñ‚Ğ¾Ğ»ÑŒĞºĞ¾ Ñ‚ĞµĞºÑ�Ñ‚, Ñ„Ğ¾Ñ‚Ğ¾ Ğ¸ Ğ³Ğ¾Ğ»Ğ¾Ñ�Ğ¾Ğ²Ñ‹Ğµ Ñ�Ğ¾Ğ¾Ğ±Ñ‰ĞµĞ½Ğ¸Ñ�.",
-                parse_mode="HTML"
-            )
-            
-    except Exception as e:
-        logger.error(f"â�Œ Error in universal_handler: {e}")
-        await message.answer(
-            error_card("general", f"Ğ�ÑˆĞ¸Ğ±ĞºĞ° Ğ¾Ğ±Ñ€Ğ°Ğ±Ğ¾Ñ‚ĞºĞ¸: {str(e)}"),
-            parse_mode="HTML"
-        )
-
-async def handle_photo(message: Message, agent: LangChainAgent, state: FSMContext):
-    """Ğ�Ğ±Ñ€Ğ°Ğ±Ğ¾Ñ‚ĞºĞ° Ñ„Ğ¾Ñ‚Ğ¾ Ñ� Ğ¿Ğ°Ñ€Ğ°Ğ»Ğ»ĞµĞ»ÑŒĞ½Ñ‹Ğ¼ Ğ°Ğ½Ğ°Ğ»Ğ¸Ğ·Ğ¾Ğ¼"""
-    try:
-        # ĞŸĞ¾ĞºĞ°Ğ·Ñ‹Ğ²Ğ°ĞµĞ¼ Ğ·Ğ°Ğ³Ñ€ÑƒĞ·ĞºÑƒ
-        await message.answer(
-            loading_card('photo'),
-            parse_mode="HTML"
-        )
-        
-        # Проверяем, не обрабатывается ли уже фото для этого пользователя
-        user_id = message.from_user.id
+        # Инициализируем семафор для пользователя если нужно
         if user_id not in user_photo_semaphores:
             user_photo_semaphores[user_id] = asyncio.Semaphore(1)
         
-        # Запускаем анализ фото с семафором
-        import asyncio
-        asyncio.create_task(analyze_photo_with_semaphore(message, agent, state, user_photo_semaphores[user_id]))
-        
-    except Exception as e:
-        logger.error(f"â�Œ Error in handle_photo: {e}")
-        await message.answer(
-            error_card("ai", f"Ğ�ÑˆĞ¸Ğ±ĞºĞ° Ğ°Ğ½Ğ°Ğ»Ğ¸Ğ·Ğ° Ñ„Ğ¾Ñ‚Ğ¾: {str(e)}"),
-            parse_mode="HTML"
-        )
-
-async def handle_voice(message: Message, agent: LangChainAgent):
-    """Ğ�Ğ±Ñ€Ğ°Ğ±Ğ¾Ñ‚ĞºĞ° Ğ³Ğ¾Ğ»Ğ¾Ñ�Ğ¾Ğ²Ñ‹Ñ… Ñ�Ğ¾Ğ¾Ğ±Ñ‰ĞµĞ½Ğ¸Ğ¹"""
-    try:
-        # ĞŸĞ¾ĞºĞ°Ğ·Ñ‹Ğ²Ğ°ĞµĞ¼ Ğ·Ğ°Ğ³Ñ€ÑƒĞ·ĞºÑƒ
-        loading_msg = await message.answer(
-            loading_card('voice'),
-            parse_mode="HTML"
-        )
-        
-        # Ğ¢Ñ€Ğ°Ğ½Ñ�ĞºÑ€Ğ¸Ğ±Ğ¸Ñ€ÑƒĞµĞ¼ Ğ³Ğ¾Ğ»Ğ¾Ñ�
-        try:
-            text = await transcribe_voice(message)
-            
-            if text:
-                # Ğ£Ğ´Ğ°Ğ»Ñ�ĞµĞ¼ Ñ�Ğ¾Ğ¾Ğ±Ñ‰ĞµĞ½Ğ¸Ğµ Ğ·Ğ°Ğ³Ñ€ÑƒĞ·ĞºĞ¸
-                await loading_msg.delete()
-                
-                # ĞŸĞµÑ€ĞµĞ´Ğ°ĞµĞ¼ Ñ‚ĞµĞºÑ�Ñ‚ Ğ°Ğ³ĞµĞ½Ñ‚Ñƒ
-                response = await agent.process_message(text)
-                await message.answer(response, parse_mode="HTML")
-            else:
-                await loading_msg.edit_text(
-                    "â�Œ Ğ�Ğµ ÑƒĞ´Ğ°Ğ»Ğ¾Ñ�ÑŒ Ñ€Ğ°Ñ�Ğ¿Ğ¾Ğ·Ğ½Ğ°Ñ‚ÑŒ Ñ€ĞµÑ‡ÑŒ. ĞŸĞ¾Ğ¿Ñ€Ğ¾Ğ±ÑƒĞ¹Ñ‚Ğµ ĞµÑ‰Ñ‘ Ñ€Ğ°Ğ·.",
-                    parse_mode="HTML"
-                )
-        except Exception as transcribe_error:
-            logger.error(f"â�Œ Voice transcription error: {transcribe_error}")
-            await loading_msg.edit_text(
-                "â�Œ Ğ�ÑˆĞ¸Ğ±ĞºĞ° Ğ¿Ñ€Ğ¸ Ñ€Ğ°Ñ�Ğ¿Ğ¾Ğ·Ğ½Ğ°Ğ²Ğ°Ğ½Ğ¸Ğ¸ Ñ€ĞµÑ‡Ğ¸. ĞŸĞ¾Ğ¿Ñ€Ğ¾Ğ±ÑƒĞ¹Ñ‚Ğµ Ğ¾Ñ‚Ğ¿Ñ€Ğ°Ğ²Ğ¸Ñ‚ÑŒ Ñ‚ĞµĞºÑ�Ñ‚Ğ¾Ğ²Ğ¾Ğµ Ñ�Ğ¾Ğ¾Ğ±Ñ‰ĞµĞ½Ğ¸Ğµ.",
-                parse_mode="HTML"
-            )
-            
-    except Exception as e:
-        logger.error(f"â�Œ Error in handle_voice: {e}")
-        await message.answer(
-            error_card("ai", f"Ğ�ÑˆĞ¸Ğ±ĞºĞ° Ğ¾Ğ±Ñ€Ğ°Ğ±Ğ¾Ñ‚ĞºĞ¸ Ğ³Ğ¾Ğ»Ğ¾Ñ�Ğ°: {str(e)}"),
-            parse_mode="HTML"
-        )
-
-async def analyze_photo_with_semaphore(message: Message, agent: LangChainAgent, state: FSMContext, semaphore: asyncio.Semaphore):
-    """
-    ĞŸĞ°Ñ€Ğ°Ğ»Ğ»ĞµĞ»ÑŒĞ½Ñ‹Ğ¹ Ğ°Ğ½Ğ°Ğ»Ğ¸Ğ· Ñ„Ğ¾Ñ‚Ğ¾ Ñ� Ğ²Ñ‹Ğ±Ğ¾Ñ€Ğ¾Ğ¼ Ñ‚Ğ¸Ğ¿Ğ° Ğ¿Ñ€Ğ¸Ñ‘Ğ¼Ğ° Ğ¿Ğ¸Ñ‰Ğ¸ Ñ� Ñ�ĞµĞ¼Ğ°Ñ„Ğ¾Ñ€Ğ¾Ğ¼
-    """
-    async with semaphore:
-        try:
-            from services.cloudflare_manager import cf_manager
-            from services.food_save_service import food_save_service
-            from utils.premium_templates import meal_card
-            
-            # Ğ¡ĞºĞ°Ñ‡Ğ¸Ğ²Ğ°ĞµĞ¼ Ñ„Ğ¾Ñ‚Ğ¾
-            file = await message.bot.get_file(message.photo[-1].file_id)
-            photo_bytes = await message.bot.download_file(file.file_path)
-            
-            # Ğ�Ğ½Ğ°Ğ»Ğ¸Ğ·Ğ¸Ñ€ÑƒĞµĞ¼ Ñ„Ğ¾Ñ‚Ğ¾ Ñ‡ĞµÑ€ĞµĞ· AI Ñ� Ğ¿Ğ¾Ğ´Ğ¿Ğ¸Ñ�ÑŒÑ�
-            caption = message.caption or ""
-            analysis_result = await cf_manager.analyze_food_photo(photo_bytes.read(), caption)
-            
-            if not analysis_result.get("success"):
-                error_msg = analysis_result.get("error", "Ğ�Ğµ ÑƒĞ´Ğ°Ğ»Ğ¾Ñ�ÑŒ Ğ¿Ñ€Ğ¾Ğ°Ğ½Ğ°Ğ»Ğ¸Ğ·Ğ¸Ñ€Ğ¾Ğ²Ğ°Ñ‚ÑŒ Ñ„Ğ¾Ñ‚Ğ¾")
-                logger.error(f"Photo analysis failed: {error_msg}")
-                await message.answer(
-                    error_card("ai", f"Ğ�Ğµ ÑƒĞ´Ğ°Ğ»Ğ¾Ñ�ÑŒ Ğ¿Ñ€Ğ¾Ğ°Ğ½Ğ°Ğ»Ğ¸Ğ·Ğ¸Ñ€Ğ¾Ğ²Ğ°Ñ‚ÑŒ Ñ„Ğ¾Ñ‚Ğ¾: {error_msg}. ĞŸĞ¾Ğ¿Ñ€Ğ¾Ğ±ÑƒĞ¹Ñ‚Ğµ ĞµÑ‰Ñ‘ Ñ€Ğ°Ğ·."),
-                    parse_mode="HTML"
-                )
-                return
-            
-            # ĞŸĞ¾Ğ»ÑƒÑ‡Ğ°ĞµĞ¼ Ğ´Ğ°Ğ½Ğ½Ñ‹Ğµ Ğ¾ ĞµĞ´Ğµ
-            food_data = analysis_result["data"]
-            
-            # Ğ“ĞµĞ½ĞµÑ€Ğ¸Ñ€ÑƒĞµĞ¼ ÑƒĞ½Ğ¸ĞºĞ°Ğ»ÑŒĞ½Ñ‹Ğ¹ ID Ğ¸ Ñ�Ğ¾Ñ…Ñ€Ğ°Ğ½Ñ�ĞµĞ¼ Ğ´Ğ°Ğ½Ğ½Ñ‹Ğµ Ğ²Ğ¾Ğ²Ñ€ĞµĞ¼Ğ½Ğ¾Ğµ Ñ…Ñ€Ğ°Ğ½Ğ¸Ğ»Ğ¸Ñ‰Ğµ
-            import uuid
-            analysis_id = str(uuid.uuid4())[:8]
-            
-            # Ğ¡Ğ¾Ñ…Ñ€Ğ°Ğ½Ñ�ĞµĞ¼ Ğ´Ğ°Ğ½Ğ½Ñ‹Ğµ Ğ² FSM
-            await state.update_data(photo_analysis={analysis_id: food_data})
-            
-            # ĞŸĞ¾ĞºĞ°Ğ·Ñ‹Ğ²Ğ°ĞµĞ¼ ĞºĞ»Ğ°Ğ²Ğ¸Ğ°Ñ‚ÑƒÑ€Ñƒ Ğ²Ñ‹Ğ±Ğ¾Ñ€Ğ° Ñ‚Ğ¸Ğ¿Ğ° Ğ¿Ñ€Ğ¸Ñ‘Ğ¼Ğ° Ğ¿Ğ¸Ñ‰Ğ¸
-            keyboard = InlineKeyboardBuilder()
-            keyboard.button(text="ğŸŒ… Ğ—Ğ°Ğ²Ñ‚Ñ€Ğ°Ğº", callback_data=f"meal_type_breakfast_{analysis_id}")
-            keyboard.button(text="â˜€ï¸� Ğ�Ğ±ĞµĞ´", callback_data=f"meal_type_lunch_{analysis_id}")
-            keyboard.button(text="ğŸŒ† Ğ£Ğ¶Ğ¸Ğ½", callback_data=f"meal_type_dinner_{analysis_id}")
-            keyboard.button(text="ğŸ�� ĞŸĞµÑ€ĞµĞºÑƒÑ�", callback_data=f"meal_type_snack_{analysis_id}")
-            keyboard.adjust(2)
-            
-            await message.answer(
-                "ğŸ“¸ <b>Ğ¤Ğ¾Ñ‚Ğ¾ Ğ¿Ñ€Ğ¾Ğ°Ğ½Ğ°Ğ»Ğ¸Ğ·Ğ¸Ñ€Ğ¾Ğ²Ğ°Ğ½Ğ¾!</b>\n\n"
-                f"ğŸ�½ï¸� <b>Ğ Ğ°Ñ�Ğ¿Ğ¾Ğ·Ğ½Ğ°Ğ½Ğ¾:</b> {food_data.get('dish_name', 'Ğ‘Ğ»Ñ�Ğ´Ğ¾')}\n\n"
-                "ğŸ�½ï¸� <b>Ğ’Ñ‹Ğ±ĞµÑ€Ğ¸Ñ‚Ğµ Ñ‚Ğ¸Ğ¿ Ğ¿Ñ€Ğ¸Ñ‘Ğ¼Ğ° Ğ¿Ğ¸Ñ‰Ğ¸:</b>",
-                reply_markup=keyboard.as_markup(),
-                parse_mode="HTML"
-            )
-            
-        except Exception as e:
-            logger.error(f"â�Œ Error in analyze_photo_with_semaphore: {e}")
-            await message.answer(
-                error_card("ai", f"Ğ�ÑˆĞ¸Ğ±ĞºĞ° Ğ°Ğ½Ğ°Ğ»Ğ¸Ğ·Ğ° Ñ„Ğ¾Ñ‚Ğ¾: {str(e)}"),
-                parse_mode="HTML"
-            )
-
-async def transcribe_voice(message: Message) -> str:
-    """
-    Ğ¢Ñ€Ğ°Ğ½Ñ�ĞºÑ€Ğ¸Ğ±Ğ°Ñ†Ğ¸Ñ� Ğ³Ğ¾Ğ»Ğ¾Ñ�Ğ¾Ğ²Ğ¾Ğ³Ğ¾ Ñ�Ğ¾Ğ¾Ğ±Ñ‰ĞµĞ½Ğ¸Ñ�
-    """
-    from utils.retry_utils import with_retry
-    
-    @with_retry(max_attempts=3, delay_seconds=1)
-    async def _transcribe():
-        from services.cloudflare_manager import cf_manager
-        
-        # Ğ¡ĞºĞ°Ñ‡Ğ¸Ğ²Ğ°ĞµĞ¼ Ğ³Ğ¾Ğ»Ğ¾Ñ�Ğ¾Ğ²Ğ¾Ğµ Ñ�Ğ¾Ğ¾Ğ±Ñ‰ĞµĞ½Ğ¸Ğµ
-        file = await message.bot.get_file(message.voice.file_id)
-        voice_bytes = await message.bot.download_file(file.file_path)
-        
-        # Ğ¢Ñ€Ğ°Ğ½Ñ�ĞºÑ€Ğ¸Ğ±Ğ¸Ñ€ÑƒĞµĞ¼ Ñ‡ĞµÑ€ĞµĞ· Cloudflare Whisper
-        result = await cf_manager.transcribe_audio(voice_bytes.read())
-        
-        if result.get("success"):
-            text = result.get("text", "")
-            logger.info(f"ğŸ�¤ Voice transcribed: {text[:50]}...")
-            return text
+        # Обработка в зависимости от типа контента
+        if message.photo:
+            await handle_photo_message(message, state)
+        elif message.text:
+            await handle_text_message(message, state)
+        elif message.voice:
+            await handle_voice_message(message, state)
+        elif message.video:
+            await handle_video_message(message, state)
+        elif message.document:
+            await handle_document_message(message, state)
         else:
-            error_msg = result.get('error', 'Unknown error')
-            logger.error(f"â�Œ Voice transcription failed: {error_msg}")
-            # Ğ�Ñ‚Ğ¿Ñ€Ğ°Ğ²Ğ»Ñ�ĞµĞ¼ Ñ�Ğ¾Ğ¾Ğ±Ñ‰ĞµĞ½Ğ¸Ğµ Ğ¾Ğ± Ğ¾ÑˆĞ¸Ğ±ĞºĞµ Ğ¿Ğ¾Ğ»ÑŒĞ·Ğ¾Ğ²Ğ°Ñ‚ĞµĞ»Ñ�
-            await message.answer(
-                "â�Œ Ğ�Ğµ ÑƒĞ´Ğ°Ğ»Ğ¾Ñ�ÑŒ Ñ€Ğ°Ñ�Ğ¿Ğ¾Ğ·Ğ½Ğ°Ñ‚ÑŒ Ğ³Ğ¾Ğ»Ğ¾Ñ�. ĞŸĞ¾Ğ¿Ñ€Ğ¾Ğ±ÑƒĞ¹Ñ‚Ğµ ĞµÑ‰Ñ‘ Ñ€Ğ°Ğ· Ğ¸Ğ»Ğ¸ Ğ½Ğ°Ğ¿Ğ¸ÑˆĞ¸Ñ‚Ğµ Ñ‚ĞµĞºÑ�Ñ‚.",
-                parse_mode="HTML"
+            # Неизвестный тип контента
+            await handle_unknown_message(message, state)
+            
+    except Exception as e:
+        logger.error(f"Error in universal handler for user {user_id}: {e}")
+        await message.answer(
+            error_card(
+                "Произошла ошибка обработки",
+                "Попробуйте еще раз или используйте /help"
             )
-            return None
+        )
+
+async def handle_photo_message(message: Message, state: FSMContext):
+    """Обработка фото сообщений"""
+    user_id = message.from_user.id
+    
+    async with user_photo_semaphores[user_id]:
+        try:
+            # Показываем загрузку
+            loading_msg = await message.answer(
+                loading_card("AI анализирует фото...")
+            )
+            
+            # Инициализируем LangChain агент
+            agent = LangChainAgent()
+            
+            # Получаем фото
+            photo = message.photo[-1]  # Самое большое фото
+            file_info = await message.bot.get_file(photo.file_id)
+            
+            # Скачиваем фото
+            downloaded_file = await message.bot.download_file(file_info.file_path)
+            
+            # Обрабатываем фото через агент
+            result = await agent.process_photo(
+                user_id=user_id,
+                photo_data=downloaded_file,
+                filename=file_info.file_path
+            )
+            
+            # Удаляем сообщение о загрузке
+            await loading_msg.delete()
+            
+            # Отправляем результат
+            if result.get('success'):
+                await message.answer(
+                    result['message'],
+                    parse_mode="HTML"
+                )
+            else:
+                await message.answer(
+                    error_card(
+                        "Не удалось распознать фото",
+                        result.get('error', "Попробуйте сделать фото более качественным")
+                    )
+                )
+                
+        except Exception as e:
+            logger.error(f"Error processing photo for user {user_id}: {e}")
+            
+            # Удаляем сообщение о загрузке если существует
+            try:
+                await loading_msg.delete()
+            except:
+                pass
+            
+            await message.answer(
+                error_card(
+                    "Ошибка обработки фото",
+                    "Попробуйте еще раз"
+                )
+            )
+
+async def handle_text_message(message: Message, state: FSMContext):
+    """Обработка текстовых сообщений"""
+    user_id = message.from_user.id
+    text = message.text.strip()
+    
+    # Проверяем, не является ли это кнопкой из reply клавиатуры
+    if any(emoji in text for emoji in ["🍽️", "💧", "🏃‍♂️", "⚖️", "📊", "🍽️", "🏆", "🤖", "👤", "⚙️"]):
+        # Это кнопка, обработка будет в reply_handlers.py
+        return
+    
+    # Проверяем FSM состояние
+    current_state = await state.get_state()
+    
+    if current_state and current_state.startswith("AIStates:"):
+        # Пользователь в диалоге с AI, обрабатываем как вопрос
+        await handle_ai_question(message, state)
+        return
+    
+    # Инициализируем LangChain агент для текста
+    agent = LangChainAgent()
     
     try:
-        return await _transcribe()
-    except Exception as e:
-        logger.error(f"â�Œ Error in transcribe_voice: {e}")
-        await message.answer(
-            "â�Œ Ğ�ÑˆĞ¸Ğ±ĞºĞ° Ğ¿Ñ€Ğ¸ Ñ€Ğ°Ñ�Ğ¿Ğ¾Ğ·Ğ½Ğ°Ğ²Ğ°Ğ½Ğ¸Ğ¸ Ñ€ĞµÑ‡Ğ¸. ĞŸĞ¾Ğ¿Ñ€Ğ¾Ğ±ÑƒĞ¹Ñ‚Ğµ Ğ¾Ñ‚Ğ¿Ñ€Ğ°Ğ²Ğ¸Ñ‚ÑŒ Ñ‚ĞµĞºÑ�Ñ‚Ğ¾Ğ²Ğ¾Ğµ Ñ�Ğ¾Ğ¾Ğ±Ñ‰ĞµĞ½Ğ¸Ğµ.",
-            parse_mode="HTML"
+        # Показываем загрузку для сложных запросов
+        if len(text) > 50 or "?" in text:
+            loading_msg = await message.answer(
+                loading_card("AI обрабатывает запрос...")
+            )
+        else:
+            loading_msg = None
+        
+        # Обрабатываем текст через агент
+        result = await agent.process_text(
+            user_id=user_id,
+            text=text
         )
-        return None
-
-# Callback Ğ¾Ğ±Ñ€Ğ°Ğ±Ğ¾Ñ‚Ñ‡Ğ¸ĞºĞ¸ Ğ´Ğ»Ñ� Ğ²Ñ‹Ğ±Ğ¾Ñ€Ğ° Ñ‚Ğ¸Ğ¿Ğ° Ğ¿Ñ€Ğ¸Ñ‘Ğ¼Ğ° Ğ¿Ğ¸Ñ‰Ğ¸
-@router.callback_query(F.data.startswith("meal_type_"))
-async def meal_type_callback(callback: CallbackQuery, state: FSMContext):
-    """
-    Ğ�Ğ±Ñ€Ğ°Ğ±Ğ¾Ñ‚ĞºĞ° Ğ²Ñ‹Ğ±Ğ¾Ñ€Ğ° Ñ‚Ğ¸Ğ¿Ğ° Ğ¿Ñ€Ğ¸Ñ‘Ğ¼Ğ° Ğ¿Ğ¸Ñ‰Ğ¸ Ğ¿Ğ¾Ñ�Ğ»Ğµ Ğ°Ğ½Ğ°Ğ»Ğ¸Ğ·Ğ° Ñ„Ğ¾Ñ‚Ğ¾
-    """
-    try:
-        # ĞŸĞ°Ñ€Ñ�Ğ¸Ğ¼ callback_data
-        parts = callback.data.split("_", 2)
-        meal_type = parts[1]  # breakfast, lunch, dinner, snack
-        analysis_id = parts[2]
         
-        # ĞŸĞ¾Ğ»ÑƒÑ‡Ğ°ĞµĞ¼ Ğ´Ğ°Ğ½Ğ½Ñ‹Ğµ Ğ¸Ğ· FSM
-        state_data = await state.get_data()
-        photo_analysis = state_data.get("photo_analysis", {})
-        food_data = photo_analysis.get(analysis_id)
+        # Удаляем сообщение о загрузке
+        if loading_msg:
+            await loading_msg.delete()
         
-        if not food_data:
-            await callback.answer("â�Œ Ğ”Ğ°Ğ½Ğ½Ñ‹Ğµ Ğ°Ğ½Ğ°Ğ»Ğ¸Ğ·Ğ° ÑƒÑ�Ñ‚Ğ°Ñ€ĞµĞ»Ğ¸. ĞŸĞ¾Ğ¿Ñ€Ğ¾Ğ±ÑƒĞ¹Ñ‚Ğµ Ğ¾Ñ‚Ğ¿Ñ€Ğ°Ğ²Ğ¸Ñ‚ÑŒ Ñ„Ğ¾Ñ‚Ğ¾ Ğ·Ğ°Ğ½Ğ¾Ğ²Ğ¾.", show_alert=True)
-            return
-        
-        # ĞŸĞ¾Ğ»ÑƒÑ‡Ğ°ĞµĞ¼ Ğ°Ğ³ĞµĞ½Ñ‚Ğ°
-        agent = LangChainAgent.get_for_user(callback.from_user.id, state)
-        
-        # Ğ¡Ğ¾Ñ…Ñ€Ğ°Ğ½Ñ�ĞµĞ¼ Ğ¿Ñ€Ğ¸Ñ‘Ğ¼ Ğ¿Ğ¸Ñ‰Ğ¸
-        from services.food_save_service import food_save_service
-        from utils.premium_templates import meal_card
-        from utils.helpers import get_daily_stats
-        
-        # Ğ˜Ñ�Ğ¿Ğ¾Ğ»ÑŒĞ·ÑƒĞµĞ¼ save_food_to_db Ñ� Ğ´ĞµÑ‚Ğ°Ğ»ÑŒĞ½Ñ‹Ğ¼Ğ¸ Ğ¸Ğ½Ğ³Ñ€ĞµĞ´Ğ¸ĞµĞ½Ñ‚Ğ°Ğ¼Ğ¸
-        food_items = food_data.get("food_items", [])
-        
-        # Ğ’Ñ�ĞµĞ³Ğ´Ğ° ĞºĞ¾Ğ½Ğ²ĞµÑ€Ñ‚Ğ¸Ñ€ÑƒĞµĞ¼ Ğ¸Ğ½Ğ³Ñ€ĞµĞ´Ğ¸ĞµĞ½Ñ‚Ñ‹ Ğ¸Ğ· Ñ„Ğ¾Ñ€Ğ¼Ğ°Ñ‚Ğ° _per_100g Ğ² Ğ¸Ñ‚Ğ¾Ğ³Ğ¾Ğ²Ñ‹Ğµ Ğ·Ğ½Ğ°Ñ‡ĞµĞ½Ğ¸Ñ�
-        converted_food_items = []
-        for item in food_items:
-            # ĞŸÑ€Ğ¾Ğ²ĞµÑ€Ñ�ĞµĞ¼, ĞµÑ�Ñ‚ÑŒ Ğ»Ğ¸ ĞºĞ»Ñ�Ñ‡Ğ¸ _per_100g
-            if 'calories_per_100g' in item:
-                weight = item.get('quantity', 0)
-                factor = weight / 100.0
+        # Отправляем результат
+        if result.get('success'):
+            response_text = result['message']
+            
+            # Добавляем клавиатуру если нужно
+            if result.get('suggestions'):
+                builder = InlineKeyboardBuilder()
+                for suggestion in result['suggestions']:
+                    builder.add(
+                        InlineKeyboardButton(
+                            text=suggestion['text'],
+                            callback_data=suggestion['callback_data']
+                        )
+                    )
+                builder.adjust(1)
                 
-                converted_item = {
-                    'name': item.get('name', 'Ğ�ĞµĞ¸Ğ·Ğ²ĞµÑ�Ñ‚Ğ½Ñ‹Ğ¹ Ğ¿Ñ€Ğ¾Ğ´ÑƒĞºÑ‚'),
-                    'quantity': weight,
-                    'unit': item.get('unit', 'Ğ³'),
-                    'calories': item.get('calories_per_100g', 0) * factor,
-                    'protein': item.get('protein_per_100g', 0) * factor,
-                    'fat': item.get('fat_per_100g', 0) * factor,
-                    'carbs': item.get('carbs_per_100g', 0) * factor
-                }
-                converted_food_items.append(converted_item)
+                await message.answer(
+                    response_text,
+                    reply_markup=builder.as_markup(),
+                    parse_mode="HTML"
+                )
             else:
-                # Ğ•Ñ�Ğ»Ğ¸ ÑƒĞ¶Ğµ Ğ² Ğ¿Ñ€Ğ°Ğ²Ğ¸Ğ»ÑŒĞ½Ğ¾Ğ¼ Ñ„Ğ¾Ñ€Ğ¼Ğ°Ñ‚Ğµ, Ğ¿Ñ€Ğ¾Ñ�Ñ‚Ğ¾ Ğ´Ğ¾Ğ±Ğ°Ğ²Ğ»Ñ�ĞµĞ¼
-                converted_food_items.append(item)
+                await message.answer(
+                    response_text,
+                    parse_mode="HTML"
+                )
+        else:
+            await message.answer(
+                error_card(
+                    "Не удалось обработать запрос",
+                    result.get('error', "Попробуйте переформулировать")
+                )
+            )
+            
+    except Exception as e:
+        logger.error(f"Error processing text for user {user_id}: {e}")
         
-        # Ğ•Ñ�Ğ»Ğ¸ Ğ¿Ğ¾Ñ�Ğ»Ğµ ĞºĞ¾Ğ½Ğ²ĞµÑ€Ñ‚Ğ°Ñ†Ğ¸Ğ¸ Ğ½ĞµÑ‚ Ğ¸Ğ½Ğ³Ñ€ĞµĞ´Ğ¸ĞµĞ½Ñ‚Ğ¾Ğ², Ñ�Ğ¾Ğ·Ğ´Ğ°ĞµĞ¼ Ğ¸Ğ· food_data
-        if not converted_food_items:
-            converted_food_items = [{
-                'name': food_data.get('dish_name', 'Ğ‘Ğ»Ñ�Ğ´Ğ¾'),
-                'quantity': food_data.get('total_weight', 100),
-                'unit': 'Ğ³',
-                'calories': food_data.get('total_calories', 0),
-                'protein': food_data.get('total_protein', 0),
-                'fat': food_data.get('total_fat', 0),
-                'carbs': food_data.get('total_carbs', 0)
-            }]
+        # Удаляем сообщение о загрузке если существует
+        if loading_msg:
+            try:
+                await loading_msg.delete()
+            except:
+                pass
         
-        # Ğ¡Ğ¾Ñ…Ñ€Ğ°Ğ½Ñ�ĞµĞ¼ Ñ‡ĞµÑ€ĞµĞ· save_food_to_db Ñ� ĞºĞ¾Ğ½Ğ²ĞµÑ€Ñ‚Ğ¸Ñ€Ğ¾Ğ²Ğ°Ğ½Ğ½Ñ‹Ğ¼Ğ¸ Ğ¸Ğ½Ğ³Ñ€ĞµĞ´Ğ¸ĞµĞ½Ñ‚Ğ°Ğ¼Ğ¸
-        save_result = await food_save_service.save_food_to_db(
-            callback.from_user.id,
-            converted_food_items,
-            meal_type
+        await message.answer(
+            error_card(
+                "Ошибка обработки текста",
+                "Попробуйте еще раз"
+            )
+        )
+
+async def handle_voice_message(message: Message, state: FSMContext):
+    """Обработка голосовых сообщений"""
+    user_id = message.from_user.id
+    
+    try:
+        # Показываем загрузку
+        loading_msg = await message.answer(
+            loading_card("AI распознает голос...")
         )
         
-        if not save_result.get("success"):
+        # Инициализируем LangChain агент
+        agent = LangChainAgent()
+        
+        # Получаем голосовое сообщение
+        voice = message.voice
+        file_info = await message.bot.get_file(voice.file_id)
+        
+        # Скачиваем файл
+        downloaded_file = await message.bot.download_file(file_info.file_path)
+        
+        # Обрабатываем голос через агент
+        result = await agent.process_voice(
+            user_id=user_id,
+            voice_data=downloaded_file,
+            filename=file_info.file_path
+        )
+        
+        # Удаляем сообщение о загрузке
+        await loading_msg.delete()
+        
+        # Отправляем результат
+        if result.get('success'):
+            await message.answer(
+                result['message'],
+                parse_mode="HTML"
+            )
+        else:
+            await message.answer(
+                error_card(
+                    "Не удалось распознать голос",
+                    result.get('error', "Попробуйте говорить четче")
+                )
+            )
+            
+    except Exception as e:
+        logger.error(f"Error processing voice for user {user_id}: {e}")
+        
+        try:
+            await loading_msg.delete()
+        except:
+            pass
+        
+        await message.answer(
+            error_card(
+                "Ошибка распознавания голоса",
+                "Попробуйте еще раз"
+            )
+        )
+
+async def handle_video_message(message: Message, state: FSMContext):
+    """Обработка видео сообщений"""
+    user_id = message.from_user.id
+    
+    try:
+        # Показываем загрузку
+        loading_msg = await message.answer(
+            loading_card("AI анализирует видео...")
+        )
+        
+        # Инициализируем LangChain агент
+        agent = LangChainAgent()
+        
+        # Получаем видео
+        video = message.video
+        file_info = await message.bot.get_file(video.file_id)
+        
+        # Скачиваем файл
+        downloaded_file = await message.bot.download_file(file_info.file_path)
+        
+        # Обрабатываем видео через агент
+        result = await agent.process_video(
+            user_id=user_id,
+            video_data=downloaded_file,
+            filename=file_info.file_path
+        )
+        
+        # Удаляем сообщение о загрузке
+        await loading_msg.delete()
+        
+        # Отправляем результат
+        if result.get('success'):
+            await message.answer(
+                result['message'],
+                parse_mode="HTML"
+            )
+        else:
+            await message.answer(
+                error_card(
+                    "Не удалось обработать видео",
+                    result.get('error', "Видео может быть слишком длинным")
+                )
+            )
+            
+    except Exception as e:
+        logger.error(f"Error processing video for user {user_id}: {e}")
+        
+        try:
+            await loading_msg.delete()
+        except:
+            pass
+        
+        await message.answer(
+            error_card(
+                "Ошибка обработки видео",
+                "Попробуйте отправить фото вместо видео"
+            )
+        )
+
+async def handle_document_message(message: Message, state: FSMContext):
+    """Обработка документов"""
+    user_id = message.from_user.id
+    
+    try:
+        # Проверяем тип документа
+        document = message.document
+        
+        if document.mime_type and document.mime_type.startswith('image/'):
+            # Это изображение, обрабатываем как фото
+            await handle_photo_document(message, state)
+        else:
+            # Другой тип документа
+            await message.answer(
+                error_card(
+                    "Неподдерживаемый тип документа",
+                    "Пожалуйста, отправляйте фото или текст"
+                )
+            )
+            
+    except Exception as e:
+        logger.error(f"Error processing document for user {user_id}: {e}")
+        await message.answer(
+            error_card(
+                "Ошибка обработки документа",
+                "Попробуйте другой формат"
+            )
+        )
+
+async def handle_photo_document(message: Message, state: FSMContext):
+    """Обработка изображения как документа"""
+    user_id = message.from_user.id
+    
+    async with user_photo_semaphores[user_id]:
+        try:
+            # Показываем загрузку
+            loading_msg = await message.answer(
+                loading_card("AI анализирует изображение...")
+            )
+            
+            # Инициализируем LangChain агент
+            agent = LangChainAgent()
+            
+            # Получаем документ
+            document = message.document
+            file_info = await message.bot.get_file(document.file_id)
+            
+            # Скачиваем файл
+            downloaded_file = await message.bot.download_file(file_info.file_path)
+            
+            # Обрабатываем фото через агент
+            result = await agent.process_photo(
+                user_id=user_id,
+                photo_data=downloaded_file,
+                filename=file_info.file_path
+            )
+            
+            # Удаляем сообщение о загрузке
+            await loading_msg.delete()
+            
+            # Отправляем результат
+            if result.get('success'):
+                await message.answer(
+                    result['message'],
+                    parse_mode="HTML"
+                )
+            else:
+                await message.answer(
+                    error_card(
+                        "Не удалось распознать изображение",
+                        result.get('error', "Попробуйте сделать фото более качественным")
+                    )
+                )
+                
+        except Exception as e:
+            logger.error(f"Error processing photo document for user {user_id}: {e}")
+            
+            try:
+                await loading_msg.delete()
+            except:
+                pass
+            
+            await message.answer(
+                error_card(
+                    "Ошибка обработки изображения",
+                    "Попробуйте еще раз"
+                )
+            )
+
+async def handle_unknown_message(message: Message, state: FSMContext):
+    """Обработка неизвестных типов сообщений"""
+    await message.answer(
+        error_card(
+            "Неподдерживаемый формат",
+            "Пожалуйста, отправляйте фото, текст или голосовые сообщения"
+        )
+    )
+
+async def handle_ai_question(message: Message, state: FSMContext):
+    """Обработка вопроса в диалоге с AI"""
+    from handlers.ai_assistant import handle_ai_conversation
+    
+    # Перенаправляем в обработчик AI ассистента
+    await handle_ai_conversation(message, state)
+
+@router.callback_query()
+async def universal_callback_handler(callback: CallbackQuery, state: FSMContext):
+    """
+    Универсальный обработчик callback'ов
+    """
+    user_id = callback.from_user.id
+    
+    try:
+        # Проверяем FSM состояние
+        current_state = await state.get_state()
+        
+        # Инициализируем LangChain агент для callback'ов
+        agent = LangChainAgent()
+        
+        # Обрабатываем callback через агент
+        result = await agent.process_callback(
+            user_id=user_id,
+            callback_data=callback.data,
+            message=callback.message
+        )
+        
+        # Отправляем результат
+        if result.get('success'):
+            if result.get('edit_message'):
+                await callback.message.edit_text(
+                    result['message'],
+                    reply_markup=result.get('reply_markup'),
+                    parse_mode="HTML"
+                )
+            else:
+                await callback.message.answer(
+                    result['message'],
+                    reply_markup=result.get('reply_markup'),
+                    parse_mode="HTML"
+                )
+        else:
             await callback.answer(
-                f"â�Œ Ğ�ÑˆĞ¸Ğ±ĞºĞ° Ñ�Ğ¾Ñ…Ñ€Ğ°Ğ½ĞµĞ½Ğ¸Ñ�: {save_result.get('error', 'Ğ�ĞµĞ¸Ğ·Ğ²ĞµÑ�Ñ‚Ğ½Ğ°Ñ� Ğ¾ÑˆĞ¸Ğ±ĞºĞ°')}",
+                result.get('error', "Произошла ошибка"),
                 show_alert=True
             )
-            return
-        
-        # Ğ¤Ğ¾Ñ€Ğ¼Ğ°Ñ‚Ğ¸Ñ€ÑƒĞµĞ¼ Ğ´Ğ°Ğ½Ğ½Ñ‹Ğµ Ğ´Ğ»Ñ� ĞºĞ°Ñ€Ñ‚Ğ¾Ñ‡ĞºĞ¸
-        save_data = {
-            'description': ", ".join([
-                f"{item.get('quantity','')} {item.get('unit','Ğ³')} {item['name']}" 
-                for item in food_items
-            ]),
-            'total_calories': save_result.get('total_calories', 0),
-            'total_protein': save_result.get('total_protein', 0),
-            'total_fat': save_result.get('total_fat', 0),
-            'total_carbs': save_result.get('total_carbs', 0),
-            'meal_type': meal_type
-        }
-        
-        # ĞŸĞ¾Ğ»ÑƒÑ‡Ğ°ĞµĞ¼ Ğ´Ğ½ĞµĞ²Ğ½ÑƒÑ� Ñ�Ñ‚Ğ°Ñ‚Ğ¸Ñ�Ñ‚Ğ¸ĞºÑƒ
-        daily_stats = await get_daily_stats(callback.from_user.id)
-        
-        # Ğ¤Ğ¾Ñ€Ğ¼Ğ¸Ñ€ÑƒĞµĞ¼ ĞºÑ€Ğ°Ñ�Ğ¸Ğ²ÑƒÑ� ĞºĞ°Ñ€Ñ‚Ğ¾Ñ‡ĞºÑƒ
-        response = meal_card(save_data, agent.user, daily_stats)
-        
-        # Ğ ĞµĞ´Ğ°ĞºÑ‚Ğ¸Ñ€ÑƒĞµĞ¼ Ñ�Ğ¾Ğ¾Ğ±Ñ‰ĞµĞ½Ğ¸Ğµ
-        await callback.message.edit_text(
-            response,
-            parse_mode="HTML"
-        )
-        
-        await callback.answer("âœ… ĞŸÑ€Ğ¸Ñ‘Ğ¼ Ğ¿Ğ¸Ñ‰Ğ¸ Ñ�Ğ¾Ñ…Ñ€Ğ°Ğ½Ñ‘Ğ½!")
-        
-        # Ğ�Ñ‡Ğ¸Ñ‰Ğ°ĞµĞ¼ Ğ´Ğ°Ğ½Ğ½Ñ‹Ğµ Ğ°Ğ½Ğ°Ğ»Ğ¸Ğ·Ğ° Ğ¸Ğ· FSM Ğ¿Ğ¾Ñ�Ğ»Ğµ Ñ�Ğ¾Ñ…Ñ€Ğ°Ğ½ĞµĞ½Ğ¸Ñ�
-        photo_analysis = state_data.get("photo_analysis", {})
-        if analysis_id in photo_analysis:
-            del photo_analysis[analysis_id]
-            await state.update_data(photo_analysis=photo_analysis)
-            logger.info(f"ğŸ§¹ Cleaned up photo_analysis for {analysis_id}")
+            
+        await callback.answer()
         
     except Exception as e:
-        logger.error(f"â�Œ Error in meal_type_callback: {e}")
+        logger.error(f"Error in callback handler for user {user_id}: {e}")
         await callback.answer(
-            "â�Œ Ğ�ÑˆĞ¸Ğ±ĞºĞ° Ñ�Ğ¾Ñ…Ñ€Ğ°Ğ½ĞµĞ½Ğ¸Ñ�. ĞŸĞ¾Ğ¿Ñ€Ğ¾Ğ±ÑƒĞ¹Ñ‚Ğµ ĞµÑ‰Ñ‘ Ñ€Ğ°Ğ·.",
+            "Произошла ошибка",
             show_alert=True
         )
+
+# Очистка семафоров при отключении пользователя
+async def cleanup_user_semaphores(user_id: int):
+    """Очистка семафоров пользователя"""
+    if user_id in user_photo_semaphores:
+        del user_photo_semaphores[user_id]

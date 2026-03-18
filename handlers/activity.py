@@ -1,6 +1,6 @@
 """
 handlers/activity.py
-Ğ�Ğ±Ñ€Ğ°Ğ±Ğ¾Ñ‚Ñ‡Ğ¸ĞºĞ¸ ÑƒÑ‡ĞµÑ‚Ğ° Ğ°ĞºÑ‚Ğ¸Ğ²Ğ½Ğ¾Ñ�Ñ‚Ğ¸
+Обработчики учета активности
 """
 import logging
 from aiogram.types import Message, CallbackQuery
@@ -11,108 +11,129 @@ from aiogram import F, Router
 from sqlalchemy import select
 
 from database.db import get_session
-from database.models import User, Activity
+from database.models import User, ActivityEntry
 from keyboards.reply import get_main_keyboard
+from utils.premium_templates import activity_card
+from utils.ui_templates import ProgressBar
+from utils.activity_calculator import calculate_calories_burned
 
 logger = logging.getLogger(__name__)
 router = Router()
 
 class ActivityStates(StatesGroup):
-    """Ğ¡Ğ¾Ñ�Ñ‚Ğ¾Ñ�Ğ½Ğ¸Ñ� Ğ´Ğ»Ñ� Ğ·Ğ°Ğ¿Ğ¸Ñ�Ğ¸ Ğ°ĞºÑ‚Ğ¸Ğ²Ğ½Ğ¾Ñ�Ñ‚Ğ¸"""
+    """Состояния для записи активности"""
     waiting_for_activity_type = State()
     waiting_for_duration = State()
     waiting_for_calories = State()
 
 @router.message(Command("fitness"))
+@router.message(Command("активность"))
 async def cmd_fitness(message: Message, state: FSMContext):
-    """Ğ—Ğ°Ğ¿Ğ¸Ñ�ÑŒ Ñ„Ğ¸Ñ‚Ğ½ĞµÑ� Ğ°ĞºÑ‚Ğ¸Ğ²Ğ½Ğ¾Ñ�Ñ‚Ğ¸"""
+    """Запись фитнес активности"""
     await state.clear()
     
-    await message.answer(
-        "ğŸ�ƒ <b>Ğ—Ğ°Ğ¿Ğ¸Ñ�ÑŒ Ñ„Ğ¸Ñ‚Ğ½ĞµÑ� Ğ°ĞºÑ‚Ğ¸Ğ²Ğ½Ğ¾Ñ�Ñ‚Ğ¸</b>\n\n"
-        "Ğ’Ñ‹Ğ±ĞµÑ€Ğ¸Ñ‚Ğµ Ñ‚Ğ¸Ğ¿ Ğ°ĞºÑ‚Ğ¸Ğ²Ğ½Ğ¾Ñ�Ñ‚Ğ¸:\n\n"
-        "â€¢ Ğ‘ĞµĞ³\n"
-        "â€¢ Ğ¥Ğ¾Ğ´ÑŒĞ±Ğ°\n"
-        "â€¢ Ğ’ĞµĞ»Ğ¾Ñ�Ğ¸Ğ¿ĞµĞ´\n"
-        "â€¢ ĞŸĞ»Ğ°Ğ²Ğ°Ğ½Ğ¸Ğµ\n"
-        "â€¢ Ğ¢Ñ€ĞµĞ½Ğ¸Ñ€Ğ¾Ğ²ĞºĞ° Ğ² Ğ·Ğ°Ğ»Ğµ\n"
-        "â€¢ Ğ™Ğ¾Ğ³Ğ°\n"
-        "â€¢ Ğ”Ñ€ÑƒĞ³Ğ¾Ğµ\n\n"
-        "Ğ�Ğ°Ğ¿Ğ¸ÑˆĞ¸Ñ‚Ğµ Ğ½Ğ°Ğ·Ğ²Ğ°Ğ½Ğ¸Ğµ Ğ°ĞºÑ‚Ğ¸Ğ²Ğ½Ğ¾Ñ�Ñ‚Ğ¸:",
-        parse_mode="HTML"
-    )
+    # Создаем клавиатуру с типами активности
+    keyboard = [
+        ["🏃 Бег", "🚴 Велосипед"],
+        ["🏋️ Тренировка", "🧘 Йога"],
+        ["🚶 Ходьба", "🏊 Плавание"],
+        ["🤸 Другое"]
+    ]
+    
+    text = "🏃‍♂️ <b>Записать активность</b>\n\n"
+    text += "Выберите тип активности:"
+    
+    await message.answer(text, reply_markup=keyboard)
     await state.set_state(ActivityStates.waiting_for_activity_type)
 
 @router.message(ActivityStates.waiting_for_activity_type)
 async def process_activity_type(message: Message, state: FSMContext):
-    """Ğ�Ğ±Ñ€Ğ°Ğ±Ğ¾Ñ‚ĞºĞ° Ñ‚Ğ¸Ğ¿Ğ° Ğ°ĞºÑ‚Ğ¸Ğ²Ğ½Ğ¾Ñ�Ñ‚Ğ¸"""
-    activity_type = message.text.strip()
+    """Обработка типа активности"""
+    activity_type = message.text.lower()
     
-    if not activity_type:
-        await message.answer("â�Œ Ğ�Ğ°Ğ¿Ğ¸ÑˆĞ¸Ñ‚Ğµ Ğ½Ğ°Ğ·Ğ²Ğ°Ğ½Ğ¸Ğµ Ğ°ĞºÑ‚Ğ¸Ğ²Ğ½Ğ¾Ñ�Ñ‚Ğ¸:")
-        return
+    # Маппинг типов активности
+    activity_mapping = {
+        "🏃 бег": "running",
+        "🚴 велосипед": "cycling", 
+        "🏋️ тренировка": "gym",
+        "🧘 йога": "yoga",
+        "🚶 ходьба": "walking",
+        "🏊 плавание": "swimming",
+        "🤸 другое": "other"
+    }
     
-    await state.update_data(activity_type=activity_type)
+    mapped_type = activity_mapping.get(activity_type, "other")
     
-    await message.answer(
-        f"â�±ï¸� <b>Ğ”Ğ»Ğ¸Ñ‚ĞµĞ»ÑŒĞ½Ğ¾Ñ�Ñ‚ÑŒ Ğ°ĞºÑ‚Ğ¸Ğ²Ğ½Ğ¾Ñ�Ñ‚Ğ¸ (Ğ² Ğ¼Ğ¸Ğ½ÑƒÑ‚Ğ°Ñ…):</b>\n\n"
-        f"Ğ�Ğ°Ğ¿Ñ€Ğ¸Ğ¼ĞµÑ€: 30",
-        parse_mode="HTML"
-    )
+    # Сохраняем тип активности
+    await state.update_data(activity_type=mapped_type, activity_name=activity_type)
+    
+    # Запрашиваем длительность
+    text = f"⏱️ <b>Длительность активности</b>\n\n"
+    text += f"Выбрана активность: {activity_type}\n"
+    text += "Введите длительность в минутах (например: 30):"
+    
+    await message.answer(text)
     await state.set_state(ActivityStates.waiting_for_duration)
 
 @router.message(ActivityStates.waiting_for_duration)
 async def process_duration(message: Message, state: FSMContext):
-    """Ğ�Ğ±Ñ€Ğ°Ğ±Ğ¾Ñ‚ĞºĞ° Ğ´Ğ»Ğ¸Ñ‚ĞµĞ»ÑŒĞ½Ğ¾Ñ�Ñ‚Ğ¸ Ğ°ĞºÑ‚Ğ¸Ğ²Ğ½Ğ¾Ñ�Ñ‚Ğ¸"""
+    """Обработка длительности активности"""
     try:
         duration = int(message.text)
         
-        if duration < 1 or duration > 480:  # ĞœĞ°ĞºÑ�Ğ¸Ğ¼ÑƒĞ¼ 8 Ñ‡Ğ°Ñ�Ğ¾Ğ²
-            await message.answer(
-                "â�Œ Ğ”Ğ»Ğ¸Ñ‚ĞµĞ»ÑŒĞ½Ğ¾Ñ�Ñ‚ÑŒ Ğ´Ğ¾Ğ»Ğ¶Ğ½Ğ° Ğ±Ñ‹Ñ‚ÑŒ Ğ¾Ñ‚ 1 Ğ´Ğ¾ 480 Ğ¼Ğ¸Ğ½ÑƒÑ‚. ĞŸĞ¾Ğ¿Ñ€Ğ¾Ğ±ÑƒĞ¹Ñ‚Ğµ ĞµÑ‰Ğµ Ñ€Ğ°Ğ·:"
-            )
+        if duration <= 0:
+            await message.answer("❌ Длительность должна быть положительным числом. Попробуйте еще раз:")
             return
         
+        if duration > 480:  # 8 часов максимум
+            await message.answer("❌ Слишком большая длительность. Максимум 480 минут. Попробуйте еще раз:")
+            return
+        
+        # Сохраняем длительность
         await state.update_data(duration=duration)
         
-        await message.answer(
-            f"ğŸ”¥ <b>Ğ¡Ğ¾Ğ¶Ğ¶ĞµĞ½Ğ½Ñ‹Ğµ ĞºĞ°Ğ»Ğ¾Ñ€Ğ¸Ğ¸ (Ğ¾Ğ¿Ñ†Ğ¸Ğ¾Ğ½Ğ°Ğ»ÑŒĞ½Ğ¾):</b>\n\n"
-            f"Ğ•Ñ�Ğ»Ğ¸ Ğ·Ğ½Ğ°ĞµÑ‚Ğµ Ñ‚Ğ¾Ñ‡Ğ½Ğ¾Ğµ ĞºĞ¾Ğ»Ğ¸Ñ‡ĞµÑ�Ñ‚Ğ²Ğ¾ ĞºĞ°Ğ»Ğ¾Ñ€Ğ¸Ğ¹, Ğ²Ğ²ĞµĞ´Ğ¸Ñ‚Ğµ ĞµĞ³Ğ¾.\n"
-            f"Ğ•Ñ�Ğ»Ğ¸ Ğ½ĞµÑ‚, Ğ¾Ñ‚Ğ¿Ñ€Ğ°Ğ²ÑŒÑ‚Ğµ 0 Ğ¸ Ñ� Ñ€Ğ°Ñ�Ñ�Ñ‡Ğ¸Ñ‚Ğ°Ñ� Ğ°Ğ²Ñ‚Ğ¾Ğ¼Ğ°Ñ‚Ğ¸Ñ‡ĞµÑ�ĞºĞ¸.\n\n"
-            f"Ğ�Ğ°Ğ¿Ñ€Ğ¸Ğ¼ĞµÑ€: 250 Ğ¸Ğ»Ğ¸ 0",
-            parse_mode="HTML"
-        )
+        # Получаем данные о пользователе для расчета калорий
+        data = await state.get_data()
+        activity_type = data['activity_type']
+        
+        # Запрашиваем вес для расчета калорий
+        text = f"⚖️ <b>Расчет калорий</b>\n\n"
+        text += f"Активность: {data['activity_name']}\n"
+        text += f"Длительность: {duration} минут\n\n"
+        text += "Введите ваш вес в кг для расчета сожженных калорий (например: 70):"
+        
+        await message.answer(text)
         await state.set_state(ActivityStates.waiting_for_calories)
         
     except ValueError:
-        await message.answer("â�Œ Ğ’Ğ²ĞµĞ´Ğ¸Ñ‚Ğµ ĞºĞ¾Ñ€Ñ€ĞµĞºÑ‚Ğ½Ğ¾Ğµ Ñ‡Ğ¸Ñ�Ğ»Ğ¾. ĞŸĞ¾Ğ¿Ñ€Ğ¾Ğ±ÑƒĞ¹Ñ‚Ğµ ĞµÑ‰Ğµ Ñ€Ğ°Ğ·:")
+        await message.answer("❌ Неверный формат. Введите число (например: 30):")
 
 @router.message(ActivityStates.waiting_for_calories)
 async def process_calories(message: Message, state: FSMContext):
-    """Ğ�Ğ±Ñ€Ğ°Ğ±Ğ¾Ñ‚ĞºĞ° ĞºĞ°Ğ»Ğ¾Ñ€Ğ¸Ğ¹ Ğ¸ Ñ�Ğ¾Ñ…Ñ€Ğ°Ğ½ĞµĞ½Ğ¸Ğµ Ğ°ĞºÑ‚Ğ¸Ğ²Ğ½Ğ¾Ñ�Ñ‚Ğ¸"""
+    """Обработка калорий и сохранение активности"""
     try:
-        user_calories = int(message.text)
+        weight = float(message.text)
         
-        if user_calories < 0 or user_calories > 5000:
-            await message.answer(
-                "â�Œ Ğ�ĞµĞºĞ¾Ñ€Ñ€ĞµĞºÑ‚Ğ½Ğ¾Ğµ ĞºĞ¾Ğ»Ğ¸Ñ‡ĞµÑ�Ñ‚Ğ²Ğ¾ ĞºĞ°Ğ»Ğ¾Ñ€Ğ¸Ğ¹. ĞŸĞ¾Ğ¿Ñ€Ğ¾Ğ±ÑƒĞ¹Ñ‚Ğµ ĞµÑ‰Ğµ Ñ€Ğ°Ğ·:"
-            )
+        if weight <= 0:
+            await message.answer("❌ Вес должен быть положительным числом. Попробуйте еще раз:")
             return
         
-        # ĞŸĞ¾Ğ»ÑƒÑ‡Ğ°ĞµĞ¼ Ğ´Ğ°Ğ½Ğ½Ñ‹Ğµ
-        activity_data = await state.get_data()
-        activity_type = activity_data['activity_type']
-        duration = activity_data['duration']
+        if weight > 300:
+            await message.answer("❌ Слишком большой вес. Попробуйте еще раз:")
+            return
         
-        # Ğ Ğ°Ñ�Ñ�Ñ‡Ğ¸Ñ‚Ñ‹Ğ²Ğ°ĞµĞ¼ ĞºĞ°Ğ»Ğ¾Ñ€Ğ¸Ğ¸ ĞµÑ�Ğ»Ğ¸ Ğ½Ğµ ÑƒĞºĞ°Ğ·Ğ°Ğ½Ñ‹
-        if user_calories == 0:
-            calories_burned = estimate_calories_burned(activity_type, duration)
-        else:
-            calories_burned = user_calories
+        # Получаем сохраненные данные
+        data = await state.get_data()
+        activity_type = data['activity_type']
+        activity_name = data['activity_name']
+        duration = data['duration']
         
-        # Ğ¡Ğ¾Ñ…Ñ€Ğ°Ğ½Ñ�ĞµĞ¼ Ğ² Ğ±Ğ°Ğ·Ñƒ Ğ´Ğ°Ğ½Ğ½Ñ‹Ñ…
+        # Рассчитываем сожженные калории
+        calories_burned = calculate_calories_burned(activity_type, duration, weight)
+        
+        # Сохраняем в базу данных
         async with get_session() as session:
-            # ĞŸĞ¾Ğ»ÑƒÑ‡Ğ°ĞµĞ¼ Ğ¿Ğ¾Ğ»ÑŒĞ·Ğ¾Ğ²Ğ°Ñ‚ĞµĞ»Ñ�
+            # Получаем пользователя
             result = await session.execute(
                 select(User).where(User.telegram_id == message.from_user.id)
             )
@@ -120,159 +141,143 @@ async def process_calories(message: Message, state: FSMContext):
             
             if not user:
                 await message.answer(
-                    "â�Œ Ğ¡Ğ½Ğ°Ñ‡Ğ°Ğ»Ğ° Ğ½Ğ°Ñ�Ñ‚Ñ€Ğ¾Ğ¹Ñ‚Ğµ Ğ¿Ñ€Ğ¾Ñ„Ğ¸Ğ»ÑŒ ĞºĞ¾Ğ¼Ğ°Ğ½Ğ´Ğ¾Ğ¹ /set_profile",
+                    "❌ Сначала настройте профиль с помощью /set_profile",
                     reply_markup=get_main_keyboard()
                 )
+                await state.clear()
                 return
             
-            # Ğ¡Ğ¾Ğ·Ğ´Ğ°ĞµĞ¼ Ğ·Ğ°Ğ¿Ğ¸Ñ�ÑŒ Ğ¾Ğ± Ğ°ĞºÑ‚Ğ¸Ğ²Ğ½Ğ¾Ñ�Ñ‚Ğ¸
-            activity = Activity(
-                user_id=user.id,
+            # Создаем запись об активности
+            activity_entry = ActivityEntry(
+                user_id=user.telegram_id,
                 activity_type=activity_type,
                 duration=duration,
                 calories_burned=calories_burned,
-                datetime=message.date
+                intensity='moderate'  # По умолчанию средняя интенсивность
             )
             
-            session.add(activity)
+            session.add(activity_entry)
             await session.commit()
+        
+        # Получаем статистику за день
+        daily_stats = await get_daily_activity_stats(user.telegram_id)
+        
+        # Создаем красивую карточку активности
+        card = activity_card(activity_name, duration, calories_burned, daily_stats)
+        
+        await message.answer(card, reply_markup=get_main_keyboard())
+        
+        # Проверяем достижения
+        from handlers.achievements import check_achievements
+        await check_achievements(user.telegram_id, 'activity', duration)
         
         await state.clear()
         
-        await message.answer(
-            f"âœ… <b>Ğ�ĞºÑ‚Ğ¸Ğ²Ğ½Ğ¾Ñ�Ñ‚ÑŒ Ğ·Ğ°Ğ¿Ğ¸Ñ�Ğ°Ğ½Ğ°!</b>\n\n"
-            f"ğŸ�ƒ Ğ¢Ğ¸Ğ¿: {activity_type}\n"
-            f"â�±ï¸� Ğ”Ğ»Ğ¸Ñ‚ĞµĞ»ÑŒĞ½Ğ¾Ñ�Ñ‚ÑŒ: {duration} Ğ¼Ğ¸Ğ½ÑƒÑ‚\n"
-            f"ğŸ”¥ Ğ¡Ğ¾Ğ¶Ğ¶ĞµĞ½Ğ¾ ĞºĞ°Ğ»Ğ¾Ñ€Ğ¸Ğ¹: {calories_burned} ĞºĞºĞ°Ğ»\n\n"
-            f"ğŸ’ª Ğ�Ñ‚Ğ»Ğ¸Ñ‡Ğ½Ğ°Ñ� Ñ€Ğ°Ğ±Ğ¾Ñ‚Ğ°!",
-            reply_markup=get_main_keyboard(),
-            parse_mode="HTML"
-        )
-        
     except ValueError:
-        await message.answer("â�Œ Ğ’Ğ²ĞµĞ´Ğ¸Ñ‚Ğµ ĞºĞ¾Ñ€Ñ€ĞµĞºÑ‚Ğ½Ğ¾Ğµ Ñ‡Ğ¸Ñ�Ğ»Ğ¾. ĞŸĞ¾Ğ¿Ñ€Ğ¾Ğ±ÑƒĞ¹Ñ‚Ğµ ĞµÑ‰Ğµ Ñ€Ğ°Ğ·:")
-    except Exception as e:
-        logger.error(f"Ğ�ÑˆĞ¸Ğ±ĞºĞ° Ğ¿Ñ€Ğ¸ Ğ·Ğ°Ğ¿Ğ¸Ñ�Ğ¸ Ğ°ĞºÑ‚Ğ¸Ğ²Ğ½Ğ¾Ñ�Ñ‚Ğ¸: {e}")
-        await message.answer(
-            "â�Œ ĞŸÑ€Ğ¾Ğ¸Ğ·Ğ¾ÑˆĞ»Ğ° Ğ¾ÑˆĞ¸Ğ±ĞºĞ°. ĞŸĞ¾Ğ¿Ñ€Ğ¾Ğ±ÑƒĞ¹Ñ‚Ğµ ĞµÑ‰Ğµ Ñ€Ğ°Ğ·.",
-            reply_markup=get_main_keyboard()
-        )
+        await message.answer("❌ Неверный формат. Введите число (например: 70.5):")
 
-def estimate_calories_burned(activity_type: str, duration: int) -> int:
-    """Ğ�Ñ†ĞµĞ½ĞºĞ° Ñ�Ğ¾Ğ¶Ğ¶ĞµĞ½Ğ½Ñ‹Ñ… ĞºĞ°Ğ»Ğ¾Ñ€Ğ¸Ğ¹ Ğ¿Ğ¾ Ñ‚Ğ¸Ğ¿Ñƒ Ğ°ĞºÑ‚Ğ¸Ğ²Ğ½Ğ¾Ñ�Ñ‚Ğ¸"""
-    # Ğ‘Ğ°Ğ·Ğ¾Ğ²Ñ‹Ğµ Ğ·Ğ½Ğ°Ñ‡ĞµĞ½Ğ¸Ñ� ĞºĞ°Ğ»Ğ¾Ñ€Ğ¸Ğ¹ Ğ² Ñ‡Ğ°Ñ� Ğ´Ğ»Ñ� 70 ĞºĞ³ Ñ‡ĞµĞ»Ğ¾Ğ²ĞµĞºĞ°
-    calories_per_hour = {
-        'Ğ±ĞµĞ³': 600,
-        'Ñ…Ğ¾Ğ´ÑŒĞ±Ğ°': 300,
-        'Ğ²ĞµĞ»Ğ¾Ñ�Ğ¸Ğ¿ĞµĞ´': 500,
-        'Ğ¿Ğ»Ğ°Ğ²Ğ°Ğ½Ğ¸Ğµ': 400,
-        'Ñ‚Ñ€ĞµĞ½Ğ¸Ñ€Ğ¾Ğ²ĞºĞ° Ğ² Ğ·Ğ°Ğ»Ğµ': 450,
-        'Ğ¹Ğ¾Ğ³Ğ°': 200,
-        'Ğ´Ñ€ÑƒĞ³Ğ¾Ğµ': 350
-    }
-    
-    activity_lower = activity_type.lower()
-    
-    # Ğ˜Ñ‰ĞµĞ¼ Ñ‚Ğ¾Ñ‡Ğ½Ğ¾Ğµ Ñ�Ğ¾Ğ²Ğ¿Ğ°Ğ´ĞµĞ½Ğ¸Ğµ
-    if activity_lower in calories_per_hour:
-        base_calories = calories_per_hour[activity_lower]
-    else:
-        # Ğ˜Ñ‰ĞµĞ¼ Ñ‡Ğ°Ñ�Ñ‚Ğ¸Ñ‡Ğ½Ğ¾Ğµ Ñ�Ğ¾Ğ²Ğ¿Ğ°Ğ´ĞµĞ½Ğ¸Ğµ
-        base_calories = 350  # ĞŸĞ¾ ÑƒĞ¼Ğ¾Ğ»Ñ‡Ğ°Ğ½Ğ¸Ñ�
-        for key, value in calories_per_hour.items():
-            if key in activity_lower or activity_lower in key:
-                base_calories = value
-                break
-    
-    # Ğ Ğ°Ñ�Ñ�Ñ‡Ğ¸Ñ‚Ñ‹Ğ²Ğ°ĞµĞ¼ Ğ´Ğ»Ñ� ÑƒĞºĞ°Ğ·Ğ°Ğ½Ğ½Ğ¾Ğ¹ Ğ´Ğ»Ğ¸Ñ‚ĞµĞ»ÑŒĞ½Ğ¾Ñ�Ñ‚Ğ¸
-    calories_per_minute = base_calories / 60
-    return int(calories_per_minute * duration)
-
-@router.message(Command("activity"))
-async def cmd_activity(message: Message, state: FSMContext):
-    """Ğ¡Ñ‚Ğ°Ñ‚Ğ¸Ñ�Ñ‚Ğ¸ĞºĞ° Ğ°ĞºÑ‚Ğ¸Ğ²Ğ½Ğ¾Ñ�Ñ‚Ğ¸"""
-    await state.clear()
+async def get_daily_activity_stats(user_id: int) -> dict:
+    """Получить статистику активности за день"""
+    from datetime import datetime, timezone
     
     async with get_session() as session:
-        # ĞŸĞ¾Ğ»ÑƒÑ‡Ğ°ĞµĞ¼ Ğ¿Ğ¾Ğ»ÑŒĞ·Ğ¾Ğ²Ğ°Ñ‚ĞµĞ»Ñ�
+        # Получаем записи активности за сегодня
+        today = datetime.now(timezone.utc).date()
+        
         result = await session.execute(
-            select(User).where(User.telegram_id == message.from_user.id)
-        )
-        user = result.scalar_one_or_none()
-        
-        if not user:
-            await message.answer(
-                "â�Œ Ğ¡Ğ½Ğ°Ñ‡Ğ°Ğ»Ğ° Ğ½Ğ°Ñ�Ñ‚Ñ€Ğ¾Ğ¹Ñ‚Ğµ Ğ¿Ñ€Ğ¾Ñ„Ğ¸Ğ»ÑŒ ĞºĞ¾Ğ¼Ğ°Ğ½Ğ´Ğ¾Ğ¹ /set_profile",
-                reply_markup=get_main_keyboard()
+            select(ActivityEntry).where(
+                ActivityEntry.user_id == user_id,
+                ActivityEntry.created_at >= today
             )
-            return
-        
-        # Ğ¡Ñ‚Ğ°Ñ‚Ğ¸Ñ�Ñ‚Ğ¸ĞºĞ° Ğ·Ğ° Ñ�ĞµĞ³Ğ¾Ğ´Ğ½Ñ�
-        from datetime import datetime
-        today = message.date
-        
-        activities_result = await session.execute(
-            select(Activity).where(
-                Activity.user_id == user.id,
-                Activity.datetime >= today
-            ).order_by(Activity.datetime.desc())
         )
-        activities = activities_result.scalars().all()
+        activities = result.scalars().all()
         
-        if not activities:
-            await message.answer(
-                "ğŸ�ƒ <b>Ğ¡Ñ‚Ğ°Ñ‚Ğ¸Ñ�Ñ‚Ğ¸ĞºĞ° Ğ°ĞºÑ‚Ğ¸Ğ²Ğ½Ğ¾Ñ�Ñ‚Ğ¸</b>\n\n"
-                "Ğ—Ğ° Ñ�ĞµĞ³Ğ¾Ğ´Ğ½Ñ� ĞµÑ‰Ğµ Ğ½ĞµÑ‚ Ğ·Ğ°Ğ¿Ğ¸Ñ�ĞµĞ¹ Ğ°ĞºÑ‚Ğ¸Ğ²Ğ½Ğ¾Ñ�Ñ‚Ğ¸.\n\n"
-                "Ğ”Ğ»Ñ� Ğ´Ğ¾Ğ±Ğ°Ğ²Ğ»ĞµĞ½Ğ¸Ñ� Ğ°ĞºÑ‚Ğ¸Ğ²Ğ½Ğ¾Ñ�Ñ‚Ğ¸ Ğ¸Ñ�Ğ¿Ğ¾Ğ»ÑŒĞ·ÑƒĞ¹Ñ‚Ğµ /fitness",
-                reply_markup=get_main_keyboard(),
-                parse_mode="HTML"
-            )
-            return
-        
-        # Ğ¤Ğ¾Ñ€Ğ¼Ğ¸Ñ€ÑƒĞµĞ¼ Ñ�Ñ‚Ğ°Ñ‚Ğ¸Ñ�Ñ‚Ğ¸ĞºÑƒ
+        # Считаем статистику
         total_duration = sum(a.duration for a in activities)
-        total_calories = sum(a.calories_burned or 0 for a in activities)
+        total_calories = sum(a.calories_burned for a in activities)
         
-        message_text = (
-            f"ğŸ�ƒ <b>Ğ¡Ñ‚Ğ°Ñ‚Ğ¸Ñ�Ñ‚Ğ¸ĞºĞ° Ğ°ĞºÑ‚Ğ¸Ğ²Ğ½Ğ¾Ñ�Ñ‚Ğ¸ Ğ·Ğ° Ñ�ĞµĞ³Ğ¾Ğ´Ğ½Ñ�</b>\n\n"
-            f"ğŸ“Š Ğ’Ñ�ĞµĞ³Ğ¾ Ğ°ĞºÑ‚Ğ¸Ğ²Ğ½Ğ¾Ñ�Ñ‚ĞµĞ¹: {len(activities)}\n"
-            f"â�±ï¸� Ğ�Ğ±Ñ‰Ğ°Ñ� Ğ´Ğ»Ğ¸Ñ‚ĞµĞ»ÑŒĞ½Ğ¾Ñ�Ñ‚ÑŒ: {total_duration} Ğ¼Ğ¸Ğ½ÑƒÑ‚\n"
-            f"ğŸ”¥ Ğ¡Ğ¾Ğ¶Ğ¶ĞµĞ½Ğ¾ ĞºĞ°Ğ»Ğ¾Ñ€Ğ¸Ğ¹: {total_calories} ĞºĞºĞ°Ğ»\n\n"
-            f"ğŸ“‹ <b>ĞŸĞ¾Ñ�Ğ»ĞµĞ´Ğ½Ğ¸Ğµ Ğ°ĞºÑ‚Ğ¸Ğ²Ğ½Ğ¾Ñ�Ñ‚Ğ¸:</b>\n"
-        )
-        
-        for activity in activities[:5]:  # ĞŸĞ¾ĞºĞ°Ğ·Ñ‹Ğ²Ğ°ĞµĞ¼ Ğ¿Ğ¾Ñ�Ğ»ĞµĞ´Ğ½Ğ¸Ğµ 5
-            message_text += (
-                f"â€¢ {activity.activity_type} - {activity.duration} Ğ¼Ğ¸Ğ½ ({activity.calories_burned} ĞºĞºĞ°Ğ»)\n"
-            )
-        
-        if len(activities) > 5:
-            message_text += f"... Ğ¸ ĞµÑ‰Ğµ {len(activities) - 5} Ğ°ĞºÑ‚Ğ¸Ğ²Ğ½Ğ¾Ñ�Ñ‚ĞµĞ¹"
-        
-        message_text += f"\n\nĞ”Ğ»Ñ� Ğ´Ğ¾Ğ±Ğ°Ğ²Ğ»ĞµĞ½Ğ¸Ñ� Ğ°ĞºÑ‚Ğ¸Ğ²Ğ½Ğ¾Ñ�Ñ‚Ğ¸ Ğ¸Ñ�Ğ¿Ğ¾Ğ»ÑŒĞ·ÑƒĞ¹Ñ‚Ğµ /fitness"
-        
-        await message.answer(
-            message_text,
-            reply_markup=get_main_keyboard(),
-            parse_mode="HTML"
-        )
+        return {
+            'activity_minutes': total_duration,
+            'calories_burned': total_calories,
+            'activities_count': len(activities)
+        }
 
-@router.callback_query(F.data == "log_activity")
-async def log_activity_callback(callback: CallbackQuery, state: FSMContext):
-    """Callback Ğ´Ğ»Ñ� Ğ·Ğ°Ğ¿Ğ¸Ñ�Ğ¸ Ğ°ĞºÑ‚Ğ¸Ğ²Ğ½Ğ¾Ñ�Ñ‚Ğ¸ Ğ¸Ğ· Ğ¼ĞµĞ½Ñ�"""
-    await callback.answer()
+@router.message(Command("activity_stats"))
+@router.message(Command("статистика_активности"))
+async def cmd_activity_stats(message: Message):
+    """Показать статистику активности"""
+    user_id = message.from_user.id
     
-    await callback.message.answer(
-        "ğŸ�ƒ <b>Ğ—Ğ°Ğ¿Ğ¸Ñ�ÑŒ Ñ„Ğ¸Ñ‚Ğ½ĞµÑ� Ğ°ĞºÑ‚Ğ¸Ğ²Ğ½Ğ¾Ñ�Ñ‚Ğ¸</b>\n\n"
-        "Ğ’Ñ‹Ğ±ĞµÑ€Ğ¸Ñ‚Ğµ Ñ‚Ğ¸Ğ¿ Ğ°ĞºÑ‚Ğ¸Ğ²Ğ½Ğ¾Ñ�Ñ‚Ğ¸:\n\n"
-        "â€¢ Ğ‘ĞµĞ³\n"
-        "â€¢ Ğ¥Ğ¾Ğ´ÑŒĞ±Ğ°\n"
-        "â€¢ Ğ’ĞµĞ»Ğ¾Ñ�Ğ¸Ğ¿ĞµĞ´\n"
-        "â€¢ ĞŸĞ»Ğ°Ğ²Ğ°Ğ½Ğ¸Ğµ\n"
-        "â€¢ Ğ¢Ñ€ĞµĞ½Ğ¸Ñ€Ğ¾Ğ²ĞºĞ° Ğ² Ğ·Ğ°Ğ»Ğµ\n"
-        "â€¢ Ğ™Ğ¾Ğ³Ğ°\n"
-        "â€¢ Ğ”Ñ€ÑƒĞ³Ğ¾Ğµ\n\n"
-        "Ğ�Ğ°Ğ¿Ğ¸ÑˆĞ¸Ñ‚Ğµ Ğ½Ğ°Ğ·Ğ²Ğ°Ğ½Ğ¸Ğµ Ğ°ĞºÑ‚Ğ¸Ğ²Ğ½Ğ¾Ñ�Ñ‚Ğ¸:",
-        parse_mode="HTML"
-    )
-    await state.set_state(ActivityStates.waiting_for_activity_type)
+    # Получаем статистику за разные периоды
+    stats = await get_activity_stats_by_periods(user_id)
+    
+    text = "📊 <b>Статистика активности</b>\n\n"
+    
+    # Сегодня
+    today_progress = min(stats['today']['minutes'] / 60 * 100, 100)  # Цель 60 минут
+    today_bar = ProgressBar.create_modern_bar(today_progress, 100, 15, 'activity')
+    
+    text += f"📅 <b>Сегодня:</b>\n"
+    text += f"   Время: {stats['today']['minutes']} мин\n"
+    text += f"   Калории: {stats['today']['calories']} ккал\n"
+    text += f"   Прогресс: {today_bar}\n\n"
+    
+    # За неделю
+    week_progress = min(stats['week']['minutes'] / 300 * 100, 100)  # Цель 300 минут в неделю
+    week_bar = ProgressBar.create_modern_bar(week_progress, 100, 15, 'activity')
+    
+    text += f"📆 <b>За неделю:</b>\n"
+    text += f"   Время: {stats['week']['minutes']} мин\n"
+    text += f"   Калории: {stats['week']['calories']} ккал\n"
+    text += f"   Прогресс: {week_bar}\n\n"
+    
+    # За месяц
+    month_progress = min(stats['month']['minutes'] / 1200 * 100, 100)  # Цель 1200 минут в месяц
+    month_bar = ProgressBar.create_modern_bar(month_progress, 100, 15, 'activity')
+    
+    text += f"🗓️ <b>За месяц:</b>\n"
+    text += f"   Время: {stats['month']['minutes']} мин\n"
+    text += f"   Калории: {stats['month']['calories']} ккал\n"
+    text += f"   Прогресс: {month_bar}\n\n"
+    
+    # Мотивация
+    if stats['today']['minutes'] >= 60:
+        text += "🔥 <b>Отличный результат!</b> Вы выполнили дневную норму активности!\n"
+    elif stats['today']['minutes'] >= 30:
+        text += "💪 <b>Хорошая работа!</b> Вы на полпути к дневной цели!\n"
+    else:
+        text += "🌱 <b>Продолжайте!</b> Даже небольшая активность важна!\n"
+    
+    await message.answer(text)
+
+async def get_activity_stats_by_periods(user_id: int) -> dict:
+    """Получить статистику активности по периодам"""
+    from datetime import datetime, timezone, timedelta
+    
+    async with get_session() as session:
+        now = datetime.now(timezone.utc)
+        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        week_start = today_start - timedelta(days=today_start.weekday())
+        month_start = today_start.replace(day=1)
+        
+        # Функция для получения статистики за период
+        def get_period_stats(start_date):
+            result = session.execute(
+                select(ActivityEntry).where(
+                    ActivityEntry.user_id == user_id,
+                    ActivityEntry.created_at >= start_date
+                )
+            )
+            activities = result.scalars().all()
+            
+            return {
+                'minutes': sum(a.duration for a in activities),
+                'calories': sum(a.calories_burned for a in activities),
+                'count': len(activities)
+            }
+        
+        return {
+            'today': get_period_stats(today_start),
+            'week': get_period_stats(week_start),
+            'month': get_period_stats(month_start)
+        }

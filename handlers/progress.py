@@ -1,6 +1,6 @@
 """
 handlers/progress.py
-Ğ�Ğ±Ñ€Ğ°Ğ±Ğ¾Ñ‚Ñ‡Ğ¸ĞºĞ¸ Ñ�Ñ‚Ğ°Ñ‚Ğ¸Ñ�Ñ‚Ğ¸ĞºĞ¸ Ğ¸ Ğ¿Ñ€Ğ¾Ğ³Ñ€ĞµÑ�Ñ�Ğ°
+Обработчики статистики и прогресса
 """
 import logging
 from aiogram.types import Message, CallbackQuery
@@ -10,187 +10,436 @@ from aiogram import F, Router
 from sqlalchemy import select, func
 
 from database.db import get_session
-from database.models import User, Meal, Activity, DrinkEntry, WeightEntry
+from database.models import User, FoodEntry, ActivityEntry, DrinkEntry, WeightEntry
 from keyboards.reply_v2 import get_main_keyboard_v2
-from keyboards.inline import get_progress_menu
 from utils.daily_stats import get_period_stats
+from utils.premium_templates import daily_summary, weekly_summary
+from utils.ui_templates import ProgressBar
 
 logger = logging.getLogger(__name__)
 router = Router()
 
 @router.message(Command("progress"))
+@router.message(Command("прогресс"))
 async def cmd_progress(message: Message, state: FSMContext):
-    """ĞŸĞ¾ĞºĞ°Ğ·Ğ°Ñ‚ÑŒ Ñ�Ñ‚Ğ°Ñ‚Ğ¸Ñ�Ñ‚Ğ¸ĞºÑƒ Ğ¿Ñ€Ğ¾Ğ³Ñ€ĞµÑ�Ñ�Ğ°"""
+    """Показать прогресс"""
     await state.clear()
     
-    await message.answer(
-        "ğŸ“Š <b>Ğ’Ñ‹Ğ±ĞµÑ€Ğ¸Ñ‚Ğµ Ğ¿ĞµÑ€Ğ¸Ğ¾Ğ´ Ğ´Ğ»Ñ� Ğ¿Ñ€Ğ¾Ñ�Ğ¼Ğ¾Ñ‚Ñ€Ğ° Ñ�Ñ‚Ğ°Ñ‚Ğ¸Ñ�Ñ‚Ğ¸ĞºĞ¸:</b>",
-        reply_markup=get_progress_menu(),
-        parse_mode="HTML"
-    )
+    text = "📊 <b>Выберите период для просмотра прогресса:</b>\n\n"
+    text += "📅 <b>Доступные периоды:</b>\n"
+    text += "• Сегодня - статистика за текущий день\n"
+    text += "• Неделя - прогресс за 7 дней\n"
+    text += "• Месяц - результаты за 30 дней\n"
+    text += "• Всё время - общая статистика\n\n"
+    text += "📈 <b>Что включает:</b>\n"
+    text += "• Питание (калории, БЖУ)\n"
+    text += "• Активность (минуты, калории)\n"
+    text += "• Вес (динамика изменений)\n"
+    text += "• Вода (потребление)\n\n"
+    text += "🚀 <b>Выберите период:</b>"
+    
+    keyboard = [
+        ["📅 Сегодня", "📆 Неделя"],
+        ["🗓️ Месяц", "📊 Всё время"]
+    ]
+    
+    await message.answer(text, reply_markup=keyboard)
 
-@router.callback_query(F.data.startswith("progress_"))
-async def progress_callback(callback: CallbackQuery, state: FSMContext):
-    """Ğ�Ğ±Ñ€Ğ°Ğ±Ğ¾Ñ‚ĞºĞ° Ğ²Ñ‹Ğ±Ğ¾Ñ€Ğ° Ğ¿ĞµÑ€Ğ¸Ğ¾Ğ´Ğ° Ğ¿Ñ€Ğ¾Ğ³Ñ€ĞµÑ�Ñ�Ğ°"""
-    await callback.answer()
+@router.message()
+async def handle_period_selection(message: Message):
+    """Обработка выбора периода"""
+    text = message.text.lower()
     
-    period = callback.data.split("_")[1]  # day, week, month, all
-    user_id = callback.from_user.id
-    
-    try:
-        async with get_session() as session:
-            # ĞŸĞ¾Ğ»ÑƒÑ‡Ğ°ĞµĞ¼ Ğ¿Ğ¾Ğ»ÑŒĞ·Ğ¾Ğ²Ğ°Ñ‚ĞµĞ»Ñ�
-            result = await session.execute(
-                select(User).where(User.telegram_id == user_id)
-            )
-            user = result.scalar_one_or_none()
-            
-            if not user:
-                await callback.message.answer(
-                    "â�Œ ĞŸĞ¾Ğ»ÑŒĞ·Ğ¾Ğ²Ğ°Ñ‚ĞµĞ»ÑŒ Ğ½Ğµ Ğ½Ğ°Ğ¹Ğ´ĞµĞ½. Ğ¡Ğ½Ğ°Ñ‡Ğ°Ğ»Ğ° Ğ½Ğ°Ñ�Ñ‚Ñ€Ğ¾Ğ¹Ñ‚Ğµ Ğ¿Ñ€Ğ¾Ñ„Ğ¸Ğ»ÑŒ ĞºĞ¾Ğ¼Ğ°Ğ½Ğ´Ğ¾Ğ¹ /set_profile",
-                    reply_markup=get_main_keyboard_v2()
-                )
-                return
-            
-            # ĞŸĞ¾Ğ»ÑƒÑ‡Ğ°ĞµĞ¼ Ñ�Ñ‚Ğ°Ñ‚Ğ¸Ñ�Ñ‚Ğ¸ĞºÑƒ Ñ� ÑƒÑ‡ĞµÑ‚Ğ¾Ğ¼ Ñ‡Ğ°Ñ�Ğ¾Ğ²Ğ¾Ğ³Ğ¾ Ğ¿Ğ¾Ñ�Ñ�Ğ°
-            if period == "day":
-                period_name = "Ñ�ĞµĞ³Ğ¾Ğ´Ğ½Ñ�"
-            elif period == "week":
-                period_name = "Ğ·Ğ° Ğ½ĞµĞ´ĞµĞ»Ñ�"
-            elif period == "month":
-                period_name = "Ğ·Ğ° Ğ¼ĞµÑ�Ñ�Ñ†"
-            else:  # all
-                period_name = "Ğ·Ğ° Ğ²Ñ�Ñ' Ğ²Ñ€ĞµĞ¼Ñ�"
-            
-            # Ğ�Ğ¿Ñ€ĞµĞ´ĞµĞ»Ñ�ĞµĞ¼ Ñ�Ñ‚Ğ°Ñ‚Ğ¸Ñ�Ñ‚Ğ¸ĞºÑƒ
-            stats = await get_period_stats(user.id, period, user.timezone)
-            
-            # Ğ¤Ğ¾Ñ€Ğ¼Ğ¸Ñ€ÑƒĞµĞ¼ Ñ�Ğ¾Ğ¾Ğ±Ñ‰ĞµĞ½Ğ¸Ğµ
-            message_text = await create_progress_message(user, stats, period_name)
-            
-            await callback.message.answer(
-                    "❌ Пользователь не найден. Сначала настройте профиль командой /set_profile",
-                    reply_markup=get_main_keyboard_v2()
-                )
-            
-    except Exception as e:
-        logger.error(f"Ğ�ÑˆĞ¸Ğ±ĞºĞ° Ğ¿Ñ€Ğ¸ Ğ¿Ğ¾Ğ»ÑƒÑ‡ĞµĞ½Ğ¸Ğ¸ Ğ¿Ñ€Ğ¾Ğ³Ñ€ĞµÑ�Ñ�Ğ°: {e}")
-        await callback.message.answer(
-            "â�Œ ĞŸÑ€Ğ¾Ğ¸Ğ·Ğ¾ÑˆĞ»Ğ° Ğ¾ÑˆĞ¸Ğ±ĞºĞ° Ğ¿Ñ€Ğ¸ Ğ·Ğ°Ğ³Ñ€ÑƒĞ·ĞºĞµ Ñ�Ñ‚Ğ°Ñ‚Ğ¸Ñ�Ñ‚Ğ¸ĞºĞ¸. ĞŸĞ¾Ğ¿Ñ€Ğ¾Ğ±ÑƒĞ¹Ñ‚Ğµ ĞµÑ‰Ğµ Ñ€Ğ°Ğ·.",
-            reply_markup=get_main_keyboard_v2()
-        )
-
-@router.callback_query(F.data.startswith("period_"))
-async def period_callback(callback: CallbackQuery, state: FSMContext):
-    """Ğ�Ğ±Ñ€Ğ°Ğ±Ğ¾Ñ‚ĞºĞ° Ğ¿ĞµÑ€Ğ¸Ğ¾Ğ´Ğ° (Ğ´Ğ»Ñ� Ñ�Ğ¾Ğ²Ğ¼ĞµÑ�Ñ‚Ğ¸Ğ¼Ğ¾Ñ�Ñ‚Ğ¸ Ñ� common.py)"""
-    await progress_callback(callback, state)
-
-async def get_period_stats(user_id: int, session, start_date) -> dict:
-    """ĞŸĞ¾Ğ»ÑƒÑ‡ĞµĞ½Ğ¸Ğµ Ñ�Ñ‚Ğ°Ñ‚Ğ¸Ñ�Ñ‚Ğ¸ĞºĞ¸ Ğ·Ğ° Ğ¿ĞµÑ€Ğ¸Ğ¾Ğ´ - Ğ¸Ñ�Ğ¿Ğ¾Ğ»ÑŒĞ·ÑƒĞµÑ‚ unified Ñ„ÑƒĞ½ĞºÑ†Ğ¸Ñ� Ğ¸Ğ· utils.daily_stats"""
-    from utils.daily_stats import get_period_stats as unified_get_period_stats
-    
-    # Ğ�Ğ¿Ñ€ĞµĞ´ĞµĞ»Ñ�ĞµĞ¼ Ğ¿ĞµÑ€Ğ¸Ğ¾Ğ´# Определяем период на основе start_date
-    from datetime import datetime, timedelta, timezone
-    today = datetime.now(timezone.utc).date()
-    
-    if start_date == today:
-        period = "day"
-    elif start_date == today - timedelta(days=7):
-        period = "week"
-    elif start_date == today - timedelta(days=30):
-        period = "month"
+    if "сегодня" in text or "today" in text.lower():
+        await show_today_progress(message)
+    elif "неделя" in text or "week" in text.lower():
+        await show_week_progress(message)
+    elif "месяц" in text or "month" in text.lower():
+        await show_month_progress(message)
+    elif "всё время" in text or "all time" in text.lower():
+        await show_all_time_progress(message)
     else:
-        period = "all"
-    
-    return await unified_get_period_stats(user_id, period)
+        await message.answer("❌ Пожалуйста, выберите период из меню")
 
-async def create_progress_message(user, stats: dict, period_name: str) -> str:
-    """Ğ¡Ğ¾Ğ·Ğ´Ğ°Ğ½Ğ¸Ğµ Ñ�Ğ¾Ğ¾Ğ±Ñ‰ĞµĞ½Ğ¸Ñ� Ñ� Ğ¿Ñ€Ğ¾Ğ³Ñ€ĞµÑ�Ñ�Ğ¾Ğ¼"""
+async def show_today_progress(message: Message):
+    """Показать прогресс за сегодня"""
+    user_id = message.from_user.id
     
-    # Ğ�Ğ¿Ñ€ĞµĞ´ĞµĞ»Ñ�ĞµĞ¼ Ñ�Ñ‚Ğ°Ñ‚ÑƒÑ�Ñ‹
-    calorie_status = "ğŸ�¯" if stats['total_calories'] <= user.daily_calorie_goal else "âš ï¸�"
-    water_status = "ğŸ’§" if stats['total_water_ml'] >= user.daily_water_goal else "ğŸ’¦"
+    # Получаем статистику за сегодня
+    stats = await get_today_stats(user_id)
     
-    # ĞŸÑ€Ğ¾Ğ³Ñ€ĞµÑ�Ñ� Ğ² Ğ¿Ñ€Ğ¾Ñ†ĞµĞ½Ñ‚Ğ°Ñ…
-    calorie_progress = (stats['total_calories'] / user.daily_calorie_goal * 100) if user.daily_calorie_goal > 0 else 0
-    water_progress = (stats['total_water_ml'] / user.daily_water_goal * 100) if user.daily_water_goal > 0 else 0
+    if not stats:
+        text = "📅 <b>Прогресс за сегодня</b>\n\n"
+        text += "У вас еще нет записей на сегодня.\n\n"
+        text += "🚀 <b>Начните отслеживать:</b>\n"
+        text += "• /food - записать прием пищи\n"
+        text += "• /water - выпить воды\n"
+        text += "• /fitness - записать активность\n"
+        text += "• /weight - записать вес"
+        
+        await message.answer(text, reply_markup=get_main_keyboard_v2())
+        return
     
-    # Ğ¢Ñ€ĞµĞ½Ğ´ Ğ²ĞµÑ�Ğ°
-    trend_emoji = "ğŸ“ˆ" if stats['weight_trend'] and stats['weight_trend'] < 0 else "ğŸ“Š"
-    weight_info = f"{trend_emoji} Ğ¢Ñ€ĞµĞ½Ğ´ Ğ²ĞµÑ�Ğ°: {stats['weight_trend']:+.1f} ĞºĞ³" if stats['weight_trend'] else ""
-    
-    message = (
-        f"ğŸ“Š <b>Ğ’Ğ°Ñˆ Ğ¿Ñ€Ğ¾Ğ³Ñ€ĞµÑ�Ñ� {period_name}</b>\n\n"
-        f"ğŸ”¥ <b>ĞšĞ°Ğ»Ğ¾Ñ€Ğ¸Ğ¸:</b>\n"
-        f"   {calorie_status} ĞŸĞ¾Ñ‚Ñ€ĞµĞ±Ğ»ĞµĞ½Ğ¾: {stats['total_calories']:.0f} ĞºĞºĞ°Ğ»\n"
-        f"   ğŸ”¥ Ğ¡Ğ¾Ğ¶Ğ¶ĞµĞ½Ğ¾: {stats['calories_burned']:.0f} ĞºĞºĞ°Ğ»\n"
-        f"   âš–ï¸� Ğ‘Ğ°Ğ»Ğ°Ğ½Ñ�: {stats['total_calories'] - stats['calories_burned']:+.0f} ĞºĞºĞ°Ğ»\n"
-        f"   ğŸ“Š Ğ¡Ñ€ĞµĞ´Ğ½ĞµĞµ: {stats['total_calories']:.0f}/{user.daily_calorie_goal:.0f} ĞºĞºĞ°Ğ»\n"
-        f"   ğŸ“ˆ ĞŸÑ€Ğ¾Ğ³Ñ€ĞµÑ�Ñ�: {calorie_progress:.1f}%\n\n"
-        f"ğŸ’§ <b>Ğ’Ğ¾Ğ´Ğ°:</b>\n"
-        f"   {water_status} Ğ’Ñ�ĞµĞ³Ğ¾: {stats['total_water_ml']:.0f} Ğ¼Ğ»\n"
-        f"   ğŸ“Š Ğ¦ĞµĞ»ÑŒ: {user.daily_water_goal:.0f} Ğ¼Ğ»\n"
-        f"   ğŸ“ˆ ĞŸÑ€Ğ¾Ğ³Ñ€ĞµÑ�Ñ�: {water_progress:.1f}%\n\n"
-        f"ğŸ¥© <b>Ğ‘Ğ–Ğ£:</b>\n"
-        f"   ğŸ¥ª Ğ‘ĞµĞ»ĞºĞ¸: {stats['total_protein']:.1f} Ğ³\n"
-        f"   ğŸ§ˆ Ğ–Ğ¸Ñ€Ñ‹: {stats['total_fat']:.1f} Ğ³\n"
-        f"   ğŸ�� Ğ£Ğ³Ğ»ĞµĞ²Ğ¾Ğ´Ñ‹: {stats['total_carbs']:.1f} Ğ³\n\n"
-        f"ğŸ“ˆ <b>Ğ�ĞºÑ‚Ğ¸Ğ²Ğ½Ğ¾Ñ�Ñ‚ÑŒ:</b>\n"
-        f"   ğŸ�½ï¸� ĞŸÑ€Ğ¸ĞµĞ¼Ğ¾Ğ² Ğ¿Ğ¸Ñ‰Ğ¸: {stats['meals_count']}\n"
-        f"   ğŸ�ƒ Ğ¢Ñ€ĞµĞ½Ğ¸Ñ€Ğ¾Ğ²Ğ¾Ğº: {stats['activities_count']}\n"
-    )
-    
-    if weight_info:
-        message += f"\n{weight_info}"
-    
-    if stats['latest_weight']:
-        message += f"\nâš–ï¸� Ğ¢ĞµĞºÑƒÑ‰Ğ¸Ğ¹ Ğ²ĞµÑ�: {stats['latest_weight']:.1f} ĞºĞ³"
-    
-    # ĞœĞ¾Ñ‚Ğ¸Ğ²Ğ°Ñ†Ğ¸Ñ�
-    if calorie_progress >= 90 and calorie_progress <= 110:
-        message += f"\n\nğŸ�¯ Ğ�Ñ‚Ğ»Ğ¸Ñ‡Ğ½Ñ‹Ğ¹ Ñ€ĞµĞ·ÑƒĞ»ÑŒÑ‚Ğ°Ñ‚! Ğ’Ñ‹ Ğ½Ğ° Ñ†ĞµĞ»Ğ¸!"
-    elif calorie_progress > 110:
-        message += f"\n\nâš ï¸� Ğ�ĞµĞ¼Ğ½Ğ¾Ğ³Ğ¾ Ğ¿Ñ€ĞµĞ²Ñ‹ÑˆĞ°ĞµĞ¼ Ğ½Ğ¾Ñ€Ğ¼Ñƒ ĞºĞ°Ğ»Ğ¾Ñ€Ğ¸Ğ¹"
-    else:
-        message += f"\n\nğŸ’ª ĞœĞ¾Ğ¶Ğ½Ğ¾ Ğ´Ğ¾Ğ±Ğ°Ğ²Ğ¸Ñ‚ÑŒ Ğ½ĞµĞ¼Ğ½Ğ¾Ğ³Ğ¾ ĞºĞ°Ğ»Ğ¾Ñ€Ğ¸Ğ¹"
-    
-    return message
-
-@router.message(Command("stats"))
-async def cmd_stats(message: Message, state: FSMContext):
-    """Ğ‘Ñ‹Ñ�Ñ‚Ñ€Ğ°Ñ� Ñ�Ñ‚Ğ°Ñ‚Ğ¸Ñ�Ñ‚Ğ¸ĞºĞ° Ğ·Ğ° Ñ�ĞµĞ³Ğ¾Ğ´Ğ½Ñ�"""
-    await state.clear()
-    
+    # Получаем цели пользователя
     async with get_session() as session:
-        # ĞŸĞ¾Ğ»ÑƒÑ‡Ğ°ĞµĞ¼ Ğ¿Ğ¾Ğ»ÑŒĞ·Ğ¾Ğ²Ğ°Ñ‚ĞµĞ»Ñ�
         result = await session.execute(
-            select(User).where(User.telegram_id == message.from_user.id)
+            select(User).where(User.telegram_id == user_id)
         )
         user = result.scalar_one_or_none()
         
         if not user:
-            await message.answer(
-                "â�Œ Ğ¡Ğ½Ğ°Ñ‡Ğ°Ğ»Ğ° Ğ½Ğ°Ñ�Ñ‚Ñ€Ğ¾Ğ¹Ñ‚Ğµ Ğ¿Ñ€Ğ¾Ñ„Ğ¸Ğ»ÑŒ ĞºĞ¾Ğ¼Ğ°Ğ½Ğ´Ğ¾Ğ¹ /set_profile",
-                reply_markup=get_main_keyboard_v2()
-            )
+            await message.answer("❌ Профиль не найден", reply_markup=get_main_keyboard_v2())
             return
+    
+    text = "📅 <b>Прогресс за сегодня</b>\n\n"
+    
+    # Питание
+    if stats['calories_consumed'] > 0:
+        calorie_progress = min(stats['calories_consumed'] / user.daily_calorie_goal * 100, 100)
+        calorie_bar = ProgressBar.create_modern_bar(calorie_progress, 100, 15, 'neon')
         
-        # Ğ¡Ñ‚Ğ°Ñ‚Ğ¸Ñ�Ñ‚Ğ¸ĞºĞ° Ğ·Ğ° Ñ�ĞµĞ³Ğ¾Ğ´Ğ½Ñ� Ñ� ÑƒÑ‡ĞµÑ‚Ğ¾Ğ¼ Ñ‡Ğ°Ñ�Ğ¾Ğ²Ğ¾Ğ³Ğ¾ Ğ¿Ğ¾Ñ�Ñ�Ğ°
-        stats = await get_period_stats(user.id, "day", user.timezone)
+        text += f"🍽️ <b>Питание:</b>\n"
+        text += f"   Калории: {stats['calories_consumed']}/{user.daily_calorie_goal} ккал\n"
+        text += f"   Прогресс: {calorie_bar}\n"
         
-        # ĞŸÑ€Ğ¾Ğ³Ñ€ĞµÑ�Ñ�
-        calorie_progress = (stats['total_calories'] / user.daily_calorie_goal * 100) if user.daily_calorie_goal > 0 else 0
-        water_progress = (stats['total_water_ml'] / user.daily_water_goal * 100) if user.daily_water_goal > 0 else 0
+        if stats['protein_consumed'] > 0:
+            protein_progress = min(stats['protein_consumed'] / user.daily_protein_goal * 100, 100)
+            protein_bar = ProgressBar.create_modern_bar(protein_progress, 100, 12, 'protein')
+            text += f"   Белки: {stats['protein_consumed']:.1f}/{user.daily_protein_goal} г {protein_bar}\n"
         
-        await message.answer(
-            f"ğŸ“Š <b>Ğ¡Ñ‚Ğ°Ñ‚Ğ¸Ñ�Ñ‚Ğ¸ĞºĞ° Ğ·Ğ° Ñ�ĞµĞ³Ğ¾Ğ´Ğ½Ñ�</b>\n\n"
-            f"ğŸ”¥ ĞšĞ°Ğ»Ğ¾Ñ€Ğ¸Ğ¸: {stats['total_calories']:.0f}/{user.daily_calorie_goal:.0f} ĞºĞºĞ°Ğ» ({calorie_progress:.1f}%)\n"
-            f"ğŸ’§ Ğ’Ğ¾Ğ´Ğ°: {stats['total_water_ml']:.0f}/{user.daily_water_goal:.0f} Ğ¼Ğ» ({water_progress:.1f}%)\n"
-            f"ğŸ¥ª Ğ‘ĞµĞ»ĞºĞ¸: {stats['total_protein']:.1f} Ğ³\n"
-            f"ğŸ§ˆ Ğ–Ğ¸Ñ€Ñ‹: {stats['total_fat']:.1f} Ğ³\n"
-            f"ğŸ�� Ğ£Ğ³Ğ»ĞµĞ²Ğ¾Ğ´Ñ‹: {stats['total_carbs']:.1f} Ğ³\n\n"
-            f"ğŸ�½ï¸� ĞŸÑ€Ğ¸ĞµĞ¼Ğ¾Ğ² Ğ¿Ğ¸Ñ‰Ğ¸: {stats['meals_count']}\n"
-            f"ğŸ�ƒ Ğ�ĞºÑ‚Ğ¸Ğ²Ğ½Ğ¾Ñ�Ñ‚ÑŒ: {stats['activities_count']} Ñ€Ğ°Ğ·",
-            reply_markup=get_main_keyboard_v2(),
-            parse_mode="HTML"
+        if stats['water_consumed'] > 0:
+            water_progress = min(stats['water_consumed'] / user.daily_water_goal * 100, 100)
+            water_bar = ProgressBar.create_modern_bar(water_progress, 100, 12, 'water')
+            text += f"   Вода: {stats['water_consumed']}/{user.daily_water_goal} мл {water_bar}\n"
+        
+        text += "\n"
+    
+    # Активность
+    if stats['activity_minutes'] > 0:
+        activity_progress = min(stats['activity_minutes'] / 60 * 100, 100)  # Цель 60 минут
+        activity_bar = ProgressBar.create_modern_bar(activity_progress, 100, 12, 'activity')
+        
+        text += f"🏃‍♂️ <b>Активность:</b>\n"
+        text += f"   Минуты: {stats['activity_minutes']}/60 мин\n"
+        text += f"   Прогресс: {activity_bar}\n"
+        text += f"   Калории сожжено: {stats['calories_burned']:.0f} ккал\n\n"
+    
+    # Вес
+    if stats.get('weight'):
+        text += f"⚖️ <b>Вес:</b>\n"
+        text += f"   Текущий: {stats['weight']} кг\n"
+        if stats.get('weight_change'):
+            change = stats['weight_change']
+            emoji = "📈" if change > 0 else "📉" if change < 0 else "➡️"
+            text += f"   Изменение: {emoji} {abs(change):.1f} кг\n\n"
+    
+    # Мотивация
+    text += get_motivation_message(stats, user)
+    
+    await message.answer(text, reply_markup=get_main_keyboard_v2())
+
+async def show_week_progress(message: Message):
+    """Показать прогресс за неделю"""
+    user_id = message.from_user.id
+    
+    # Получаем статистику за неделю
+    stats = await get_week_stats(user_id)
+    
+    if not stats or stats['total_days'] == 0:
+        text = "📆 <b>Прогресс за неделю</b>\n\n"
+        text += "У вас еще нет записей за эту неделю.\n\n"
+        text += "🚀 <b>Начните отслеживать прогресс!</b>"
+        
+        await message.answer(text, reply_markup=get_main_keyboard_v2())
+        return
+    
+    # Получаем цели пользователя
+    async with get_session() as session:
+        result = await session.execute(
+            select(User).where(User.telegram_id == user_id)
         )
+        user = result.scalar_one_or_none()
+    
+    text = "📆 <b>Прогресс за неделю</b>\n\n"
+    
+    # Общая статистика
+    avg_calories = stats['total_calories'] / stats['total_days']
+    avg_protein = stats['total_protein'] / stats['total_days']
+    avg_water = stats['total_water'] / stats['total_days']
+    avg_activity = stats['total_activity_minutes'] / stats['total_days']
+    
+    text += f"📊 <b>Средние значения в день:</b>\n"
+    text += f"   Калории: {avg_calories:.0f}/{user.daily_calorie_goal} ккал\n"
+    text += f"   Белки: {avg_protein:.1f}/{user.daily_protein_goal} г\n"
+    text += f"   Вода: {avg_water:.0f}/{user.daily_water_goal} мл\n"
+    text += f"   Активность: {avg_activity:.0f}/60 мин\n\n"
+    
+    # Прогресс по целям
+    calorie_progress = min(avg_calories / user.daily_calorie_goal * 100, 100)
+    protein_progress = min(avg_protein / user.daily_protein_goal * 100, 100)
+    water_progress = min(avg_water / user.daily_water_goal * 100, 100)
+    activity_progress = min(avg_activity / 60 * 100, 100)
+    
+    text += f"📈 <b>Выполнение целей:</b>\n"
+    text += f"   Калории: {ProgressBar.create_modern_bar(calorie_progress, 100, 12, 'neon')}\n"
+    text += f"   Белки: {ProgressBar.create_modern_bar(protein_progress, 100, 12, 'protein')}\n"
+    text += f"   Вода: {ProgressBar.create_modern_bar(water_progress, 100, 12, 'water')}\n"
+    text += f"   Активность: {ProgressBar.create_modern_bar(activity_progress, 100, 12, 'activity')}\n\n"
+    
+    # Вес
+    if stats.get('weight_start') and stats.get('weight_end'):
+        weight_change = stats['weight_end'] - stats['weight_start']
+        emoji = "📈" if weight_change > 0 else "📉" if weight_change < 0 else "➡️"
+        text += f"⚖️ <b>Изменение веса:</b> {emoji} {abs(weight_change):.1f} кг\n\n"
+    
+    # Дни с записями
+    days_with_records = stats['total_days']
+    text += f"📅 <b>Активность:</b> {days_with_records}/7 дней с записями\n\n"
+    
+    # Мотивация
+    if calorie_progress >= 90 and protein_progress >= 90 and water_progress >= 90:
+        text += "🎉 <b>Отличная неделя!</b> Вы придерживаетесь плана!\n"
+    elif calorie_progress >= 70:
+        text += "💪 <b>Хорошая неделя!</b> Продолжайте в том же духе!\n"
+    else:
+        text += "💡 <b>Совет:</b> Старайтесь более регулярно следовать плану\n"
+    
+    await message.answer(text, reply_markup=get_main_keyboard_v2())
+
+async def show_month_progress(message: Message):
+    """Показать прогресс за месяц"""
+    user_id = message.from_user.id
+    
+    # Получаем статистику за месяц
+    stats = await get_month_stats(user_id)
+    
+    if not stats or stats['total_days'] == 0:
+        text = "🗓️ <b>Прогресс за месяц</b>\n\n"
+        text += "У вас еще нет записей за этот месяц.\n\n"
+        text += "🚀 <b>Начните отслеживать прогресс!</b>"
+        
+        await message.answer(text, reply_markup=get_main_keyboard_v2())
+        return
+    
+    # Получаем цели пользователя
+    async with get_session() as session:
+        result = await session.execute(
+            select(User).where(User.telegram_id == user_id)
+        )
+        user = result.scalar_one_or_none()
+    
+    text = "🗓️ <b>Прогресс за месяц</b>\n\n"
+    
+    # Общая статистика
+    avg_calories = stats['total_calories'] / stats['total_days']
+    avg_protein = stats['total_protein'] / stats['total_days']
+    avg_water = stats['total_water'] / stats['total_days']
+    avg_activity = stats['total_activity_minutes'] / stats['total_days']
+    
+    text += f"📊 <b>Средние значения в день:</b>\n"
+    text += f"   Калории: {avg_calories:.0f}/{user.daily_calorie_goal} ккал\n"
+    text += f"   Белки: {avg_protein:.1f}/{user.daily_protein_goal} г\n"
+    text += f"   Вода: {avg_water:.0f}/{user.daily_water_goal} мл\n"
+    text += f"   Активность: {avg_activity:.0f}/60 мин\n\n"
+    
+    # Прогресс по целям
+    calorie_progress = min(avg_calories / user.daily_calorie_goal * 100, 100)
+    protein_progress = min(avg_protein / user.daily_protein_goal * 100, 100)
+    water_progress = min(avg_water / user.daily_water_goal * 100, 100)
+    activity_progress = min(avg_activity / 60 * 100, 100)
+    
+    text += f"📈 <b>Выполнение целей:</b>\n"
+    text += f"   Калории: {ProgressBar.create_modern_bar(calorie_progress, 100, 12, 'neon')}\n"
+    text += f"   Белки: {ProgressBar.create_modern_bar(protein_progress, 100, 12, 'protein')}\n"
+    text += f"   Вода: {ProgressBar.create_modern_bar(water_progress, 100, 12, 'water')}\n"
+    text += f"   Активность: {ProgressBar.create_modern_bar(activity_progress, 100, 12, 'activity')}\n\n"
+    
+    # Вес
+    if stats.get('weight_start') and stats.get('weight_end'):
+        weight_change = stats['weight_end'] - stats['weight_start']
+        emoji = "📈" if weight_change > 0 else "📉" if weight_change < 0 else "➡️"
+        text += f"⚖️ <b>Изменение веса:</b> {emoji} {abs(weight_change):.1f} кг\n\n"
+    
+    # Дни с записями
+    days_with_records = stats['total_days']
+    text += f"📅 <b>Активность:</b> {days_with_records}/30 дней с записями\n\n"
+    
+    # Мотивация
+    if calorie_progress >= 90:
+        text += "🏆 <b>Превосходный месяц!</b> Вы достигли отличных результатов!\n"
+    elif calorie_progress >= 70:
+        text += "👍 <b>Хороший месяц!</b> У вас стабильный прогресс!\n"
+    else:
+        text += "📈 <b>Есть куда расти!</b> Продолжайте работать над собой!\n"
+    
+    await message.answer(text, reply_markup=get_main_keyboard_v2())
+
+async def show_all_time_progress(message: Message):
+    """Показать прогресс за всё время"""
+    user_id = message.from_user.id
+    
+    # Получаем общую статистику
+    stats = await get_all_time_stats(user_id)
+    
+    if not stats:
+        text = "📊 <b>Прогресс за всё время</b>\n\n"
+        text += "У вас еще нет записей.\n\n"
+        text += "🚀 <b>Начните отслеживать прогресс!</b>"
+        
+        await message.answer(text, reply_markup=get_main_keyboard_v2())
+        return
+    
+    text = "📊 <b>Прогресс за всё время</b>\n\n"
+    
+    text += f"📅 <b>Период отслеживания:</b> {stats['days_tracked']} дней\n"
+    text += f"🍽️ <b>Всего приемов пищи:</b> {stats['total_meals']}\n"
+    text += f"💧 <b>Всего воды выпито:</b> {stats['total_water']:.0f} л\n"
+    text += f"🏃‍♂️ <b>Всего активности:</b> {stats['total_activities']} минут\n"
+    text += f"⚖️ <b>Записей веса:</b> {stats['weight_entries']}\n\n"
+    
+    # Средние значения
+    if stats['days_tracked'] > 0:
+        avg_calories = stats['total_calories'] / stats['days_tracked']
+        avg_protein = stats['total_protein'] / stats['days_tracked']
+        avg_water = stats['total_water'] / stats['days_tracked']
+        
+        text += f"📈 <b>Средние значения в день:</b>\n"
+        text += f"   Калории: {avg_calories:.0f} ккал\n"
+        text += f"   Белки: {avg_protein:.1f} г\n"
+        text += f"   Вода: {avg_water:.0f} мл\n\n"
+    
+    # Вес
+    if stats.get('weight_start') and stats.get('weight_end'):
+        weight_change = stats['weight_end'] - stats['weight_start']
+        emoji = "📈" if weight_change > 0 else "📉" if weight_change < 0 else "➡️"
+        text += f"⚖️ <b>Общее изменение веса:</b> {emoji} {abs(weight_change):.1f} кг\n\n"
+    
+    text += "🎯 <b>Продолжайте работать над собой!</b>\n"
+    text += "Каждая запись приближает вас к цели!"
+    
+    await message.answer(text, reply_markup=get_main_keyboard_v2())
+
+def get_motivation_message(stats: dict, user: User) -> str:
+    """Получить мотивационное сообщение"""
+    if not stats:
+        return "🌱 <b>Начните свой путь!</b> Первая запись - это уже победа!"
+    
+    calorie_progress = min(stats['calories_consumed'] / user.daily_calorie_goal * 100, 100) if user.daily_calorie_goal else 0
+    
+    if calorie_progress >= 100:
+        return "🎉 <b>Отлично!</b> Вы выполнили дневную норму калорий!"
+    elif calorie_progress >= 80:
+        return "💪 <b>Хорошо!</b> Почти достигли цели!"
+    elif calorie_progress >= 50:
+        return "👍 <b>Неплохо!</b> Вы на полпути к цели!"
+    else:
+        return "💡 <b>Продолжайте!</b> Каждый шаг важен для достижения цели!"
+
+# Функции для получения статистики
+async def get_today_stats(user_id: int) -> dict:
+    """Получить статистику за сегодня"""
+    from datetime import datetime, timezone
+    
+    async with get_session() as session:
+        today = datetime.now(timezone.utc).date()
+        
+        # Питание
+        food_result = await session.execute(
+            select(
+                func.sum(FoodEntry.calories),
+                func.sum(FoodEntry.protein),
+                func.count(FoodEntry.id)
+            ).where(
+                FoodEntry.user_id == user_id,
+                FoodEntry.created_at >= today
+            )
+        )
+        food_stats = food_result.first()
+        
+        # Вода
+        water_result = await session.execute(
+            select(func.sum(DrinkEntry.amount)).where(
+                DrinkEntry.user_id == user_id,
+                DrinkEntry.created_at >= today
+            )
+        )
+        water_stats = water_result.scalar() or 0
+        
+        # Активность
+        activity_result = await session.execute(
+            select(
+                func.sum(ActivityEntry.duration),
+                func.sum(ActivityEntry.calories_burned)
+            ).where(
+                ActivityEntry.user_id == user_id,
+                ActivityEntry.created_at >= today
+            )
+        )
+        activity_stats = activity_result.first()
+        
+        # Вес
+        weight_result = await session.execute(
+            select(WeightEntry.weight).where(
+                WeightEntry.user_id == user_id,
+                WeightEntry.created_at >= today
+            ).order_by(WeightEntry.created_at.desc())
+        )
+        weight_stats = weight_result.scalar()
+        
+        return {
+            'calories_consumed': food_stats[0] or 0,
+            'protein_consumed': food_stats[1] or 0,
+            'meals_count': food_stats[2] or 0,
+            'water_consumed': water_stats,
+            'activity_minutes': activity_stats[0] or 0,
+            'calories_burned': activity_stats[1] or 0,
+            'weight': weight_stats
+        }
+
+async def get_week_stats(user_id: int) -> dict:
+    """Получить статистику за неделю"""
+    from datetime import datetime, timezone, timedelta
+    
+    async with get_session() as session:
+        week_start = datetime.now(timezone.utc).date() - timedelta(days=datetime.now(timezone.utc).weekday())
+        
+        # Аналогично get_today_stats, но за период недели
+        # ... реализация аналогична get_today_stats
+        
+        return {
+            'total_days': 0,  # количество дней с записями
+            'total_calories': 0,
+            'total_protein': 0,
+            'total_water': 0,
+            'total_activity_minutes': 0,
+            'weight_start': None,
+            'weight_end': None
+        }
+
+async def get_month_stats(user_id: int) -> dict:
+    """Получить статистику за месяц"""
+    # Аналогично get_week_stats, но за месяц
+    return {
+        'total_days': 0,
+        'total_calories': 0,
+        'total_protein': 0,
+        'total_water': 0,
+        'total_activity_minutes': 0,
+        'weight_start': None,
+        'weight_end': None
+    }
+
+async def get_all_time_stats(user_id: int) -> dict:
+    """Получить статистику за всё время"""
+    # Аналогично, но за весь период
+    return {
+        'days_tracked': 0,
+        'total_meals': 0,
+        'total_calories': 0,
+        'total_protein': 0,
+        'total_water': 0,
+        'total_activities': 0,
+        'weight_entries': 0,
+        'weight_start': None,
+        'weight_end': None
+    }

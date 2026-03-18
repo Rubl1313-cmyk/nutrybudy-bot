@@ -11,310 +11,299 @@ from services.ai_processor import ai_processor
 from services.soup_service import is_soup, save_soup
 from services.soup_service import save_drink
 from utils.safe_parser import safe_parse_float
+from utils.premium_templates import loading_card, error_card
+from utils.ui_templates import ProgressBar
 
 logger = logging.getLogger(__name__)
 router = Router()
 
 class FoodClarificationStates(StatesGroup):
-    waiting_for_product_choice = State()   # Ğ¾Ğ¶Ğ¸Ğ´Ğ°Ğ½Ğ¸Ğµ Ğ²Ñ‹Ğ±Ğ¾Ñ€Ğ° Ğ²Ğ°Ñ€Ğ¸Ğ°Ğ½Ñ‚Ğ° Ğ¿Ñ€Ğ¾Ğ´ÑƒĞºÑ‚Ğ°
-    waiting_for_weight = State()           # Ğ¾Ğ¶Ğ¸Ğ´Ğ°Ğ½Ğ¸Ğµ Ğ²Ğ²Ğ¾Ğ´Ğ° Ğ²ĞµÑ�Ğ°
-    waiting_for_manual_name = State()      # Ñ€ÑƒÑ‡Ğ½Ğ¾Ğ¹ Ğ²Ğ²Ğ¾Ğ´ Ğ½Ğ°Ğ·Ğ²Ğ°Ğ½Ğ¸Ñ�
+    waiting_for_product_choice = State()   # ожидание выбора варианта продукта
+    waiting_for_weight = State()           # ожидание ввода веса
+    waiting_for_manual_name = State()      # ручной ввод названия
 
 @router.message(F.text, flags={"rate_limit": "food"})
 async def handle_food_text(message: Message, state: FSMContext):
-    """Ğ�Ğ°Ñ‡Ğ°Ğ»Ğ¾ Ğ¾Ğ±Ñ€Ğ°Ğ±Ğ¾Ñ‚ĞºĞ¸ Ñ‚ĞµĞºÑ�Ñ‚Ğ° ĞºĞ°Ğº ĞµĞ´Ñ‹ (Ğ²Ñ‹Ğ·Ñ‹Ğ²Ğ°ĞµÑ‚Ñ�Ñ� Ğ¸Ğ· ai_handler, ĞµÑ�Ğ»Ğ¸ AI Ğ²ĞµÑ€Ğ½ÑƒĞ» food_items)."""
+    """Начало обработки текста как еды (вызывается из ai_handler, если AI вернул food_items)."""
     user_id = message.from_user.id
     text = message.text
 
-    # 1. ĞŸĞ¾Ğ»ÑƒÑ‡Ğ°ĞµĞ¼ Ğ¾Ñ‚ AI Ñ�Ğ¿Ğ¸Ñ�Ğ¾Ğº Ğ¿Ñ€Ğ¾Ğ´ÑƒĞºÑ‚Ğ¾Ğ² (ĞºĞ°Ğº Ñ€Ğ°Ğ½ÑŒÑˆĞµ)
+    # 1. Получаем от AI список продуктов (как раньше)
     result = await ai_processor.process_text_input(text, user_id)
-    if not result.get("success") or result["intent"] != "log_food":
-        # Ğ•Ñ�Ğ»Ğ¸ Ğ½Ğµ ĞµĞ´Ğ°, Ğ¿Ñ€Ğ¾Ğ±Ñ€Ğ°Ñ�Ñ‹Ğ²Ğ°ĞµĞ¼ Ğ´Ğ°Ğ»ÑŒÑˆĞµ (Ğ¼Ğ¾Ğ¶ĞµÑ‚ Ğ±Ñ‹Ñ‚ÑŒ Ğ´Ñ€ÑƒĞ³Ğ¾Ğ¹ intent)
-        return False
-
-    parameters = result["parameters"]
-    food_items = parameters.get("food_items", [])
-
-    if not food_items:
-        await message.answer("ğŸ¤” Ğ�Ğµ ÑƒĞ´Ğ°Ğ»Ğ¾Ñ�ÑŒ Ñ€Ğ°Ñ�Ğ¿Ğ¾Ğ·Ğ½Ğ°Ñ‚ÑŒ Ğ¿Ñ€Ğ¾Ğ´ÑƒĞºÑ‚Ñ‹. ĞŸĞ¾Ğ¿Ñ€Ğ¾Ğ±ÑƒĞ¹Ñ‚Ğµ Ğ¾Ğ¿Ğ¸Ñ�Ğ°Ñ‚ÑŒ Ğ¿Ğ¾Ğ´Ñ€Ğ¾Ğ±Ğ½ĞµĞµ.")
-        return True
-
-    # 2. ĞŸÑ€Ğ¾Ğ²ĞµÑ€Ñ�ĞµĞ¼, Ğ½Ğµ Ñ�Ğ²Ğ»Ñ�ĞµÑ‚Ñ�Ñ� Ğ»Ğ¸ Ñ�Ñ‚Ğ¾ Ñ�ÑƒĞ¿Ğ¾Ğ¼
-    dish_name = parameters.get("description", text)
-    if is_soup(dish_name):
-        # Ğ­Ñ‚Ğ¾ Ñ�ÑƒĞ¿ - Ñ�Ğ¾Ñ…Ñ€Ğ°Ğ½Ñ�ĞµĞ¼ ĞºĞ°Ğº ĞµĞ´Ğ° + Ğ¶Ğ¸Ğ´ĞºĞ¾Ñ�Ñ‚ÑŒ
-        try:
-            # Ğ�Ñ†ĞµĞ½Ğ¸Ğ²Ğ°ĞµĞ¼ Ğ¾Ğ±ÑŠÑ‘Ğ¼ Ñ�ÑƒĞ¿Ğ° (ĞµÑ�Ğ»Ğ¸ Ğ½Ğµ ÑƒĞºĞ°Ğ·Ğ°Ğ½, Ñ�Ñ‡Ğ¸Ñ‚Ğ°ĞµĞ¼ 300 Ğ¼Ğ»)
-            volume_ml = 300  # Ğ¡Ñ‚Ğ°Ğ½Ğ´Ğ°Ñ€Ñ‚Ğ½Ğ°Ñ� Ğ¿Ğ¾Ñ€Ñ†Ğ¸Ñ� Ñ�ÑƒĞ¿Ğ°
-            
-            # Ğ˜Ñ‰ĞµĞ¼ ÑƒĞ¿Ğ¾Ğ¼Ğ¸Ğ½Ğ°Ğ½Ğ¸Ğµ Ğ¾Ğ±ÑŠÑ‘Ğ¼Ğ° Ğ² Ñ‚ĞµĞºÑ�Ñ‚Ğµ
-            import re
-            volume_match = re.search(r'(\d+)\s*(Ğ¼Ğ»|Ğ»|Ñ�Ñ‚Ğ°ĞºĞ°Ğ½)', text.lower())
-            if volume_match:
-                amount = float(volume_match.group(1))
-                unit = volume_match.group(2)
-                if unit == 'Ğ»':
-                    volume_ml = amount * 1000
-                elif unit == 'Ñ�Ñ‚Ğ°ĞºĞ°Ğ½':
-                    volume_ml = amount * 250
-                else:
-                    volume_ml = amount
-            
-            # Ğ¡Ğ¾Ñ…Ñ€Ğ°Ğ½Ñ�ĞµĞ¼ Ñ�ÑƒĞ¿
-            result = await save_soup(user_id, dish_name, volume_ml)
-            
-            await message.answer(
-                f"ğŸ�² <b>Ğ¡ÑƒĞ¿ Ñ�Ğ¾Ñ…Ñ€Ğ°Ğ½Ñ‘Ğ½!</b>\n\n"
-                f"ğŸ¥£ {dish_name.title()}: {volume_ml} Ğ¼Ğ»\n"
-                f"ğŸ”¥ ĞšĞ°Ğ»Ğ¾Ñ€Ğ¸Ğ¸: {result['calories']:.0f} ĞºĞºĞ°Ğ»\n"
-                f"ğŸ’§ Ğ–Ğ¸Ğ´ĞºĞ¾Ñ�Ñ‚ÑŒ: {result['water_volume']:.0f} Ğ¼Ğ»\n\n"
-                f"âœ… Ğ£Ñ‡Ñ‚ĞµĞ½Ğ¾ Ğ¸ ĞºĞ°Ğº ĞµĞ´Ğ°, Ğ¸ ĞºĞ°Ğº Ğ¶Ğ¸Ğ´ĞºĞ¾Ñ�Ñ‚ÑŒ!",
-                parse_mode="HTML"
-            )
-            return True
-            
-        except Exception as e:
-            logger.error(f"Ğ�ÑˆĞ¸Ğ±ĞºĞ° Ğ¿Ñ€Ğ¸ Ñ�Ğ¾Ñ…Ñ€Ğ°Ğ½ĞµĞ½Ğ¸Ğ¸ Ñ�ÑƒĞ¿Ğ°: {e}")
-            await message.answer("â�Œ Ğ�ÑˆĞ¸Ğ±ĞºĞ° Ğ¿Ñ€Ğ¸ Ñ�Ğ¾Ñ…Ñ€Ğ°Ğ½ĞµĞ½Ğ¸Ğ¸ Ñ�ÑƒĞ¿Ğ°. ĞŸĞ¾Ğ¿Ñ€Ğ¾Ğ±ÑƒĞ¹Ñ‚Ğµ ĞµÑ‰Ñ‘ Ñ€Ğ°Ğ·.")
-            return True
-
-    # 3. Ğ¡Ğ¾Ñ…Ñ€Ğ°Ğ½Ñ�ĞµĞ¼ Ğ´Ğ°Ğ½Ğ½Ñ‹Ğµ Ğ² FSM state
-    await state.update_data({
-        "food_clarification": {
-            "original_items": food_items,
-            "current_index": 0,
-            "clarified_items": []
-        }
-    })
-
-    # 4. Ğ�Ğ°Ñ‡Ğ¸Ğ½Ğ°ĞµĞ¼ ÑƒÑ‚Ğ¾Ñ‡Ğ½ĞµĞ½Ğ¸Ğµ Ğ¿ĞµÑ€Ğ²Ğ¾Ğ³Ğ¾ Ğ¿Ñ€Ğ¾Ğ´ÑƒĞºÑ‚Ğ°
-    await clarify_next_product(message, user_id, state)
-    return True
-
-async def clarify_next_product(message: Message, user_id: int, state: FSMContext):
-    """Ğ£Ñ‚Ğ¾Ñ‡Ğ½Ñ�ĞµÑ‚ Ñ�Ğ»ĞµĞ´ÑƒÑ�Ñ‰Ğ¸Ğ¹ Ğ¿Ñ€Ğ¾Ğ´ÑƒĞºÑ‚ Ğ² Ñ�Ğ¿Ğ¸Ñ�ĞºĞµ."""
-    data = await state.get_data()
-    storage = data.get("food_clarification")
-    if not storage:
-        return
-
-    idx = storage["current_index"]
-    if idx >= len(storage["original_items"]):
-        # Ğ’Ñ�Ğµ Ğ¿Ñ€Ğ¾Ğ´ÑƒĞºÑ‚Ñ‹ ÑƒÑ‚Ğ¾Ñ‡Ğ½ĞµĞ½Ñ‹ â€“ Ñ�Ğ¾Ñ…Ñ€Ğ°Ğ½Ñ�ĞµĞ¼ Ğ¸Ñ‚Ğ¾Ğ³
-        await finish_clarification(message, user_id, state)
-        return
-
-    product = storage["original_items"][idx]
-    product_name = product.get("name", "")
-
-    # Ğ˜Ñ‰ĞµĞ¼ Ğ²Ğ°Ñ€Ğ¸Ğ°Ğ½Ñ‚Ñ‹ Ğ² Ğ»Ğ¾ĞºĞ°Ğ»ÑŒĞ½Ğ¾Ğ¹ Ğ±Ğ°Ğ·Ğµ
-    variants = get_product_variants(product_name)  # Ñ„ÑƒĞ½ĞºÑ†Ğ¸Ñ� Ğ¸Ğ· food_api.py
-
-    if variants and len(variants) > 1:
-        # ĞŸĞ¾ĞºĞ°Ğ·Ñ‹Ğ²Ğ°ĞµĞ¼ Ğ²Ğ°Ñ€Ğ¸Ğ°Ğ½Ñ‚Ñ‹
-        builder = InlineKeyboardBuilder()
-        for i, var in enumerate(variants[:5]):  # Ğ¼Ğ°ĞºÑ�Ğ¸Ğ¼ÑƒĞ¼ 5 Ğ²Ğ°Ñ€Ğ¸Ğ°Ğ½Ñ‚Ğ¾Ğ²
-            cal = var.get("calories", 0)
-            protein = var.get("protein", 0)
-            fat = var.get("fat", 0)
-            carbs = var.get("carbs", 0)
-            text_button = f"{var['name']} â€“ {cal:.0f} ĞºĞºĞ°Ğ» (Ğ‘:{protein:.1f} Ğ–:{fat:.1f} Ğ£:{carbs:.1f})"
-            builder.button(text=text_button, callback_data=f"clr_var_{idx}_{i}")
-        builder.button(text="âœ�ï¸� Ğ’Ğ²ĞµÑ�Ñ‚Ğ¸ Ğ²Ñ€ÑƒÑ‡Ğ½ÑƒÑ�", callback_data=f"clr_manual_{idx}")
-        builder.button(text="â�Œ ĞŸÑ€Ğ¾Ğ¿ÑƒÑ�Ñ‚Ğ¸Ñ‚ÑŒ", callback_data=f"clr_skip_{idx}")
-        builder.adjust(1)
-
-        await message.answer(
-            f"ğŸ�½ï¸� Ğ£Ñ‚Ğ¾Ñ‡Ğ½Ğ¸Ñ‚Ğµ, Ñ‡Ñ‚Ğ¾ Ğ²Ñ‹ Ğ¸Ğ¼ĞµĞ»Ğ¸ Ğ² Ğ²Ğ¸Ğ´Ñƒ Ğ¿Ğ¾Ğ´ Â«{product_name}Â»?",
-            reply_markup=builder.as_markup()
-        )
-        await state.set_state(FoodClarificationStates.waiting_for_product_choice)
-    else:
-        # Ğ•Ñ�Ğ»Ğ¸ Ğ²Ğ°Ñ€Ğ¸Ğ°Ğ½Ñ‚ Ğ¾Ğ´Ğ¸Ğ½ Ğ¸Ğ»Ğ¸ Ğ½ĞµÑ‚ Ğ²Ğ°Ñ€Ğ¸Ğ°Ğ½Ñ‚Ğ¾Ğ² â€“ Ğ¸Ñ�Ğ¿Ğ¾Ğ»ÑŒĞ·ÑƒĞµĞ¼ AI-Ğ¾Ñ†ĞµĞ½ĞºÑƒ Ğ¸ Ñ�Ñ€Ğ°Ğ·Ñƒ Ğ·Ğ°Ğ¿Ñ€Ğ°ÑˆĞ¸Ğ²Ğ°ĞµĞ¼ Ğ²ĞµÑ�
-        # ĞœĞ¾Ğ¶Ğ½Ğ¾ Ğ²Ğ·Ñ�Ñ‚ÑŒ Ğ¿ĞµÑ€Ğ²Ñ‹Ğ¹ Ğ²Ğ°Ñ€Ğ¸Ğ°Ğ½Ñ‚ Ğ¸Ğ»Ğ¸ Ğ´Ğ°Ğ½Ğ½Ñ‹Ğµ Ğ¾Ñ‚ AI
-        if variants:
-            chosen = variants[0]
-        else:
-            # Ğ˜Ñ�Ğ¿Ğ¾Ğ»ÑŒĞ·ÑƒĞµĞ¼ Ğ¸Ñ�Ñ…Ğ¾Ğ´Ğ½Ñ‹Ğµ Ğ´Ğ°Ğ½Ğ½Ñ‹Ğµ Ğ¾Ñ‚ AI
-            chosen = {
-                "name": product_name,
-                "calories": product.get("calories_per_100g", 0),
-                "protein": product.get("protein_per_100g", 0),
-                "fat": product.get("fat_per_100g", 0),
-                "carbs": product.get("carbs_per_100g", 0)
-            }
-
-        storage["clarified_items"].append({
-            "name": chosen["name"],
-            "calories_per_100g": chosen.get("calories", 0),
-            "protein_per_100g": chosen.get("protein", 0),
-            "fat_per_100g": chosen.get("fat", 0),
-            "carbs_per_100g": chosen.get("carbs", 0),
-            "weight": None  # Ğ±ÑƒĞ´ĞµÑ‚ Ğ·Ğ°Ğ¿Ğ¾Ğ»Ğ½ĞµĞ½Ğ¾ Ğ¿Ğ¾Ğ·Ğ¶Ğµ
-        })
-        storage["current_index"] += 1
-        await state.update_data({"food_clarification": storage})
-        # Ğ—Ğ°Ğ¿Ñ€Ğ°ÑˆĞ¸Ğ²Ğ°ĞµĞ¼ Ğ²ĞµÑ�
-        await ask_weight(message, user_id, idx, state)
-
-async def ask_weight(message: Message, user_id: int, idx: int, state: FSMContext):
-    """Ğ—Ğ°Ğ¿Ñ€Ğ°ÑˆĞ¸Ğ²Ğ°ĞµÑ‚ Ğ²ĞµÑ� Ğ´Ğ»Ñ� Ğ¿Ñ€Ğ¾Ğ´ÑƒĞºÑ‚Ğ° Ñ� Ğ¸Ğ½Ğ´ĞµĞºÑ�Ğ¾Ğ¼ idx (ÑƒĞ¶Ğµ Ğ´Ğ¾Ğ±Ğ°Ğ²Ğ»ĞµĞ½Ğ½Ğ¾Ğ³Ğ¾ Ğ² clarified_items)."""
-    data = await state.get_data()
-    storage = data.get("food_clarification")
-    if not storage or idx >= len(storage["clarified_items"]):
-        return
-
-    product = storage["clarified_items"][idx]
-    await message.answer(
-        f"âš–ï¸� Ğ¡ĞºĞ¾Ğ»ÑŒĞºĞ¾ Ğ³Ñ€Ğ°Ğ¼Ğ¼ Â«{product['name']}Â»? (Ğ²Ğ²ĞµĞ´Ğ¸Ñ‚Ğµ Ñ‡Ğ¸Ñ�Ğ»Ğ¾)",
-        reply_markup=types.ForceReply()
-    )
-    # Ğ¡Ğ¾Ñ…Ñ€Ğ°Ğ½Ñ�ĞµĞ¼ Ğ¸Ğ½Ğ´ĞµĞºÑ� Ğ² Ñ�Ğ¾Ñ�Ñ‚Ğ¾Ñ�Ğ½Ğ¸Ğ¸
-    await state.update_data(current_clarify_idx=idx)
-    await state.set_state(FoodClarificationStates.waiting_for_weight)
-
-@router.message(FoodClarificationStates.waiting_for_weight)
-async def process_weight(message: Message, state: FSMContext):
-    user_id = message.from_user.id
-    data = await state.get_data()
-    storage = data.get("food_clarification")
-    idx = data.get("current_clarify_idx")
-
-    weight, error = safe_parse_float(message.text, "Ğ²ĞµÑ�")
-    if error:
-        await message.answer(f"â�Œ {error}. ĞŸĞ¾Ğ¿Ñ€Ğ¾Ğ±ÑƒĞ¹Ñ‚Ğµ ĞµÑ‰Ñ‘ Ñ€Ğ°Ğ· (Ğ½Ğ°Ğ¿Ñ€Ğ¸Ğ¼ĞµÑ€, 150):")
-        return
-
-    if weight <= 0 or weight > 5000:
-        await message.answer("â�Œ Ğ’ĞµÑ� Ğ´Ğ¾Ğ»Ğ¶ĞµĞ½ Ğ±Ñ‹Ñ‚ÑŒ Ğ¾Ñ‚ 1 Ğ´Ğ¾ 5000 Ğ³Ñ€Ğ°Ğ¼Ğ¼. ĞŸĞ¾Ğ²Ñ‚Ğ¾Ñ€Ğ¸Ñ‚Ğµ:")
-        return
-
-    # Ğ¡Ğ¾Ñ…Ñ€Ğ°Ğ½Ñ�ĞµĞ¼ Ğ²ĞµÑ�
-    storage["clarified_items"][idx]["weight"] = weight
-    # ĞŸĞµÑ€ĞµÑ…Ğ¾Ğ´Ğ¸Ğ¼ Ğº Ñ�Ğ»ĞµĞ´ÑƒÑ�Ñ‰ĞµĞ¼Ñƒ Ğ¿Ñ€Ğ¾Ğ´ÑƒĞºÑ‚Ñƒ
-    storage["current_index"] += 1
-    await state.update_data({"food_clarification": storage})
-    await clarify_next_product(message, user_id, state)
-
-@router.callback_query(F.data.startswith("clr_var_"))
-async def variant_chosen(callback: CallbackQuery, state: FSMContext):
-    await callback.answer()
-    data = callback.data.split("_")  # clr_var_idx_varindex
-    idx = int(data[2])
-    var_idx = int(data[3])
-    user_id = callback.from_user.id
-    state_data = await state.get_data()
-    storage = state_data.get("food_clarification")
-    if not storage or idx >= len(storage["original_items"]):
-        await callback.message.edit_text("â�Œ Ğ�ÑˆĞ¸Ğ±ĞºĞ°, Ğ½Ğ°Ñ‡Ğ½Ğ¸Ñ‚Ğµ Ğ·Ğ°Ğ½Ğ¾Ğ²Ğ¾.")
-        return
-
-    product = storage["original_items"][idx]
-    variants = get_product_variants(product["name"])
-    chosen = variants[var_idx]
-
-    storage["clarified_items"].append({
-        "name": chosen["name"],
-        "calories_per_100g": chosen.get("calories", 0),
-        "protein_per_100g": chosen.get("protein", 0),
-        "fat_per_100g": chosen.get("fat", 0),
-        "carbs_per_100g": chosen.get("carbs", 0),
-        "weight": None  # Ğ±ÑƒĞ´ĞµÑ‚ Ğ·Ğ°Ğ¿Ğ¾Ğ»Ğ½ĞµĞ½Ğ¾ Ğ¿Ğ¾Ğ·Ğ¶Ğµ
-    })
-    await state.update_data({"food_clarification": storage})
     
-    # Ğ£Ğ´Ğ°Ğ»Ñ�ĞµĞ¼ ĞºĞ»Ğ°Ğ²Ğ¸Ğ°Ñ‚ÑƒÑ€Ñƒ
-    await callback.message.edit_text(f"âœ… Ğ’Ñ‹Ğ±Ñ€Ğ°Ğ½Ğ¾: {chosen['name']}")
-    await ask_weight(callback.message, user_id, len(storage["clarified_items"]) - 1, state)
+    if not result or not result.get('food_items'):
+        await message.answer("❌ Не удалось распознать продукты. Попробуйте еще раз.")
+        return
+    
+    food_items = result['food_items']
+    
+    # 2. Если только один продукт - сразу запрашиваем вес
+    if len(food_items) == 1:
+        await state.set_state(FoodClarificationStates.waiting_for_weight)
+        await state.update_data(
+            selected_product=food_items[0],
+            original_text=text
+        )
+        
+        product = food_items[0]
+        text = f"🍽️ <b>Определен продукт:</b> {product['name']}\n\n"
+        text += f"📊 <b>Пищевая ценность на 100г:</b>\n"
+        text += f"• Калории: {product['calories']} ккал\n"
+        text += f"• Белки: {product['protein']} г\n"
+        text += f"• Жиры: {product['fat']} г\n"
+        text += f"• Углеводы: {product['carbs']} г\n\n"
+        text += "⚖️ <b>Введите вес в граммах:</b>"
+        
+        await message.answer(text)
+        return
+    
+    # 3. Если несколько продуктов - предлагаем выбрать
+    await state.set_state(FoodClarificationStates.waiting_for_product_choice)
+    await state.update_data(
+        food_items=food_items,
+        original_text=text
+    )
+    
+    # Формируем клавиатуру с вариантами
+    builder = InlineKeyboardBuilder()
+    
+    text = "🤔 <b>Найдено несколько вариантов:</b>\n\n"
+    
+    for i, item in enumerate(food_items, 1):
+        text += f"{i}. {item['name']}\n"
+        text += f"   {item['calories']} ккал на 100г\n\n"
+        
+        builder.add(types.InlineKeyboardButton(
+            text=f"{i}. {item['name']}",
+            callback_data=f"select_product:{i-1}"
+        ))
+    
+    builder.add(types.InlineKeyboardButton(
+        text="✏️ Ввести вручную",
+        callback_data="manual_input"
+    ))
+    
+    builder.adjust(1)  # По одной кнопке в строке
+    
+    await message.answer(text, reply_markup=builder.as_markup())
 
-@router.callback_query(F.data.startswith("clr_manual_"))
-async def manual_entry(callback: CallbackQuery, state: FSMContext):
+@router.callback_query(F.data.startswith("select_product:"))
+async def handle_product_selection(callback: CallbackQuery, state: FSMContext):
+    """Обработка выбора продукта из списка"""
+    data = await state.get_data()
+    food_items = data['food_items']
+    
+    # Получаем индекс выбранного продукта
+    product_index = int(callback.data.split(":")[1])
+    selected_product = food_items[product_index]
+    
+    # Переходим к вводу веса
+    await state.set_state(FoodClarificationStates.waiting_for_weight)
+    await state.update_data(selected_product=selected_product)
+    
+    text = f"🍽️ <b>Выбран продукт:</b> {selected_product['name']}\n\n"
+    text += f"📊 <b>Пищевая ценность на 100г:</b>\n"
+    text += f"• Калории: {selected_product['calories']} ккал\n"
+    text += f"• Белки: {selected_product['protein']} г\n"
+    text += f"• Жиры: {selected_product['fat']} г\n"
+    text += f"• Углеводы: {selected_product['carbs']} г\n\n"
+    text += "⚖️ <b>Введите вес в граммах:</b>"
+    
+    await callback.message.edit_text(text)
     await callback.answer()
-    await callback.message.edit_text("âœ�ï¸� Ğ’Ğ²ĞµĞ´Ğ¸Ñ‚Ğµ Ğ½Ğ°Ğ·Ğ²Ğ°Ğ½Ğ¸Ğµ Ğ¿Ñ€Ğ¾Ğ´ÑƒĞºÑ‚Ğ° Ğ²Ñ€ÑƒÑ‡Ğ½ÑƒÑ�:")
+
+@router.callback_query(F.data == "manual_input")
+async def handle_manual_input(callback: CallbackQuery, state: FSMContext):
+    """Переход к ручному вводу продукта"""
     await state.set_state(FoodClarificationStates.waiting_for_manual_name)
+    
+    text = "✏️ <b>Ручной ввод продукта</b>\n\n"
+    text += "Введите название продукта:"
+    
+    await callback.message.edit_text(text)
+    await callback.answer()
 
 @router.message(FoodClarificationStates.waiting_for_manual_name)
-async def process_manual_name(message: Message, state: FSMContext):
-    # ĞŸÑ€Ğ¾Ñ�Ñ‚Ğ¾ Ğ¿Ñ€Ğ¸Ğ½Ğ¸Ğ¼Ğ°ĞµĞ¼ Ğ½Ğ°Ğ·Ğ²Ğ°Ğ½Ğ¸Ğµ, Ğ¿Ğ¾Ñ‚Ğ¾Ğ¼ Ğ·Ğ°Ğ¿Ñ€Ğ¾Ñ�Ğ¸Ğ¼ Ğ²ĞµÑ�
-    # Ğ—Ğ´ĞµÑ�ÑŒ Ğ¼Ğ¾Ğ¶Ğ½Ğ¾ Ñ‚Ğ°ĞºĞ¶Ğµ Ğ¿Ğ¾Ğ¸Ñ�ĞºĞ°Ñ‚ÑŒ Ğ² Ğ±Ğ°Ğ·Ğµ, Ğ½Ğ¾ ÑƒĞ¿Ñ€Ğ¾Ñ�Ñ‚Ğ¸Ğ¼
-    user_id = message.from_user.id
-    state_data = await state.get_data()
-    storage = state_data.get("food_clarification")
-    if not storage:
-        await state.clear()
-        return
-
+async def handle_manual_product_name(message: Message, state: FSMContext):
+    """Обработка ручного ввода названия продукта"""
     product_name = message.text.strip()
-    # Ğ”Ğ¾Ğ±Ğ°Ğ²Ğ»Ñ�ĞµĞ¼ ĞºĞ°Ğº Ğ¿Ñ€Ğ¾Ğ´ÑƒĞºÑ‚ Ñ� Ğ½ÑƒĞ»ĞµĞ²Ñ‹Ğ¼Ğ¸ Ğ´Ğ°Ğ½Ğ½Ñ‹Ğ¼Ğ¸ (Ğ¿Ğ¾Ñ‚Ğ¾Ğ¼ Ğ·Ğ°Ğ¿Ñ€Ğ¾Ñ�Ğ¸Ğ¼ Ğ²ĞµÑ� Ğ¸, Ğ²Ğ¾Ğ·Ğ¼Ğ¾Ğ¶Ğ½Ğ¾, ĞšĞ‘Ğ–Ğ£)
-    storage["clarified_items"].append({
-        "name": product_name,
-        "calories_per_100g": 0,
-        "protein_per_100g": 0,
-        "fat_per_100g": 0,
-        "carbs_per_100g": 0,
-        "weight": None
-    })
-    await state.update_data({"food_clarification": storage})
-    await ask_weight(message, user_id, len(storage["clarified_items"]) - 1, state)
-
-@router.callback_query(F.data.startswith("clr_skip_"))
-async def skip_product(callback: CallbackQuery, state: FSMContext):
-    await callback.answer()
-    user_id = callback.from_user.id
-    data = await state.get_data()
-    storage = data.get("food_clarification")
-    if storage:
-        # ĞŸÑ€Ğ¾Ğ¿ÑƒÑ�ĞºĞ°ĞµĞ¼ Ñ�Ñ‚Ğ¾Ñ‚ Ğ¿Ñ€Ğ¾Ğ´ÑƒĞºÑ‚ (Ğ½Ğµ Ğ´Ğ¾Ğ±Ğ°Ğ²Ğ»Ñ�ĞµĞ¼)
-        storage["current_index"] += 1
-        await state.update_data({"food_clarification": storage})
-        await callback.message.edit_text("â�­ï¸� ĞŸÑ€Ğ¾Ğ´ÑƒĞºÑ‚ Ğ¿Ñ€Ğ¾Ğ¿ÑƒÑ‰ĞµĞ½.")
-        await clarify_next_product(callback.message, user_id, state)
-
-async def finish_clarification(message: Message, user_id: int, state: FSMContext):
-    """Ğ¡Ğ¾Ñ…Ñ€Ğ°Ğ½Ñ�ĞµÑ‚ ÑƒÑ‚Ğ¾Ñ‡Ğ½Ñ‘Ğ½Ğ½Ñ‹Ğµ Ğ¿Ñ€Ğ¾Ğ´ÑƒĞºÑ‚Ñ‹ Ğ² Ğ±Ğ°Ğ·Ñƒ Ğ¸ Ğ¾Ñ‚Ğ¿Ñ€Ğ°Ğ²Ğ»Ñ�ĞµÑ‚ Ğ¸Ñ‚Ğ¾Ğ³."""
-    data = await state.get_data()
-    storage = data.get("food_clarification")
-    if not storage:
+    
+    if len(product_name) < 2:
+        await message.answer("❌ Слишком короткое название. Попробуйте еще раз:")
         return
+    
+    # Ищем варианты продукта
+    try:
+        variants = await get_product_variants(product_name)
+        
+        if not variants:
+            await message.answer("❌ Продукт не найден. Попробуйте другое название:")
+            return
+        
+        if len(variants) == 1:
+            # Сразу переходим к вводу веса
+            product = variants[0]
+            await state.set_state(FoodClarificationStates.waiting_for_weight)
+            await state.update_data(selected_product=product)
+            
+            text = f"🍽️ <b>Найден продукт:</b> {product['name']}\n\n"
+            text += f"📊 <b>Пищевая ценность на 100г:</b>\n"
+            text += f"• Калории: {product['calories']} ккал\n"
+            text += f"• Белки: {product['protein']} г\n"
+            text += f"• Жиры: {product['fat']} г\n"
+            text += f"• Углеводы: {product['carbs']} г\n\n"
+            text += "⚖️ <b>Введите вес в граммах:</b>"
+            
+            await message.answer(text)
+        else:
+            # Предлагаем выбрать из вариантов
+            await state.set_state(FoodClarificationStates.waiting_for_product_choice)
+            await state.update_data(food_items=variants)
+            
+            builder = InlineKeyboardBuilder()
+            text = "🤔 <b>Найдено несколько вариантов:</b>\n\n"
+            
+            for i, item in enumerate(variants, 1):
+                text += f"{i}. {item['name']}\n"
+                text += f"   {item['calories']} ккал на 100г\n\n"
+                
+                builder.add(types.InlineKeyboardButton(
+                    text=f"{i}. {item['name']}",
+                    callback_data=f"select_product:{i-1}"
+                ))
+            
+            builder.adjust(1)
+            await message.answer(text, reply_markup=builder.as_markup())
+            
+    except Exception as e:
+        logger.error(f"Error searching product: {e}")
+        await message.answer("❌ Произошла ошибка поиска. Попробуйте еще раз:")
 
-    clarified = storage["clarified_items"]
-    if not clarified:
-        await message.answer("â�Œ Ğ�ĞµÑ‚ Ğ¿Ñ€Ğ¾Ğ´ÑƒĞºÑ‚Ğ¾Ğ² Ğ´Ğ»Ñ� Ñ�Ğ¾Ñ…Ñ€Ğ°Ğ½ĞµĞ½Ğ¸Ñ�.")
+@router.message(FoodClarificationStates.waiting_for_weight)
+async def handle_weight_input(message: Message, state: FSMContext):
+    """Обработка ввода веса продукта"""
+    weight_text = message.text.strip()
+    
+    # Парсим вес
+    weight = safe_parse_float(weight_text)
+    
+    if weight is None or weight <= 0:
+        await message.answer("❌ Неверный вес. Введите положительное число (например: 100, 250.5):")
+        return
+    
+    if weight > 10000:  # 10 кг максимум
+        await message.answer("❌ Слишком большой вес. Максимум 10000 г. Попробуйте еще раз:")
+        return
+    
+    # Получаем данные о продукте
+    data = await state.get_data()
+    selected_product = data['selected_product']
+    original_text = data.get('original_text', '')
+    
+    # Рассчитываем питательную ценность
+    multiplier = weight / 100
+    calories = selected_product['calories'] * multiplier
+    protein = selected_product['protein'] * multiplier
+    fat = selected_product['fat'] * multiplier
+    carbs = selected_product['carbs'] * multiplier
+    
+    # Сохраняем в базу данных
+    try:
+        from database.db import get_session
+        from database.models import User, FoodEntry
+        
+        async with get_session() as session:
+            # Получаем пользователя
+            result = await session.execute(
+                select(User).where(User.telegram_id == message.from_user.id)
+            )
+            user = result.scalar_one_or_none()
+            
+            if not user:
+                await message.answer(
+                    "❌ Сначала настройте профиль с помощью /set_profile"
+                )
+                await state.clear()
+                return
+            
+            # Определяем тип приема пищи
+            meal_type = await determine_meal_type(message.date.hour)
+            
+            # Создаем запись о еде
+            food_entry = FoodEntry(
+                user_id=user.telegram_id,
+                food_name=selected_product['name'],
+                calories=calories,
+                protein=protein,
+                fat=fat,
+                carbs=carbs,
+                meal_type=meal_type,
+                quantity=weight,
+                unit='г'
+            )
+            
+            session.add(food_entry)
+            await session.commit()
+        
+        # Получаем статистику за день
+        from utils.daily_stats import get_daily_nutrition
+        daily_stats = await get_daily_nutrition(user.telegram_id)
+        
+        # Создаем красивую карточку
+        from utils.premium_templates import meal_card
+        food_data = {
+            'name': selected_product['name'],
+            'calories': calories,
+            'protein': protein,
+            'fat': fat,
+            'carbs': carbs,
+            'quantity': weight,
+            'unit': 'г'
+        }
+        
+        card = meal_card(food_data, user, daily_stats)
+        await message.answer(card)
+        
+        # Проверяем достижения
+        from handlers.achievements import check_achievements
+        await check_achievements(user.telegram_id, 'food', calories)
+        
         await state.clear()
-        return
+        
+    except Exception as e:
+        logger.error(f"Error saving food entry: {e}")
+        await message.answer("❌ Произошла ошибка сохранения. Попробуйте еще раз:")
 
-    # ĞŸÑ€ĞµĞ¾Ğ±Ñ€Ğ°Ğ·ÑƒĞµĞ¼ Ğ² Ñ„Ğ¾Ñ€Ğ¼Ğ°Ñ‚, Ğ¾Ğ¶Ğ¸Ğ´Ğ°ĞµĞ¼Ñ‹Ğ¹ food_save_service
-    food_items_for_save = []
-    for item in clarified:
-        weight = item.get("weight", 100)  # ĞµÑ�Ğ»Ğ¸ Ğ²ĞµÑ� Ğ½Ğµ ÑƒĞºĞ°Ğ·Ğ°Ğ½, Ğ±ĞµÑ€Ñ‘Ğ¼ 100Ğ³
-        factor = weight / 100.0
-        food_items_for_save.append({
-            "name": item["name"],
-            "quantity": weight,
-            "unit": "Ğ³",
-            "calories": item["calories_per_100g"] * factor,
-            "protein": item["protein_per_100g"] * factor,
-            "fat": item["fat_per_100g"] * factor,
-            "carbs": item["carbs_per_100g"] * factor
-        })
-
-    # Ğ¡Ğ¾Ñ…Ñ€Ğ°Ğ½Ñ�ĞµĞ¼ Ñ‡ĞµÑ€ĞµĞ· Ñ�ĞµÑ€Ğ²Ğ¸Ñ�
-    from services.food_save_service import food_save_service
-    result = await food_save_service.save_food_to_db(
-        user_id,
-        food_items_for_save,
-        meal_type="unknown"  # Ğ¼Ğ¾Ğ¶Ğ½Ğ¾ Ğ¾Ğ¿Ñ€ĞµĞ´ĞµĞ»Ğ¸Ñ‚ÑŒ Ğ¿Ğ¾ ĞºĞ¾Ğ½Ñ‚ĞµĞºÑ�Ñ‚Ñƒ Ğ¸Ğ»Ğ¸ Ñ�Ğ¿Ñ€Ğ¾Ñ�Ğ¸Ñ‚ÑŒ
-    )
-
-    if result["success"]:
-        await message.answer(
-            f"âœ… ĞŸÑ€Ğ¸Ñ‘Ğ¼ Ğ¿Ğ¸Ñ‰Ğ¸ Ñ�Ğ¾Ñ…Ñ€Ğ°Ğ½Ñ‘Ğ½!\n"
-            f"ğŸ”¥ ĞšĞ°Ğ»Ğ¾Ñ€Ğ¸Ğ¸: {result['total_calories']:.0f}\n"
-            f"ğŸ¥© Ğ‘ĞµĞ»ĞºĞ¸: {result['total_protein']:.1f}\n"
-            f"ğŸ¥‘ Ğ–Ğ¸Ñ€Ñ‹: {result['total_fat']:.1f}\n"
-            f"ğŸ�š Ğ£Ğ³Ğ»ĞµĞ²Ğ¾Ğ´Ñ‹: {result['total_carbs']:.1f}"
-        )
+async def determine_meal_type(hour: int) -> str:
+    """Определить тип приема пищи по времени"""
+    if 5 <= hour < 11:
+        return "breakfast"
+    elif 11 <= hour < 15:
+        return "lunch"
+    elif 15 <= hour < 19:
+        return "dinner"
     else:
-        await message.answer(f"â�Œ Ğ�ÑˆĞ¸Ğ±ĞºĞ° Ñ�Ğ¾Ñ…Ñ€Ğ°Ğ½ĞµĞ½Ğ¸Ñ�: {result.get('error')}")
+        return "snack"
 
+@router.callback_query(F.data == "continue_as_ingredient")
+async def handle_continue_as_ingredient(callback: CallbackQuery, state: FSMContext):
+    """Продолжить как ингредиент для блюда"""
     await state.clear()
+    
+    text = "👨‍🍳 <b>Режим ингредиента</b>\n\n"
+    text += "Теперь вы можете добавить этот продукт как ингредиент блюда.\n"
+    text += "Используйте команду /cook для начала приготовления блюда."
+    
+    await callback.message.edit_text(text)
+    await callback.answer()
+
+@router.callback_query(F.data == "cancel_food_input")
+async def handle_cancel_food_input(callback: CallbackQuery, state: FSMContext):
+    """Отмена ввода еды"""
+    await state.clear()
+    
+    text = "❌ <b>Отменено</b>\n\n"
+    text += "Ввод еды отменен. Можете начать заново."
+    
+    await callback.message.edit_text(text)
+    await callback.answer()

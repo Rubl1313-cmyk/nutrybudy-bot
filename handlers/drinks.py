@@ -1,6 +1,7 @@
 """
-Ğ�Ğ±Ñ€Ğ°Ğ±Ğ¾Ñ‚Ñ‡Ğ¸ĞºĞ¸ Ğ½Ğ°Ğ¿Ğ¸Ñ‚ĞºĞ¾Ğ² - Ğ·Ğ°Ğ¼ĞµĞ½Ğ° water.py
-ĞŸĞ¾Ğ´Ğ´ĞµÑ€Ğ¶Ğ¸Ğ²Ğ°ĞµÑ‚ Ğ²Ğ¾Ğ´Ñƒ, Ñ�Ğ¾ĞºĞ¸, Ñ‡Ğ°Ğ¹, ĞºĞ¾Ñ„Ğµ Ğ¸ Ğ´Ñ€ÑƒĞ³Ğ¸Ğµ Ğ½Ğ°Ğ¿Ğ¸Ñ‚ĞºĞ¸ Ñ� ĞºĞ°Ğ»Ğ¾Ñ€Ğ¸Ñ�Ğ¼Ğ¸
+handlers/drinks.py
+Обработчики напитков - универсальная система учета жидкостей
+Поддерживает воду, соки, чай, кофе и другие напитки с калориями
 """
 import logging
 from aiogram.types import Message, CallbackQuery
@@ -14,188 +15,318 @@ from database.models import User, DrinkEntry
 from keyboards.reply_v2 import get_main_keyboard_v2
 from utils.drink_parser import parse_drink
 from utils.daily_stats import get_daily_water
-from services.soup_service import save_drink
-from utils.localized_commands import create_localized_command_filter
+from utils.premium_templates import drink_card, water_card
+from utils.ui_templates import ProgressBar
 
 logger = logging.getLogger(__name__)
 router = Router()
 
-@router.message(Command("log_drink"))
-async def cmd_log_drink(message: Message, state: FSMContext):
-    """Ğ—Ğ°Ğ¿Ğ¸Ñ�ÑŒ Ğ¿Ğ¾Ñ‚Ñ€ĞµĞ±Ğ»ĞµĞ½Ğ¸Ñ� Ğ¶Ğ¸Ğ´ĞºĞ¾Ñ�Ñ‚Ğ¸ (Ğ½Ğ°Ğ¿Ğ¸Ñ‚ĞºĞ¾Ğ²)"""
+@router.message(Command("water"))
+@router.message(Command("вода"))
+async def cmd_water(message: Message, state: FSMContext):
+    """Записать потребление воды"""
     await state.clear()
     
-    await message.answer(
-        "ğŸ’§ <b>Ğ—Ğ°Ğ¿Ğ¸Ñ�ÑŒ Ğ¶Ğ¸Ğ´ĞºĞ¾Ñ�Ñ‚Ğ¸</b>\n\n"
-        "Ğ�Ğ°Ğ¿Ğ¸ÑˆĞ¸Ñ‚Ğµ, Ñ‡Ñ‚Ğ¾ Ğ²Ñ‹ Ğ²Ñ‹Ğ¿Ğ¸Ğ»Ğ¸ Ğ¸ Ñ�ĞºĞ¾Ğ»ÑŒĞºĞ¾:\n\n"
-        "â€¢ <b>Ğ’Ğ¾Ğ´Ğ°:</b> 200 Ğ¼Ğ», 1 Ñ�Ñ‚Ğ°ĞºĞ°Ğ½, 0.5 Ğ»\n"
-        "â€¢ <b>Ğ¡Ğ¾ĞºĞ¸:</b> Ñ�Ğ¾Ğº 250 Ğ¼Ğ», Ğ°Ğ¿ĞµĞ»ÑŒÑ�Ğ¸Ğ½Ğ¾Ğ²Ñ‹Ğ¹ Ñ�Ğ¾Ğº 200\n"
-        "â€¢ <b>Ğ§Ğ°Ğ¹/ĞºĞ¾Ñ„Ğµ:</b> Ñ‡Ğ°Ğ¹ Ñ� Ñ�Ğ°Ñ…Ğ°Ñ€Ğ¾Ğ¼ 300, ĞºĞ¾Ñ„Ğµ Ñ� Ğ¼Ğ¾Ğ»Ğ¾ĞºĞ¾Ğ¼ 150\n"
-        "â€¢ <b>ĞœĞ¾Ğ»Ğ¾Ñ‡Ğ½Ñ‹Ğµ:</b> Ğ¼Ğ¾Ğ»Ğ¾ĞºĞ¾ 250, ĞºĞµÑ„Ğ¸Ñ€ 200, Ğ¹Ğ¾Ğ³ÑƒÑ€Ñ‚ 150\n"
-        "â€¢ <b>Ğ”Ñ€ÑƒĞ³Ğ¾Ğµ:</b> Ğ³Ğ°Ğ·Ğ¸Ñ€Ğ¾Ğ²ĞºĞ° 330, ĞºĞ¾Ğ¼Ğ¿Ğ¾Ñ‚ 200, Ñ�Ğ¼ÑƒĞ·Ğ¸ 250\n\n"
-        "ğŸ¤– Ğ¯ Ğ°Ğ²Ñ‚Ğ¾Ğ¼Ğ°Ñ‚Ğ¸Ñ‡ĞµÑ�ĞºĞ¸ Ğ¾Ğ¿Ñ€ĞµĞ´ĞµĞ»Ñ� Ñ‚Ğ¸Ğ¿ Ğ½Ğ°Ğ¿Ğ¸Ñ‚ĞºĞ° Ğ¸ ĞºĞ°Ğ»Ğ¾Ñ€Ğ¸Ğ¸!",
-        parse_mode="HTML"
-    )
-
-@router.message(Command("log_water"))
-@router.message(create_localized_command_filter("Ğ·Ğ°Ğ¿Ğ¸Ñ�Ğ°Ñ‚ÑŒ_Ğ²Ğ¾Ğ´Ñƒ"))
-async def cmd_log_water(message: Message, state: FSMContext):
-    """Ğ—Ğ°Ğ¿Ğ¸Ñ�ÑŒ Ğ²Ğ¾Ğ´Ñ‹ (Ğ´Ğ»Ñ� Ñ�Ğ¾Ğ²Ğ¼ĞµÑ�Ñ‚Ğ¸Ğ¼Ğ¾Ñ�Ñ‚Ğ¸)"""
-    return await cmd_log_drink(message, state)
+    text = "💧 <b>Записать воду</b>\n\n"
+    text += "Введите количество воды в мл (например: 200, 500):\n\n"
+    text += "💡 <b>Популярные объемы:</b>\n"
+    text += "• 200 мл - стакан\n"
+    text += "• 250 мл - стандартный стакан\n"
+    text += "• 350 мл - большая кружка\n"
+    text += "• 500 мл - бутылка\n"
+    text += "• 1000 мл - литр"
+    
+    await message.answer(text)
+    await state.set_state({"waiting_for_water_amount": True})
 
 @router.message(Command("drink"))
-@router.message(Command("water"))
-@router.message(create_localized_command_filter("Ğ²Ğ¾Ğ´Ğ°"))
-async def cmd_drink_stats(message: Message, state: FSMContext):
-    """Ğ¡Ñ‚Ğ°Ñ‚Ğ¸Ñ�Ñ‚Ğ¸ĞºĞ° Ğ¿Ğ¾Ñ‚Ñ€ĞµĞ±Ğ»ĞµĞ½Ğ¸Ñ� Ğ¶Ğ¸Ğ´ĞºĞ¾Ñ�Ñ‚Ğ¸"""
+@router.message(Command("напиток"))
+async def cmd_drink(message: Message, state: FSMContext):
+    """Записать любой напиток"""
     await state.clear()
     
-    async with get_session() as session:
-        # ĞŸĞ¾Ğ»ÑƒÑ‡Ğ°ĞµĞ¼ Ğ¿Ğ¾Ğ»ÑŒĞ·Ğ¾Ğ²Ğ°Ñ‚ĞµĞ»Ñ�
-        result = await session.execute(
-            select(User).where(User.telegram_id == message.from_user.id)
-        )
-        user = result.scalar_one_or_none()
-        
-        if not user:
-            await message.answer(
-                "❌ Сначала настройте профиль командой /set_profile",
-                reply_markup=get_main_keyboard_v2()
-            )
-            return
-        
-        # Ğ¡Ñ‚Ğ°Ñ‚Ğ¸Ñ�Ñ‚Ğ¸ĞºĞ° Ğ·Ğ° Ñ�ĞµĞ³Ğ¾Ğ´Ğ½Ñ� Ñ� ÑƒÑ‡ĞµÑ‚Ğ¾Ğ¼ Ñ‡Ğ°Ñ�Ğ¾Ğ²Ğ¾Ğ³Ğ¾ Ğ¿Ğ¾Ñ�Ñ�Ğ°
-        from utils.timezone_utils import get_user_local_date
-        
-        # Ğ�Ğ±Ñ‰Ğ°Ñ� Ğ¶Ğ¸Ğ´ĞºĞ¾Ñ�Ñ‚ÑŒ
-        total_volume = await get_daily_water(user.id, user.timezone)
-        
-        # ĞšĞ°Ğ»Ğ¾Ñ€Ğ¸Ğ¸ Ğ¸Ğ· Ğ½Ğ°Ğ¿Ğ¸Ñ‚ĞºĞ¾Ğ²
-        from utils.daily_stats import get_daily_drink_calories
-        total_calories = await get_daily_drink_calories(user.id, user.timezone)
-        
-        # Ğ¡Ñ‚Ğ°Ñ‚Ğ¸Ñ�Ñ‚Ğ¸ĞºĞ° Ğ·Ğ° Ğ½ĞµĞ´ĞµĞ»Ñ�
-        from datetime import timedelta
-        today_local = get_user_local_date(user.timezone)
-        week_ago = today_local - timedelta(days=7)
-        
-        week_result = await session.execute(
-            select(func.sum(DrinkEntry.volume_ml)).where(
-                DrinkEntry.user_id == user.id,
-                func.date(DrinkEntry.datetime) >= week_ago
-            )
-        )
-        week_total = week_result.scalar() or 0
-        
-        # ĞŸÑ€Ğ¾Ğ³Ñ€ĞµÑ�Ñ�
-        progress = (total_volume / user.daily_water_goal) * 100
-        remaining = max(0, user.daily_water_goal - total_volume)
-        
-        # Ğ¡Ñ‚Ğ°Ñ‚ÑƒÑ�
-        if progress >= 100:
-            status = "ğŸ�‰ Ğ¦ĞµĞ»ÑŒ Ğ´Ğ¾Ñ�Ñ‚Ğ¸Ğ³Ğ½ÑƒÑ‚Ğ°!"
-        elif progress >= 75:
-            status = "ğŸ’ª Ğ�Ñ‚Ğ»Ğ¸Ñ‡Ğ½Ğ¾!"
-        elif progress >= 50:
-            status = "ğŸ‘� Ğ¥Ğ¾Ñ€Ğ¾ÑˆĞ¾"
-        elif progress >= 25:
-            status = "ğŸ’§ Ğ�ÑƒĞ¶Ğ½Ğ° Ğ²Ğ¾Ğ´Ğ°"
-        else:
-            status = "ğŸš¨ ĞŸĞµĞ¹Ñ‚Ğµ Ğ²Ğ¾Ğ´Ñƒ!"
-        
-        await message.answer(
-            f"ğŸ’§ <b>Ğ¡Ñ‚Ğ°Ñ‚Ğ¸Ñ�Ñ‚Ğ¸ĞºĞ° Ğ¶Ğ¸Ğ´ĞºĞ¾Ñ�Ñ‚Ğ¸</b>\n\n"
-            f"ğŸ“… <b>Ğ¡ĞµĞ³Ğ¾Ğ´Ğ½Ñ�:</b>\n"
-            f"ğŸ’¦ Ğ’Ñ�ĞµĞ³Ğ¾ Ğ²Ñ‹Ğ¿Ğ¸Ñ‚Ğ¾: {total_volume:.0f} Ğ¼Ğ»\n"
-            f"ğŸ�¯ Ğ¦ĞµĞ»ÑŒ: {user.daily_water_goal} Ğ¼Ğ»\n"
-            f"ğŸ“ˆ ĞŸÑ€Ğ¾Ğ³Ñ€ĞµÑ�Ñ�: {progress:.1f}%\n"
-            f"ğŸ”¥ ĞšĞ°Ğ»Ğ¾Ñ€Ğ¸Ğ¸ Ğ¸Ğ· Ğ½Ğ°Ğ¿Ğ¸Ñ‚ĞºĞ¾Ğ²: {total_calories:.0f} ĞºĞºĞ°Ğ»\n"
-            f"ğŸ’¦ Ğ�Ñ�Ñ‚Ğ°Ğ»Ğ¾Ñ�ÑŒ: {remaining:.0f} Ğ¼Ğ»\n\n"
-            f"ğŸ“Š <b>Ğ�ĞµĞ´ĞµĞ»Ñ�:</b> {week_total:.0f} Ğ¼Ğ»\n\n"
-            f"{status}\n\n"
-            f"Ğ”Ğ»Ñ� Ğ·Ğ°Ğ¿Ğ¸Ñ�Ğ¸ Ğ¶Ğ¸Ğ´ĞºĞ¾Ñ�Ñ‚Ğ¸ Ğ¸Ñ�Ğ¿Ğ¾Ğ»ÑŒĞ·ÑƒĞ¹Ñ‚Ğµ /log_drink",
-            reply_markup=get_main_keyboard_v2(),
-            parse_mode="HTML"
-        )
+    text = "🥤 <b>Записать напиток</b>\n\n"
+    text += "Введите напиток и количество:\n\n"
+    text += "💡 <b>Примеры:</b>\n"
+    text += "• Кофе 200\n"
+    text += "• Апельсиновый сок 300\n"
+    text += "• Чай 250\n"
+    text += "• Кола 500\n"
+    text += "• Молоко 200\n\n"
+    text += "Формат: <напиток> <объем в мл>"
+    
+    await message.answer(text)
+    await state.set_state({"waiting_for_drink": True})
 
-@router.message(F.text.regexp(r'(\d+\.?\d*)\s*(Ğ¼Ğ»|Ğ»|Ñ�Ñ‚Ğ°ĞºĞ°Ğ½|Ñ‡Ğ°ÑˆĞºĞ°|Ğ±ÑƒÑ‚Ñ‹Ğ»ĞºĞ°|glass|bottle|cup)?'))
-async def process_drink(message: Message, state: FSMContext):
-    """Ğ�Ğ±Ñ€Ğ°Ğ±Ğ¾Ñ‚ĞºĞ° Ğ·Ğ°Ğ¿Ğ¸Ñ�Ğ¸ Ğ½Ğ°Ğ¿Ğ¸Ñ‚ĞºĞ°"""
+@router.message(lambda message: message.text and message.text.isdigit())
+async def process_water_amount(message: Message, state: FSMContext):
+    """Обработка количества воды"""
     try:
-        # ĞŸÑ€Ğ¾Ğ±ÑƒĞµĞ¼ Ñ€Ğ°Ñ�Ğ¿Ğ°Ñ€Ñ�Ğ¸Ñ‚ÑŒ ĞºĞ°Ğº Ğ½Ğ°Ğ¿Ğ¸Ñ‚Ğ¾Ğº
-        volume, drink_name, calories = await parse_drink(message.text)
+        amount = int(message.text)
         
-        if not volume or volume <= 0:
-            await message.answer(
-                "â�Œ Ğ�Ğµ ÑƒĞ´Ğ°Ğ»Ğ¾Ñ�ÑŒ Ğ¾Ğ¿Ñ€ĞµĞ´ĞµĞ»Ğ¸Ñ‚ÑŒ ĞºĞ¾Ğ»Ğ¸Ñ‡ĞµÑ�Ñ‚Ğ²Ğ¾. ĞŸĞ¾Ğ¿Ñ€Ğ¾Ğ±ÑƒĞ¹Ñ‚Ğµ ĞµÑ‰Ğµ Ñ€Ğ°Ğ·:\n\n"
-                "ĞŸÑ€Ğ¸Ğ¼ĞµÑ€Ñ‹: 200 Ğ¼Ğ», 250, 0.5 Ğ», 1 Ñ�Ñ‚Ğ°ĞºĞ°Ğ½"
-            )
+        if amount <= 0:
+            await message.answer("❌ Количество должно быть положительным числом. Попробуйте еще раз:")
             return
         
-        if volume > 5000:  # Ğ—Ğ°Ñ‰Ğ¸Ñ‚Ğ° Ğ¾Ñ‚ Ñ�Ğ»Ğ¸ÑˆĞºĞ¾Ğ¼ Ğ±Ğ¾Ğ»ÑŒÑˆĞ¸Ñ… Ğ·Ğ½Ğ°Ñ‡ĞµĞ½Ğ¸Ğ¹
-            await message.answer(
-                "â�Œ Ğ¡Ğ»Ğ¸ÑˆĞºĞ¾Ğ¼ Ğ±Ğ¾Ğ»ÑŒÑˆĞ¾Ğµ ĞºĞ¾Ğ»Ğ¸Ñ‡ĞµÑ�Ñ‚Ğ²Ğ¾. ĞœĞ°ĞºÑ�Ğ¸Ğ¼ÑƒĞ¼ 5 Ğ»Ğ¸Ñ‚Ñ€Ğ¾Ğ² Ğ·Ğ° Ñ€Ğ°Ğ·."
-            )
+        if amount > 2000:
+            await message.answer("❌ Слишком большой объем. Максимум 2000 мл за раз. Попробуйте еще раз:")
             return
         
-        # Ğ¡Ğ¾Ñ…Ñ€Ğ°Ğ½Ñ�ĞµĞ¼ Ğ½Ğ°Ğ¿Ğ¸Ñ‚Ğ¾Ğº
-        result = await save_drink(message.from_user.id, message.text)
-        
-        # ĞŸĞ¾Ğ»ÑƒÑ‡Ğ°ĞµĞ¼ Ñ�Ñ‚Ğ°Ñ‚Ğ¸Ñ�Ñ‚Ğ¸ĞºÑƒ Ğ·Ğ° Ñ�ĞµĞ³Ğ¾Ğ´Ğ½Ñ� Ñ� ÑƒÑ‡ĞµÑ‚Ğ¾Ğ¼ Ñ‡Ğ°Ñ�Ğ¾Ğ²Ğ¾Ğ³Ğ¾ Ğ¿Ğ¾Ñ�Ñ�Ğ°
+        # Сохраняем в базу данных
         async with get_session() as session:
-            user_result = await session.execute(
+            # Получаем пользователя
+            result = await session.execute(
                 select(User).where(User.telegram_id == message.from_user.id)
             )
-            user = user_result.scalar_one_or_none()
+            user = result.scalar_one_or_none()
             
-            # Ğ�Ğ±Ñ‰Ğ°Ñ� Ğ¶Ğ¸Ğ´ĞºĞ¾Ñ�Ñ‚ÑŒ
-            total_volume = await get_daily_water(user.id, user.timezone)
+            if not user:
+                await message.answer(
+                    "❌ Сначала настройте профиль с помощью /set_profile",
+                    reply_markup=get_main_keyboard_v2()
+                )
+                await state.clear()
+                return
             
-            # ĞšĞ°Ğ»Ğ¾Ñ€Ğ¸Ğ¸ Ğ¸Ğ· Ğ½Ğ°Ğ¿Ğ¸Ñ‚ĞºĞ¾Ğ²
-            total_calories = await get_daily_drink_calories(user.id, user.timezone)
-            
-            progress = (total_volume / user.daily_water_goal) * 100
-            
-            # Ğ¤Ğ¾Ñ€Ğ¼Ğ¸Ñ€ÑƒĞµĞ¼ Ğ¾Ñ‚Ğ²ĞµÑ‚
-            if calories > 0:
-                calorie_info = f"\nğŸ”¥ ĞšĞ°Ğ»Ğ¾Ñ€Ğ¸Ğ¸: {calories:.0f} ĞºĞºĞ°Ğ»"
-            else:
-                calorie_info = ""
-            
-            await message.answer(
-                f"âœ… <b>Ğ–Ğ¸Ğ´ĞºĞ¾Ñ�Ñ‚ÑŒ Ğ·Ğ°Ğ¿Ğ¸Ñ�Ğ°Ğ½Ğ°!</b>\n\n"
-                f"ğŸ’§ {drink_name.title()}: {volume:.0f} Ğ¼Ğ»{calorie_info}\n\n"
-                f"ğŸ“Š <b>Ğ’Ñ�ĞµĞ³Ğ¾ Ğ·Ğ° Ñ�ĞµĞ³Ğ¾Ğ´Ğ½Ñ�:</b>\n"
-                f"ğŸ’¦ Ğ–Ğ¸Ğ´ĞºĞ¾Ñ�Ñ‚ÑŒ: {total_volume:.0f} Ğ¼Ğ»\n"
-                f"ğŸ�¯ Ğ¦ĞµĞ»ÑŒ: {user.daily_water_goal} Ğ¼Ğ»\n"
-                f"ğŸ“ˆ ĞŸÑ€Ğ¾Ğ³Ñ€ĞµÑ�Ñ�: {progress:.1f}%\n"
-                f"ğŸ”¥ ĞšĞ°Ğ»Ğ¾Ñ€Ğ¸Ğ¸ Ğ¸Ğ· Ğ½Ğ°Ğ¿Ğ¸Ñ‚ĞºĞ¾Ğ²: {total_calories:.0f} ĞºĞºĞ°Ğ»\n\n"
-                f"{'ğŸ�‰ Ğ�Ñ‚Ğ»Ğ¸Ñ‡Ğ½Ğ¾!' if progress >= 100 else 'ğŸ’ª ĞŸÑ€Ğ¾Ğ´Ğ¾Ğ»Ğ¶Ğ°Ğ¹Ñ‚Ğµ!'}",
-                reply_markup=get_main_keyboard_v2(),
-                parse_mode="HTML"
+            # Создаем запись о напитке (вода)
+            drink_entry = DrinkEntry(
+                user_id=user.telegram_id,
+                drink_name="вода",
+                amount=amount,
+                calories=0
             )
             
-    except Exception as e:
-        logger.error(f"Ğ�ÑˆĞ¸Ğ±ĞºĞ° Ğ¿Ñ€Ğ¸ Ğ·Ğ°Ğ¿Ğ¸Ñ�Ğ¸ Ğ½Ğ°Ğ¿Ğ¸Ñ‚ĞºĞ°: {e}")
-        await message.answer(
-            "â�Œ ĞŸÑ€Ğ¾Ğ¸Ğ·Ğ¾ÑˆĞ»Ğ° Ğ¾ÑˆĞ¸Ğ±ĞºĞ°. ĞŸĞ¾Ğ¿Ñ€Ğ¾Ğ±ÑƒĞ¹Ñ‚Ğµ ĞµÑ‰Ğµ Ñ€Ğ°Ğ·.",
-            reply_markup=get_main_keyboard_v2()
-        )
+            session.add(drink_entry)
+            await session.commit()
+            
+            # Получаем статистику за день
+            total_today = await get_daily_water(user.telegram_id)
+            
+            # Создаем красивую карточку
+            card = water_card(amount, total_today, user.daily_water_goal)
+            
+            await message.answer(card, reply_markup=get_main_keyboard_v2())
+            
+            # Проверяем достижения
+            from handlers.achievements import check_achievements
+            await check_achievements(user.telegram_id, 'water', amount)
+            
+            await state.clear()
+            
+    except ValueError:
+        await message.answer("❌ Неверный формат. Введите число (например: 200):")
 
-@router.callback_query(F.data == "log_water")
-@router.callback_query(F.data == "log_drink")
-async def log_drink_callback(callback: CallbackQuery, state: FSMContext):
-    """Callback Ğ´Ğ»Ñ� Ğ·Ğ°Ğ¿Ğ¸Ñ�Ğ¸ Ğ¶Ğ¸Ğ´ĞºĞ¾Ñ�Ñ‚Ğ¸ Ğ¸Ğ· Ğ¼ĞµĞ½Ñ�"""
-    await callback.answer()
+@router.message()
+async def process_drink(message: Message, state: FSMContext):
+    """Обработка напитков с калориями"""
+    current_state = await state.get_state()
     
-    await callback.message.answer(
-        "ğŸ’§ <b>Ğ—Ğ°Ğ¿Ğ¸Ñ�ÑŒ Ğ¶Ğ¸Ğ´ĞºĞ¾Ñ�Ñ‚Ğ¸</b>\n\n"
-        "Ğ�Ğ°Ğ¿Ğ¸ÑˆĞ¸Ñ‚Ğµ, Ñ‡Ñ‚Ğ¾ Ğ²Ñ‹ Ğ²Ñ‹Ğ¿Ğ¸Ğ»Ğ¸ Ğ¸ Ñ�ĞºĞ¾Ğ»ÑŒĞºĞ¾:\n\n"
-        "â€¢ <b>Ğ’Ğ¾Ğ´Ğ°:</b> 200 Ğ¼Ğ», 1 Ñ�Ñ‚Ğ°ĞºĞ°Ğ½, 0.5 Ğ»\n"
-        "â€¢ <b>Ğ¡Ğ¾ĞºĞ¸:</b> Ñ�Ğ¾Ğº 250 Ğ¼Ğ», Ğ°Ğ¿ĞµĞ»ÑŒÑ�Ğ¸Ğ½Ğ¾Ğ²Ñ‹Ğ¹ Ñ�Ğ¾Ğº 200\n"
-        "â€¢ <b>Ğ§Ğ°Ğ¹/ĞºĞ¾Ñ„Ğµ:</b> Ñ‡Ğ°Ğ¹ Ñ� Ñ�Ğ°Ñ…Ğ°Ñ€Ğ¾Ğ¼ 300, ĞºĞ¾Ñ„Ğµ Ñ� Ğ¼Ğ¾Ğ»Ğ¾ĞºĞ¾Ğ¼ 150\n"
-        "â€¢ <b>ĞœĞ¾Ğ»Ğ¾Ñ‡Ğ½Ñ‹Ğµ:</b> Ğ¼Ğ¾Ğ»Ğ¾ĞºĞ¾ 250, ĞºĞµÑ„Ğ¸Ñ€ 200, Ğ¹Ğ¾Ğ³ÑƒÑ€Ñ‚ 150\n"
-        "â€¢ <b>Ğ”Ñ€ÑƒĞ³Ğ¾Ğµ:</b> Ğ³Ğ°Ğ·Ğ¸Ñ€Ğ¾Ğ²ĞºĞ° 330, ĞºĞ¾Ğ¼Ğ¿Ğ¾Ñ‚ 200, Ñ�Ğ¼ÑƒĞ·Ğ¸ 250\n\n"
-        "ğŸ¤– Ğ¯ Ğ°Ğ²Ñ‚Ğ¾Ğ¼Ğ°Ñ‚Ğ¸Ñ‡ĞµÑ�ĞºĞ¸ Ğ¾Ğ¿Ñ€ĞµĞ´ĞµĞ»Ñ� Ñ‚Ğ¸Ğ¿ Ğ½Ğ°Ğ¿Ğ¸Ñ‚ĞºĞ° Ğ¸ ĞºĞ°Ğ»Ğ¾Ñ€Ğ¸Ğ¸!",
-        parse_mode="HTML"
-    )
+    if current_state and "waiting_for_drink" in str(current_state):
+        try:
+            # Парсим сообщение
+            drink_data = parse_drink(message.text)
+            
+            if not drink_data:
+                await message.answer(
+                    "❌ Не удалось распознать напиток. Попробуйте еще раз:\n\n"
+                    "Пример: Кофе 200"
+                )
+                return
+            
+            # Сохраняем в базу данных
+            async with get_session() as session:
+                # Получаем пользователя
+                result = await session.execute(
+                    select(User).where(User.telegram_id == message.from_user.id)
+                )
+                user = result.scalar_one_or_none()
+                
+                if not user:
+                    await message.answer(
+                        "❌ Сначала настройте профиль с помощью /set_profile",
+                        reply_markup=get_main_keyboard_v2()
+                    )
+                    await state.clear()
+                    return
+                
+                # Создаем запись о напитке
+                drink_entry = DrinkEntry(
+                    user_id=user.telegram_id,
+                    drink_name=drink_data['name'],
+                    amount=drink_data['amount'],
+                    calories=drink_data['calories'],
+                    sugar=drink_data.get('sugar', 0),
+                    caffeine=drink_data.get('caffeine', 0)
+                )
+                
+                session.add(drink_entry)
+                await session.commit()
+                
+                # Получаем статистику за день
+                total_today = await get_daily_water(user.telegram_id)
+                
+                # Создаем красивую карточку
+                card = drink_card(
+                    drink_data['amount'],
+                    drink_data['name'],
+                    drink_data['calories'],
+                    total_today,
+                    drink_data['calories'],
+                    user.daily_water_goal
+                )
+                
+                await message.answer(card, reply_markup=get_main_keyboard_v2())
+                
+                # Проверяем достижения
+                from handlers.achievements import check_achievements
+                await check_achievements(user.telegram_id, 'drink', drink_data['amount'])
+                
+                await state.clear()
+                
+        except Exception as e:
+            logger.error(f"Error processing drink: {e}")
+            await message.answer("❌ Произошла ошибка. Попробуйте еще раз:")
+
+@router.message(Command("water_stats"))
+@router.message(Command("статистика_воды"))
+async def cmd_water_stats(message: Message):
+    """Показать статистику потребления воды"""
+    user_id = message.from_user.id
+    
+    # Получаем статистику за разные периоды
+    stats = await get_water_stats_by_periods(user_id)
+    
+    text = "💧 <b>Статистика потребления воды</b>\n\n"
+    
+    # Получаем цель по воде
+    async with get_session() as session:
+        result = await session.execute(
+            select(User).where(User.telegram_id == user_id)
+        )
+        user = result.scalar_one_or_none()
+        goal = user.daily_water_goal if user else 2000
+    
+    # Сегодня
+    today_progress = min(stats['today'] / goal * 100, 100)
+    today_bar = ProgressBar.create_modern_bar(today_progress, 100, 15, 'water')
+    
+    text += f"📅 <b>Сегодня:</b>\n"
+    text += f"   Выпито: {stats['today']} мл\n"
+    text += f"   Цель: {goal} мл\n"
+    text += f"   Прогресс: {today_bar}\n\n"
+    
+    # За неделю
+    week_goal = goal * 7
+    week_progress = min(stats['week'] / week_goal * 100, 100)
+    week_bar = ProgressBar.create_modern_bar(week_progress, 100, 15, 'water')
+    
+    text += f"📆 <b>За неделю:</b>\n"
+    text += f"   Выпито: {stats['week']} мл\n"
+    text += f"   Цель: {week_goal} мл\n"
+    text += f"   Прогресс: {week_bar}\n\n"
+    
+    # За месяц
+    month_goal = goal * 30
+    month_progress = min(stats['month'] / month_goal * 100, 100)
+    month_bar = ProgressBar.create_modern_bar(month_progress, 100, 15, 'water')
+    
+    text += f"🗓️ <b>За месяц:</b>\n"
+    text += f"   Выпито: {stats['month']} мл\n"
+    text += f"   Цель: {month_goal} мл\n"
+    text += f"   Прогресс: {month_bar}\n\n"
+    
+    # Мотивация
+    if stats['today'] >= goal:
+        text += "🎉 <b>Отлично!</b> Вы выполнили дневную норму воды!\n"
+    elif stats['today'] >= goal * 0.75:
+        text += "💪 <b>Хорошо!</b> Осталось немного до цели!\n"
+    elif stats['today'] >= goal * 0.5:
+        text += "👍 <b>Неплохо!</b> Продолжайте пить воду!\n"
+    else:
+        text += "💡 <b>Пейте больше воды!</b> Это важно для здоровья!\n"
+    
+    await message.answer(text)
+
+async def get_water_stats_by_periods(user_id: int) -> dict:
+    """Получить статистику потребления воды по периодам"""
+    from datetime import datetime, timezone, timedelta
+    
+    async with get_session() as session:
+        now = datetime.now(timezone.utc)
+        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        week_start = today_start - timedelta(days=today_start.weekday())
+        month_start = today_start.replace(day=1)
+        
+        # Функция для получения статистики за период
+        def get_period_stats(start_date):
+            result = session.execute(
+                select(func.sum(DrinkEntry.amount)).where(
+                    DrinkEntry.user_id == user_id,
+                    DrinkEntry.created_at >= start_date
+                )
+            )
+            total = result.scalar() or 0
+            return total
+        
+        return {
+            'today': get_period_stats(today_start),
+            'week': get_period_stats(week_start),
+            'month': get_period_stats(month_start)
+        }
+
+@router.message(Command("quick_water"))
+@router.message(Command("быстрая_вода"))
+async def cmd_quick_water(message: Message):
+    """Быстрая запись стандартных объемов воды"""
+    keyboard = [
+        ["💧 200 мл", "💧 250 мл"],
+        ["💧 350 мл", "💧 500 мл"],
+        ["💧 750 мл", "💧 1000 мл"]
+    ]
+    
+    text = "💧 <b>Быстрая запись воды</b>\n\n"
+    text += "Выберите объем:"
+    
+    await message.answer(text, reply_markup=keyboard)
+
+@router.message()
+async def process_quick_water(message: Message):
+    """Обработка быстрой записи воды"""
+    text = message.text
+    
+    if text.startswith("💧"):
+        try:
+            # Извлекаем объем
+            amount_str = text.split()[1]
+            amount = int(amount_str.replace("мл", ""))
+            
+            # Сохраняем как обычную воду
+            async with get_session() as session:
+                result = await session.execute(
+                    select(User).where(User.telegram_id == message.from_user.id)
+                )
+                user = result.scalar_one_or_none()
+                
+                if not user:
+                    await message.answer("❌ Сначала настройте профиль")
+                    return
+                
+                drink_entry = DrinkEntry(
+                    user_id=user.telegram_id,
+                    drink_name="вода",
+                    amount=amount,
+                    calories=0
+                )
+                
+                session.add(drink_entry)
+                await session.commit()
+                
+                # Получаем статистику
+                total_today = await get_daily_water(user.telegram_id)
+                
+                # Карточка
+                card = water_card(amount, total_today, user.daily_water_goal)
+                await message.answer(card, reply_markup=get_main_keyboard_v2())
+                
+        except (ValueError, IndexError):
+            await message.answer("❌ Неверный формат. Попробуйте еще раз:")

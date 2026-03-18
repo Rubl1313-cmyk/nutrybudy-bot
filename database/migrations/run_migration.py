@@ -1,5 +1,5 @@
 """
-Ğ¡ĞºÑ€Ğ¸Ğ¿Ñ‚ Ğ´Ğ»Ñ� Ğ·Ğ°Ğ¿ÑƒÑ�ĞºĞ° Ğ¼Ğ¸Ğ³Ñ€Ğ°Ñ†Ğ¸Ğ¸ Ğ±Ğ°Ğ·Ñ‹ Ğ´Ğ°Ğ½Ğ½Ñ‹Ñ…
+Скрипт для запуска миграции базы данных
 """
 import asyncio
 import logging
@@ -9,13 +9,13 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 async def main():
-    """Ğ—Ğ°Ğ¿ÑƒÑ�Ğº Ğ¼Ğ¸Ğ³Ñ€Ğ°Ñ†Ğ¸Ğ¸"""
+    """Запуск миграции"""
     try:
-        logger.info("ğŸ”„ Ğ�Ğ°Ñ‡Ğ¸Ğ½Ğ°ĞµĞ¼ Ğ¼Ğ¸Ğ³Ñ€Ğ°Ñ†Ğ¸Ñ� water_entries â†’ drink_entries...")
+        logger.info("🔧 Начинаем миграцию water_entries → drink_entries...")
         await upgrade()
-        logger.info("âœ… ĞœĞ¸Ğ³Ñ€Ğ°Ñ†Ğ¸Ñ� ÑƒÑ�Ğ¿ĞµÑˆĞ½Ğ¾ Ğ·Ğ°Ğ²ĞµÑ€ÑˆĞµĞ½Ğ°!")
+        logger.info("✅ Миграция успешно завершена!")
     except Exception as e:
-        logger.error(f"â�Œ Ğ�ÑˆĞ¸Ğ±ĞºĞ° Ğ¿Ñ€Ğ¸ Ğ¼Ğ¸Ğ³Ñ€Ğ°Ñ†Ğ¸Ğ¸: {e}")
+        logger.error(f"❌ Ошибка при миграции: {e}")
         raise
 
 if __name__ == "__main__":

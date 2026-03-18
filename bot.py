@@ -5,7 +5,7 @@ import sys
 from datetime import datetime
 from dotenv import load_dotenv
 from aiogram import Bot, Dispatcher
-# Ğ¡Ğ½Ğ°Ñ‡Ğ°Ğ»Ğ° Ğ½Ğ°Ñ�Ñ‚Ñ€Ğ°Ğ¸Ğ²Ğ°ĞµĞ¼ Ğ»Ğ¾Ğ³Ğ¸Ñ€Ğ¾Ğ²Ğ°Ğ½Ğ¸Ğµ
+# Начинаем настраивать логирование
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -16,7 +16,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Ğ˜Ğ¼Ğ¿Ğ¾Ñ€Ñ‚Ğ¸Ñ€ÑƒĞµĞ¼ Redis (Ğ¾Ğ±Ñ�Ğ·Ğ°Ñ‚ĞµĞ»ÑŒĞ½Ğ°Ñ� Ğ·Ğ°Ğ²Ğ¸Ñ�Ğ¸Ğ¼Ğ¾Ñ�Ñ‚ÑŒ)
+# Импортируем Redis (обязательная зависимость)
 from aiogram.fsm.storage.redis import RedisStorage, DefaultKeyBuilder
 import redis.asyncio as redis
 from aiogram.client.default import DefaultBotProperties
@@ -50,179 +50,198 @@ for var, desc in required_vars.items():
         missing_vars.append(f"{var} ({desc})")
 
 if missing_vars:
-    logger.error("❌ Missing required environment variables:")
-    for var in missing_vars:
-        logger.error(f"  - {var}")
-    logger.error("Please set these variables in your .env file or environment.")
+    logger.error(f"Missing required environment variables: {', '.join(missing_vars)}")
     sys.exit(1)
 
-# Log optional variables that are missing
-for var, desc in optional_vars.items():
-    if not os.getenv(var):
-        logger.warning(f"⚠️ Optional variable not set: {var} ({desc})")
+TOKEN = os.getenv('BOT_TOKEN')
+REDIS_URL = os.getenv('REDIS_URL')
+WEBHOOK_URL = os.getenv('WEBHOOK_URL')
+ADMIN_ID = os.getenv('ADMIN_ID')
+CLOUDFLARE_ACCOUNT_ID = os.getenv('CLOUDFLARE_ACCOUNT_ID')
+CLOUDFLARE_API_TOKEN = os.getenv('CLOUDFLARE_API_TOKEN')
 
-logger.info("✅ Environment variables validated")
+# Initialize Redis storage
+redis_client = redis.from_url(REDIS_URL)
+storage = RedisStorage(redis_client, key_builder=DefaultKeyBuilder(with_bot_id=True))
 
+# FSM Strategy
+fsm_strategy = FSMStrategy.CHAT
 
-TOKEN = os.getenv("BOT_TOKEN")
-WEBHOOK_URL = os.getenv("WEBHOOK_URL")
-WEBHOOK_PATH = "/webhook"
-PORT = int(os.environ.get("PORT", 8080))
-ADMIN_ID = os.getenv("ADMIN_ID")
+# Global dispatcher
+dp = Dispatcher(storage=storage, fsm_strategy=fsm_strategy)
 
-dp = None
-
-async def set_bot_commands(bot: Bot):
-    """Ğ£Ñ�Ñ‚Ğ°Ğ½Ğ¾Ğ²ĞºĞ° ĞºĞ¾Ğ¼Ğ°Ğ½Ğ´ Ğ±Ğ¾Ñ‚Ğ°"""
+async def setup_bot_commands(bot: Bot):
+    """Настраивает команды бота"""
     commands = [
-        BotCommand(command="start", description="[START] Запустить бота"),
-        BotCommand(command="help", description="[HELP] Помощь"),
-        BotCommand(command="set_profile", description="[PROFILE] Настроить профиль"),
-        BotCommand(command="profile", description="[PROFILE] Мой профиль"),
-        BotCommand(command="log_food", description="[FOOD] Добавить еду"),
-        BotCommand(command="log_drink", description="[DRINK] Записать напиток"),
-        BotCommand(command="log_water", description="[WATER] Записать воду"),
-        BotCommand(command="drink", description="[WATER] Статистика воды"),
-        BotCommand(command="water", description="[WATER] Статистика воды"),
-        BotCommand(command="log_weight", description="[WEIGHT] Записать вес"),
-        BotCommand(command="weight", description="[WEIGHT] Статистика веса"),
-        BotCommand(command="fitness", description="[FITNESS] Добавить активность"),
-        BotCommand(command="activity", description="[FITNESS] Статистика активности"),
-        BotCommand(command="progress", description="[PROGRESS] Мой прогресс"),
-        BotCommand(command="stats", description="[STATS] Статистика за период"),
-        BotCommand(command="ask", description="[AI] AI ассистент"),
-        # BotCommand(command="ai", description="[AI] AI ассистент"),
-        BotCommand(command="weather", description="[WEATHER] Погода"),
-        BotCommand(command="recipe", description="[FOOD] Рецепт"),
-        BotCommand(command="calculate", description="[FOOD] Рассчитать КБЖУ"),
-        BotCommand(command="meal_plan", description="[FOOD] План питания"),
-        # BotCommand(command="diet", description="[FOOD] План питания"),
-        BotCommand(command="nutrition", description="[FOOD] Советы по питанию"),
-        BotCommand(command="cancel", description="[CANCEL] Отмена")
+        BotCommand(command="start", description="🚀 Запуск бота"),
+        BotCommand(command="help", description="❓ Помощь"),
+        BotCommand(command="set_profile", description="👤 Настроить профиль"),
+        BotCommand(command="weight", description="⚖️ Записать вес"),
+        BotCommand(command="water", description="💧 Выпить воды"),
+        BotCommand(command="fitness", description="🏃‍♂️ Записать активность"),
+        BotCommand(command="progress", description="📊 Мой прогресс"),
+        BotCommand(command="meal_plan", description="🍽️ План питания"),
+        BotCommand(command="achievements", description="🏆 Достижения"),
+        BotCommand(command="ask", description="🤖 AI ассистент"),
+        BotCommand(command="stats", description="📈 Статистика"),
+        BotCommand(command="cancel", description="❌ Отмена")
     ]
     await bot.set_my_commands(commands)
-    logger.info("[STARTUP] Bot commands set")
 
-async def send_startup_notification(bot: Bot):
-    """Ğ�Ñ‚Ğ¿Ñ€Ğ°Ğ²ĞºĞ° ÑƒĞ²ĞµĞ´Ğ¾Ğ¼Ğ»ĞµĞ½Ğ¸Ñ� Ğ¾ Ğ·Ğ°Ğ¿ÑƒÑ�ĞºĞµ Ğ°Ğ´Ğ¼Ğ¸Ğ½Ñƒ"""
-    if not ADMIN_ID:
-        return
-    try:
-        bot_info = await bot.get_me()
-        startup_message = (
-            f"[STARTUP] <b>NutriBuddy запущен!</b>\n"
-            f"[BOT] Бот: @{bot_info.username}\n"
-            f"[TIME] Время: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} UTC\n"
-            f"[ENV] Railway: {os.getenv('RAILWAY_ENVIRONMENT', 'development')}\n"
-            f"[STATUS] Статус: готов к работе"
-        )
-        await bot.send_message(chat_id=int(ADMIN_ID), text=startup_message, parse_mode="HTML")
-        logger.info(f"[STARTUP] Startup notification sent to admin {ADMIN_ID}")
-    except Exception as e:
-        logger.error(f"[ERROR] Failed to send startup notification: {e}")
+async def on_startup(dispatcher: Dispatcher):
+    """Действия при запуске бота"""
+    logger.info("Starting NutriBuddy Bot...")
+    
+    # Инициализация базы данных
+    await init_db()
+    logger.info("Database initialized")
+    
+    # Настройка команд бота
+    await setup_bot_commands(dispatcher.bot)
+    logger.info("Bot commands configured")
+    
+    # Уведомление админа
+    if ADMIN_ID:
+        try:
+            await dispatcher.bot.send_message(
+                ADMIN_ID,
+                "🚀 NutriBuddy Bot запущен!\n\n"
+                f"📅 Время запуска: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+                f"🤖 Бот готов к работе!"
+            )
+        except Exception as e:
+            logger.error(f"Failed to notify admin: {e}")
+    
+    logger.info("NutriBuddy Bot started successfully!")
 
-async def webhook_handler(request):
-    """Ğ�Ğ±Ñ€Ğ°Ğ±Ğ¾Ñ‚Ñ‡Ğ¸Ğº Ğ²ĞµĞ±Ñ…ÑƒĞºĞ°"""
-    try:
-        bot = request.app['bot']
-        dp = request.app['dp']
-        update = await request.json()
-        update_obj = Update(**update)
-        await dp.feed_update(bot, update_obj)
-        return web.Response(status=200)
-    except Exception as e:
-        logger.error(f"[ERROR] Webhook handler error: {e}", exc_info=True)
-        return web.Response(status=500)
+async def on_shutdown(dispatcher: Dispatcher):
+    """Действия при остановке бота"""
+    logger.info("Shutting down NutriBuddy Bot...")
+    
+    # Закрытие соединения с базой данных
+    await close_db()
+    logger.info("Database connection closed")
+    
+    # Закрытие Redis
+    await redis_client.close()
+    logger.info("Redis connection closed")
+    
+    # Уведомление админа
+    if ADMIN_ID:
+        try:
+            await dispatcher.bot.send_message(
+                ADMIN_ID,
+                "🛑 NutriBuddy Bot остановлен\n\n"
+                f"📅 Время остановки: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+            )
+        except Exception as e:
+            logger.error(f"Failed to notify admin: {e}")
+    
+    logger.info("NutriBuddy Bot stopped")
 
-async def health_handler(request):
-    """Health check Ğ´Ğ»Ñ� Railway Ñ� Ğ¿Ñ€Ğ¾Ğ²ĞµÑ€ĞºĞ¾Ğ¹ Ğ‘Ğ”"""
-    try:
-        bot = request.app['bot']
-        await bot.get_me()
-        
-        # ĞŸÑ€Ğ¾Ğ²ĞµÑ€ĞºĞ° Ğ¿Ğ¾Ğ´ĞºĞ»Ñ�Ñ‡ĞµĞ½Ğ¸Ñ� Ğº Ğ‘Ğ”
-        async with engine.connect() as conn:
-            await conn.execute(text("SELECT 1"))
-        
-        return web.json_response({
-            "status": "healthy",
-            "timestamp": datetime.now().isoformat(),
-            "database": "connected",
-            "bot": "running"
-        })
-    except Exception as e:
-        logger.error(f"[ERROR] Health check failed: {e}")
-        return web.json_response({
-            "status": "unhealthy",
-            "error": str(e),
-            "timestamp": datetime.now().isoformat()
-        }, status=503)
+def register_handlers():
+    """Регистрация всех обработчиков"""
+    # Импорты обработчиков
+    from handlers.common import router as common_router
+    from handlers.profile import router as profile_router
+    from handlers.weight import router as weight_router
+    from handlers.drinks import router as drinks_router
+    from handlers.activity import router as activity_router
+    from handlers.progress import router as progress_router
+    from handlers.meal_plan import router as meal_plan_router
+    from handlers.achievements import router as achievements_router
+    from handlers.ai_assistant import router as ai_assistant_router
+    from handlers.food_clarification import router as food_clarification_router
+    from handlers.reply_handlers import router as reply_handlers_router
+    from handlers.universal import router as universal_router
+    from handlers.reminder_callbacks import router as reminder_callbacks_router
+    
+    # Регистрация роутеров
+    dp.include_router(common_router)
+    dp.include_router(profile_router)
+    dp.include_router(weight_router)
+    dp.include_router(drinks_router)
+    dp.include_router(activity_router)
+    dp.include_router(progress_router)
+    dp.include_router(meal_plan_router)
+    dp.include_router(achievements_router)
+    dp.include_router(ai_assistant_router)
+    dp.include_router(food_clarification_router)
+    dp.include_router(reply_handlers_router)
+    dp.include_router(universal_router)
+    dp.include_router(reminder_callbacks_router)
+    
+    # Установка middleware
+    dp.message.middleware(user_rate_limiter)
+    dp.callback_query.middleware(user_rate_limiter)
+    dp.message.middleware(global_rate_limiter)
+    dp.callback_query.middleware(global_rate_limiter)
+    
+    logger.info("All handlers registered")
+    
+    # Запуск фоновых задач
+    logger.info("Starting background tasks...")
+    
+    # Запуск напоминаний (если включены)
+    if os.getenv('ENABLE_REMINDERS', 'true').lower() == 'true':
+        from services.reminder_service import ReminderService
+        reminder_service = ReminderService(dp.bot)
+        # Запуск проверки напоминаний каждые 6 часов
+        asyncio.create_task(schedule_reminders(reminder_service))
+        logger.info("Reminder service started")
+    else:
+        logger.info("Reminders disabled")
 
-async def on_startup(app):
-    """Ğ—Ğ°Ğ¿ÑƒÑ�Ğº Ğ±Ğ¾Ñ‚Ğ°"""
-    bot = app['bot']
-    try:
-        logger.info("[STARTUP] Starting database initialization...")
-        db_ok = await init_db()
-        if not db_ok:
-            logger.error("[ERROR] Database initialization failed")
-            raise Exception("Database init failed")
-        logger.info("[DB] Database ready")
+async def schedule_reminders(reminder_service: ReminderService):
+    """Планировщик напоминаний"""
+    import asyncio
+    while True:
+        try:
+            await reminder_service.check_weekly_reminders()
+            await asyncio.sleep(6 * 3600)  # Проверка каждые 6 часов
+        except Exception as e:
+            logger.error(f"Error in reminder scheduler: {e}")
+            await asyncio.sleep(3600)  # При ошибке ждем 1 час
 
-        bot_info = await bot.get_me()
-        logger.info(f"[BOT] Connected as @{bot_info.username}")
-
-        # Ğ£Ñ�Ñ‚Ğ°Ğ½Ğ¾Ğ²ĞºĞ° Ğ²ĞµĞ±Ñ…ÑƒĞºĞ° Ñ‚Ğ¾Ğ»ÑŒĞºĞ¾ ĞµÑ�Ğ»Ğ¸ ÑƒĞºĞ°Ğ·Ğ°Ğ½ WEBHOOK_URL
-        if WEBHOOK_URL:
-            webhook_full_url = f"{WEBHOOK_URL}{WEBHOOK_PATH}"
-            webhook_info = await bot.get_webhook_info()
-            if webhook_info.url != webhook_full_url:
-                await bot.set_webhook(
-                    url=webhook_full_url,
-                    allowed_updates=dp.resolve_used_update_types(),
-                    drop_pending_updates=True
-                )
-                logger.info(f"[WEBHOOK] Webhook set to {webhook_full_url}")
-        else:
-            logger.warning("[WARNING] WEBHOOK_URL not set, webhook not configured")
-
-        await set_bot_commands(bot)
-        
-    except Exception as e:
-        logger.error(f"[ERROR] Startup error: {e}", exc_info=True)
-        raise
-
-async def on_shutdown(app):
-    """Ğ�Ñ�Ñ‚Ğ°Ğ½Ğ¾Ğ²ĞºĞ° Ğ±Ğ¾Ñ‚Ğ°"""
-    try:
-        bot = app['bot']
-        await bot.delete_webhook(drop_pending_updates=True)
-        await close_db()
-        await bot.session.close()
-        logger.info("[SHUTDOWN] Bot stopped")
-    except Exception as e:
-        logger.error(f"[ERROR] Shutdown error: {e}")
-
-def create_app():
-    """Ğ¡Ğ¾Ğ·Ğ´Ğ°Ğ½Ğ¸Ğµ Ğ¿Ñ€Ğ¸Ğ»Ğ¾Ğ¶ĞµĞ½Ğ¸Ñ�"""
+async def create_app():
+    """Создание веб-приложения для webhook"""
     app = web.Application()
-    app.router.add_post(WEBHOOK_PATH, webhook_handler)
-    app.router.add_get("/", health_handler)
-    app.router.add_get("/health", health_handler)
+    
+    # Регистрация webhook handlers
+    async def handle_webhook(request):
+        """Обработка webhook запросов"""
+        if request.method == 'POST':
+            update_data = await request.json()
+            update = Update.model_validate(update_data, context={"bot": dp.bot})
+            await dp.feed_update(update)
+            return web.Response(status=200)
+        return web.Response(status=405)
+    
+    app.router.add_post('/webhook', handle_webhook)
+    app.router.add_get('/health', lambda request: web.Response(text='OK'))
+    
+    # Настройка webhook
+    if WEBHOOK_URL:
+        await dp.bot.set_webhook(
+            url=f"{WEBHOOK_URL}/webhook",
+            drop_pending_updates=True
+        )
+        logger.info(f"Webhook set to {WEBHOOK_URL}/webhook")
+    
     app.on_startup.append(on_startup)
     app.on_shutdown.append(on_shutdown)
     return app
 
 async def main():
-    """Ğ�Ñ�Ğ½Ğ¾Ğ²Ğ½Ğ°Ñ� Ñ„ÑƒĞ½ĞºÑ†Ğ¸Ñ�"""
+    """Основная функция"""
     global dp
-    logging.info("Starting NutriBuddy Bot on Railway...")
+    logging.info("Starting NutriBuddy Bot...")
     
-    # Ğ—Ğ°Ğ¿ÑƒÑ�ĞºĞ°ĞµĞ¼ Ğ¼Ğ¸Ğ³Ñ€Ğ°Ñ†Ğ¸Ğ¸ Ğ‘Ğ”
+    # Запускаем миграции БД
     from database.migrations import run_migrations
     await run_migrations()
     
-    # Ğ’Ğ°Ğ»Ğ¸Ğ´Ğ°Ñ†Ğ¸Ñ� Ñ‚Ğ¾ĞºĞµĞ½Ğ° Ñ‚Ğ¾Ğ»ÑŒĞºĞ¾ Ğ² production
+    # Валидация токена только в production
     validate_token = os.getenv('RAILWAY_ENVIRONMENT') == 'production'
     
     bot = Bot(
@@ -231,163 +250,80 @@ async def main():
         validate_token=validate_token
     )
     
-    # Redis storage Ğ´Ğ»Ñ� FSM (Ğ¾Ğ±Ñ�Ğ·Ğ°Ñ‚ĞµĞ»ÑŒĞ½Ñ‹Ğ¹) c fallback
-    redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+    # Redis storage для FSM (обязательный) c fallback
     try:
-        redis_client = await redis.from_url(redis_url)
-        storage = RedisStorage(redis_client, key_builder=DefaultKeyBuilder(with_destiny=True))
-        logger.info("[REDIS] Redis storage initialized")
+        redis_client = redis.from_url(REDIS_URL)
+        storage = RedisStorage(redis_client, key_builder=DefaultKeyBuilder(with_bot_id=True))
+        logger.info("Redis storage initialized")
     except Exception as e:
-        logger.warning(f"Redis unavailable ({e}), using MemoryStorage")
+        logger.error(f"Failed to initialize Redis storage: {e}")
+        logger.info("Falling back to memory storage (not recommended for production)")
         from aiogram.fsm.storage.memory import MemoryStorage
         storage = MemoryStorage()
     
-    # Ğ¡Ğ¾Ğ·Ğ´Ğ°ĞµĞ¼ Ğ´Ğ¸Ñ�Ğ¿ĞµÑ‚Ñ‡ĞµÑ€ Ñ� FSM
-    dp = Dispatcher(storage=storage, fsm_strategy=FSMStrategy.GLOBAL_USER)
+    dp = Dispatcher(storage=storage, fsm_strategy=FSMStrategy.CHAT)
+    dp.bot = bot
     
-    # Middleware Ğ´Ğ»Ñ� Ğ»Ğ¾Ğ³Ğ¸Ñ€Ğ¾Ğ²Ğ°Ğ½Ğ¸Ñ� Ğ¸ rate limiting
-    from aiogram import BaseMiddleware
-    from aiogram.types import Message
-    from aiogram.filters import Command
+    # Регистрация обработчиков
+    register_handlers()
     
-    class LoggingMiddleware(BaseMiddleware):
-        async def __call__(self, handler, event: Message, data: dict):
-            logger.info(f"[MESSAGE] Incoming message: {repr(event.text)}")
-            return await handler(event, data)
-    
-    class RateLimitMiddleware(BaseMiddleware):
-        async def __call__(self, handler, event: Message, data: dict):
-            user_id = event.from_user.id
-            
-            # Skip rate limiting for commands to ensure they're always processed
-            if event.text and event.text.startswith('/'):
-                return await handler(event, data)
-            
-            # ĞŸÑ€Ğ¾Ğ²ĞµÑ€ÑŒĞµĞ¼ Ğ³Ğ»Ğ¾Ğ±Ğ°Ğ»ÑŒĞ½Ñ‹Ğ¹ Ğ»Ğ¸Ğ¼Ğ¸Ñ‚
-            if not await global_rate_limiter.is_allowed():
-                logger.warning(f"[LIMIT] Global rate limit exceeded for user {user_id}")
-                await event.answer("[WARN] Слишком много запросов! Попробуйте позже.")
-                return
-            
-            # ĞŸÑ€Ğ¾Ğ²ĞµÑ€ÑŒĞµĞ¼ Ğ¿Ğ¾Ğ»ÑŒĞ·Ğ¾Ğ²Ğ°Ñ‚ĞµĞ»ÑŒÑŒĞºĞ¸Ğ¹ Ğ»Ğ¸Ğ¼Ğ¸Ñ‚
-            if not await user_rate_limiter.is_allowed(user_id, 'general'):
-                logger.warning(f"[LIMIT] User rate limit exceeded for user {user_id}")
-                await event.answer("[WARN] Слишком много запросов! Подождите немного.")
-                return
-            
-            return await handler(event, data)
-    
-    dp.message.middleware(LoggingMiddleware())
-    dp.message.middleware(RateLimitMiddleware())
-    
-    # ĞŸĞ¾Ğ´ĞºĞ»Ñ�Ñ‡ĞµĞ½Ğ¸Ğµ Ñ€Ğ¾ÑƒÑ‚ĞµÑ€Ğ¾Ğ² Ğ² Ğ¿Ñ€Ğ°Ğ²Ğ¸Ğ»ÑŒĞ½Ğ¾Ğ¼ Ğ¿Ğ¾Ñ€Ñ�Ğ´ĞºĞµ:
-    # 1. ĞšĞ¾Ğ¼Ğ°Ğ½Ğ´Ñ‹ Ğ¸ Ñ�Ğ¿ĞµÑ†Ğ¸Ñ„Ğ¸Ñ‡ĞµÑ�ĞºĞ¸Ğµ Ğ¾Ğ±Ñ€Ğ°Ğ±Ğ¾Ñ‚Ñ‡Ğ¸ĞºĞ¸ (Ğ´Ğ¾Ğ»Ğ¶Ğ½Ñ‹ Ğ±Ñ‹Ñ‚ÑŒ Ğ¿ĞµÑ€Ğ²Ñ‹Ğ¼Ğ¸)
-    # 2. ĞœĞµĞ´Ğ¸Ğ° Ğ¸ AI Ğ¾Ğ±Ñ€Ğ°Ğ±Ğ¾Ñ‚Ñ‡Ğ¸ĞºĞ¸
-    # 3. Ğ£Ğ½Ğ¸Ğ²ĞµÑ€Ñ�Ğ°Ğ»ÑŒĞ½Ñ‹Ğ¹ Ğ¾Ğ±Ñ€Ğ°Ğ±Ğ¾Ñ‚Ñ‡Ğ¸Ğº Ñ‚ĞµĞºÑ�Ñ‚Ğ° (universal) - Ğ´Ğ¾Ğ»Ğ¶ĞµĞ½ Ğ±Ñ‹Ñ‚ÑŒ Ğ¿Ğ¾Ñ�Ğ»ĞµĞ´Ğ½Ğ¸Ğ¼
-    
-    from handlers import universal, common, profile, drinks, progress, activity, weight, meal_plan, ai_assistant, reply_handlers, achievements, food_clarification, food
+    # Запуск в зависимости от режима
+    if WEBHOOK_URL:
+        # Режим webhook
+        app = await create_app()
+        runner = web.AppRunner(app)
+        await runner.setup()
+        site = web.TCPSite(runner, '0.0.0.0', int(os.getenv('PORT', 8080)))
+        await site.start()
+        logger.info(f"Webhook server started on port {os.getenv('PORT', 8080)}")
+        
+        try:
+            # Бесконечный цикл для поддержания работы
+            while True:
+                await asyncio.sleep(3600)  # Проверка каждую секунду
+        except (KeyboardInterrupt, SystemExit):
+            logger.info("Received shutdown signal")
+        finally:
+            await runner.cleanup()
+            await on_shutdown(dp)
+    else:
+        # Режим polling
+        await on_startup(dp)
+        try:
+            await dp.start_polling(
+                drop_pending_updates=True,
+                allowed_updates=["message", "callback_query", "inline_query", "chat_member"]
+            )
+        except (KeyboardInterrupt, SystemExit):
+            logger.info("Received shutdown signal")
+        finally:
+            await on_shutdown(dp)
 
-    # ĞšĞ¾Ğ¼Ğ°Ğ½Ğ´Ñ‹ Ğ¸ Ñ�Ğ¿ĞµÑ†Ğ¸Ñ„Ğ¸Ñ‡ĞµÑ�ĞºĞ¸Ğµ Ğ¾Ğ±Ñ€Ğ°Ğ±Ğ¾Ñ‚Ñ‡Ğ¸ĞºĞ¸ (Ğ´Ğ¾Ğ»Ğ¶Ğ½Ñ‹ Ğ±Ñ‹Ñ‚ÑŒ Ğ¿ĞµÑ€Ğ²Ñ‹Ğ¼Ğ¸)
-    dp.include_router(common.router)           # /start, /help, /cancel Ğ¸ Ñ‚.Ğ´.
-    dp.include_router(profile.router)          # /set_profile, /profile
-    dp.include_router(drinks.router)           # /log_drink, /drink (ĞµĞ´Ğ¸Ğ½Ğ°Ñ� Ñ�Ğ¸Ñ�Ñ‚ĞµĞ¼Ğ° Ğ²Ğ¾Ğ´Ñ‹)
-    dp.include_router(ai_assistant.router)     # /ask, /ai, /weather
-    dp.include_router(achievements.router)     # /achievements
-    dp.include_router(food.router)             # /log_food
-    
-    # Ğ�Ğ±Ñ€Ğ°Ğ±Ğ¾Ñ‚Ñ‡Ğ¸ĞºĞ¸ reply-ĞºĞ½Ğ¾Ğ¿Ğ¾Ğº â€“ Ğ´Ğ¾Ğ»Ğ¶Ğ½Ñ‹ Ğ±Ñ‹Ñ‚ÑŒ ĞŸĞ•Ğ Ğ•Ğ” ÑƒĞ½Ğ¸Ğ²ĞµÑ€Ñ�Ğ°Ğ»ÑŒĞ½Ñ‹Ğ¼
-    dp.include_router(reply_handlers.router)   # Reply-ĞºĞ½Ğ¾Ğ¿ĞºĞ¸
-    
-    # Ğ£Ñ‚Ğ¾Ñ‡Ğ½ĞµĞ½Ğ¸Ğµ Ğ¿Ñ€Ğ¾Ğ´ÑƒĞºÑ‚Ğ¾Ğ² â€“ ĞŸĞ•Ğ Ğ•Ğ” ÑƒĞ½Ğ¸Ğ²ĞµÑ€Ñ�Ğ°Ğ»ÑŒĞ½Ñ‹Ğ¼ Ğ¾Ğ±Ñ€Ğ°Ğ±Ğ¾Ñ‚Ñ‡Ğ¸ĞºĞ¾Ğ¼
-    dp.include_router(food_clarification.router)  # Ğ£Ñ‚Ğ¾Ñ‡Ğ½ĞµĞ½Ğ¸Ğµ Ğ¿Ñ€Ğ¾Ğ´ÑƒĞºÑ‚Ğ¾Ğ²
-    
-    # Ğ£Ğ½Ğ¸Ğ²ĞµÑ€Ñ�Ğ°Ğ»ÑŒĞ½Ñ‹Ğ¹ Ğ¾Ğ±Ñ€Ğ°Ğ±Ğ¾Ñ‚Ñ‡Ğ¸Ğº Ñ‚ĞµĞºÑ�Ñ‚Ğ° â€“ ĞŸĞ�Ğ¡Ğ›Ğ•Ğ”Ğ�Ğ˜Ğ™ (Ğ¿Ğ¾Ğ»ÑƒÑ‡Ğ°ĞµÑ‚ Ğ²Ñ�Ğµ Ñ�Ğ¾Ğ¾Ğ±Ñ‰ĞµĞ½Ğ¸Ñ�)
-    dp.include_router(universal.router)         # ĞŸĞ¾Ğ»Ğ½Ñ‹Ğ¹ Ğ¾Ğ±Ñ€Ğ°Ğ±Ğ¾Ñ‚Ñ‡Ğ¸Ğº (Ñ� LangChain)
-    # ai_handler.router ÑƒĞ´Ğ°Ğ»ĞµĞ½ - ĞµĞ³Ğ¾ Ñ„ÑƒĞ½ĞºÑ†Ğ¸Ğ¾Ğ½Ğ°Ğ»ÑŒĞ½Ğ¾Ñ�Ñ‚ÑŒ Ğ¸Ğ½Ñ‚ĞµĞ³Ñ€Ğ¸Ñ€Ğ¾Ğ²Ğ°Ğ½Ğ° Ğ² universal.router
-    # dialog.router ÑƒĞ´Ğ°Ğ»ĞµĞ½ - ĞµĞ³Ğ¾ Ñ„ÑƒĞ½ĞºÑ†Ğ¸Ğ¾Ğ½Ğ°Ğ»ÑŒĞ½Ğ¾Ñ�Ñ‚ÑŒ Ğ¿Ğ¾ĞºÑ€Ñ‹Ğ²Ğ°ĞµÑ‚Ñ�Ñ� universal.router
-    
-    logging.info("All routers included in correct order for FSM")
-    
-    # Запускаем фоновую задачу для очистки неактивных агентов
-    async def cleanup_agents_task():
-        while True:
-            try:
-                from services.langchain_agent import LangChainAgent
-                LangChainAgent.cleanup_inactive(max_age_hours=1)
-                logger.info("Agent cleanup completed")
-            except Exception as e:
-                logger.error(f"Agent cleanup error: {e}")
-                logger.info("Retrying agent cleanup in 5 minutes due to error")
-                await asyncio.sleep(300)  # Wait 5 minutes on error
-                continue
-            await asyncio.sleep(3600)  # Каждый час
-    
-    asyncio.create_task(cleanup_agents_task())
-    logger.info("Agent cleanup task started")
-    
-    # Запускаем фоновую задачу для ежедневного обновления нормы воды
-    async def periodic_weather_update():
-        """Запускает обновление раз в 24 часа."""
-        while True:
-            try:
-                from services.weather_updater import update_all_users_water_goal
-                await update_all_users_water_goal()
-                logger.info("Daily water goal update completed")
-            except Exception as e:
-                logger.exception(f"Error in periodic weather update: {e}")
-                logger.info("Retrying weather update in 1 hour due to error")
-                await asyncio.sleep(3600)  # Wait 1 hour on error
-                continue
-            # Ждём 24 часа (86400 секунд)
-            await asyncio.sleep(86400)
-    
-    asyncio.create_task(periodic_weather_update())
-    logger.info("Weather update task started")
-    
-    # Запускаем фоновую задачу для очистки FSM-данных
-    async def start_fsm_cleanup():
-        """Запускает периодическую очистку FSM-данных"""
-        while True:
-            try:
-                from utils.fsm_cleanup import periodic_fsm_cleanup
-                await periodic_fsm_cleanup(storage)
-                logger.info("FSM cleanup completed")
-            except Exception as e:
-                logger.exception(f"Error in periodic FSM cleanup: {e}")
-                logger.info("Retrying FSM cleanup in 30 minutes due to error")
-                await asyncio.sleep(1800)  # Wait 30 minutes on error
-                continue
-            # Ждём 1 час (3600 секунд)
-            await asyncio.sleep(3600)
-    
-    asyncio.create_task(start_fsm_cleanup())
-    logger.info("FSM cleanup task started")
-    
-    app = create_app()
-    app['bot'] = bot
-    app['dp'] = dp  # ĞŸĞµÑ€ĞµĞ´Ğ°ĞµĞ¼ Ğ´Ğ¸Ñ�Ğ¿ĞµÑ‚Ñ‡ĞµÑ€ Ğ² ĞºĞ¾Ğ½Ñ‚ĞµĞºÑ�Ñ‚
-    
-    runner = web.AppRunner(app)
-    await runner.setup()
-    site = web.TCPSite(runner, "0.0.0.0", PORT)
-    await site.start()
-    
-    logging.info(f"Server started on port {PORT}")
-    logging.info(f"Railway environment: {os.getenv('RAILWAY_ENVIRONMENT', 'development')}")
-    
-    try:
-        while True:
-            await asyncio.sleep(3600)
-    except asyncio.CancelledError:
-        logging.info("Server stopped")
-    finally:
-        await runner.cleanup()
-
-if __name__ == "__main__":
+def run_polling():
+    """Запуск в режиме polling"""
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        logging.info("Keyboard interrupt")
+        logger.info("Bot stopped by user")
     except Exception as e:
-        logging.error(f"Fatal error: {e}", exc_info=True)
-        exit(1)
+        logger.error(f"Bot crashed: {e}")
+        raise
+
+def run_webhook():
+    """Запуск в режиме webhook"""
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        logger.info("Bot stopped by user")
+    except Exception as e:
+        logger.error(f"Bot crashed: {e}")
+        raise
+
+if __name__ == "__main__":
+    # Проверка режима запуска
+    if WEBHOOK_URL:
+        logger.info("Starting in webhook mode")
+        run_webhook()
+    else:
+        logger.info("Starting in polling mode")
+        run_polling()

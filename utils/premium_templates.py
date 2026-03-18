@@ -5,6 +5,22 @@ utils/premium_templates.py
 from typing import Dict, Optional
 from utils.ui_templates import ProgressBar
 
+def loading_card(message: str = "Processing...") -> str:
+    """Loading card for async operations"""
+    return f"""
+[LOADING] <b>{message}</b>
+⏳ Пожалуйста, подождите...
+"""
+
+def error_card(error_message: str, suggestion: str = "Try again later") -> str:
+    """Error card for displaying errors"""
+    return f"""
+[ERROR] <b>Something went wrong</b>
+❌ {error_message}
+
+💡 <i>{suggestion}</i>
+"""
+
 def meal_card(food_data: Dict, user, daily_stats: Dict) -> str:
     """Красивая карточка приема пищи"""
     calories = food_data.get('calories', 0)

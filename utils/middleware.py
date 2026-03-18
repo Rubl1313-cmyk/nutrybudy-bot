@@ -1,15 +1,14 @@
+import logging
 from aiogram import BaseMiddleware
 from aiogram.types import Message, CallbackQuery
 from typing import Callable, Dict, Any, Union
-import logging
-
-from utils.rate_limiter import UserRateLimiter
 
 logger = logging.getLogger(__name__)
 
 class SmartRateLimitMiddleware(BaseMiddleware):
-    def __init__(self, user_rate_limiter: UserRateLimiter):
-        self.user_rate_limiter = user_rate_limiter
+    def __init__(self, rate_limiter, is_global: bool = False):
+        self.rate_limiter = rate_limiter
+        self.is_global = is_global
 
     async def __call__(
         self,
@@ -27,27 +26,32 @@ class SmartRateLimitMiddleware(BaseMiddleware):
         if not user_id:
             return await handler(event, data)
 
-        # Определяем тип запроса
-        request_type = self._determine_request_type(event)
-
-        # Проверяем rate limit
-        if not self.user_rate_limiter.is_allowed(user_id, request_type):
-            logger.warning(f"Rate limit exceeded for user {user_id}, type: {request_type}")
-            if isinstance(event, Message):
-                await event.answer(
-                    "⚠️ Слишком много запросов! Пожалуйста, подождите немного.",
-                    parse_mode="HTML"
-                )
-            elif isinstance(event, CallbackQuery):
-                await event.answer(
-                    "⚠️ Слишком много запросов!",
-                    show_alert=True
-                )
-            return
+        # Глобальный лимит – без параметров
+        if self.is_global:
+            if not await self.rate_limiter.is_allowed():
+                logger.warning("Global rate limit exceeded")
+                return
+        else:
+            # Пользовательский лимит – с типом запроса
+            request_type = self._determine_request_type(event)
+            if not await self.rate_limiter.is_allowed(user_id, request_type):
+                logger.warning(f"Rate limit exceeded for user {user_id}, type: {request_type}")
+                if isinstance(event, Message):
+                    await event.answer(
+                        "⚠️ Слишком много запросов! Пожалуйста, подождите немного.",
+                        parse_mode="HTML"
+                    )
+                elif isinstance(event, CallbackQuery):
+                    await event.answer(
+                        "⚠️ Слишком много запросов!",
+                        show_alert=True
+                    )
+                return
 
         return await handler(event, data)
 
     def _determine_request_type(self, event: Union[Message, CallbackQuery]) -> str:
+        """Определяет тип запроса для пользовательского лимита"""
         if isinstance(event, Message):
             message = event
             # Фото
@@ -79,7 +83,6 @@ class SmartRateLimitMiddleware(BaseMiddleware):
                     return 'activity_logging'
                 return 'general'
             return 'general'
-
         elif isinstance(event, CallbackQuery):
             data = event.data.lower()
             if 'ai' in data or 'ask' in data:
@@ -91,5 +94,4 @@ class SmartRateLimitMiddleware(BaseMiddleware):
             if 'weight' in data:
                 return 'weight_updates'
             return 'general'
-
         return 'general'

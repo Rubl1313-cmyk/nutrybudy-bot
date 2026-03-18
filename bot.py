@@ -178,10 +178,10 @@ def register_handlers():
     # Установка middleware
     from utils.middleware import SmartRateLimitMiddleware
     
-    dp.message.middleware(SmartRateLimitMiddleware(user_rate_limiter))
-    dp.callback_query.middleware(SmartRateLimitMiddleware(user_rate_limiter))
-    dp.message.middleware(SmartRateLimitMiddleware(global_rate_limiter))
-    dp.callback_query.middleware(SmartRateLimitMiddleware(global_rate_limiter))
+    dp.message.middleware(SmartRateLimitMiddleware(user_rate_limiter, is_global=False))
+    dp.callback_query.middleware(SmartRateLimitMiddleware(user_rate_limiter, is_global=False))
+    dp.message.middleware(SmartRateLimitMiddleware(global_rate_limiter, is_global=True))
+    dp.callback_query.middleware(SmartRateLimitMiddleware(global_rate_limiter, is_global=True))
     
     logger.info("All handlers registered")
     

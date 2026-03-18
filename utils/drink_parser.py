@@ -385,6 +385,18 @@ def is_water(drink_name: str) -> bool:
     water_variants = ['вода', 'минералка', 'минеральная вода', 'газированная вода']
     return drink_name.lower() in water_variants
 
+def parse_drink(text: str) -> Tuple[Optional[str], Optional[int], Optional[float]]:
+    """
+    Парсит напиток (алиас для parse_drink_input)
+    
+    Args:
+        text: Текст от пользователя
+        
+    Returns:
+        Tuple[str, int, float]: (напиток, объём в мл, калории)
+    """
+    return parse_drink_input(text)
+
 def get_drink_category(drink_name: str) -> str:
     """
     Возвращает категорию напитка

@@ -508,6 +508,9 @@ RESPONSE STYLE:
 # Global instance
 cloudflare_ai = CloudflareAIManager()
 
+# Backward compatibility alias
+cf_manager = cloudflare_ai
+
 # =============================================================================
 # 🎯 CONVENIENCE FUNCTIONS
 # =============================================================================

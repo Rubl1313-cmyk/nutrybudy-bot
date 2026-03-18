@@ -68,6 +68,23 @@ class CircuitBreaker:
         self.last_failure_time = None
         self.state = "CLOSED"  # CLOSED, OPEN, HALF_OPEN
     
+    def __call__(self, func: Callable = None, **kwargs):
+        """Make CircuitBreaker work as a decorator"""
+        if func is None:
+            # Called with parameters: @ai_circuit_breaker(failure_threshold=5)
+            def decorator(f):
+                @wraps(f)
+                async def wrapper(*args, **kwargs):
+                    return await self.call(f, *args, **kwargs)
+                return wrapper
+            return decorator
+        else:
+            # Called without parameters: @ai_circuit_breaker
+            @wraps(func)
+            async def wrapper(*args, **kwargs):
+                return await self.call(func, *args, **kwargs)
+            return wrapper
+    
     async def call(self, func: Callable, *args, **kwargs):
         """Вызов функции через предохранитель"""
         if self.state == "OPEN":

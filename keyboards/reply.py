@@ -323,6 +323,15 @@ def get_weight_unit_keyboard():
     ]
     return ReplyKeyboardMarkup(keyboard=kb, resize_keyboard=True)
 
+def get_gender_keyboard():
+    """Клавиатура выбора пола"""
+    kb = [
+        [KeyboardButton(text="👨 Мужской")],
+        [KeyboardButton(text="👩 Женский")],
+        [KeyboardButton(text="❌ Отмена")]
+    ]
+    return ReplyKeyboardMarkup(keyboard=kb, resize_keyboard=True)
+
 def get_confirmation_keyboard():
     """Клавиатура подтверждения"""
     kb = [

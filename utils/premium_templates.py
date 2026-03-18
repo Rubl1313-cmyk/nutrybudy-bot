@@ -165,6 +165,42 @@ def weight_card(weight: float, change: Optional[float] = None, goal: Optional[fl
     
     return "\n".join(lines)
 
+def weight_trend_card(weights: list, goal: Optional[float] = None) -> str:
+    """Красивая карточка тренда веса"""
+    if not weights:
+        return "[WEIGHT] <b>Нет данных о весе</b>\n\n[INFO] Начните отслеживать вес для просмотра тренда"
+    
+    lines = [
+        "[WEIGHT] <b>Тренд веса</b>",
+        "",
+        f"[INFO] Последние записи:"
+    ]
+    
+    # Показываем последние 5 записей
+    for weight in weights[-5:]:
+        lines.append(f"[WEIGHT] {weight:.1f} кг")
+    
+    if len(weights) > 1:
+        change = weights[-1] - weights[0]
+        if change > 0:
+            lines.append(f"[TREND] Изменение за период: +{change:.1f} кг ⬆️")
+        elif change < 0:
+            lines.append(f"[TREND] Изменение за период: {change:.1f} кг ⬇️")
+        else:
+            lines.append(f"[TREND] Изменение за период: 0.0 кг ➡️")
+    
+    if goal is not None:
+        current = weights[-1]
+        diff = current - goal
+        if diff > 0:
+            lines.append(f"[GOAL] До цели: +{diff:.1f} кг")
+        elif diff < 0:
+            lines.append(f"[GOAL] Цель достигнута! На {abs(diff):.1f} кг меньше цели 🎯")
+        else:
+            lines.append(f"[GOAL] Цель достигнута! 🎯")
+    
+    return "\n".join(lines)
+
 def activity_card(activity_type: str, duration: int, calories_burned: float, daily_stats: Dict) -> str:
     """Красивая карточка записи активности"""
     # Иконки для разных типов активности

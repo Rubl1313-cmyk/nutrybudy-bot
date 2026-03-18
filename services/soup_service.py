@@ -145,20 +145,20 @@ async def save_soup(user_id: int, dish_name: str, volume_ml: float, meal_type: s
             
             # 3. Сохраняем как запись воды (если есть поддержка)
             try:
-                from database.models import WaterEntry
+                from database.models import DrinkEntry
                 
-                water_entry = WaterEntry(
+                drink_entry = DrinkEntry(
                     user_id=user.id,
                     date=datetime.now(timezone.utc).date(),
                     volume_ml=water_volume,
-                    drink_name=dish_name,
-                    calories_from_food=nutrition['calories'],
+                    name=dish_name,
+                    calories=nutrition['calories'],
                     created_at=datetime.now(timezone.utc)
                 )
-                session.add(water_entry)
+                session.add(drink_entry)
                 
             except ImportError:
-                # Если модели WaterEntry нет, просто логируем
+                # Если модели DrinkEntry нет, просто логируем
                 logger.info(f"[SOUP] Water volume calculated: {water_volume}ml for {dish_name}")
             
             await session.commit()
@@ -201,29 +201,29 @@ async def save_drink(user_id: int, drink_name: str, volume_ml: float, calories: 
             
             # Сохраняем как запись воды/жидкости
             try:
-                from database.models import WaterEntry
+                from database.models import DrinkEntry
                 
-                water_entry = WaterEntry(
+                drink_entry = DrinkEntry(
                     user_id=user.id,
                     date=datetime.now(timezone.utc).date(),
                     volume_ml=volume_ml,
-                    drink_name=drink_name,
-                    calories_from_food=calories,
+                    name=drink_name,
+                    calories=calories,  
                     created_at=datetime.now(timezone.utc)
                 )
-                session.add(water_entry)
+                session.add(drink_entry)
                 await session.commit()
                 
                 logger.info(f"[DRINK] Saved drink: {drink_name} {volume_ml}ml for user {user_id}")
                 
                 return {
-                    'drink_id': water_entry.id,
+                    'drink_id': drink_entry.id,
                     'volume_ml': volume_ml,
                     'calories': calories
                 }
                 
             except ImportError:
-                # Если модели WaterEntry нет, просто логируем
+                # Если модели DrinkEntry нет, просто логируем
                 logger.info(f"[DRINK] Drink logged: {drink_name} {volume_ml}ml for user {user_id}")
                 return {
                     'volume_ml': volume_ml,

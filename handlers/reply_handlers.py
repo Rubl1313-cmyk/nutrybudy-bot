@@ -6,7 +6,7 @@ import logging
 from aiogram import Router, F
 from aiogram.types import Message
 from aiogram.fsm.context import FSMContext
-from keyboards.reply_v2 import get_main_keyboard_v2
+from keyboards.reply_v2 import get_main_keyboard_v2, get_activity_keyboard, get_progress_keyboard, get_water_keyboard, get_cancel_keyboard, get_confirm_keyboard, get_settings_keyboard, get_statistics_keyboard, get_back_keyboard, get_food_keyboard
 from services.tool_caller import ToolCaller
 
 logger = logging.getLogger(__name__)
@@ -20,38 +20,29 @@ async def food_button_handler(message: Message, state: FSMContext):
     await message.answer(
         "🍽️ <b>Записать приём пищи</b>\n\n"
         "Напишите, что вы съели, или отправьте фото блюда.",
+        reply_markup=get_food_keyboard(),
         parse_mode="HTML"
     )
     
-@router.message(F.text.contains("💧 Вода"))
+@router.message(F.text.contains("Записать воду"))
 async def water_button_handler(message: Message, state: FSMContext):
     await state.clear()
+    
     await message.answer(
-        "💧 <b>Запись воды</b>\n\n"
-        "Введите количество воды в мл (например: 200, 500):\n\n"
-        "💡 <b>Быстрые варианты:</b>\n"
-        "• 200 мл - стакан\n"
-        "• 250 мл - стандартный стакан\n"
-        "• 350 мл - большая кружка\n"
-        "• 500 мл - бутылка",
+        "💧 <b>Записать воду</b>\n\n"
+        "Выберите объем:",
+        reply_markup=get_water_keyboard(),
         parse_mode="HTML"
     )
 
-@router.message(F.text.contains("🏃‍♂️ Активность"))
+@router.message(F.text.contains("Записать активность"))
 async def activity_button_handler(message: Message, state: FSMContext):
     await state.clear()
-    
-    keyboard = [
-        ["🏃 Бег", "🚴 Велосипед"],
-        ["🏋️ Тренировка", "🧘 Йога"],
-        ["🚶 Ходьба", "🏊 Плавание"],
-        ["🤸 Другое"]
-    ]
     
     await message.answer(
         "🏃‍♂️ <b>Записать активность</b>\n\n"
         "Выберите тип активности:",
-        reply_markup=keyboard,
+        reply_markup=get_activity_keyboard(),
         parse_mode="HTML"
     )
 
@@ -65,23 +56,14 @@ async def weight_button_handler(message: Message, state: FSMContext):
         parse_mode="HTML"
     )
 
-@router.message(F.text.contains("📊 Прогресс"))
+@router.message(F.text.contains("Мой прогресс"))
 async def progress_button_handler(message: Message, state: FSMContext):
     await state.clear()
     
-    keyboard = [
-        ["📅 Сегодня", "📆 Неделя"],
-        ["🗓️ Месяц", "📊 Всё время"]
-    ]
-    
     await message.answer(
-        "📊 <b>Выберите период для просмотра прогресса:</b>\n\n"
-        "📈 <b>Что включает статистика:</b>\n"
-        "• Питание (калории, БЖУ)\n"
-        "• Активность (минуты, калории)\n"
-        "• Вес (динамика изменений)\n"
-        "• Вода (потребление)",
-        reply_markup=keyboard,
+        "� <b>Ваш прогресс</b>\n\n"
+        "Выберите период для просмотра:",
+        reply_markup=get_progress_keyboard(),
         parse_mode="HTML"
     )
 
@@ -89,21 +71,17 @@ async def progress_button_handler(message: Message, state: FSMContext):
 async def meal_plan_button_handler(message: Message, state: FSMContext):
     await state.clear()
     
-    keyboard = [
-        ["✅ Да, составить план"],
-        ["❌ Нет, спасибо"]
-    ]
-    
     await message.answer(
         "🍽️ <b>План питания</b>\n\n"
-        "Я помогу составить персональный план питания на основе ваших целей.\n\n"
-        "📋 <b>Что будет учтено:</b>\n"
-        "• Ваши цели (похудение/набор/поддержание)\n"
-        "• Калорийность и БЖУ\n"
+        "Хотите составить персонализированный план питания?\n\n"
+        "📋 <b>Что будет включено:</b>\n"
+        "• Рекомендации по калориям\n"
+        "• Баланс БЖУ\n"
+        "• Время приемов пищи\n"
         "• Предпочтения в еде\n"
         "• Аллергии и ограничения\n\n"
         "🚀 <b>Начать составление плана?</b>",
-        reply_markup=keyboard,
+        reply_markup=get_confirm_keyboard(),
         parse_mode="HTML"
     )
 
@@ -153,15 +131,10 @@ async def profile_button_handler(message: Message, state: FSMContext):
 async def settings_button_handler(message: Message, state: FSMContext):
     await state.clear()
     
-    keyboard = [
-        ["� Мой профиль", "� Мои цели"],
-        ["� Статистика", "🏠 Главное меню"]
-    ]
-    
     await message.answer(
         "⚙️ <b>Настройки</b>\n\n"
         "Выберите раздел:",
-        reply_markup=keyboard,
+        reply_markup=get_settings_keyboard(),
         parse_mode="HTML"
     )
 
@@ -201,15 +174,10 @@ async def drink_button_handler(message: Message, state: FSMContext):
 async def goals_button_handler(message: Message, state: FSMContext):
     await state.clear()
     
-    keyboard = [
-        ["📊 Питание", "💧 Вода"],
-        ["🏃‍♂️ Активность", "⚖️ Вес"]
-    ]
-    
     await message.answer(
         "🎯 <b>Управление целями</b>\n\n"
         "Выберите тип целей для настройки:",
-        reply_markup=keyboard,
+        reply_markup=get_settings_keyboard(),
         parse_mode="HTML"
     )
 
@@ -217,15 +185,10 @@ async def goals_button_handler(message: Message, state: FSMContext):
 async def stats_button_handler(message: Message, state: FSMContext):
     await state.clear()
     
-    keyboard = [
-        ["📅 Сегодня", "📆 Неделя"],
-        ["🗓️ Месяц", "📊 Всё время"]
-    ]
-    
     await message.answer(
         "📈 <b>Статистика</b>\n\n"
         "Выберите период для просмотра:",
-        reply_markup=keyboard,
+        reply_markup=get_statistics_keyboard(),
         parse_mode="HTML"
     )
 
@@ -235,16 +198,10 @@ async def stats_button_handler(message: Message, state: FSMContext):
 async def reminders_button_handler(message: Message, state: FSMContext):
     await state.clear()
     
-    keyboard = [
-        ["🍽️ Приёмы пищи", "💧 Вода"],
-        ["🏃‍♂️ Активность", "⚖️ Взвешивания"],
-        ["📊 Отчёты", "🔄 Все напоминания"]
-    ]
-    
     await message.answer(
         "🔔 <b>Настройка напоминаний</b>\n\n"
         "Выберите тип напоминаний:",
-        reply_markup=keyboard,
+        reply_markup=get_notifications_keyboard(),
         parse_mode="HTML"
     )
 
@@ -252,15 +209,10 @@ async def reminders_button_handler(message: Message, state: FSMContext):
 async def language_button_handler(message: Message, state: FSMContext):
     await state.clear()
     
-    keyboard = [
-        ["🇷🇺 Русский", "🇬🇧 English"],
-        ["🇩🇪 Deutsch", "🇫🇷 Français"]
-    ]
-    
     await message.answer(
         "🌐 <b>Выбор языка</b>\n\n"
         "Выберите язык интерфейса:",
-        reply_markup=keyboard,
+        reply_markup=get_back_keyboard(),
         parse_mode="HTML"
     )
 

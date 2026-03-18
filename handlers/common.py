@@ -9,7 +9,7 @@ from aiogram.fsm.context import FSMContext
 
 logger = logging.getLogger(__name__)
 
-from keyboards.reply_v2 import get_main_keyboard_v2
+from keyboards.reply_v2 import get_main_keyboard_v2, get_confirm_keyboard, get_food_keyboard, get_help_keyboard
 from keyboards.inline import get_progress_menu
 
 router = Router()
@@ -43,16 +43,9 @@ async def cmd_start(message: Message, state: FSMContext):
 
 🚀 <b>Начнём?</b>"""
     
-    keyboard = [
-        ["👤 Настроить профиль", "🍽️ Записать приём пищи"],
-        ["💧 Выпить воды", "🏃‍♂️ Записать активность"],
-        ["📊 Мой прогресс", "🤖 AI ассистент"],
-        ["❓ Помощь"]
-    ]
-    
     await message.answer(
         welcome_text,
-        reply_markup=keyboard,
+        reply_markup=get_main_keyboard_v2(),
         parse_mode="HTML"
     )
 
@@ -114,15 +107,9 @@ async def cmd_help(message: Message, state: FSMContext):
 ❓ <b>Нужна помощь?</b>
 Свяжитесь с поддержкой: @NutriBuddy_Support"""
     
-    keyboard = [
-        ["👤 Настроить профиль", "🍽️ Записать приём пищи"],
-        ["📊 Мой прогресс", "🤖 AI ассистент"],
-        ["🏠 Главное меню"]
-    ]
-    
     await message.answer(
         help_text,
-        reply_markup=keyboard,
+        reply_markup=get_main_keyboard_v2(),
         parse_mode="HTML"
     )
 
@@ -167,14 +154,9 @@ async def cmd_set_profile(message: Message, state: FSMContext):
 
 🚀 <b>Начать настройку?</b>"""
     
-    keyboard = [
-        ["✅ Начать настройку"],
-        ["❌ Отмена"]
-    ]
-    
     await message.answer(
         profile_text,
-        reply_markup=keyboard,
+        reply_markup=get_confirm_keyboard(),
         parse_mode="HTML"
     )
 
@@ -266,14 +248,9 @@ async def cmd_food(message: Message, state: FSMContext):
 
 🚀 <b>Выберите способ:</b>"""
     
-    keyboard = [
-        ["📸 Сделать фото", "✍️ Ввести вручную"],
-        ["❌ Отмена"]
-    ]
-    
     await message.answer(
         food_text,
-        reply_markup=keyboard,
+        reply_markup=get_food_keyboard(),
         parse_mode="HTML"
     )
 
@@ -304,17 +281,9 @@ async def help_menu_callback(callback: CallbackQuery):
 • Связаться с нами
 • Сообщить о проблеме"""
     
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📖 Руководство", callback_data="help_guide")],
-        [InlineKeyboardButton(text="❓ FAQ", callback_data="help_faq")],
-        [InlineKeyboardButton(text="🎥 Видеоуроки", callback_data="help_videos")],
-        [InlineKeyboardButton(text="💬 Поддержка", callback_data="help_support")],
-        [InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_main")]
-    ])
-    
     await callback.message.edit_text(
         help_text,
-        reply_markup=keyboard,
+        reply_markup=get_help_keyboard(),
         parse_mode="HTML"
     )
     await callback.answer()

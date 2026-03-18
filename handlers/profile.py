@@ -12,7 +12,7 @@ from sqlalchemy import select
 
 from database.db import get_session
 from database.models import User
-from keyboards.reply_v2 import get_main_keyboard_v2, get_profile_keyboard
+from keyboards.reply_v2 import get_main_keyboard_v2, get_profile_keyboard, get_cancel_keyboard, get_confirm_keyboard, get_back_keyboard
 from keyboards.reply import get_gender_keyboard
 from keyboards.timezone_keyboard import get_timezone_keyboard, get_timezone_confirm_keyboard
 from utils.states import ProfileStates
@@ -60,14 +60,9 @@ async def cmd_set_profile(message: Message, state: FSMContext):
 
 🚀 <b>Начнем?</b>"""
     
-    keyboard = [
-        ["✅ Начать настройку"],
-        ["❌ Отмена"]
-    ]
-    
     await message.answer(
         text,
-        reply_markup=keyboard,
+        reply_markup=get_confirm_keyboard(),
         parse_mode="HTML"
     )
 
@@ -217,15 +212,9 @@ async def process_weight(message: Message, state: FSMContext):
 • Высокий - интенсивная активность 6-7 раз в неделю
 • Очень высокий - тяжелая физическая работа"""
         
-        keyboard = [
-            ["🪑 Минимальный", "🚶 Низкий"],
-            ["🏃 Средний", "💪 Высокий"],
-            ["🔥 Очень высокий"]
-        ]
-        
         await message.answer(
             text,
-            reply_markup=keyboard,
+            reply_markup=get_cancel_keyboard(),
             parse_mode="HTML"
         )
         
@@ -271,14 +260,9 @@ async def process_activity_level(message: Message, state: FSMContext):
 • Набор массы - увеличение мышечной массы
 • Поддержание - сохранение текущего веса"""
     
-    keyboard = [
-        ["📉 Похудение", "💪 Набор массы"],
-        ["⚖️ Поддержание"]
-    ]
-    
     await message.answer(
         text,
-        reply_markup=keyboard,
+        reply_markup=get_confirm_keyboard(),
         parse_mode="HTML"
     )
 
@@ -342,14 +326,9 @@ async def process_city(message: Message, state: FSMContext):
 
 🚀 <b>Завершить настройку?</b>"""
             
-            keyboard = [
-                ["✅ Завершить настройку"],
-                ["🔄 Изменить часовой пояс"]
-            ]
-            
             await message.answer(
                 text,
-                reply_markup=keyboard,
+                reply_markup=get_confirm_keyboard(),
                 parse_mode="HTML"
             )
             return
@@ -603,15 +582,9 @@ async def cmd_profile(message: Message, state: FSMContext):
 
 ⏰ <b>Часовой пояс:</b> {user.timezone or 'UTC'}"""
         
-        keyboard = [
-            ["✏️ Изменить профиль", "📊 Мой прогресс"],
-            ["🎯 Изменить цели", "⚙️ Настройки"],
-            ["🔙 Назад"]
-        ]
-        
         await message.answer(
             profile_text,
-            reply_markup=keyboard,
+            reply_markup=get_profile_keyboard(),
             parse_mode="HTML"
         )
 

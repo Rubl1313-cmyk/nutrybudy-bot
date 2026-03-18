@@ -278,16 +278,12 @@ async def get_water_stats_by_periods(user_id: int) -> dict:
 @router.message(Command("быстрая_вода"))
 async def cmd_quick_water(message: Message):
     """Быстрая запись стандартных объемов воды"""
-    keyboard = [
-        ["💧 200 мл", "💧 250 мл"],
-        ["💧 350 мл", "💧 500 мл"],
-        ["💧 750 мл", "💧 1000 мл"]
-    ]
+    from keyboards.reply_v2 import get_water_keyboard
     
     text = "💧 <b>Быстрая запись воды</b>\n\n"
     text += "Выберите объем:"
     
-    await message.answer(text, reply_markup=keyboard)
+    await message.answer(text, reply_markup=get_water_keyboard())
 
 @router.message()
 async def process_quick_water(message: Message):

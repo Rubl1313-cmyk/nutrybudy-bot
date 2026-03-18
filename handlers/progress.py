@@ -11,7 +11,7 @@ from sqlalchemy import select, func
 
 from database.db import get_session
 from database.models import User, FoodEntry, ActivityEntry, DrinkEntry, WeightEntry
-from keyboards.reply_v2 import get_main_keyboard_v2
+from keyboards.reply_v2 import get_main_keyboard_v2, get_progress_keyboard, get_water_keyboard, get_activity_keyboard, get_cancel_keyboard
 from utils.daily_stats import get_period_stats
 from utils.premium_templates import daily_summary, weekly_summary
 from utils.ui_templates import ProgressBar
@@ -38,12 +38,7 @@ async def cmd_progress(message: Message, state: FSMContext):
     text += "• Вода (потребление)\n\n"
     text += "🚀 <b>Выберите период:</b>"
     
-    keyboard = [
-        ["📅 Сегодня", "📆 Неделя"],
-        ["🗓️ Месяц", "📊 Всё время"]
-    ]
-    
-    await message.answer(text, reply_markup=keyboard)
+    await message.answer(text, reply_markup=get_progress_keyboard())
 
 @router.message()
 async def handle_period_selection(message: Message):
@@ -88,7 +83,7 @@ async def show_today_progress(message: Message):
         user = result.scalar_one_or_none()
         
         if not user:
-            await message.answer("❌ Профиль не найден", reply_markup=get_main_keyboard_v2())
+            await message.answer("❌ Профиль не найден", reply_markup=get_cancel_keyboard())
             return
     
     text = "📅 <b>Прогресс за сегодня</b>\n\n"

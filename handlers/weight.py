@@ -65,11 +65,17 @@ async def process_weight(message: Message, state: FSMContext):
         await state.update_data(weight=weight)
         
         # Предлагаем записать дополнительные параметры
-        keyboard = [
-            ["✅ Только вес"],
-            ["📊 + % жира", ["💪 + мышечная масса"]],
-            ["🧬 + все параметры"]
-        ]
+        from keyboards.reply_v2 import get_cancel_keyboard
+        from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
+        
+        keyboard = ReplyKeyboardMarkup(
+            keyboard=[
+                [KeyboardButton(text="✅ Только вес")],
+                [KeyboardButton(text="📊 + % жира"), KeyboardButton(text="💪 + мышечная масса")],
+                [KeyboardButton(text="🧬 + все параметры")]
+            ],
+            resize_keyboard=True
+        )
         
         text = f"⚖️ <b>Вес записан: {weight} кг</b>\n\n"
         text += "Хотите добавить дополнительные параметры?\n\n"

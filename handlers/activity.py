@@ -32,18 +32,12 @@ async def cmd_fitness(message: Message, state: FSMContext):
     """Запись фитнес активности"""
     await state.clear()
     
-    # Создаем клавиатуру с типами активности
-    keyboard = [
-        ["🏃 Бег", "🚴 Велосипед"],
-        ["🏋️ Тренировка", "🧘 Йога"],
-        ["🚶 Ходьба", "🏊 Плавание"],
-        ["🤸 Другое"]
-    ]
+    from keyboards.reply_v2 import get_activity_keyboard
     
     text = "🏃‍♂️ <b>Записать активность</b>\n\n"
     text += "Выберите тип активности:"
     
-    await message.answer(text, reply_markup=keyboard)
+    await message.answer(text, reply_markup=get_activity_keyboard())
     await state.set_state(ActivityStates.waiting_for_activity_type)
 
 @router.message(ActivityStates.waiting_for_activity_type)

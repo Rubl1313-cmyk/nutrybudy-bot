@@ -66,6 +66,8 @@ async def cmd_achievements(message: Message):
         text += "🎉 Вы получили все достижения! Вы настоящий чемпион!\n"
     
     # Кнопка для подробной статистики
+    from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+    
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="📈 Подробная статистика", callback_data="detailed_stats")],
         [InlineKeyboardButton(text="🏅 Лидерboard", callback_data="leaderboard")],
@@ -120,6 +122,7 @@ async def callback_detailed_stats(callback: CallbackQuery):
     else:
         text += "🌱 <b>Начало пути!</b> Каждый день делает вас сильнее!\n"
     
+    from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🔙 Назад к достижениям", callback_data="back_to_achievements")]
     ])

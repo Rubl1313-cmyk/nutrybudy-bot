@@ -54,12 +54,9 @@ async def cmd_meal_plan(message: Message, state: FSMContext):
     text += "• Аллергии и ограничения\n\n"
     text += "🚀 <b>Начать составление плана?</b>"
     
-    keyboard = [
-        ["✅ Да, составить план"],
-        ["❌ Нет, спасибо"]
-    ]
+    from keyboards.reply_v2 import get_confirm_keyboard
     
-    await message.answer(text, reply_markup=keyboard)
+    await message.answer(text, reply_markup=get_confirm_keyboard())
     await state.set_state(MealPlanStates.waiting_for_preferences)
 
 @router.message(MealPlanStates.waiting_for_preferences)

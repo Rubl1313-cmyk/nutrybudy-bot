@@ -47,6 +47,27 @@ async def upgrade():
             water_exists = None
         
         if water_exists:
+            # Сначала проверяем структуру water_entries
+            try:
+                if is_postgresql:
+                    columns_result = await conn.execute(text("""
+                        SELECT column_name FROM information_schema.columns 
+                        WHERE table_name = 'water_entries'
+                    """))
+                else:
+                    columns_result = await conn.execute(text("PRAGMA table_info(water_entries)"))
+                
+                columns = [row[0] for row in columns_result.fetchall()]
+                logger.info(f"[MIGRATION] water_entries columns: {columns}")
+                
+                # Проверяем наличие колонки datetime
+                has_datetime = 'datetime' in columns
+                logger.info(f"[MIGRATION] water_entries has datetime column: {has_datetime}")
+                
+            except Exception as e:
+                logger.warning(f"[MIGRATION] Failed to check water_entries structure: {e}")
+                has_datetime = False  # Предполагаем, что колонки нет
+            
             # Создаем новую таблицу drink_entries с учетом типа БД
             if is_postgresql:
                 logger.info("[MIGRATION] Creating PostgreSQL table")
@@ -78,12 +99,20 @@ async def upgrade():
                 
             # Дополнительная проверка - если все еще ошибка, пробуем принудительно PostgreSQL
             try:
-                # Копируем данные из water_entries в drink_entries
-                await conn.execute(text("""
-                    INSERT INTO drink_entries (user_id, name, volume_ml, calories, datetime)
-                    SELECT user_id, 'вода', amount, 0.0, datetime 
-                    FROM water_entries
-                """))
+                # Копируем данные из water_entries в drink_entries с учетом наличия колонки datetime
+                if has_datetime:
+                    await conn.execute(text("""
+                        INSERT INTO drink_entries (user_id, name, volume_ml, calories, datetime)
+                        SELECT user_id, 'вода', amount, 0.0, datetime 
+                        FROM water_entries
+                    """))
+                else:
+                    # Если колонки datetime нет, используем CURRENT_TIMESTAMP
+                    await conn.execute(text("""
+                        INSERT INTO drink_entries (user_id, name, volume_ml, calories)
+                        SELECT user_id, 'вода', amount, 0.0
+                        FROM water_entries
+                    """))
                 
                 # Удаляем старую таблицу
                 await conn.execute(text("DROP TABLE water_entries"))
@@ -106,12 +135,19 @@ async def upgrade():
                             FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
                         )
                     """))
-                    # Повторяем копирование данных
-                    await conn.execute(text("""
-                        INSERT INTO drink_entries (user_id, name, volume_ml, calories, datetime)
-                        SELECT user_id, 'вода', amount, 0.0, datetime 
-                        FROM water_entries
-                    """))
+                    # Повторяем копирование данных с учетом структуры
+                    if has_datetime:
+                        await conn.execute(text("""
+                            INSERT INTO drink_entries (user_id, name, volume_ml, calories, datetime)
+                            SELECT user_id, 'вода', amount, 0.0, datetime 
+                            FROM water_entries
+                        """))
+                    else:
+                        await conn.execute(text("""
+                            INSERT INTO drink_entries (user_id, name, volume_ml, calories)
+                            SELECT user_id, 'вода', amount, 0.0
+                            FROM water_entries
+                        """))
                     await conn.execute(text("DROP TABLE water_entries"))
                     logger.info("[SUCCESS] Миграция завершена с принудительным PostgreSQL синтаксисом")
                 else:

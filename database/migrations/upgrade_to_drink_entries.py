@@ -119,20 +119,35 @@ async def upgrade():
             
             print("✅ Миграция завершена: water_entries → drink_entries")
         else:
-            # Просто создаем новую таблицу
-            await conn.execute(text("""
-                CREATE TABLE IF NOT EXISTS drink_entries (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    user_id INTEGER NOT NULL,
-                    name VARCHAR(100) NOT NULL DEFAULT 'вода',
-                    volume_ml FLOAT NOT NULL,
-                    calories FLOAT DEFAULT 0.0,
-                    datetime DATETIME DEFAULT CURRENT_TIMESTAMP,
-                    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
-                )
-            """))
+            # Просто создаем новую таблицу с правильным синтаксисом
+            if is_postgresql:
+                logger.info("[MIGRATION] Creating PostgreSQL table (no water_entries)")
+                await conn.execute(text("""
+                    CREATE TABLE IF NOT EXISTS drink_entries (
+                        id SERIAL PRIMARY KEY,
+                        user_id INTEGER NOT NULL,
+                        name VARCHAR(100) NOT NULL DEFAULT 'вода',
+                        volume_ml FLOAT NOT NULL,
+                        calories FLOAT DEFAULT 0.0,
+                        datetime TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+                    )
+                """))
+            else:
+                logger.info("[MIGRATION] Creating SQLite table (no water_entries)")
+                await conn.execute(text("""
+                    CREATE TABLE IF NOT EXISTS drink_entries (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        user_id INTEGER NOT NULL,
+                        name VARCHAR(100) NOT NULL DEFAULT 'вода',
+                        volume_ml FLOAT NOT NULL,
+                        calories FLOAT DEFAULT 0.0,
+                        datetime DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+                    )
+                """))
             
-            print("✅ Таблица drink_entries создана")
+            logger.info("✅ Таблица drink_entries создана")
 
 async def downgrade():
     """Откат миграции"""

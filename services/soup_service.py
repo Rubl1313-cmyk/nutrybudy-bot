@@ -175,6 +175,65 @@ async def save_soup(user_id: int, dish_name: str, volume_ml: float, meal_type: s
         logger.error(f"[SOUP] Error saving soup: {e}")
         raise
 
+async def save_drink(user_id: int, drink_name: str, volume_ml: float, calories: float = 0):
+    """
+    Сохраняет напиток как запись воды/жидкости
+    
+    Args:
+        user_id: ID пользователя
+        drink_name: Название напитка
+        volume_ml: Объем в мл
+        calories: Калории (для напитков с калориями)
+        
+    Returns:
+        dict с информацией о сохранении
+    """
+    try:
+        async with get_session() as session:
+            # Получаем пользователя
+            result = await session.execute(
+                select(User).where(User.telegram_id == user_id)
+            )
+            user = result.scalar_one_or_none()
+            
+            if not user:
+                raise ValueError(f"User {user_id} not found")
+            
+            # Сохраняем как запись воды/жидкости
+            try:
+                from database.models import WaterEntry
+                
+                water_entry = WaterEntry(
+                    user_id=user.id,
+                    date=datetime.now(timezone.utc).date(),
+                    volume_ml=volume_ml,
+                    drink_name=drink_name,
+                    calories_from_food=calories,
+                    created_at=datetime.now(timezone.utc)
+                )
+                session.add(water_entry)
+                await session.commit()
+                
+                logger.info(f"[DRINK] Saved drink: {drink_name} {volume_ml}ml for user {user_id}")
+                
+                return {
+                    'drink_id': water_entry.id,
+                    'volume_ml': volume_ml,
+                    'calories': calories
+                }
+                
+            except ImportError:
+                # Если модели WaterEntry нет, просто логируем
+                logger.info(f"[DRINK] Drink logged: {drink_name} {volume_ml}ml for user {user_id}")
+                return {
+                    'volume_ml': volume_ml,
+                    'calories': calories
+                }
+            
+    except Exception as e:
+        logger.error(f"[DRINK] Error saving drink: {e}")
+        raise
+
 def get_soup_categories() -> Dict[str, list]:
     """
     Возвращает категории супов

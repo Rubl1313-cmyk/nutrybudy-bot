@@ -176,10 +176,12 @@ def register_handlers():
     dp.include_router(reminder_callbacks_router)
     
     # Установка middleware
-    dp.message.middleware(user_rate_limiter)
-    dp.callback_query.middleware(user_rate_limiter)
-    dp.message.middleware(global_rate_limiter)
-    dp.callback_query.middleware(global_rate_limiter)
+    from utils.middleware import SmartRateLimitMiddleware
+    
+    dp.message.middleware(SmartRateLimitMiddleware(user_rate_limiter))
+    dp.callback_query.middleware(SmartRateLimitMiddleware(user_rate_limiter))
+    dp.message.middleware(SmartRateLimitMiddleware(global_rate_limiter))
+    dp.callback_query.middleware(SmartRateLimitMiddleware(global_rate_limiter))
     
     logger.info("All handlers registered")
     
@@ -217,6 +219,7 @@ async def create_app():
         if request.method == 'POST':
             update_data = await request.json()
             update = Update.model_validate(update_data, context={"bot": dp.bot})
+            # Используем только update, bot уже в context
             await dp.feed_update(update)
             return web.Response(status=200)
         return web.Response(status=405)

@@ -1,391 +1,427 @@
 """
 services/langchain_agent.py
-LangChain Agent Ñ� Ğ¸Ğ½Ñ�Ñ‚Ñ€ÑƒĞ¼ĞµĞ½Ñ‚Ğ°Ğ¼Ğ¸ Ğ´Ğ»Ñ� Ğ°Ğ²Ñ‚Ğ¾Ğ¼Ğ°Ñ‚Ğ¸Ğ·Ğ°Ñ†Ğ¸Ğ¸ NutriBuddy Bot
+LangChain Agent с инструментами для автоматизации NutriBuddy Bot
 """
 import os
 import logging
 import asyncio
 import time
-from typing import Dict, Any, Optional, List
-from aiogram.types import Message
+from typing import Dict, Any, List, Optional
+from datetime import datetime, timezone
+
 from aiogram.fsm.context import FSMContext
 from langchain.agents import create_react_agent, AgentExecutor
 from langchain.tools import StructuredTool
+from langchain.schema import BaseMessage, HumanMessage, AIMessage
 from langchain.memory import ConversationBufferMemory
-from langchain.prompts import PromptTemplate
-from langchain_core.messages import AIMessage
-from sqlalchemy import select
 
 from database.db import get_session
 from database.models import User
-from services.cloudflare_llm import CloudflareLLM
 from services.ai_processor import ai_processor
-from services.food_save_service import food_save_service
-from utils.premium_templates import (
-    meal_card, water_card, weight_card, 
-    activity_card, progress_card, achievement_card, error_card
-)
-from utils.helpers import get_daily_stats
-from utils.daily_stats import get_daily_water, get_daily_drink_calories, get_daily_activity_calories
+from services.weather import get_weather
+from utils.daily_stats import get_daily_stats
 
 logger = logging.getLogger(__name__)
 
-# ĞšĞµÑˆ Ğ°Ğ³ĞµĞ½Ñ‚Ğ¾Ğ² Ñ� Ğ¾Ñ‚Ñ�Ğ»ĞµĞ¶Ğ¸Ğ²Ğ°Ğ½Ğ¸ĞµĞ¼ Ğ²Ñ€ĞµĞ¼ĞµĞ½Ğ¸ Ğ¸Ñ�Ğ¿Ğ¾Ğ»ÑŒĞ·Ğ¾Ğ²Ğ°Ğ½Ğ¸Ñ�
+# Кеш агентов с отслеживанием времени использования
 _agents: Dict[int, Dict[str, Any]] = {}
 _agents_lock = asyncio.Lock()  # Блокировка для потокобезопасности
 
 class LangChainAgent:
-    """AI Ğ°Ğ³ĞµĞ½Ñ‚ Ñ� Ğ¸Ğ½Ñ�Ñ‚Ñ€ÑƒĞ¼ĞµĞ½Ñ‚Ğ°Ğ¼Ğ¸ Ğ´Ğ»Ñ� NutriBuddy"""
+    """AI агент с инструментами для NutriBuddy"""
     
     def __init__(self, user_id: int, state: FSMContext):
         self.user_id = user_id
         self.state = state
-        self.llm = CloudflareLLM()
-        self.memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
         self.user = None
+        self.memory = ConversationBufferMemory(
+            memory_key="chat_history",
+            return_messages=True
+        )
         self.tools = self._create_tools()
         self.last_used = time.time()
         
-        # LLM Ğ²Ñ�ĞµĞ³Ğ´Ğ° Ğ´Ğ¾Ñ�Ñ‚ÑƒĞ¿ĞµĞ½ (Ğ±ĞµĞ· Ñ�Ğ¼ÑƒĞ»Ñ�Ñ†Ğ¸Ğ¸)
+        # LLM встроенный (без эмуляции)
         self.agent = create_react_agent(
             llm=self.llm.llm,
             tools=self.tools,
-            prompt=PromptTemplate.from_template(self._get_prompt())
-        )
-        self.executor = AgentExecutor(
-            agent=self.agent,
-            tools=self.tools,
             memory=self.memory,
-            handle_parsing_errors=True,
             max_iterations=5,
             verbose=True
         )
-        logger.info(f"âœ… LangChain Agent initialized for user {user_id}")
+        logger.info(f"[AGENT] LangChain Agent initialized for user {user_id}")
 
     async def load_user(self):
-        """Ğ—Ğ°Ğ³Ñ€ÑƒĞ¶Ğ°ĞµÑ‚ Ğ¿Ğ¾Ğ»ÑŒĞ·Ğ¾Ğ²Ğ°Ñ‚ĞµĞ»Ñ� Ğ¸Ğ· Ğ‘Ğ”"""
+        """Загружает пользователя из БД"""
         try:
             async with get_session() as session:
                 result = await session.execute(select(User).where(User.telegram_id == self.user_id))
                 self.user = result.scalar_one_or_none()
                 if self.user:
-                    logger.info(f"âœ… User loaded: {self.user.first_name}")
+                    logger.info(f"[AGENT] User loaded: {self.user.first_name}")
                 else:
-                    logger.warning(f"âš ï¸� User not found: {self.user_id}")
+                    logger.warning(f"[AGENT] User not found: {self.user_id}")
         except Exception as e:
-            logger.error(f"â�Œ Error loading user {self.user_id}: {e}")
+            logger.error(f"[AGENT] Error loading user {self.user_id}: {e}")
             self.user = None
 
     def _get_prompt(self) -> str:
-        return """Ğ¢Ñ‹ â€” Ğ¿Ñ€ĞµĞ¼Ğ¸Ğ°Ğ»ÑŒĞ½Ñ‹Ğ¹ AI-Ğ°Ñ�Ñ�Ğ¸Ñ�Ñ‚ĞµĞ½Ñ‚ Ğ¿Ğ¾ Ğ¿Ğ¸Ñ‚Ğ°Ğ½Ğ¸Ñ� NutriBuddy.
-Ğ¢Ğ²Ğ¾Ñ� Ğ·Ğ°Ğ´Ğ°Ñ‡Ğ° â€” Ğ¿Ğ¾Ğ½Ñ�Ñ‚ÑŒ, Ñ‡Ñ‚Ğ¾ Ñ…Ğ¾Ñ‡ĞµÑ‚ Ğ¿Ğ¾Ğ»ÑŒĞ·Ğ¾Ğ²Ğ°Ñ‚ĞµĞ»ÑŒ, Ğ¸ Ğ²Ñ‹Ğ·Ğ²Ğ°Ñ‚ÑŒ Ğ¿Ğ¾Ğ´Ñ…Ğ¾Ğ´Ñ�Ñ‰Ğ¸Ğ¹ Ğ¸Ğ½Ñ�Ñ‚Ñ€ÑƒĞ¼ĞµĞ½Ñ‚.
-Ğ’Ñ�ĞµĞ³Ğ´Ğ° Ğ¾Ñ‚Ğ²ĞµÑ‡Ğ°Ğ¹ ĞºÑ€Ğ°Ñ�Ğ¸Ğ²Ğ¾, Ğ¸Ñ�Ğ¿Ğ¾Ğ»ÑŒĞ·ÑƒÑ� Ñ�Ğ¼Ğ¾Ğ´Ğ·Ğ¸ Ğ¸ Ñ�Ñ‚Ñ€ÑƒĞºÑ‚ÑƒÑ€Ğ¸Ñ€Ğ¾Ğ²Ğ°Ğ½Ğ½Ñ‹Ğ¹ Ñ‚ĞµĞºÑ�Ñ‚.
+        return """Ты — премиальный AI-ассистент по питанию NutriBuddy.
+Твоя задача — понимать, что хочет пользователь, и вызывать подходящий инструмент.
+Всегда отвечай кратко, по делу и используй структурированный текст.
 
-Ğ˜Ğ½Ñ„Ğ¾Ñ€Ğ¼Ğ°Ñ†Ğ¸Ñ� Ğ¾ Ğ¿Ğ¾Ğ»ÑŒĞ·Ğ¾Ğ²Ğ°Ñ‚ĞµĞ»Ğµ:
+Информация о пользователе:
 {user_info}
 
-Ğ”Ğ¾Ñ�Ñ‚ÑƒĞ¿Ğ½Ñ‹Ğµ Ğ¸Ğ½Ñ�Ñ‚Ñ€ÑƒĞ¼ĞµĞ½Ñ‚Ñ‹:
+Доступные инструменты:
 {tools}
 
-Ğ˜Ñ�Ñ‚Ğ¾Ñ€Ğ¸Ñ� Ğ´Ğ¸Ğ°Ğ»Ğ¾Ğ³Ğ°:
+История диалога:
 {chat_history}
 
-Ğ—Ğ°Ğ¿Ñ€Ğ¾Ñ� Ğ¿Ğ¾Ğ»ÑŒĞ·Ğ¾Ğ²Ğ°Ñ‚ĞµĞ»Ñ�: {input}
+Запрос пользователя: {input}
 {agent_scratchpad}"""
 
     def _create_tools(self) -> List[StructuredTool]:
-        """Ğ¡Ğ¾Ğ·Ğ´Ğ°Ñ‘Ñ‚ Ğ¸Ğ½Ñ�Ñ‚Ñ€ÑƒĞ¼ĞµĞ½Ñ‚Ñ‹ Ğ´Ğ»Ñ� Ğ°Ğ³ĞµĞ½Ñ‚Ğ°"""
+        """Создает инструменты для агента"""
         
         async def log_meal(description: str) -> str:
-            """Ğ—Ğ°Ğ¿Ğ¸Ñ�Ñ‹Ğ²Ğ°ĞµÑ‚ Ğ¿Ñ€Ğ¸Ñ‘Ğ¼ Ğ¿Ğ¸Ñ‰Ğ¸. description: Ğ¾Ğ¿Ğ¸Ñ�Ğ°Ğ½Ğ¸Ğµ ĞµĞ´Ñ‹ (Ğ½Ğ°Ğ¿Ñ€Ğ¸Ğ¼ĞµÑ€, "200Ğ³ ĞºÑƒÑ€Ğ¸Ñ†Ñ‹ Ñ� Ğ³Ñ€ĞµÑ‡ĞºĞ¾Ğ¹"). Ğ’Ğ¾Ğ·Ğ²Ñ€Ğ°Ñ‰Ğ°ĞµÑ‚ ĞºĞ°Ñ€Ñ‚Ğ¾Ñ‡ĞºÑƒ Ñ� ĞšĞ‘Ğ–Ğ£."""
+            """Записывает прием пищи. description: описание еды (например, "200г курицы с гречкой"). Возвращает карточку с КБЖУ."""
             try:
-                # ĞŸĞ°Ñ€Ñ�Ğ¸Ğ¼ ĞµĞ´Ñƒ Ñ‡ĞµÑ€ĞµĞ· ai_processor
+                # Парсим еду через ai_processor
                 result = await ai_processor.process_text_input(description, self.user_id)
                 if not result.get("success"):
-                    return "â�Œ Ğ�Ğµ ÑƒĞ´Ğ°Ğ»Ğ¾Ñ�ÑŒ Ñ€Ğ°Ñ�Ğ¿Ğ¾Ğ·Ğ½Ğ°Ñ‚ÑŒ ĞµĞ´Ñƒ. ĞŸĞ¾Ğ¿Ñ€Ğ¾Ğ±ÑƒĞ¹Ñ‚Ğµ Ğ¾Ğ¿Ğ¸Ñ�Ğ°Ñ‚ÑŒ Ğ¿Ğ¾Ğ´Ñ€Ğ¾Ğ±Ğ½ĞµĞµ."
+                    return "[ERROR] Не удалось распознать еду. Попробуйте описать подробнее."
                 
                 food_items = result["parameters"].get("food_items", [])
                 meal_type = result["parameters"].get("meal_type", "main")
                 
                 if not food_items:
-                    return "â�Œ Ğ�Ğµ ÑƒĞ´Ğ°Ğ»Ğ¾Ñ�ÑŒ Ñ€Ğ°Ñ�Ğ¿Ğ¾Ğ·Ğ½Ğ°Ñ‚ÑŒ Ğ¿Ñ€Ğ¾Ğ´ÑƒĞºÑ‚Ñ‹ Ğ² Ğ²Ğ°ÑˆĞµĞ¼ Ñ�Ğ¾Ğ¾Ğ±Ñ‰ĞµĞ½Ğ¸Ğ¸."
+                    return "[ERROR] Не удалось распознать продукты в вашем сообщении."
                 
-                # ĞšĞ¾Ğ½Ğ²ĞµÑ€Ñ‚Ğ¸Ñ€ÑƒĞµĞ¼ Ğ´Ğ°Ğ½Ğ½Ñ‹Ğµ Ğ¸Ğ· Ñ„Ğ¾Ñ€Ğ¼Ğ°Ñ‚Ğ° _per_100g Ğ² Ñ„Ğ¾Ñ€Ğ¼Ğ°Ñ‚ Ğ´Ğ»Ñ� save_food_to_db
-                converted_food_items = []
-                for item in food_items:
-                    weight = item.get('quantity', 0)
-                    factor = weight / 100.0
+                # Сохраняем через food_save_service
+                from services.food_save_service import food_save_service
+                from utils.ui_templates import meal_card
+                
+                save_result = await food_save_service.save_food_entry(
+                    user_id=self.user_id,
+                    food_items=food_items,
+                    meal_type=meal_type,
+                    description=description
+                )
+                
+                if save_result.get("success"):
+                    # Получаем статистику
+                    daily_stats = await get_daily_stats(self.user_id)
                     
-                    converted_item = {
-                        'name': item.get('name', 'Ğ�ĞµĞ¸Ğ·Ğ²ĞµÑ�Ñ‚Ğ½Ñ‹Ğ¹ Ğ¿Ñ€Ğ¾Ğ´ÑƒĞºÑ‚'),
-                        'quantity': weight,
-                        'unit': item.get('unit', 'Ğ³'),
-                        'calories': item.get('calories_per_100g', 0) * factor,
-                        'protein': item.get('protein_per_100g', 0) * factor,
-                        'fat': item.get('fat_per_100g', 0) * factor,
-                        'carbs': item.get('carbs_per_100g', 0) * factor
+                    # Формируем карточку
+                    from database.db import get_session
+                    with get_session() as session:
+                        user = session.query(User).filter(User.telegram_id == self.user_id).first()
+                    
+                    food_data = {
+                        'description': description,
+                        'total_calories': save_result.get('total_calories', 0),
+                        'total_protein': save_result.get('total_protein', 0),
+                        'total_fat': save_result.get('total_fat', 0),
+                        'total_carbs': save_result.get('total_carbs', 0),
+                        'meal_type': meal_type
                     }
-                    converted_food_items.append(converted_item)
-                
-                # Ğ¡Ğ¾Ñ…Ñ€Ğ°Ğ½Ñ�ĞµĞ¼ Ñ‡ĞµÑ€ĞµĞ· save_food_to_db Ñ� ĞºĞ¾Ğ½Ğ²ĞµÑ€Ñ‚Ğ¸Ñ€Ğ¾Ğ²Ğ°Ğ½Ğ½Ñ‹Ğ¼Ğ¸ Ğ¸Ğ½Ğ³Ñ€ĞµĞ´Ğ¸ĞµĞ½Ñ‚Ğ°Ğ¼Ğ¸
-                save_result = await food_save_service.save_food_to_db(
-                    self.user_id, 
-                    converted_food_items, 
-                    meal_type
-                )
-                
-                if not save_result.get("success"):
-                    return f"â�Œ Ğ�ÑˆĞ¸Ğ±ĞºĞ° Ñ�Ğ¾Ñ…Ñ€Ğ°Ğ½ĞµĞ½Ğ¸Ñ�: {save_result.get('error', 'Ğ�ĞµĞ¸Ğ·Ğ²ĞµÑ�Ñ‚Ğ½Ğ°Ñ� Ğ¾ÑˆĞ¸Ğ±ĞºĞ°')}"
-                
-                # ĞŸĞ¾Ğ»ÑƒÑ‡Ğ°ĞµĞ¼ Ğ´Ğ½ĞµĞ²Ğ½ÑƒÑ� Ñ�Ñ‚Ğ°Ñ‚Ğ¸Ñ�Ñ‚Ğ¸ĞºÑƒ
-                daily_stats = await get_daily_stats(self.user_id)
-                
-                # Ğ¤Ğ¾Ñ€Ğ¼Ğ°Ñ‚Ğ¸Ñ€ÑƒĞµĞ¼ Ğ¾Ğ¿Ğ¸Ñ�Ğ°Ğ½Ğ¸Ğµ Ğ¸Ğ· Ğ¸Ğ½Ğ³Ñ€ĞµĞ´Ğ¸ĞµĞ½Ñ‚Ğ¾Ğ²
-                description_from_items = ", ".join([
-                    f"{item.get('quantity','')} {item.get('unit','Ğ³')} {item['name']}" 
-                    for item in food_items
-                ])
-                
-                # Ğ¤Ğ¾Ñ€Ğ¼Ğ°Ñ‚Ğ¸Ñ€ÑƒĞµĞ¼ Ğ´Ğ°Ğ½Ğ½Ñ‹Ğµ Ğ´Ğ»Ñ� ĞºĞ°Ñ€Ñ‚Ğ¾Ñ‡ĞºĞ¸
-                food_data = {
-                    'description': description_from_items,
-                    'total_calories': save_result.get('total_calories', 0),
-                    'total_protein': save_result.get('total_protein', 0),
-                    'total_fat': save_result.get('total_fat', 0),
-                    'total_carbs': save_result.get('total_carbs', 0),
-                    'meal_type': meal_type
-                }
-                
-                return meal_card(food_data, self.user, daily_stats)
-                
-            except Exception as e:
-                logger.error(f"â�Œ Error in log_meal: {e}")
-                return error_card("ai", f"Ğ�ÑˆĞ¸Ğ±ĞºĞ° Ğ¿Ñ€Ğ¸ Ñ�Ğ¾Ñ…Ñ€Ğ°Ğ½ĞµĞ½Ğ¸Ğ¸ ĞµĞ´Ñ‹: {str(e)}")
-
-        async def log_water(amount_ml: int) -> str:
-            """Ğ—Ğ°Ğ¿Ğ¸Ñ�Ñ‹Ğ²Ğ°ĞµÑ‚ Ğ²Ñ‹Ğ¿Ğ¸Ñ‚ÑƒÑ� Ğ²Ğ¾Ğ´Ñƒ. amount_ml: ĞºĞ¾Ğ»Ğ¸Ñ‡ĞµÑ�Ñ‚Ğ²Ğ¾ Ğ² Ğ¼Ğ¸Ğ»Ğ»Ğ¸Ğ»Ğ¸Ñ‚Ñ€Ğ°Ñ…."""
-            try:
-                from services.soup_service import save_drink
-                
-                # Ğ¡Ğ¾Ñ…Ñ€Ğ°Ğ½Ñ�ĞµĞ¼
-                result = await save_drink(self.user_id, f"Ğ²Ğ¾Ğ´Ğ° {amount_ml} Ğ¼Ğ»")
-                
-                # ĞŸĞ¾Ğ»ÑƒÑ‡Ğ°ĞµĞ¼ Ñ�Ñ‚Ğ°Ñ‚Ğ¸Ñ�Ñ‚Ğ¸ĞºÑƒ Ğ·Ğ° Ğ´ĞµĞ½ÑŒ
-                total_today = await get_daily_water(self.user_id)
-                return water_card(amount_ml, total_today, self.user.daily_water_goal)
-                
-            except Exception as e:
-                logger.error(f"â�Œ Error in log_water: {e}")
-                return error_card("database", f"Ğ�ÑˆĞ¸Ğ±ĞºĞ° Ğ¿Ñ€Ğ¸ Ğ·Ğ°Ğ¿Ğ¸Ñ�Ğ¸ Ğ²Ğ¾Ğ´Ñ‹: {str(e)}")
-
-        async def log_drink(description: str) -> str:
-            """Ğ—Ğ°Ğ¿Ğ¸Ñ�Ñ‹Ğ²Ğ°ĞµÑ‚ Ğ½Ğ°Ğ¿Ğ¸Ñ‚Ğ¾Ğº. description: Ğ¾Ğ¿Ğ¸Ñ�Ğ°Ğ½Ğ¸Ğµ Ğ½Ğ°Ğ¿Ğ¸Ñ‚ĞºĞ° (Ğ½Ğ°Ğ¿Ñ€Ğ¸Ğ¼ĞµÑ€, "Ñ�Ğ¾Ğº 250 Ğ¼Ğ»")."""
-            try:
-                from services.soup_service import save_drink
-                
-                # Ğ¡Ğ¾Ñ…Ñ€Ğ°Ğ½Ñ�ĞµĞ¼
-                result = await save_drink(self.user_id, description)
-                
-                # ĞŸĞ¾Ğ»ÑƒÑ‡Ğ°ĞµĞ¼ Ñ�Ñ‚Ğ°Ñ‚Ğ¸Ñ�Ñ‚Ğ¸ĞºÑƒ Ğ·Ğ° Ğ´ĞµĞ½ÑŒ
-                total_today = await get_daily_water(self.user_id)
-                total_calories = await get_daily_drink_calories(self.user_id)
-                
-                return drink_card(
-                    result['volume'], 
-                    result['name'], 
-                    result['calories'],
-                    total_today, 
-                    total_calories, 
-                    self.user.daily_water_goal
-                )
-                
-            except Exception as e:
-                logger.error(f"â�Œ Error in log_drink: {e}")
-                return error_card("database", f"Ğ�ÑˆĞ¸Ğ±ĞºĞ° Ğ¿Ñ€Ğ¸ Ğ·Ğ°Ğ¿Ğ¸Ñ�Ğ¸ Ğ½Ğ°Ğ¿Ğ¸Ñ‚ĞºĞ°: {str(e)}")
-
-        async def log_weight(weight_kg: float) -> str:
-            """Ğ—Ğ°Ğ¿Ğ¸Ñ�Ñ‹Ğ²Ğ°ĞµÑ‚ Ğ²ĞµÑ�. weight_kg: Ğ²ĞµÑ� Ğ² ĞºĞ¸Ğ»Ğ¾Ğ³Ñ€Ğ°Ğ¼Ğ¼Ğ°Ñ…."""
-            try:
-                from services.weight_service import save_weight
-                
-                # Ğ¡Ğ¾Ñ…Ñ€Ğ°Ğ½Ñ�ĞµĞ¼
-                result = await save_weight(self.user_id, weight_kg)
-                
-                return weight_card(
-                    weight_kg, 
-                    result.get('change'), 
-                    self.user.goal_weight
-                )
-                
-            except Exception as e:
-                logger.error(f"â�Œ Error in log_weight: {e}")
-                return error_card("database", f"Ğ�ÑˆĞ¸Ğ±ĞºĞ° Ğ¿Ñ€Ğ¸ Ğ·Ğ°Ğ¿Ğ¸Ñ�Ğ¸ Ğ²ĞµÑ�Ğ°: {str(e)}")
-
-        async def log_activity(activity_type: str, duration_min: int) -> str:
-            """Ğ—Ğ°Ğ¿Ğ¸Ñ�Ñ‹Ğ²Ğ°ĞµÑ‚ Ğ°ĞºÑ‚Ğ¸Ğ²Ğ½Ğ¾Ñ�Ñ‚ÑŒ. activity_type: Ñ‚Ğ¸Ğ¿ Ğ°ĞºÑ‚Ğ¸Ğ²Ğ½Ğ¾Ñ�Ñ‚Ğ¸, duration_min: Ğ´Ğ»Ğ¸Ñ‚ĞµĞ»ÑŒĞ½Ğ¾Ñ�Ñ‚ÑŒ Ğ² Ğ¼Ğ¸Ğ½ÑƒÑ‚Ğ°Ñ…."""
-            try:
-                from services.activity_service import save_activity
-                from utils.activity_calculator import calculate_activity_calorie_goal
-                from database.db import get_session
-                from database.models import User
-                from sqlalchemy import select
-                
-                # Ğ¡Ğ¾Ñ…Ñ€Ğ°Ğ½Ñ�ĞµĞ¼
-                result = await save_activity(self.user_id, activity_type, duration_min)
-                
-                # ĞŸĞ¾Ğ»ÑƒÑ‡Ğ°ĞµĞ¼ Ñ�Ñ‚Ğ°Ñ‚Ğ¸Ñ�Ñ‚Ğ¸ĞºÑƒ Ğ·Ğ° Ğ´ĞµĞ½ÑŒ
-                daily_total = await get_daily_activity_calories(self.user_id)
-                
-                # ĞŸĞ¾Ğ»ÑƒÑ‡Ğ°ĞµĞ¼ Ğ¿Ğ¾Ğ»ÑŒĞ·Ğ¾Ğ²Ğ°Ñ‚ĞµĞ»Ñ� Ğ´Ğ»Ñ� Ñ€Ğ°Ñ�Ñ‡ĞµÑ‚Ğ° Ñ†ĞµĞ»Ğ¸
-                async with get_session() as session:
-                    user_result = await session.execute(
-                        select(User).where(User.telegram_id == self.user_id)
-                    )
-                    user = user_result.scalar_one_or_none()
-                
-                # Ğ Ğ°Ñ�Ñ�Ñ‡Ğ¸Ñ‚Ñ‹Ğ²Ğ°ĞµĞ¼ Ğ¿ĞµÑ€Ñ�Ğ¾Ğ½Ğ°Ğ»Ğ¸Ğ·Ğ¸Ñ€Ğ¾Ğ²Ğ°Ğ½Ğ½ÑƒÑ� Ñ†ĞµĞ»ÑŒ Ğ°ĞºÑ‚Ğ¸Ğ²Ğ½Ğ¾Ñ�Ñ‚Ğ¸
-                if user:
-                    activity_goal = calculate_activity_calorie_goal(user)
+                    
+                    card_text = meal_card(food_data, user, daily_stats)
+                    return f"[SUCCESS] Прием пищи записан!\n\n{card_text}"
                 else:
-                    activity_goal = 300  # Ğ—Ğ½Ğ°Ñ‡ĞµĞ½Ğ¸Ğµ Ğ¿Ğ¾ ÑƒĞ¼Ğ¾Ğ»Ñ‡Ğ°Ğ½Ğ¸Ñ�
+                    return f"[ERROR] Ошибка сохранения: {save_result.get('error')}"
+                    
+            except Exception as e:
+                logger.error(f"[AGENT] Error in log_meal: {e}")
+                return "[ERROR] Ошибка при записи приема пищи"
+
+        async def log_water(amount: str) -> str:
+            """Записывает воду. amount: объем (например, "200мл", "1 стакан", "500мл"). Возвращает подтверждение."""
+            try:
+                from utils.drink_parser import parse_drink_input
+                from services.drink_save_service import drink_save_service
+                from utils.message_templates import water_logged
                 
-                return activity_card(
-                    activity_type, 
-                    duration_min, 
-                    result.get('calories', 0),
-                    daily_total,
-                    activity_goal  # ĞŸĞµÑ€Ñ�Ğ¾Ğ½Ğ°Ğ»Ğ¸Ğ·Ğ¸Ñ€Ğ¾Ğ²Ğ°Ğ½Ğ½Ğ°Ñ� Ñ†ĞµĞ»ÑŒ
+                # Парсим ввод
+                drink_name, volume, calories = parse_drink_input(amount)
+                
+                if not drink_name or not volume:
+                    return "[ERROR] Не удалось распознать объем. Укажите в формате: \"200мл\", \"1 стакан\", \"500мл\""
+                
+                # Сохраняем
+                save_result = await drink_save_service.save_drink_entry(
+                    user_id=self.user_id,
+                    drink_name=drink_name,
+                    volume_ml=volume,
+                    calories=calories
+                )
+                
+                if save_result.get("success"):
+                    # Получаем статистику
+                    from utils.daily_stats import get_daily_water
+                    from database.db import get_session
+                    with get_session() as session:
+                        user = session.query(User).filter(User.telegram_id == self.user_id).first()
+                    
+                    total_today = await get_daily_water(self.user_id)
+                    
+                    # Формируем ответ
+                    response_text = water_logged(volume, total_today, user.daily_water_goal)
+                    return response_text
+                else:
+                    return f"[ERROR] Ошибка сохранения: {save_result.get('error')}"
+                    
+            except Exception as e:
+                logger.error(f"[AGENT] Error in log_water: {e}")
+                return "[ERROR] Ошибка при записи воды"
+
+        async def get_weather_info(city: str = "") -> str:
+            """Получает погоду. city: город (опционально). Возвращает погоду для города пользователя или указанного."""
+            try:
+                # Используем город пользователя или указанный
+                target_city = city if city else (self.user.city if self.user else "Москва")
+                
+                weather_data = await get_weather(target_city)
+                
+                if weather_data:
+                    return (
+                        f"[WEATHER] Погода в {target_city}\n"
+                        f"[TEMP] Температура: {weather_data.get('temp', 'N/A')}°C\n"
+                        f"[CONDITION] {weather_data.get('condition', 'N/A')}\n"
+                        f"[HUMIDITY] Влажность: {weather_data.get('humidity', 'N/A')}%\n"
+                        f"[WIND] Ветер: {weather_data.get('wind', 'N/A')} м/с"
+                    )
+                else:
+                    return "[ERROR] Не удалось получить погоду. Попробуйте позже."
+                    
+            except Exception as e:
+                logger.error(f"[AGENT] Error in get_weather: {e}")
+                return "[ERROR] Ошибка при получении погоды"
+
+        async def get_today_stats() -> str:
+            """Получает статистику за сегодня. Возвращает КБЖУ, воду, активность и прогресс."""
+            try:
+                from utils.daily_stats import get_daily_stats
+                
+                stats = await get_daily_stats(self.user_id)
+                
+                if not stats:
+                    return "[INFO] За сегодня еще нет данных. Начните с записи приема пищи!"
+                
+                # Формируем красивый ответ
+                progress_cal = (stats.get('calories_consumed', 0) / self.user.daily_calorie_goal * 100) if self.user else 0
+                progress_water = (stats.get('water_consumed', 0) / self.user.daily_water_goal * 100) if self.user else 0
+                
+                return (
+                    f"[STATS] Ваша статистика за сегодня:\n\n"
+                    f"[CALORIES] Калории: {stats.get('calories_consumed', 0):.0f}/{self.user.daily_calorie_goal if self.user else 2000:.0f} ккал ({progress_cal:.0f}%)\n"
+                    f"[WATER] Вода: {stats.get('water_consumed', 0):.0f}/{self.user.daily_water_goal if self.user else 2000:.0f} мл ({progress_water:.0f}%)\n"
+                    f"[MEALS] Приемов пищи: {stats.get('meals_count', 0)}\n"
+                    f"[ACTIVITY] Активность: {stats.get('activity_minutes', 0)} минут\n"
+                    f"[STEPS] Шаги: {stats.get('steps_count', 0)}"
                 )
                 
             except Exception as e:
-                logger.error(f"â�Œ Error in log_activity: {e}")
-                return error_card("database", f"Ğ�ÑˆĞ¸Ğ±ĞºĞ° Ğ¿Ñ€Ğ¸ Ğ·Ğ°Ğ¿Ğ¸Ñ�Ğ¸ Ğ°ĞºÑ‚Ğ¸Ğ²Ğ½Ğ¾Ñ�Ñ‚Ğ¸: {str(e)}")
+                logger.error(f"[AGENT] Error in get_today_stats: {e}")
+                return "[ERROR] Ошибка при получении статистики"
 
-        async def show_progress(period: str = "Ğ´ĞµĞ½ÑŒ") -> str:
-            """ĞŸĞ¾ĞºĞ°Ğ·Ñ‹Ğ²Ğ°ĞµÑ‚ Ğ¿Ñ€Ğ¾Ğ³Ñ€ĞµÑ�Ñ�. period: Ğ¿ĞµÑ€Ğ¸Ğ¾Ğ´ (Ğ´ĞµĞ½ÑŒ, Ğ½ĞµĞ´ĞµĞ»Ñ�, Ğ¼ĞµÑ�Ñ�Ñ†, Ğ²Ñ�Ñ‘ Ğ²Ñ€ĞµĞ¼Ñ�)."""
+        async def get_user_profile() -> str:
+            """Получает профиль пользователя. Возвращает данные профиля и цели."""
             try:
-                from services.progress_service import get_progress_stats
+                if not self.user:
+                    return "[ERROR] Профиль не найден. Сначала создайте профиль командой /set_profile"
                 
-                stats = await get_progress_stats(self.user_id, period)
-                return progress_card(stats, period)
+                return (
+                    f"[PROFILE] Ваш профиль:\n\n"
+                    f"[INFO] {self.user.first_name or 'Пользователь'}\n"
+                    f"[WEIGHT] Вес: {self.user.weight} кг\n"
+                    f"[HEIGHT] Рост: {self.user.height} см\n"
+                    f"[AGE] Возраст: {self.user.age} лет\n"
+                    f"[GOAL] Цель: {self.user.goal}\n"
+                    f"[ACTIVITY] Активность: {self.user.activity_level}\n\n"
+                    f"[TARGETS] Цели на день:\n"
+                    f"[CALORIES] Калории: {self.user.daily_calorie_goal:.0f} ккал\n"
+                    f"[PROTEIN] Белки: {self.user.daily_protein_goal:.0f} г\n"
+                    f"[FAT] Жиры: {self.user.daily_fat_goal:.0f} г\n"
+                    f"[CARBS] Углеводы: {self.user.daily_carbs_goal:.0f} г\n"
+                    f"[WATER] Вода: {self.user.daily_water_goal:.0f} мл"
+                )
                 
             except Exception as e:
-                logger.error(f"â�Œ Error in show_progress: {e}")
-                return error_card("database", f"Ğ�ÑˆĞ¸Ğ±ĞºĞ° Ğ¿Ñ€Ğ¸ Ğ¿Ğ¾Ğ»ÑƒÑ‡ĞµĞ½Ğ¸Ğ¸ Ğ¿Ñ€Ğ¾Ğ³Ñ€ĞµÑ�Ñ�Ğ°: {str(e)}")
+                logger.error(f"[AGENT] Error in get_user_profile: {e}")
+                return "[ERROR] Ошибка при получении профиля"
 
-        return [
+        async def calculate_nutrition(food_description: str) -> str:
+            """Рассчитывает КБЖУ для еды. food_description: описание еды. Возвращает КБЖУ без записи."""
+            try:
+                result = await ai_processor.process_text_input(f"рассчитать КБЖУ: {food_description}", self.user_id)
+                
+                if result.get("success") and result.get("food_items"):
+                    food_items = result["food_items"]
+                    total_cal = sum(item.get('calories', 0) for item in food_items)
+                    total_prot = sum(item.get('protein', 0) for item in food_items)
+                    total_fat = sum(item.get('fat', 0) for item in food_items)
+                    total_carbs = sum(item.get('carbs', 0) for item in food_items)
+                    
+                    return (
+                        f"[NUTRITION] КБЖУ для: {food_description}\n\n"
+                        f"[CALORIES] Калории: {total_cal:.0f} ккал\n"
+                        f"[PROTEIN] Белки: {total_prot:.1f} г\n"
+                        f"[FAT] Жиры: {total_fat:.1f} г\n"
+                        f"[CARBS] Углеводы: {total_carbs:.1f} г"
+                    )
+                else:
+                    return "[ERROR] Не удалось рассчитать КБЖУ. Опишите продукты подробнее."
+                    
+            except Exception as e:
+                logger.error(f"[AGENT] Error in calculate_nutrition: {e}")
+                return "[ERROR] Ошибка при расчете КБЖУ"
+
+        async def get_recipe(dish_name: str) -> str:
+            """Получает рецепт. dish_name: название блюда. Возвращает рецепт и рекомендации."""
+            try:
+                result = await ai_processor.process_text_input(f"рецепт: {dish_name}", self.user_id)
+                
+                if result.get("success"):
+                    return f"[RECIPE] {result.get('response', 'Рецепт не найден')}"
+                else:
+                    return "[ERROR] Не удалось найти рецепт. Попробуйте другое блюдо."
+                    
+            except Exception as e:
+                logger.error(f"[AGENT] Error in get_recipe: {e}")
+                return "[ERROR] Ошибка при получении рецепта"
+
+        # Создаем инструменты
+        tools = [
             StructuredTool.from_function(
-                coroutine=log_meal,
+                log_meal,
                 name="log_meal",
-                description="Ğ—Ğ°Ğ¿Ğ¸Ñ�Ñ‹Ğ²Ğ°ĞµÑ‚ Ğ¿Ñ€Ğ¸Ñ‘Ğ¼ Ğ¿Ğ¸Ñ‰Ğ¸. Ğ’Ñ…Ğ¾Ğ´: Ğ¾Ğ¿Ğ¸Ñ�Ğ°Ğ½Ğ¸Ğµ ĞµĞ´Ñ‹."
+                description="Записывает прием пищи. Используй когда пользователь хочет поесть или описывает еду."
             ),
             StructuredTool.from_function(
-                coroutine=log_water,
-                name="log_water",
-                description="Ğ—Ğ°Ğ¿Ğ¸Ñ�Ñ‹Ğ²Ğ°ĞµÑ‚ Ğ²Ñ‹Ğ¿Ğ¸Ñ‚ÑƒÑ� Ğ²Ğ¾Ğ´Ñƒ. Ğ’Ñ…Ğ¾Ğ´: ĞºĞ¾Ğ»Ğ¸Ñ‡ĞµÑ�Ñ‚Ğ²Ğ¾ Ğ² Ğ¼Ğ¸Ğ»Ğ»Ğ¸Ğ»Ğ¸Ñ‚Ñ€Ğ°Ñ…."
+                log_water,
+                name="log_water", 
+                description="Записывает воду. Используй когда пользователь говорит о воде или питье."
             ),
             StructuredTool.from_function(
-                coroutine=log_drink,
-                name="log_drink",
-                description="Ğ—Ğ°Ğ¿Ğ¸Ñ�Ñ‹Ğ²Ğ°ĞµÑ‚ Ğ½Ğ°Ğ¿Ğ¸Ñ‚Ğ¾Ğº. Ğ’Ñ…Ğ¾Ğ´: Ğ¾Ğ¿Ğ¸Ñ�Ğ°Ğ½Ğ¸Ğµ Ğ½Ğ°Ğ¿Ğ¸Ñ‚ĞºĞ°."
+                get_weather_info,
+                name="get_weather",
+                description="Получает погоду. Используй когда пользователь спрашивает о погоде."
             ),
             StructuredTool.from_function(
-                coroutine=log_weight,
-                name="log_weight",
-                description="Ğ—Ğ°Ğ¿Ğ¸Ñ�Ñ‹Ğ²Ğ°ĞµÑ‚ Ğ²ĞµÑ�. Ğ’Ñ…Ğ¾Ğ´: Ğ²ĞµÑ� Ğ² ĞºĞ¸Ğ»Ğ¾Ğ³Ñ€Ğ°Ğ¼Ğ¼Ğ°Ñ…."
+                get_today_stats,
+                name="get_today_stats",
+                description="Получает статистику за сегодня. Используй когда пользователь хочет узнать свой прогресс."
             ),
             StructuredTool.from_function(
-                coroutine=log_activity,
-                name="log_activity",
-                description="Ğ—Ğ°Ğ¿Ğ¸Ñ�Ñ‹Ğ²Ğ°ĞµÑ‚ Ğ°ĞºÑ‚Ğ¸Ğ²Ğ½Ğ¾Ñ�Ñ‚ÑŒ. Ğ’Ñ…Ğ¾Ğ´: Ñ‚Ğ¸Ğ¿ Ğ¸ Ğ´Ğ»Ğ¸Ñ‚ĞµĞ»ÑŒĞ½Ğ¾Ñ�Ñ‚ÑŒ."
+                get_user_profile,
+                name="get_user_profile",
+                description="Получает профиль пользователя. Используй когда пользователь спрашивает о своих данных."
             ),
             StructuredTool.from_function(
-                coroutine=show_progress,
-                name="show_progress",
-                description="ĞŸĞ¾ĞºĞ°Ğ·Ñ‹Ğ²Ğ°ĞµÑ‚ Ğ¿Ñ€Ğ¾Ğ³Ñ€ĞµÑ�Ñ�. Ğ’Ñ…Ğ¾Ğ´: Ğ¿ĞµÑ€Ğ¸Ğ¾Ğ´."
+                calculate_nutrition,
+                name="calculate_nutrition",
+                description="Рассчитывает КБЖУ для еды. Используй когда пользователь хочет узнать калорийность без записи."
+            ),
+            StructuredTool.from_function(
+                get_recipe,
+                name="get_recipe",
+                description="Получает рецепт. Используй когда пользователь просит рецепт блюда."
             )
         ]
+        
+        return tools
 
-    async def handle_text(self, text: str, message: Message):
-        """Ğ�Ğ±Ñ€Ğ°Ğ±Ğ°Ñ‚Ñ‹Ğ²Ğ°ĞµÑ‚ Ñ‚ĞµĞºÑ�Ñ‚Ğ¾Ğ²Ğ¾Ğµ Ñ�Ğ¾Ğ¾Ğ±Ñ‰ĞµĞ½Ğ¸Ğµ"""
+    async def process_message(self, message: str) -> str:
+        """Обрабатывает сообщение пользователя"""
         try:
-            if not self.user:
-                await self.load_user()
-                if not self.user:
-                    await message.answer("â�Œ Ğ¡Ğ½Ğ°Ñ‡Ğ°Ğ»Ğ° Ñ�Ğ¾Ğ·Ğ´Ğ°Ğ¹Ñ‚Ğµ Ğ¿Ñ€Ğ¾Ñ„Ğ¸Ğ»ÑŒ Ñ‡ĞµÑ€ĞµĞ· /set_profile")
-                    return
-
-            if not self.executor:
-                await message.answer(
-                    "ğŸ¤– AI Ğ°Ğ³ĞµĞ½Ñ‚ Ğ½ĞµĞ´Ğ¾Ñ�Ñ‚ÑƒĞ¿ĞµĞ½. ĞŸÑ€Ğ¾Ğ²ĞµÑ€ÑŒÑ‚Ğµ Ğ½Ğ°Ñ�Ñ‚Ñ€Ğ¾Ğ¹ĞºĞ¸ Cloudflare.",
-                    parse_mode="HTML"
-                )
-                return
-
-            # Ğ¤Ğ¾Ñ€Ğ¼Ğ¸Ñ€ÑƒĞµĞ¼ Ğ¸Ğ½Ñ„Ğ¾Ñ€Ğ¼Ğ°Ñ†Ğ¸Ñ� Ğ¾ Ğ¿Ğ¾Ğ»ÑŒĞ·Ğ¾Ğ²Ğ°Ñ‚ĞµĞ»Ğµ
-            user_info = (
-                f"Ğ˜Ğ¼Ñ�: {self.user.first_name}\n"
-                f"Ğ’ĞµÑ�: {self.user.weight} ĞºĞ³\n"
-                f"Ğ Ğ¾Ñ�Ñ‚: {self.user.height} Ñ�Ğ¼\n"
-                f"Ğ¦ĞµĞ»ÑŒ: {self.user.goal}\n"
-                f"Ğ”Ğ½ĞµĞ²Ğ½Ğ°Ñ� Ğ½Ğ¾Ñ€Ğ¼Ğ° ĞºĞ°Ğ»Ğ¾Ñ€Ğ¸Ğ¹: {self.user.daily_calorie_goal} ĞºĞºĞ°Ğ»\n"
-                f"Ğ�Ğ¾Ñ€Ğ¼Ğ° Ğ²Ğ¾Ğ´Ñ‹: {self.user.daily_water_goal} Ğ¼Ğ»"
+            # Загружаем данные пользователя
+            await self.load_user()
+            
+            # Формируем контекст
+            user_info = ""
+            if self.user:
+                user_info = f"""
+Имя: {self.user.first_name or 'Пользователь'}
+Вес: {self.user.weight} кг
+Рост: {self.user.height} см
+Возраст: {self.user.age} лет
+Цель: {self.user.goal}
+Активность: {self.user.activity_level}
+Дневная цель калорий: {self.user.daily_calorie_goal:.0f} ккал
+Дневная цель воды: {self.user.daily_water_goal:.0f} мл"""
+            else:
+                user_info = "Пользователь не найден. Попросите создать профиль командой /set_profile"
+            
+            # Выполняем агент
+            result = await self.agent.arun(
+                input=message,
+                user_info=user_info,
+                tools="\n".join([f"- {tool.name}: {tool.description}" for tool in self.tools]),
+                chat_history=self.memory.chat_memory.messages,
+                agent_scratchpad=""
             )
-
-            # Ğ’Ñ‹Ğ·Ñ‹Ğ²Ğ°ĞµĞ¼ Ğ°Ğ³ĞµĞ½Ñ‚Ğ°
-            response = await self.executor.ainvoke({
-                "input": text,
-                "user_info": user_info
-            })
-
-            # Ğ�Ñ‚Ğ¿Ñ€Ğ°Ğ²Ğ»Ñ�ĞµĞ¼ Ğ¾Ñ‚Ğ²ĞµÑ‚
-            await message.answer(response["output"], parse_mode="HTML")
+            
+            # Обновляем время использования
+            self.last_used = time.time()
+            
+            return result
             
         except Exception as e:
-            logger.error(f"â�Œ Error in handle_text: {e}")
-            await message.answer(
-                error_card("general", f"Ğ�ÑˆĞ¸Ğ±ĞºĞ° Ğ¾Ğ±Ñ€Ğ°Ğ±Ğ¾Ñ‚ĞºĞ¸: {str(e)}"),
-                parse_mode="HTML"
-            )
+            logger.error(f"[AGENT] Error processing message: {e}")
+            return "[ERROR] Произошла ошибка. Попробуйте переформулировать запрос."
 
-    @classmethod
-    async def get_for_user(cls, user_id: int, state: FSMContext):
-        """ĞŸĞ¾Ğ»ÑƒÑ‡Ğ°ĞµÑ‚ Ğ¸Ğ»Ğ¸ Ñ�Ğ¾Ğ·Ğ´Ğ°Ñ‘Ñ‚ Ğ°Ğ³ĞµĞ½Ñ‚Ğ° Ğ´Ğ»Ñ� Ğ¿Ğ¾Ğ»ÑŒĞ·Ğ¾Ğ²Ğ°Ñ‚ĞµĞ»Ñ�"""
-        import time
-        async with _agents_lock:
-            if user_id not in _agents:
-                agent = cls(user_id, state)
-                _agents[user_id] = {
-                    'agent': agent,
-                    'last_used': time.time()
-                }
-                logger.info(f"🤖 Created new agent for user {user_id}")
-            else:
-                # Ğ�Ğ±Ğ½Ğ¾Ğ²Ğ»Ñ�ĞµĞ¼ Ğ²Ñ€ĞµĞ¼Ñ� Ğ¿Ğ¾Ñ�Ğ»ĞµĞ´Ğ½ĞµĞ³Ğ¾ Ğ¸Ñ�Ğ¿Ğ¾Ğ»ÑŒĞ·Ğ¾Ğ²Ğ°Ğ½Ğ¸Ñ�
-                _agents[user_id]['last_used'] = time.time()
-                _agents[user_id]['agent'].last_used = time.time()
+async def get_agent(user_id: int, state: FSMContext) -> LangChainAgent:
+    """Получает или создает агента для пользователя"""
+    async with _agents_lock:
+        # Проверяем кеш
+        if user_id in _agents:
+            agent_data = _agents[user_id]
+            agent = agent_data['agent']
             
-            return _agents[user_id]['agent']
+            # Проверяем, не устарел ли агент (30 минут)
+            if time.time() - agent_data['created'] > 1800:
+                logger.info(f"[AGENT] Creating new agent for user {user_id} (expired)")
+                del _agents[user_id]
+            else:
+                logger.info(f"[AGENT] Using existing agent for user {user_id}")
+                return agent
+        
+        # Создаем нового агента
+        logger.info(f"[AGENT] Creating new agent for user {user_id}")
+        agent = LangChainAgent(user_id, state)
+        
+        # Сохраняем в кеш
+        _agents[user_id] = {
+            'agent': agent,
+            'created': time.time()
+        }
+        
+        return agent
 
-    @classmethod
-    def cleanup_inactive(cls, max_age_hours: int = 1):
-        """Ğ�Ñ‡Ğ¸Ñ‰Ğ°ĞµÑ‚ Ğ½ĞµĞ°ĞºÑ‚Ğ¸Ğ²Ğ½Ñ‹Ñ… Ğ°Ğ³ĞµĞ½Ñ‚Ğ¾Ğ²"""
-        import time
+async def cleanup_expired_agents():
+    """Очищает устаревших агентов"""
+    async with _agents_lock:
         current_time = time.time()
-        max_age_seconds = max_age_hours * 3600
-        to_remove = []
+        expired_users = []
         
         for user_id, agent_data in _agents.items():
-            age_seconds = current_time - agent_data['last_used']
-            if age_seconds > max_age_seconds:
-                to_remove.append(user_id)
-                logger.info(f"ğŸ§¹ Agent for user {user_id} inactive for {age_seconds/3600:.1f}h")
+            if current_time - agent_data['created'] > 3600:  # 1 час
+                expired_users.append(user_id)
         
-        for user_id in to_remove:
+        for user_id in expired_users:
             del _agents[user_id]
-            logger.info(f"ğŸ—‘ï¸� Cleaned up agent for user {user_id}")
-        
-        if to_remove:
-            logger.info(f"ğŸ§¹ Cleaned {len(to_remove)} inactive agents. Active agents: {len(_agents)}")
-        else:
-            logger.debug(f"ğŸ§¹ No inactive agents to clean. Active agents: {len(_agents)}")
+            logger.info(f"[AGENT] Cleaned up expired agent for user {user_id}")
+
+# Фоновая задача для очистки
+async def start_cleanup_task():
+    """Запускает фоновую задачу очистки"""
+    while True:
+        try:
+            await cleanup_expired_agents()
+            await asyncio.sleep(900)  # 15 минут
+        except Exception as e:
+            logger.error(f"[AGENT] Error in cleanup task: {e}")
+            await asyncio.sleep(60)  # 1 минута при ошибке

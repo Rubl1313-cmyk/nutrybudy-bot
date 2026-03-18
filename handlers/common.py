@@ -1,5 +1,5 @@
 """
-Ğ�Ğ±Ñ‰Ğ¸Ğµ ĞºĞ¾Ğ¼Ğ°Ğ½Ğ´Ñ‹: /start, /help, /cancel, Ğ¸ Ğ¸Ğ½Ñ‚ĞµÑ€Ğ°ĞºÑ‚Ğ¸Ğ²Ğ½Ğ¾Ğµ Ğ¼ĞµĞ½Ñ� Ğ¿Ğ¾Ğ¼Ğ¾Ñ‰Ğ¸.
+Common commands: /start, /help, /cancel, and interactive help menu.
 """
 import logging
 from aiogram import Router, F
@@ -16,36 +16,36 @@ from utils.localized_commands import create_localized_command_filter
 router = Router()
 
 @router.message(Command("start"))
-@router.message(create_localized_command_filter("Ñ�Ñ‚Ğ°Ñ€Ñ‚"))
+@router.message(create_localized_command_filter("start"))
 async def cmd_start(message: Message, state: FSMContext):
-    """ĞŸÑ€Ğ¸Ğ²ĞµÑ‚Ñ�Ñ‚Ğ²Ğ¸Ğµ Ğ½Ğ¾Ğ²Ğ¾Ğ³Ğ¾ Ğ¿Ğ¾Ğ»ÑŒĞ·Ğ¾Ğ²Ğ°Ñ‚ĞµĞ»Ñ�"""
+    """Welcome new user"""
     await state.clear()
     
-    user_name = message.from_user.first_name or "ĞŸĞ¾Ğ»ÑŒĞ·Ğ¾Ğ²Ğ°Ñ‚ĞµĞ»ÑŒ"
+    user_name = message.from_user.first_name or "User"
     
-    welcome_text = f"""âœ¨ ĞŸÑ€Ğ¸Ğ²ĞµÑ‚, {user_name}! Ğ¯ â€” Ğ²Ğ°Ñˆ Ğ¿ĞµÑ€Ñ�Ğ¾Ğ½Ğ°Ğ»ÑŒĞ½Ñ‹Ğ¹ AI-Ğ¿Ğ¾Ğ¼Ğ¾Ñ‰Ğ½Ğ¸Ğº Ğ¿Ğ¾ Ğ·Ğ´Ğ¾Ñ€Ğ¾Ğ²ÑŒÑ�.
+    welcome_text = f"""✨ Welcome, {user_name}! I'm your personal AI health assistant.
 
-ğŸ¤– <b>Ğ§Ñ‚Ğ¾ Ñ� ÑƒĞ¼ĞµÑ�:</b>
-â€¢ ğŸ�½ï¸� Ğ—Ğ°Ğ¿Ğ¸Ñ�Ñ‹Ğ²Ğ°Ñ‚ÑŒ Ğ¿Ñ€Ğ¸Ñ‘Ğ¼ Ğ¿Ğ¸Ñ‰Ğ¸ â€” Ğ¿Ñ€Ğ¾Ñ�Ñ‚Ğ¾ Ğ¾Ğ¿Ğ¸ÑˆĞ¸Ñ‚Ğµ, Ñ‡Ñ‚Ğ¾ Ñ�ÑŠĞµĞ»Ğ¸, Ğ¸Ğ»Ğ¸ Ğ¾Ñ‚Ğ¿Ñ€Ğ°Ğ²ÑŒÑ‚Ğµ Ñ„Ğ¾Ñ‚Ğ¾
-â€¢ ğŸ’§ Ğ�Ñ‚Ñ�Ğ»ĞµĞ¶Ğ¸Ğ²Ğ°Ñ‚ÑŒ Ğ²Ğ¾Ğ´Ñƒ â€” Ğ½Ğ°Ğ¿Ğ¸ÑˆĞ¸Ñ‚Ğµ, Ñ�ĞºĞ¾Ğ»ÑŒĞºĞ¾ Ğ²Ñ‹Ğ¿Ğ¸Ğ»Ğ¸
-â€¢ ğŸ�ƒ Ğ£Ñ‡Ğ¸Ñ‚Ñ‹Ğ²Ğ°Ñ‚ÑŒ Ğ°ĞºÑ‚Ğ¸Ğ²Ğ½Ğ¾Ñ�Ñ‚ÑŒ Ğ¸ ÑˆĞ°Ğ³Ğ¸ â€” Â«Ğ¿Ñ€Ğ¾Ğ±ĞµĞ¶Ğ°Ğ» 5 ĞºĞ¼Â» Ğ¸Ğ»Ğ¸ Â«10000 ÑˆĞ°Ğ³Ğ¾Ğ²Â»
-â€¢ âš–ï¸� Ğ�Ğ½Ğ°Ğ»Ğ¸Ğ·Ğ¸Ñ€Ğ¾Ğ²Ğ°Ñ‚ÑŒ Ğ²ĞµÑ� Ğ¸ Ğ¿Ñ€Ğ¾Ğ³Ñ€ĞµÑ�Ñ� â€” Ğ¿Ğ¾ĞºĞ°Ğ¶Ñƒ Ğ³Ñ€Ğ°Ñ„Ğ¸ĞºĞ¸ Ğ¸ Ğ´Ğ°Ğ¼ Ğ¿Ñ€Ğ¾Ğ³Ğ½Ğ¾Ğ·
-â€¢ ğŸ§¬ Ğ Ğ°Ñ�Ñ�Ñ‡Ğ¸Ñ‚Ñ‹Ğ²Ğ°Ñ‚ÑŒ ĞºĞ¾Ğ¼Ğ¿Ğ¾Ğ·Ğ¸Ñ†Ğ¸Ñ� Ñ‚ĞµĞ»Ğ° â€” Ğ¸Ğ½Ğ´ĞµĞºÑ� Ğ¼Ğ°Ñ�Ñ�Ñ‹ Ñ‚ĞµĞ»Ğ° (Ğ˜ĞœĞ¢), Ğ¿Ñ€Ğ¾Ñ†ĞµĞ½Ñ‚ Ğ¶Ğ¸Ñ€Ğ°, Ğ¼Ñ‹ÑˆĞµÑ‡Ğ½ÑƒÑ� Ğ¼Ğ°Ñ�Ñ�Ñƒ Ğ¸ Ğ½Ğ¾Ñ€Ğ¼Ñ‹
-â€¢ ğŸ¤– Ğ�Ñ‚Ğ²ĞµÑ‡Ğ°Ñ‚ÑŒ Ğ½Ğ° Ğ»Ñ�Ğ±Ñ‹Ğµ Ğ²Ğ¾Ğ¿Ñ€Ğ¾Ñ�Ñ‹ Ğ¾ Ğ¿Ğ¸Ñ‚Ğ°Ğ½Ğ¸Ğ¸, Ñ‚Ñ€ĞµĞ½Ğ¸Ñ€Ğ¾Ğ²ĞºĞ°Ñ… Ğ¸ Ğ·Ğ´Ğ¾Ñ€Ğ¾Ğ²ÑŒĞµ
+🤖 <b>What I can do:</b>
+• 🍽️ Track meals - just describe what you ate, or send a photo
+• 💧 Track water - write how much you drank
+• 🏃 Track activity and steps - "ran 5 km" or "10000 steps"
+• ⚖️ Analyze weight and progress - show graphs and give predictions
+• 🧮 Calculate body composition - body mass index (BMI), fat percentage, muscle mass and norms
+• 🤖 Answer any questions about nutrition, training and health
 
-ğŸ’¬ <b>ĞšĞ°Ğº Ğ¾Ğ±Ñ‰Ğ°Ñ‚ÑŒÑ�Ñ�?</b>
-ĞŸÑ€Ğ¾Ñ�Ñ‚Ğ¾ Ğ¿Ğ¸ÑˆĞ¸Ñ‚Ğµ Ğ¼Ğ½Ğµ Ğ²Ñ�Ñ‘, Ñ‡Ñ‚Ğ¾ Ñ�Ñ‡Ğ¸Ñ‚Ğ°ĞµÑ‚Ğµ Ğ½ÑƒĞ¶Ğ½Ñ‹Ğ¼.
-Ğ¯ Ñ�Ğ°Ğ¼ Ğ¿Ğ¾Ğ¹Ğ¼Ñƒ, Ñ‡Ñ‚Ğ¾ Ğ½ÑƒĞ¶Ğ½Ğ¾: Ğ·Ğ°Ğ¿Ğ¸Ñ�Ğ°Ñ‚ÑŒ ĞµĞ´Ñƒ, Ğ¿Ğ¾ĞºĞ°Ğ·Ğ°Ñ‚ÑŒ Ğ¿Ñ€Ğ¾Ğ³Ñ€ĞµÑ�Ñ� Ğ¸Ğ»Ğ¸ Ğ´Ğ°Ñ‚ÑŒ Ñ�Ğ¾Ğ²ĞµÑ‚.
+💬 <b>How to communicate?</b>
+Just write me everything you think is necessary.
+I'll understand what you need: log food, show progress or give advice.
 
-ğŸ‘‰ <b>ĞŸÑ€Ğ¸Ğ¼ĞµÑ€Ñ‹:</b>
-â€¢ Â«Ğ¡ĞµĞ³Ğ¾Ğ´Ğ½Ñ� Ğ½Ğ° Ğ¾Ğ±ĞµĞ´ Ñ�ÑŠĞµĞ» 200Ğ³ ĞºÑƒÑ€Ğ¸Ğ½Ğ¾Ğ¹ Ğ³Ñ€ÑƒĞ´ĞºĞ¸ Ñ� Ğ³Ñ€ĞµÑ‡ĞºĞ¾Ğ¹Â»
-â€¢ Â«Ğ’Ñ‹Ğ¿Ğ¸Ğ»Ğ° 3 Ñ�Ñ‚Ğ°ĞºĞ°Ğ½Ğ° Ğ²Ğ¾Ğ´Ñ‹Â»
-â€¢ Â«ĞšĞ°ĞºĞ¾Ğ¹ Ñƒ Ğ¼ĞµĞ½Ñ� Ğ¿Ñ€Ğ¾Ğ³Ñ€ĞµÑ�Ñ� Ğ·Ğ° Ğ½ĞµĞ´ĞµĞ»Ñ�?Â»
-â€¢ Â«ĞŸĞ¾Ñ�Ğ¾Ğ²ĞµÑ‚ÑƒĞ¹ Ñ€ĞµÑ†ĞµĞ¿Ñ‚ ÑƒĞ¶Ğ¸Ğ½Ğ° Ñ� Ğ²Ñ‹Ñ�Ğ¾ĞºĞ¸Ğ¼ Ñ�Ğ¾Ğ´ĞµÑ€Ğ¶Ğ°Ğ½Ğ¸ĞµĞ¼ Ğ±ĞµĞ»ĞºĞ°Â»
+👉 <b>Examples:</b>
+• "Today for lunch I ate 200g chicken breast with buckwheat"
+• "Drank 3 glasses of water"
+• "What's my progress for the week?"
+• "Suggest a dinner recipe with high protein content"
 
-<b>âš ï¸� Ğ’Ğ°Ğ¶Ğ½Ğ¾:</b> Ğ”Ğ»Ñ� Ñ‚Ğ¾Ñ‡Ğ½Ğ¾Ğ³Ğ¾ Ñ€Ğ°Ñ�Ñ‡ĞµÑ‚Ğ° ĞšĞ‘Ğ–Ğ£ Ğ¸ Ğ¿ĞµÑ€Ñ�Ğ¾Ğ½Ğ°Ğ»ÑŒĞ½Ñ‹Ñ… Ñ€ĞµĞºĞ¾Ğ¼ĞµĞ½Ğ´Ğ°Ñ†Ğ¸Ğ¹ Ñ�Ğ½Ğ°Ñ‡Ğ°Ğ»Ğ° Ğ½Ğ°Ñ�Ñ‚Ñ€Ğ¾Ğ¹Ñ‚Ğµ Ğ¿Ñ€Ğ¾Ñ„Ğ¸Ğ»ÑŒ ĞºĞ¾Ğ¼Ğ°Ğ½Ğ´Ğ¾Ğ¹ /set_profile
+<b>⚠️ Important:</b> For accurate calorie calculation and personal recommendations, first set up your profile with /set_profile
 
-Ğ’Ñ‹Ğ±ĞµÑ€Ğ¸Ñ‚Ğµ Ğ´ĞµĞ¹Ñ�Ñ‚Ğ²Ğ¸Ğµ Ğ² Ğ¼ĞµĞ½Ñ� Ğ½Ğ¸Ğ¶Ğµ Ğ¸Ğ»Ğ¸ Ğ¿Ñ€Ğ¾Ñ�Ñ‚Ğ¾ Ğ·Ğ°Ğ´Ğ°Ğ¹Ñ‚Ğµ Ğ²Ğ¾Ğ¿Ñ€Ğ¾Ñ�."""
+Choose an action in the menu below or just ask a question."""
     
     await message.answer(
         welcome_text,
@@ -54,314 +54,405 @@ async def cmd_start(message: Message, state: FSMContext):
     )
 
 @router.message(Command("help"))
-@router.message(create_localized_command_filter("Ğ¿Ğ¾Ğ¼Ğ¾Ñ‰ÑŒ"))
+@router.message(create_localized_command_filter("help"))
 async def cmd_help(message: Message, state: FSMContext):
-    """Ğ’Ñ‹Ğ·Ñ‹Ğ²Ğ°ĞµÑ‚ Ğ¸Ğ½Ñ‚ĞµÑ€Ğ°ĞºÑ‚Ğ¸Ğ²Ğ½Ğ¾Ğµ Ğ¼ĞµĞ½Ñ� Ğ¿Ğ¾Ğ¼Ğ¾Ñ‰Ğ¸."""
+    """Show help menu"""
     await state.clear()
-    await show_help_menu(message)
+    
+    help_text = """🆘 <b>Help & Commands</b>
+
+📋 <b>Main Commands:</b>
+• /start - Start bot and see main features
+• /set_profile - Set up your personal profile
+• /profile - View your profile information
+• /progress - View your progress statistics
+• /weight - View weight statistics
+• /cancel - Cancel current operation
+
+🍽️ <b>Food Tracking:</b>
+• Just describe what you ate: "200g chicken with rice"
+• Send a photo of your meal for AI recognition
+• Use specific weights for accuracy
+
+💧 <b>Water Tracking:</b>
+• "Drank 1 glass of water"
+• "500ml water"
+• "2 cups of water"
+
+🏃 <b>Activity Tracking:</b>
+• "Ran 5 km in 30 minutes"
+• "10000 steps today"
+• "Gym workout for 1 hour"
+
+⚖️ <b>Weight Tracking:</b>
+• "Weight 75.5 kg"
+• Use /log_weight for detailed tracking
+
+📊 <b>Progress Analysis:</b>
+• "Show my progress for the week"
+• "How am I doing with calories?"
+• "Weight change this month"
+
+🤖 <b>AI Assistant:</b>
+• Ask any nutrition questions
+• Request recipe suggestions
+• Get workout advice
+• Calculate nutritional values
+
+💡 <b>Tips:</b>
+• Set up your profile first for personalized recommendations
+• Be specific with weights and amounts
+• Use photos for easier food tracking
+• Check progress regularly"""
+    
+    await message.answer(
+        help_text,
+        reply_markup=get_help_keyboard(),
+        parse_mode="HTML"
+    )
 
 @router.message(Command("cancel"))
-@router.message(F.text == "â�Œ Ğ�Ñ‚Ğ¼ĞµĞ½Ğ°")
+@router.message(create_localized_command_filter("cancel"))
 async def cmd_cancel(message: Message, state: FSMContext):
-    """Ğ�Ñ‚Ğ¼ĞµĞ½Ğ° Ñ‚ĞµĞºÑƒÑ‰ĞµĞ³Ğ¾ Ğ´ĞµĞ¹Ñ�Ñ‚Ğ²Ğ¸Ñ�."""
+    """Cancel current operation"""
     await state.clear()
+    
     await message.answer(
-        "â�Œ <b>Ğ”ĞµĞ¹Ñ�Ñ‚Ğ²Ğ¸Ğµ Ğ¾Ñ‚Ğ¼ĞµĞ½ĞµĞ½Ğ¾</b>\n\n"
-        "Ğ˜Ñ�Ğ¿Ğ¾Ğ»ÑŒĞ·ÑƒĞ¹ ĞºĞ½Ğ¾Ğ¿ĞºĞ¸ Ğ¼ĞµĞ½Ñ� Ğ´Ğ»Ñ� Ğ½Ğ°Ğ²Ğ¸Ğ³Ğ°Ñ†Ğ¸Ğ¸.",
+        "❌ Operation cancelled.\n\n"
+        "🔄 What would you like to do next?",
         reply_markup=get_main_keyboard_v2(),
         parse_mode="HTML"
     )
 
-@router.message(F.text == "ğŸ�  Ğ“Ğ»Ğ°Ğ²Ğ½Ğ¾Ğµ Ğ¼ĞµĞ½Ñ�")
-async def cmd_main_menu(message: Message, state: FSMContext):
-    """Ğ’Ğ¾Ğ·Ğ²Ñ€Ğ°Ñ‚ Ğ² Ğ³Ğ»Ğ°Ğ²Ğ½Ğ¾Ğµ Ğ¼ĞµĞ½Ñ�."""
+@router.callback_query(F.data == "help")
+async def help_callback(callback: CallbackQuery, state: FSMContext):
+    """Help callback from inline keyboard"""
+    await callback.answer()
+    await cmd_help(callback.message, state)
+
+@router.callback_query(F.data == "cancel")
+async def cancel_callback(callback: CallbackQuery, state: FSMContext):
+    """Cancel callback from inline keyboard"""
+    await callback.answer()
+    await cmd_cancel(callback.message, state)
+
+@router.callback_query(F.data == "main_menu")
+async def main_menu_callback(callback: CallbackQuery, state: FSMContext):
+    """Return to main menu"""
+    await callback.answer()
     await state.clear()
-    await message.answer(
-        "ğŸ�  <b>Ğ“Ğ»Ğ°Ğ²Ğ½Ğ¾Ğµ Ğ¼ĞµĞ½Ñ�</b>",
+    
+    await callback.message.answer(
+        "🏠 <b>Main Menu</b>\n\n"
+        "Choose an action below:",
         reply_markup=get_main_keyboard_v2(),
         parse_mode="HTML"
     )
 
-async def show_help_menu(event: Message | CallbackQuery):
-    """Ğ�Ñ‚Ğ¾Ğ±Ñ€Ğ°Ğ¶Ğ°ĞµÑ‚ Ğ³Ğ»Ğ°Ğ²Ğ½Ğ¾Ğµ Ğ¼ĞµĞ½Ñ� Ğ¿Ğ¾Ğ¼Ğ¾Ñ‰Ğ¸ Ñ� Ğ¸Ğ½Ğ»Ğ°Ğ¹Ğ½-ĞºĞ½Ğ¾Ğ¿ĞºĞ°Ğ¼Ğ¸."""
-    text = (
-        "ğŸ“š <b>Ğ Ğ°Ğ·Ğ´ĞµĞ»Ñ‹ Ğ¿Ğ¾Ğ¼Ğ¾Ñ‰Ğ¸</b>\n\n"
-        "Ğ’Ñ‹Ğ±ĞµÑ€Ğ¸ Ñ‚ĞµĞ¼Ñƒ, Ñ‡Ñ‚Ğ¾Ğ±Ñ‹ ÑƒĞ·Ğ½Ğ°Ñ‚ÑŒ Ğ¿Ğ¾Ğ´Ñ€Ğ¾Ğ±Ğ½ĞµĞµ:"
+@router.callback_query(F.data.startswith("period_"))
+async def period_callback(callback: CallbackQuery, state: FSMContext):
+    """Handle period selection from progress menu"""
+    await callback.answer(f"📊 Loading statistics...")
+    
+    # Import and call progress handler
+    from handlers.progress import process_progress_period
+    
+    # Create mock callback with correct data
+    class MockCallback:
+        def __init__(self, original_callback, data):
+            self.message = original_callback.message
+            self.from_user = original_callback.from_user
+            self.data = data
+    
+    mock_callback = MockCallback(callback, callback.data)
+    await process_progress_period(mock_callback, state)
+
+@router.callback_query(F.data == "manual_food")
+async def manual_food_callback(callback: CallbackQuery, state: FSMContext):
+    """Handle manual food entry callback"""
+    await callback.answer()
+    
+    await callback.message.answer(
+        "🍽️ <b>Manual Food Entry</b>\n\n"
+        "Describe what you ate:\n\n"
+        "📊 <b>Examples:</b>\n"
+        "• 200g chicken breast with rice\n"
+        "• Salad with vegetables and olive oil\n"
+        "• Pasta with tomato sauce\n"
+        "• Oatmeal with berries\n\n"
+        "Be specific with weights for accurate tracking!",
+        parse_mode="HTML"
     )
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="ğŸ�½ï¸� ĞŸĞ¸Ñ‚Ğ°Ğ½Ğ¸Ğµ", callback_data="help_food")],
-        [InlineKeyboardButton(text="ğŸ’§ Ğ’Ğ¾Ğ´Ğ° Ğ¸ Ğ°ĞºÑ‚Ğ¸Ğ²Ğ½Ğ¾Ñ�Ñ‚ÑŒ", callback_data="help_water")],
-        [InlineKeyboardButton(text="ğŸ“Š ĞŸÑ€Ğ¾Ğ³Ñ€ĞµÑ�Ñ�", callback_data="help_progress")],
-        [InlineKeyboardButton(text="ğŸ‘¤ ĞŸÑ€Ğ¾Ñ„Ğ¸Ğ»ÑŒ", callback_data="help_profile")],
-        [InlineKeyboardButton(text="ğŸ¤– AI ĞŸĞ¾Ğ¼Ğ¾Ñ‰Ğ½Ğ¸Ğº", callback_data="help_ai")],
-        [InlineKeyboardButton(text="â�Œ Ğ—Ğ°ĞºÑ€Ñ‹Ñ‚ÑŒ", callback_data="help_close")]
-    ])
+    
+    # Set state for manual food entry
+    from utils.states import FoodStates
+    await state.set_state(FoodStates.waiting_for_food_description)
 
-    if isinstance(event, Message):
-        await event.answer(text, reply_markup=keyboard, parse_mode="HTML")
-    else:  # CallbackQuery
-        await event.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
-        await event.answer()
+@router.callback_query(F.data == "water")
+async def water_callback(callback: CallbackQuery, state: FSMContext):
+    """Handle water tracking callback"""
+    await callback.answer()
+    
+    await callback.message.answer(
+        "💧 <b>Water Tracking</b>\n\n"
+        "How much water did you drink?\n\n"
+        "📊 <b>Examples:</b>\n"
+        "• 1 glass\n"
+        "• 250ml\n"
+        "• 500ml\n"
+        "• 1 liter\n"
+        "• 2 cups",
+        parse_mode="HTML"
+    )
+    
+    # Set state for water entry
+    from utils.states import WaterStates
+    await state.set_state(WaterStates.waiting_for_water)
 
-@router.callback_query(F.data.startswith("help_"))
-async def help_callbacks(callback: CallbackQuery):
-    data = callback.data
-    if data == "help_food":
-        text = (
-            "ğŸ�½ï¸� <b>ĞŸĞ¸Ñ‚Ğ°Ğ½Ğ¸Ğµ</b>\n\n"
-            "ğŸ“¸ <b>Ğ¤Ğ¾Ñ‚Ğ¾ ĞµĞ´Ñ‹</b> â€“ Ğ¾Ñ‚Ğ¿Ñ€Ğ°Ğ²ÑŒ Ñ„Ğ¾Ñ‚Ğ¾, Ñ� Ñ€Ğ°Ñ�Ğ¿Ğ¾Ğ·Ğ½Ğ°Ñ� Ğ¿Ñ€Ğ¾Ğ´ÑƒĞºÑ‚Ñ‹ Ğ¸ Ğ¿Ñ€ĞµĞ´Ğ»Ğ¾Ğ¶Ñƒ Ğ²Ğ²ĞµÑ�Ñ‚Ğ¸ Ğ²ĞµÑ�.\n"
-            "   <i>ĞŸÑ€Ğ¸Ğ¼ĞµÑ€: Ñ�Ñ„Ğ¾Ñ‚Ğ¾Ğ³Ñ€Ğ°Ñ„Ğ¸Ñ€ÑƒĞ¹ Ñ‚Ğ°Ñ€ĞµĞ»ĞºÑƒ Ñ� ĞµĞ´Ğ¾Ğ¹</i>\n\n"
-            "âœ�ï¸� <b>Ğ ÑƒÑ‡Ğ½Ğ¾Ğ¹ Ğ²Ğ²Ğ¾Ğ´</b> â€“ Ğ½Ğ°Ğ¿Ğ¸ÑˆĞ¸ Ğ¿Ñ€Ğ¾Ğ´ÑƒĞºÑ‚Ñ‹ Ñ‡ĞµÑ€ĞµĞ· Ğ·Ğ°Ğ¿Ñ�Ñ‚ÑƒÑ�.\n"
-            "   <i>ĞŸÑ€Ğ¸Ğ¼ĞµÑ€: Â«Ğ³Ñ€ĞµÑ‡ĞºĞ°, ĞºÑƒÑ€Ğ¸Ğ½Ğ°Ñ� Ğ³Ñ€ÑƒĞ´ĞºĞ°, Ğ¾Ğ³ÑƒÑ€ĞµÑ†Â»</i>\n\n"
-            "ğŸ�½ï¸� <b>ĞŸĞ»Ğ°Ğ½ Ğ¿Ğ¸Ñ‚Ğ°Ğ½Ğ¸Ñ�</b> â€“ Ñ�Ğ³ĞµĞ½ĞµÑ€Ğ¸Ñ€ÑƒÑ� Ğ¼ĞµĞ½Ñ� Ğ½Ğ° Ğ´ĞµĞ½ÑŒ Ñ� ÑƒÑ‡Ñ‘Ñ‚Ğ¾Ğ¼ Ñ‚Ğ²Ğ¾Ğ¸Ñ… Ğ½Ğ¾Ñ€Ğ¼.\n\n"
-            "ğŸ”� <b>ĞŸĞ¾Ğ¸Ñ�Ğº Ğ¿Ñ€Ğ¾Ğ´ÑƒĞºÑ‚Ğ°</b> â€“ Ğ¿Ñ€Ğ¾Ñ�Ñ‚Ğ¾ Ğ½Ğ°Ğ·Ğ²Ğ°Ğ½Ğ¸Ğµ, Ğ¸ Ñ� Ğ¿Ğ¾ĞºĞ°Ğ¶Ñƒ ĞºĞ°Ğ»Ğ¾Ñ€Ğ¸Ğ¹Ğ½Ğ¾Ñ�Ñ‚ÑŒ Ğ¸ Ğ‘Ğ–Ğ£.\n"
-            "   <i>ĞŸÑ€Ğ¸Ğ¼ĞµÑ€: Â«Ğ°Ğ²Ğ¾ĞºĞ°Ğ´Ğ¾Â»</i>"
-        )
-    elif data == "help_water":
-        text = (
-            "ğŸ’§ <b>Ğ’Ğ¾Ğ´Ğ° Ğ¸ Ğ°ĞºÑ‚Ğ¸Ğ²Ğ½Ğ¾Ñ�Ñ‚ÑŒ</b>\n\n"
-            "ğŸ’§ <b>Ğ—Ğ°Ğ¿Ğ¸Ñ�Ğ°Ñ‚ÑŒ Ğ²Ğ¾Ğ´Ñƒ</b> â€“ Ğ²Ñ‹Ğ±ĞµÑ€Ğ¸ Ğ¾Ğ±ÑŠÑ‘Ğ¼ Ğ¸Ğ· Ğ¿Ñ€ĞµĞ´Ğ»Ğ¾Ğ¶ĞµĞ½Ğ½Ñ‹Ñ… Ğ¸Ğ»Ğ¸ Ğ²Ğ²ĞµĞ´Ğ¸ Ğ²Ñ€ÑƒÑ‡Ğ½ÑƒÑ�.\n"
-            "   <i>ĞŸÑ€Ğ¸Ğ¼ĞµÑ€: Â«250 Ğ¼Ğ»Â» Ğ¸Ğ»Ğ¸ Â«Ñ�Ñ‚Ğ°ĞºĞ°Ğ½ Ğ²Ğ¾Ğ´Ñ‹Â»</i>\n\n"
-            "ğŸ‘Ÿ <b>Ğ—Ğ°Ğ¿Ğ¸Ñ�Ğ°Ñ‚ÑŒ ÑˆĞ°Ğ³Ğ¸</b> â€“ Ğ²Ğ²ĞµĞ´Ğ¸ ĞºĞ¾Ğ»Ğ¸Ñ‡ĞµÑ�Ñ‚Ğ²Ğ¾ ÑˆĞ°Ğ³Ğ¾Ğ², Ñ� Ğ¿ĞµÑ€ĞµÑ�Ñ‡Ğ¸Ñ‚Ğ°Ñ� Ğ² ĞºĞ¸Ğ»Ğ¾Ğ¼ĞµÑ‚Ñ€Ñ‹ Ğ¸ ĞºĞ°Ğ»Ğ¾Ñ€Ğ¸Ğ¸.\n"
-            "   <i>ĞŸÑ€Ğ¸Ğ¼ĞµÑ€: Â«Ğ¿Ñ€Ğ¾ÑˆÑ‘Ğ» 5000 ÑˆĞ°Ğ³Ğ¾Ğ²Â»</i>\n\n"
-            "ğŸ�ƒ <b>Ğ—Ğ°Ğ¿Ğ¸Ñ�Ğ°Ñ‚ÑŒ Ğ°ĞºÑ‚Ğ¸Ğ²Ğ½Ğ¾Ñ�Ñ‚ÑŒ</b> â€“ Ğ²Ñ‹Ğ±ĞµÑ€Ğ¸ Ñ‚Ğ¸Ğ¿ Ñ‚Ñ€ĞµĞ½Ğ¸Ñ€Ğ¾Ğ²ĞºĞ¸ Ğ¸ ÑƒĞºĞ°Ğ¶Ğ¸ Ğ´Ğ»Ğ¸Ñ‚ĞµĞ»ÑŒĞ½Ğ¾Ñ�Ñ‚ÑŒ.\n"
-            "   <i>ĞŸÑ€Ğ¸Ğ¼ĞµÑ€: Â«Ğ±ĞµĞ³ 30 Ğ¼Ğ¸Ğ½ÑƒÑ‚Â»</i>"
-        )
-    elif data == "help_progress":
-        text = (
-            "ğŸ“Š <b>ĞŸÑ€Ğ¾Ğ³Ñ€ĞµÑ�Ñ�</b>\n\n"
-            "ğŸ“ˆ <b>Ğ¡Ñ‚Ğ°Ñ‚Ğ¸Ñ�Ñ‚Ğ¸ĞºĞ°</b> â€“ Ğ¿Ñ€Ğ¾Ñ�Ğ¼Ğ¾Ñ‚Ñ€ Ğ¿Ğ¾Ñ‚Ñ€ĞµĞ±Ğ»Ñ‘Ğ½Ğ½Ñ‹Ñ… ĞºĞ°Ğ»Ğ¾Ñ€Ğ¸Ğ¹, Ğ²Ğ¾Ğ´Ñ‹, Ğ²ĞµÑ�Ğ° Ğ¸ Ğ°ĞºÑ‚Ğ¸Ğ²Ğ½Ğ¾Ñ�Ñ‚Ğ¸.\n"
-            "ğŸ“… <b>ĞŸĞµÑ€Ğ¸Ğ¾Ğ´Ñ‹</b> â€“ Ğ¼Ğ¾Ğ¶Ğ½Ğ¾ Ğ¿Ğ¾Ñ�Ğ¼Ğ¾Ñ‚Ñ€ĞµÑ‚ÑŒ Ñ�Ñ‚Ğ°Ñ‚Ğ¸Ñ�Ñ‚Ğ¸ĞºÑƒ Ğ·Ğ° Ğ´ĞµĞ½ÑŒ, Ğ½ĞµĞ´ĞµĞ»Ñ� Ğ¸Ğ»Ğ¸ Ğ¼ĞµÑ�Ñ�Ñ†.\n"
-            "ğŸ“‰ <b>Ğ“Ñ€Ğ°Ñ„Ğ¸ĞºĞ¸</b> â€“ Ğ½Ğ°Ğ³Ğ»Ñ�Ğ´Ğ½Ğ°Ñ� Ğ´Ğ¸Ğ½Ğ°Ğ¼Ğ¸ĞºĞ° Ğ¸Ğ·Ğ¼ĞµĞ½ĞµĞ½Ğ¸Ğ¹ Ğ²ĞµÑ�Ğ° Ğ¸ Ğ¿Ğ¾Ñ‚Ñ€ĞµĞ±Ğ»ĞµĞ½Ğ¸Ñ�."
-        )
-    elif data == "help_profile":
-        text = (
-            "ğŸ‘¤ <b>ĞŸÑ€Ñ€Ğ¾Ñ„Ğ¸Ğ»ÑŒ</b>\n\n"
-            "âš–ï¸� <b>Ğ”Ğ°Ğ½Ğ½Ñ‹Ğµ</b> â€“ Ğ²ĞµÑ�, Ñ€Ğ¾Ñ�Ñ‚, Ğ²Ğ¾Ğ·Ñ€Ğ°Ñ�Ñ‚, Ğ¿Ğ¾Ğ», ÑƒÑ€Ğ¾Ğ²ĞµĞ½ÑŒ Ğ°ĞºÑ‚Ğ¸Ğ²Ğ½Ğ¾Ñ�Ñ‚Ğ¸, Ñ†ĞµĞ»ÑŒ, Ğ³Ğ¾Ñ€Ğ¾Ğ´.\n"
-            "ğŸ“Š <b>Ğ�Ğ¾Ñ€Ğ¼Ñ‹</b> â€“ Ñ� Ğ°Ğ²Ñ‚Ğ¾Ğ¼Ğ°Ñ‚Ğ¸Ñ‡ĞµÑ�ĞºĞ¸ Ñ€Ğ°Ñ�Ñ�Ñ‡Ğ¸Ñ‚Ğ°Ñ� Ğ´Ğ½ĞµĞ²Ğ½ÑƒÑ� Ğ½Ğ¾Ñ€Ğ¼Ñƒ ĞºĞ°Ğ»Ğ¾Ñ€Ğ¸Ğ¹, Ğ‘Ğ–Ğ£ Ğ¸ Ğ²Ğ¾Ğ´Ñ‹.\n"
-            "âœ�ï¸� <b>Ğ ĞµĞ´Ğ°ĞºÑ‚Ğ¸Ñ€Ğ¾Ğ²Ğ°Ğ½Ğ¸Ğµ</b> â€“ Ğ¼Ğ¾Ğ¶Ğ½Ğ¾ Ğ¸Ğ·Ğ¼ĞµĞ½Ğ¸Ñ‚ÑŒ Ğ´Ğ°Ğ½Ğ½Ñ‹Ğµ Ğ² Ğ»Ñ�Ğ±Ğ¾Ğµ Ğ²Ñ€ĞµĞ¼Ñ�."
-        )
-    elif data == "help_ai":
-        text = (
-            "ğŸ¤– <b>AI ĞŸĞ¾Ğ¼Ğ¾Ñ‰Ğ½Ğ¸Ğº</b>\n\n"
-            "ğŸ’¬ <b>Ğ”Ğ¸Ğ°Ğ»Ğ¾Ğ³Ğ¾Ğ²Ñ‹Ğ¹ Ñ€ĞµĞ¶Ğ¸Ğ¼</b> â€“ Ğ·Ğ°Ğ´Ğ°Ğ²Ğ°Ğ¹ Ğ²Ğ¾Ğ¿Ñ€Ğ¾Ñ�Ñ‹, Ñ� Ğ¿Ğ¾Ğ¼Ğ½Ñ� ĞºĞ¾Ğ½Ñ‚ĞµĞºÑ�Ñ‚ Ğ±ĞµÑ�ĞµĞ´Ñ‹.\n"
-            "   <i>ĞŸÑ€Ğ¸Ğ¼ĞµÑ€: Â«ĞšĞ°ĞºĞ¾Ğ¹ Ñ€ĞµÑ†ĞµĞ¿Ñ‚ Ğ¿Ğ°Ñ�Ñ‚Ñ‹?Â» â†’ Â«Ğ� Ñ� Ğ¼Ğ¾Ñ€ĞµĞ¿Ñ€Ğ¾Ğ´ÑƒĞºÑ‚Ğ°Ğ¼Ğ¸?Â»</i>\n\n"
-            "ğŸŒ¦ï¸� <b>ĞŸĞ¾Ğ³Ğ¾Ğ´Ğ°</b> â€“ Ğ¼Ğ¾Ğ³Ñƒ Ñ�ĞºĞ°Ğ·Ğ°Ñ‚ÑŒ Ğ¿Ğ¾Ğ³Ğ¾Ğ´Ñƒ Ğ² Ğ»Ñ�Ğ±Ğ¾Ğ¼ Ğ³Ğ¾Ñ€Ğ¾Ğ´Ğµ.\n"
-            "   <i>ĞŸÑ€Ğ¸Ğ¼ĞµÑ€: Â«Ğ¿Ğ¾Ğ³Ğ¾Ğ´Ğ° Ğ² ĞœĞ¾Ñ�ĞºĞ²ĞµÂ»</i>\n\n"
-            "ğŸ“� <b>Ğ¡Ğ¾Ğ²ĞµÑ‚Ñ‹</b> â€“ Ñ�Ğ¿Ñ€Ğ°ÑˆĞ¸Ğ²Ğ°Ğ¹ Ğ¾ Ğ¿Ğ¸Ñ‚Ğ°Ğ½Ğ¸Ğ¸, Ñ‚Ñ€ĞµĞ½Ğ¸Ñ€Ğ¾Ğ²ĞºĞ°Ñ…, Ğ·Ğ´Ğ¾Ñ€Ğ¾Ğ²ÑŒĞµ.\n\n"
-            "â�Œ <b>Ğ’Ñ‹Ñ…Ğ¾Ğ´</b> â€“ Ğ½Ğ°Ğ¿Ğ¸ÑˆĞ¸ Â«Ğ²Ñ‹Ñ…Ğ¾Ğ´Â» Ğ¸Ğ»Ğ¸ /cancel, Ñ‡Ñ‚Ğ¾Ğ±Ñ‹ Ğ²Ñ‹Ğ¹Ñ‚Ğ¸ Ğ¸Ğ· Ñ€ĞµĞ¶Ğ¸Ğ¼Ğ°."
-        )
-    elif data == "help_close":
-        await callback.message.delete()
-        await callback.answer()
-        return
-    else:
-        await callback.answer()
-        return
+@router.callback_query(F.data == "activity")
+async def activity_callback(callback: CallbackQuery, state: FSMContext):
+    """Handle activity tracking callback"""
+    await callback.answer()
+    
+    await callback.message.answer(
+        "🏃 <b>Activity Tracking</b>\n\n"
+        "Describe your activity:\n\n"
+        "📊 <b>Examples:</b>\n"
+        "• Ran 5 km in 30 minutes\n"
+        "• 10000 steps today\n"
+        "• Gym workout for 1 hour\n"
+        "• Yoga class 45 minutes\n"
+        "• Swimming 30 minutes",
+        parse_mode="HTML"
+    )
+    
+    # Set state for activity entry
+    from utils.states import ActivityStates
+    await state.set_state(ActivityStates.waiting_for_activity)
 
-    if text:
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="ğŸ”™ Ğ�Ğ°Ğ·Ğ°Ğ´", callback_data="help_back")]
-        ])
-        await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
-        await callback.answer()
+@router.callback_query(F.data == "weight")
+async def weight_callback(callback: CallbackQuery, state: FSMContext):
+    """Handle weight tracking callback"""
+    await callback.answer()
+    
+    await callback.message.answer(
+        "⚖️ <b>Weight Tracking</b>\n\n"
+        "Enter your current weight:\n\n"
+        "📊 <b>Examples:</b>\n"
+        "• 75.5\n"
+        "• 75.5 kg\n"
+        "• 75,5\n"
+        "• 75.5кг",
+        parse_mode="HTML"
+    )
+    
+    # Set state for weight entry
+    from utils.states import WeightStates
+    await state.set_state(WeightStates.waiting_for_weight)
 
-@router.callback_query(F.data == "help_back")
-async def help_back_callback(callback: CallbackQuery):
-    """Ğ’Ğ¾Ğ·Ğ²Ñ€Ğ°Ñ‚ Ğ² Ğ³Ğ»Ğ°Ğ²Ğ½Ğ¾Ğµ Ğ¼ĞµĞ½Ñ� Ğ¿Ğ¾Ğ¼Ğ¾Ñ‰Ğ¸."""
-    await show_help_menu(callback)
+@router.callback_query(F.data == "progress")
+async def progress_callback(callback: CallbackQuery, state: FSMContext):
+    """Handle progress viewing callback"""
+    await callback.answer()
+    
+    await callback.message.answer(
+        "📊 <b>Progress Statistics</b>\n\n"
+        "Select time period:",
+        reply_markup=get_progress_menu(),
+        parse_mode="HTML"
+    )
 
-# Ğ�Ğ±Ñ€Ğ°Ğ±Ğ¾Ñ‚Ñ‡Ğ¸ĞºĞ¸ Ğ´Ğ»Ñ� reply-ĞºĞ½Ğ¾Ğ¿Ğ¾Ğº Ğ¸Ğ· Ñ�Ñ‚Ğ°Ñ€Ğ¾Ğ³Ğ¾ common.py
-@router.message(F.text == "ğŸ“Š ĞœĞ¾Ğ¹ Ğ¿Ñ€Ğ¾Ğ³Ñ€ĞµÑ�Ñ�")
-async def progress_message(message: Message, state: FSMContext):
-    """Ğ�Ğ±Ñ€Ğ°Ğ±Ğ¾Ñ‚Ñ‡Ğ¸Ğº Ğ¿Ñ€Ğ¾Ğ³Ñ€ĞµÑ�Ñ�Ğ° Ñ� Ğ¼Ğ¾Ñ‚Ğ¸Ğ²Ğ°Ñ†Ğ¸ĞµĞ¹"""
-    from handlers.progress import cmd_progress
-    await cmd_progress(message, state)
-
-@router.message(F.text == "ğŸ‘¤ ĞœĞ¾Ğ¹ Ğ¿Ñ€Ğ¾Ñ„Ğ¸Ğ»ÑŒ")
-async def profile_message(message: Message, state: FSMContext):
-    """Ğ�Ğ±Ñ€Ğ°Ğ±Ğ¾Ñ‚Ñ‡Ğ¸Ğº Ğ¿Ñ€Ğ¾Ñ„Ğ¸Ğ»Ñ� Ñ� Ğ¿ĞµÑ€Ñ�Ğ¾Ğ½Ğ°Ğ»Ğ¸Ğ·Ğ°Ñ†Ğ¸ĞµĞ¹"""
+@router.callback_query(F.data == "profile")
+async def profile_callback(callback: CallbackQuery, state: FSMContext):
+    """Handle profile viewing callback"""
+    await callback.answer()
+    
+    # Import and call profile handler
     from handlers.profile import cmd_profile
-    await cmd_profile(message, state)
+    await cmd_profile(callback.message, state)
 
-@router.message(F.text == "â�“ ĞŸĞ¾Ğ¼Ğ¾Ñ‰ÑŒ")
-async def help_message(message: Message, state: FSMContext):
-    """Ğ�Ğ±Ñ€Ğ°Ğ±Ğ¾Ñ‚Ñ‡Ğ¸Ğº Ğ¿Ğ¾Ğ¼Ğ¾Ñ‰Ğ¸ Ñ� Ğ´Ñ€ÑƒĞ¶ĞµĞ»Ñ�Ğ±Ğ½Ñ‹Ğ¼ Ğ¿Ğ¾Ğ´Ñ…Ğ¾Ğ´Ğ¾Ğ¼"""
-    await cmd_help(message, state)
+@router.callback_query(F.data == "ai_assistant")
+async def ai_assistant_callback(callback: CallbackQuery, state: FSMContext):
+    """Handle AI assistant callback"""
+    await callback.answer()
+    
+    await callback.message.answer(
+        "🤖 <b>AI Assistant</b>\n\n"
+        "I can help you with:\n\n"
+        "🍽️ <b>Nutrition:</b>\n"
+        "• Recipe suggestions\n"
+        "• Nutritional information\n"
+        "• Diet advice\n"
+        "• Meal planning\n\n"
+        "🏋️ <b>Fitness:</b>\n"
+        "• Workout recommendations\n"
+        "• Exercise form tips\n"
+        "• Training plans\n"
+        "• Recovery advice\n\n"
+        "🧠 <b>Health:</b>\n"
+        "• General health questions\n"
+        "• Lifestyle tips\n"
+        "• Stress management\n"
+        "• Sleep advice\n\n"
+        "Just ask me anything! 🤔",
+        parse_mode="HTML"
+    )
 
-# Ğ�Ğ±Ñ€Ğ°Ğ±Ğ¾Ñ‚Ñ‡Ğ¸Ğº Ğ´Ğ»Ñ� callback Ğ¿Ñ€Ğ¾Ğ³Ñ€ĞµÑ�Ñ�Ğ°
-async def period_callback_internal(callback: CallbackQuery, state: FSMContext):
-    """Внутренний обработчик выбора периода с улучшенной проверкой пользователя"""
-    try:
-        period = callback.data.split("_")[1]  # day / week / month / all
-        user_id = callback.from_user.id
+@router.callback_query(F.data == "settings")
+async def settings_callback(callback: CallbackQuery, state: FSMContext):
+    """Handle settings callback"""
+    await callback.answer()
+    
+    await callback.message.answer(
+        "⚙️ <b>Settings</b>\n\n"
+        "Manage your bot settings:\n\n"
+        "👤 Edit Profile\n"
+        "🎯 Update Goals\n"
+        "🌍 Change Timezone\n"
+        "🔔 Notifications\n"
+        "📊 Privacy Settings\n\n"
+        "Use /set_profile to update your information",
+        reply_markup=get_settings_keyboard(),
+        parse_mode="HTML"
+    )
 
-        await callback.answer(f"📊 Загружаем статистику...")
-        await callback.message.delete()
-        await state.clear()
+@router.message()
+async def universal_text_handler(message: Message, state: FSMContext):
+    """Universal text handler for all messages"""
+    # Check if user is in a specific state
+    current_state = await state.get_state()
+    
+    if current_state:
+        # Let state-specific handlers process the message
+        return
+    
+    # Process as general query
+    await process_general_query(message)
 
-        # Используем улучшенную утилиту для получения пользователя
-        from utils.user_utils import get_user_by_telegram_id
-        
-        user = await get_user_by_telegram_id(user_id)
-        if not user:
-            await callback.message.answer(
-                "❌ Пользователь не найден. Пожалуйста, используйте команду /start для регистрации.",
-                reply_markup=get_main_keyboard_v2()
-            )
-            return
+async def process_general_query(message: Message):
+    """Process general user queries"""
+    text = message.text.lower()
+    
+    # Check for water tracking
+    if any(word in text for word in ['выпил', 'выпила', 'воды', 'воду', 'стакан', 'стакана', 'мл', 'литр']):
+        await handle_water_query(message)
+        return
+    
+    # Check for steps tracking
+    if any(word in text for word in ['шагов', 'шага', 'шаг', 'пробежал', 'пробежала', 'прошел', 'прошла']):
+        await handle_steps_query(message)
+        return
+    
+    # Check for weight tracking
+    if any(word in text for word in ['вес', 'весу', 'вешу', 'кг', 'килограмм']):
+        await handle_weight_query(message)
+        return
+    
+    # Check for food tracking
+    if any(word in text for word in ['съел', 'съела', 'ел', 'ела', 'завтрак', 'обед', 'ужин', 'грамм', 'г']):
+        await handle_food_query(message)
+        return
+    
+    # Check for progress queries
+    if any(word in text for word in ['прогресс', 'статистика', 'динамика', 'изменения']):
+        await handle_progress_query(message)
+        return
+    
+    # Default: AI assistant response
+    await handle_ai_query(message)
 
-            # Ğ�Ğ¿Ñ€ĞµĞ´ĞµĞ»Ñ�ĞµĞ¼ Ğ´Ğ¸Ğ°Ğ¿Ğ°Ğ·Ğ¾Ğ½ Ğ´Ğ°Ñ‚
-            today = datetime.now().date()
-            if period == "day":
-                start_date = today
-                period_name = "сегодня"
-            elif period == "week":
-                start_date = today - timedelta(days=7)
-                period_name = "Ğ·Ğ° Ğ½ĞµĞ´ĞµĞ»Ñ�"
-            elif period == "month":
-                start_date = today - timedelta(days=30)
-                period_name = "Ğ·Ğ° Ğ¼ĞµÑ�Ñ�Ñ†"
-            else:  # all
-                start_date = today - timedelta(days=365)  # Ğ—Ğ° Ğ¿Ğ¾Ñ�Ğ»ĞµĞ´Ğ½Ğ¸Ğ¹ Ğ³Ğ¾Ğ´
-                period_name = "Ğ·Ğ° Ğ²Ñ�Ñ‘ Ğ²Ñ€ĞµĞ¼Ñ�"
+async def handle_water_query(message: Message):
+    """Handle water tracking queries"""
+    # Import water handler
+    from handlers.drinks import process_water_text
+    await process_water_text(message)
 
-            # ĞŸĞ¾Ğ»ÑƒÑ‡Ğ°ĞµĞ¼ Ñ�Ñ‚Ğ°Ñ‚Ğ¸Ñ�Ñ‚Ğ¸ĞºÑƒ Ğ·Ğ° Ğ¿ĞµÑ€Ğ¸Ğ¾Ğ´
-            from utils.daily_stats import get_period_stats as unified_get_period_stats
-            
-            # Ğ�Ğ¿Ñ€ĞµĞ´ĞµĞ»Ñ�ĞµĞ¼ Ğ¿ĞµÑ€Ğ¸Ğ¾Ğ´ Ğ½Ğ° Ğ¾Ñ�Ğ½Ğ¾Ğ²Ğµ start_date
-            from datetime import datetime, timedelta
-            today = datetime.now().date()
-            
-            if start_date == today:
-                period = "day"
-            elif start_date == today - timedelta(days=7):
-                period = "week"
-            elif start_date == today - timedelta(days=30):
-                period = "month"
-            else:
-                period = "all"
-            
-            stats = await unified_get_period_stats(user.id, period)
-            
-            # Ğ¡Ğ¾Ğ·Ğ´Ğ°ĞµĞ¼ Ñ�Ğ¾Ğ¾Ğ±Ñ‰ĞµĞ½Ğ¸Ğµ Ñ� Ğ¿Ñ€Ğ¾Ğ³Ñ€ĞµÑ�Ñ�Ğ¾Ğ¼
-            progress_message = await _create_progress_message(user, stats, period_name, period)
-            
-            await callback.message.answer(
-                progress_message, 
-                reply_markup=get_main_keyboard_v2(), 
-                parse_mode="HTML"
-            )
-            
-    except Exception as e:
-        logger.error(f"Error in period callback: {e}")
-        await callback.message.answer(
-            "â�Œ ĞŸÑ€Ğ¾Ğ¸Ğ·Ğ¾ÑˆĞ»Ğ° Ğ¾ÑˆĞ¸Ğ±ĞºĞ° Ğ¿Ñ€Ğ¸ Ğ·Ğ°Ğ³Ñ€ÑƒĞ·ĞºĞµ Ñ�Ñ‚Ğ°Ñ‚Ğ¸Ñ�Ñ‚Ğ¸ĞºĞ¸. ĞŸĞ¾Ğ¿Ñ€Ğ¾Ğ±ÑƒĞ¹Ñ‚Ğµ ĞµÑ‰Ğµ Ñ€Ğ°Ğ·.",
-            reply_markup=get_main_keyboard_v2()
-        )
+async def handle_steps_query(message: Message):
+    """Handle steps tracking queries"""
+    # Import activity handler
+    from handlers.activity import process_activity_text
+    await process_activity_text(message)
 
+async def handle_weight_query(message: Message):
+    """Handle weight tracking queries"""
+    # Import weight handler
+    from handlers.weight import cmd_log_weight
+    from aiogram.fsm.context import FSMContext
+    state = FSMContext()
+    await cmd_log_weight(message, state)
 
-async def _create_progress_message(user, stats: dict, period_name: str, period: str) -> str:
-    """Ğ¡Ğ¾Ğ·Ğ´Ğ°Ğ½Ğ¸Ğµ Ñ�Ğ¾Ğ¾Ğ±Ñ‰ĞµĞ½Ğ¸Ñ� Ñ� Ğ¿Ñ€Ğ¾Ğ³Ñ€ĞµÑ�Ñ�Ğ¾Ğ¼"""
-    
-    # Ğ�Ğ¿Ñ€ĞµĞ´ĞµĞ»Ñ�ĞµĞ¼ Ñ�Ñ‚Ğ°Ñ‚ÑƒÑ�Ñ‹ Ğ¸ Ğ¼Ğ¾Ñ‚Ğ¸Ğ²Ğ°Ñ†Ğ¸Ñ�
-    calorie_status = "ğŸ�¯" if stats['total_calories'] <= user.daily_calorie_goal else "âš ï¸�"
-    water_status = "ğŸ’§" if stats['total_water_ml'] >= user.daily_water_goal else "ğŸ’¦"
-    
-    # Ğ¤Ğ¾Ñ€Ğ¼Ğ¸Ñ€ÑƒĞµĞ¼ Ñ�Ğ¾Ğ¾Ğ±Ñ‰ĞµĞ½Ğ¸Ğµ
-    message = f"ğŸ“Š <b>Ğ¡Ñ‚Ğ°Ñ‚Ğ¸Ñ�Ñ‚Ğ¸ĞºĞ° {period_name}</b>\n\n"
-    
-    # ĞšĞ°Ğ»Ğ¾Ñ€Ğ¸Ğ¸
-    message += f"ğŸ”¥ <b>ĞšĞ°Ğ»Ğ¾Ñ€Ğ¸Ğ¸:</b> {stats['total_calories']:.0f} ĞºĞºĞ°Ğ»\n"
-    message += f"   Ğ�Ğ¾Ñ€Ğ¼Ğ°: {user.daily_calorie_goal:.0f} ĞºĞºĞ°Ğ» {calorie_status}\n\n"
-    
-    # Ğ‘Ğ–Ğ£
-    message += f"ğŸ�½ï¸� <b>Ğ‘Ğ–Ğ£:</b>\n"
-    message += f"   ğŸ¥© Ğ‘ĞµĞ»ĞºĞ¸: {stats['total_protein']:.1f}Ğ³\n"
-    message += f"   ğŸ¥‘ Ğ–Ğ¸Ñ€Ñ‹: {stats['total_fat']:.1f}Ğ³\n"
-    message += f"   ğŸ�š Ğ£Ğ³Ğ»ĞµĞ²Ğ¾Ğ´Ñ‹: {stats['total_carbs']:.1f}Ğ³\n\n"
-    
-    # Ğ’Ğ¾Ğ´Ğ°
-    message += f"ğŸ’§ <b>Ğ’Ğ¾Ğ´Ğ°:</b> {stats['total_water_ml']:.0f} Ğ¼Ğ»\n"
-    message += f"   Ğ�Ğ¾Ñ€Ğ¼Ğ°: {user.daily_water_goal:.0f} Ğ¼Ğ» {water_status}\n\n"
-    
-    # Ğ�ĞºÑ‚Ğ¸Ğ²Ğ½Ğ¾Ñ�Ñ‚ÑŒ
-    if stats['calories_burned'] > 0:
-        message += f"ğŸ�ƒ <b>Ğ�ĞºÑ‚Ğ¸Ğ²Ğ½Ğ¾Ñ�Ñ‚ÑŒ:</b> {stats['calories_burned']:.0f} ĞºĞºĞ°Ğ» Ñ�Ğ¾Ğ¶Ğ¶ĞµĞ½Ğ¾\n"
-        message += f"   Ğ¢Ñ€ĞµĞ½Ğ¸Ñ€Ğ¾Ğ²Ğ¾Ğº: {stats['activities_count']}\n\n"
-    
-    # Ğ’ĞµÑ�
-    if stats['weight_trend'] is not None:
-        trend_emoji = "ğŸ“ˆ" if stats['weight_trend'] > 0 else "ğŸ“‰" if stats['weight_trend'] < 0 else "â�¡ï¸�"
-        message += f"âš–ï¸� <b>Ğ’ĞµÑ�:</b> {stats['latest_weight']:.1f} ĞºĞ³ {trend_emoji}\n"
-        if stats['weight_trend'] != 0:
-            message += f"   Ğ˜Ğ·Ğ¼ĞµĞ½ĞµĞ½Ğ¸Ğµ: {stats['weight_trend']:+.1f} ĞºĞ³ Ğ·Ğ° {period_name}\n\n"
-    
-    # ĞœĞ¾Ñ‚Ğ¸Ğ²Ğ°Ñ†Ğ¸Ñ�
-    if stats['total_calories'] <= user.daily_calorie_goal and stats['total_water_ml'] >= user.daily_water_goal:
-        message += "ğŸ�‰ <b>Ğ�Ñ‚Ğ»Ğ¸Ñ‡Ğ½Ğ°Ñ� Ñ€Ğ°Ğ±Ğ¾Ñ‚Ğ°!</b> Ğ’Ñ‹ Ğ¿Ñ€Ğ¸Ğ´ĞµÑ€Ğ¶Ğ¸Ğ²Ğ°ĞµÑ‚ĞµÑ�ÑŒ Ğ½Ğ¾Ñ€Ğ¼ ĞºĞ°Ğ»Ğ¾Ñ€Ğ¸Ğ¹ Ğ¸ Ğ²Ğ¾Ğ´Ñ‹!"
-    elif stats['total_calories'] <= user.daily_calorie_goal:
-        message += "ğŸ’ª <b>Ğ¥Ğ¾Ñ€Ğ¾ÑˆĞ¾!</b> ĞšĞ°Ğ»Ğ¾Ñ€Ğ¸Ğ¸ Ğ² Ğ½Ğ¾Ñ€Ğ¼Ğµ, Ğ½Ğµ Ğ·Ğ°Ğ±Ñ‹Ğ²Ğ°Ğ¹Ñ‚Ğµ Ğ¿Ğ¸Ñ‚ÑŒ Ğ²Ğ¾Ğ´Ñƒ!"
-    elif stats['total_water_ml'] >= user.daily_water_goal:
-        message += "ğŸ’§ <b>Ğ�Ñ‚Ğ»Ğ¸Ñ‡Ğ½Ğ¾!</b> Ğ’Ğ¾Ğ´Ğ½Ñ‹Ğ¹ Ñ€ĞµĞ¶Ğ¸Ğ¼ Ñ�Ğ¾Ğ±Ğ»Ñ�Ğ´ĞµĞ½, Ñ�Ğ»ĞµĞ´Ğ¸Ñ‚Ğµ Ğ·Ğ° ĞºĞ°Ğ»Ğ¾Ñ€Ğ¸Ñ�Ğ¼Ğ¸!"
-    else:
-        message += "ğŸ“� <b>Ğ¡Ğ¾Ğ²ĞµÑ‚:</b> Ğ¡Ñ‚Ğ°Ñ€Ğ°Ğ¹Ñ‚ĞµÑ�ÑŒ Ñ�Ğ¾Ğ±Ğ»Ñ�Ğ´Ğ°Ñ‚ÑŒ Ğ½Ğ¾Ñ€Ğ¼Ñ‹ ĞºĞ°Ğ»Ğ¾Ñ€Ğ¸Ğ¹ Ğ¸ Ğ¿Ğ¸Ñ‚ÑŒ Ğ±Ğ¾Ğ»ÑŒÑˆĞµ Ğ²Ğ¾Ğ´Ñ‹."
-    
-    return message
+async def handle_food_query(message: Message):
+    """Handle food tracking queries"""
+    # Import food handler
+    from handlers.universal import process_food_text
+    await process_food_text(message)
 
-# Ğ£Ğ½Ğ¸Ğ²ĞµÑ€Ñ�Ğ°Ğ»ÑŒĞ½Ñ‹Ğ¹# Универсальный обработчик callback с улучшенной обработкой ошибок
-@router.callback_query()
-async def universal_callback_handler(callback: CallbackQuery, state: FSMContext):
-    """Универсальный обработчик всех callback с полной защитой от ошибок"""
-    data = callback.data
-    
-    try:
-        # Обрабатываем period_ callback
-        if data.startswith("period_"):
-            await period_callback_internal(callback, state)
-            return
-        
-        # Обрабатываем progress_ callback
-        if data.startswith("progress_"):
-            await period_callback_internal(callback, state)
-            return
-        
-        # Обрабатываем help_ callback
-        if data.startswith("help_"):
-            await help_callbacks(callback)
-            return
-        
-        # Обрабатываем edit_ callback - перенаправляем в profile.py
-        if data.startswith("edit_"):
-            # Импортируем и вызываем из profile.py
-            from handlers.profile import process_edit_callback
-            await process_edit_callback(callback, state)
-            return
-        
-        # Другой callback
-        logger.warning(f"Unknown callback: {data}")
-        await callback.answer()
-        
-    except Exception as e:
-        # Полная обработка всех ошибок в callback handlers
-        logger.error(f"❌ Error in universal_callback_handler: {e}")
-        logger.error(f"❌ Callback data: {data}")
-        logger.error(f"❌ User ID: {callback.from_user.id}")
-        
-        import traceback
-        logger.error(f"❌ Traceback: {traceback.format_exc()}")
-        
-        try:
-            # Показываем пользователю дружелюбное сообщение об ошибке
-            await callback.message.answer(
-                "❌ Произошла ошибка. Попробуйте еще раз.",
-                reply_markup=get_main_keyboard_v2()
-            )
-            await callback.answer("❌ Произошла ошибка", show_alert=True)
-        except Exception as answer_error:
-            logger.error(f"❌ Error sending error message: {answer_error}")
-            # Финальный fallback - просто отвечаем на callback
-            try:
-                await callback.answer("❌ Ошибка")
-            except:
-                pass  # Последний уровень защиты
+async def handle_progress_query(message: Message):
+    """Handle progress queries"""
+    await message.answer(
+        "📊 <b>Progress Statistics</b>\n\n"
+        "To view your progress, use the Progress button in the menu or type:\n\n"
+        "• /progress - main progress\n"
+        "• /weight - weight statistics\n\n"
+        "You can also ask:\n"
+        "• \"Show my progress for the week\"\n"
+        "• \"How am I doing with calories?\"",
+        reply_markup=get_main_keyboard_v2(),
+        parse_mode="HTML"
+    )
+
+async def handle_ai_query(message: Message):
+    """Handle AI assistant queries"""
+    # Import AI assistant
+    from handlers.ai_assistant import process_ai_query
+    await process_ai_query(message)
+
+# =============================================================================
+# 🎨 KEYBOARD FUNCTIONS
+# =============================================================================
+def get_help_keyboard() -> InlineKeyboardMarkup:
+    """Get help menu keyboard"""
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="👤 Profile", callback_data="profile"),
+                InlineKeyboardButton(text="📊 Progress", callback_data="progress")
+            ],
+            [
+                InlineKeyboardButton(text="🍽️ Food", callback_data="manual_food"),
+                InlineKeyboardButton(text="💧 Water", callback_data="water")
+            ],
+            [
+                InlineKeyboardButton(text="🏃 Activity", callback_data="activity"),
+                InlineKeyboardButton(text="⚖️ Weight", callback_data="weight")
+            ],
+            [
+                InlineKeyboardButton(text="🤖 AI Assistant", callback_data="ai_assistant"),
+                InlineKeyboardButton(text="⚙️ Settings", callback_data="settings")
+            ],
+            [
+                InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu")
+            ]
+        ]
+    )
+    return keyboard
+
+def get_settings_keyboard() -> InlineKeyboardMarkup:
+    """Get settings menu keyboard"""
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="👤 Edit Profile", callback_data="edit_profile"),
+                InlineKeyboardButton(text="🎯 Update Goals", callback_data="update_goals")
+            ],
+            [
+                InlineKeyboardButton(text="🌍 Timezone", callback_data="timezone"),
+                InlineKeyboardButton(text="🔔 Notifications", callback_data="notifications")
+            ],
+            [
+                InlineKeyboardButton(text="📊 Privacy", callback_data="privacy"),
+                InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu")
+            ]
+        ]
+    )
+    return keyboard

@@ -1,52 +1,53 @@
 """
-Ğ¡ĞµÑ€Ğ²Ğ¸Ñ� Ğ´Ğ»Ñ� Ñ�Ğ¾Ñ…Ñ€Ğ°Ğ½ĞµĞ½Ğ¸Ñ� Ñ�ÑƒĞ¿Ğ¾Ğ² (ĞµĞ´Ğ° + Ğ¶Ğ¸Ğ´ĞºĞ¾Ñ�Ñ‚ÑŒ)
+Сервис для хранения супов (еда + жидкость)
 """
 import logging
 from datetime import datetime, timezone
-from sqlalchemy import select
+from typing import Dict, Optional
+
 from database.db import get_session
-from database.models import User, Meal, DrinkEntry
-from services.dish_db import COMPOSITE_DISHES, normalize_ai_dish_name
-from utils.drink_parser import parse_drink
+from database.models import User, Meal, FoodItem
+from utils.unit_converter import convert_to_grams
 
 logger = logging.getLogger(__name__)
 
-# Ğ‘Ğ°Ğ·Ğ° Ğ´Ğ°Ğ½Ğ½Ñ‹Ñ… Ğ¿Ğ¾ Ñ�ÑƒĞ¿Ğ°Ğ¼ Ğ´Ğ»Ñ� Ñ€Ğ°Ñ�Ñ‡Ñ‘Ñ‚Ğ° Ñ�Ğ¾Ğ´ĞµÑ€Ğ¶Ğ°Ğ½Ğ¸Ñ� Ğ²Ğ¾Ğ´Ñ‹
+# База данных по супам для расчета содержания воды
 SOUP_WATER_CONTENT = {
-    'Ğ±Ğ¾Ñ€Ñ‰': 0.85,        # 85% Ğ¶Ğ¸Ğ´ĞºĞ¾Ñ�Ñ‚Ğ¸
-    'Ñ‰Ğ¸': 0.88,
-    'Ñ�ÑƒĞ¿': 0.85,         # Ğ�Ğ±Ñ‹Ñ‡Ğ½Ñ‹Ğ¹ Ñ�ÑƒĞ¿
-    'ÑƒÑ…Ğ°': 0.90,
-    'Ñ€Ğ°Ñ�Ñ�Ğ¾Ğ»ÑŒĞ½Ğ¸Ğº': 0.86,
-    'Ñ�Ğ¾Ğ»Ñ�Ğ½ĞºĞ°': 0.82,
-    'Ğ¾ĞºÑ€Ğ¾ÑˆĞºĞ°': 0.92,
-    'Ğ³ÑƒĞ»Ñ�Ñˆ': 0.75,       # Ğ‘Ğ¾Ğ»ĞµĞµ Ğ³ÑƒÑ�Ñ‚Ğ¾Ğ¹
-    'Ñ€Ğ°Ğ³Ñƒ': 0.70,
-    'ĞºĞ°Ñ€Ñ‚Ğ¾ÑˆĞºĞ°': 0.80,    # ĞšĞ°Ñ€Ñ‚Ğ¾Ñ„ĞµĞ»ÑŒĞ½Ğ¾Ğµ Ñ€Ğ°Ğ³Ñƒ
+    'борщ': 0.85,        # 85% жидкости
+    'щи': 0.88,
+    'суп': 0.85,         # Обычный суп
+    'уха': 0.90,
+    'рассольник': 0.86,
+    'солянка': 0.82,
+    'окрошка': 0.92,
+    'гуляш': 0.75,       # Более густой гуляш
+    'рагу': 0.70,
+    'картошка': 0.80,    # Картофельное рагу
 }
 
-# Ğ¡Ñ€ĞµĞ´Ğ½Ğ¸Ğµ Ğ·Ğ½Ğ°Ñ‡ĞµĞ½Ğ¸Ñ� ĞšĞ‘Ğ–Ğ£ Ğ´Ğ»Ñ� Ñ�ÑƒĞ¿Ğ¾Ğ² (Ğ½Ğ° 100 Ğ¼Ğ»)
+# Средние значения КБЖУ для супов (на 100 мл)
 SOUP_NUTRITION_DEFAULTS = {
     'calories': 50,
     'protein': 2.0,
-    'fat': 1.5,
-    'carbs': 5.0,
+    'fat': 2.0,
+    'carbs': 5.0
 }
 
 def is_soup(dish_name: str) -> bool:
     """
-    Ğ�Ğ¿Ñ€ĞµĞ´ĞµĞ»Ñ�ĞµÑ‚, Ñ�Ğ²Ğ»Ñ�ĞµÑ‚Ñ�Ñ� Ğ»Ğ¸ Ğ±Ğ»Ñ�Ğ´Ğ¾ Ñ�ÑƒĞ¿Ğ¾Ğ¼
+    Определяет, является ли блюдо супом
     """
     dish_name = dish_name.lower()
     
-    # ĞŸÑ€Ñ�Ğ¼Ñ‹Ğµ Ğ½Ğ°Ğ·Ğ²Ğ°Ğ½Ğ¸Ñ�
-    soup_keywords = ['Ğ±Ğ¾Ñ€Ñ‰', 'Ñ‰Ğ¸', 'ÑƒÑ…Ğ°', 'Ñ�ÑƒĞ¿', 'Ñ€Ğ°Ñ�Ñ�Ğ¾Ğ»ÑŒĞ½Ğ¸Ğº', 'Ñ�Ğ¾Ğ»Ñ�Ğ½ĞºĞ°', 'Ğ¾ĞºÑ€Ğ¾ÑˆĞºĞ°', 'Ğ±ÑƒĞ»ÑŒĞ¾Ğ½']
+    # Применим названия
+    soup_keywords = ['борщ', 'щи', 'уха', 'суп', 'рассольник', 'солянка', 'окрошка', 'бульон']
     
     for keyword in soup_keywords:
         if keyword in dish_name:
             return True
     
-    # ĞŸÑ€Ğ¾Ğ²ĞµÑ€Ñ�ĞµĞ¼ Ğ¿Ğ¾ Ğ±Ğ°Ğ·Ğµ COMPOSITE_DISHES
+    # Проверяем по базе COMPOSITE_DISHES
+    from services.food_service import COMPOSITE_DISHES, normalize_ai_dish_name
     dish_key = normalize_ai_dish_name(dish_name)
     dish_info = COMPOSITE_DISHES.get(dish_key)
     
@@ -57,45 +58,45 @@ def is_soup(dish_name: str) -> bool:
 
 def get_soup_water_content(dish_name: str) -> float:
     """
-    Ğ�Ğ¿Ñ€ĞµĞ´ĞµĞ»Ñ�ĞµÑ‚ Ñ�Ğ¾Ğ´ĞµÑ€Ğ¶Ğ°Ğ½Ğ¸Ğµ Ğ²Ğ¾Ğ´Ñ‹ Ğ² Ñ�ÑƒĞ¿Ğµ
+    Определяет содержание воды в супе
     """
     dish_name = dish_name.lower()
     
-    # Ğ˜Ñ‰ĞµĞ¼ Ñ‚Ğ¾Ñ‡Ğ½Ğ¾Ğµ Ñ�Ğ¾Ğ²Ğ¿Ğ°Ğ´ĞµĞ½Ğ¸Ğµ
+    # Ищем точное совпадение
     for soup_name, water_content in SOUP_WATER_CONTENT.items():
         if soup_name in dish_name:
             return water_content
     
-    # ĞŸĞ¾ ÑƒĞ¼Ğ¾Ğ»Ñ‡Ğ°Ğ½Ğ¸Ñ� - 85% Ğ²Ğ¾Ğ´Ñ‹
+    # По умолчанию - 85% воды
     return 0.85
 
 def get_soup_nutrition(dish_name: str, volume_ml: float) -> dict:
     """
-    Ğ Ğ°Ñ�Ñ�Ñ‡Ğ¸Ñ‚Ñ‹Ğ²Ğ°ĞµÑ‚ ĞšĞ‘Ğ–Ğ£ Ğ´Ğ»Ñ� Ñ�ÑƒĞ¿Ğ°
+    Рассчитывает КБЖУ для супа
     
     Args:
-        dish_name: Ğ�Ğ°Ğ·Ğ²Ğ°Ğ½Ğ¸Ğµ Ñ�ÑƒĞ¿Ğ°
-        volume_ml: Ğ�Ğ±ÑŠÑ‘Ğ¼ Ğ² Ğ¼Ğ»
+        dish_name: Название супа
+        volume_ml: Объём в мл
         
     Returns:
-        dict Ñ� ĞºĞ°Ğ»Ğ¾Ñ€Ğ¸Ñ�Ğ¼Ğ¸, Ğ±ĞµĞ»ĞºĞ°Ğ¼Ğ¸, Ğ¶Ğ¸Ñ€Ğ°Ğ¼Ğ¸, ÑƒĞ³Ğ»ĞµĞ²Ğ¾Ğ´Ğ°Ğ¼Ğ¸
+        dict с калориями, белками, жирами, углеводами
     """
-    # ĞŸÑ€Ğ¾Ğ²ĞµÑ€Ñ�ĞµĞ¼ Ğ±Ğ°Ğ·Ñƒ COMPOSITE_DISHES
+    # Проверяем базу COMPOSITE_DISHES
+    from services.food_service import COMPOSITE_DISHES, normalize_ai_dish_name
     dish_key = normalize_ai_dish_name(dish_name)
     dish_info = COMPOSITE_DISHES.get(dish_key)
     
-    if dish_info and 'nutrition_per_100' in dish_info:
-        nutrition = dish_info['nutrition_per_100']
+    if dish_info and 'nutrition' in dish_info:
+        nutrition = dish_info['nutrition']
         factor = volume_ml / 100
-        
         return {
             'calories': nutrition.get('calories', 50) * factor,
             'protein': nutrition.get('protein', 2.0) * factor,
-            'fat': nutrition.get('fat', 1.5) * factor,
+            'fat': nutrition.get('fat', 2.0) * factor,
             'carbs': nutrition.get('carbs', 5.0) * factor,
         }
     else:
-        # Ğ˜Ñ�Ğ¿Ğ¾Ğ»ÑŒĞ·ÑƒĞµĞ¼ Ğ·Ğ½Ğ°Ñ‡ĞµĞ½Ğ¸Ñ� Ğ¿Ğ¾ ÑƒĞ¼Ğ¾Ğ»Ñ‡Ğ°Ğ½Ğ¸Ñ�
+        # Используем значения по умолчанию
         factor = volume_ml / 100
         return {
             key: value * factor 
@@ -104,21 +105,21 @@ def get_soup_nutrition(dish_name: str, volume_ml: float) -> dict:
 
 async def save_soup(user_id: int, dish_name: str, volume_ml: float, meal_type: str = "soup"):
     """
-    Ğ¡Ğ¾Ñ…Ñ€Ğ°Ğ½Ñ�ĞµÑ‚ Ñ�ÑƒĞ¿ ĞºĞ°Ğº Ğ¿Ñ€Ğ¸Ñ‘Ğ¼ Ğ¿Ğ¸Ñ‰Ğ¸ Ğ¸ ĞºĞ°Ğº Ğ·Ğ°Ğ¿Ğ¸Ñ�ÑŒ Ğ¶Ğ¸Ğ´ĞºĞ¾Ñ�Ñ‚Ğ¸
+    Сохраняет суп как прием пищи и как запись жидкости
     
     Returns:
-        dict Ñ� ID Ñ�Ğ¾Ğ·Ğ´Ğ°Ğ½Ğ½Ñ‹Ñ… Ğ·Ğ°Ğ¿Ğ¸Ñ�ĞµĞ¹
+        dict с ID созданных записей
     """
     try:
-        # Ğ Ğ°Ñ�Ñ�Ñ‡Ğ¸Ñ‚Ñ‹Ğ²Ğ°ĞµĞ¼ ĞšĞ‘Ğ–Ğ£
+        # Рассчитываем КБЖУ
         nutrition = get_soup_nutrition(dish_name, volume_ml)
         
-        # Ğ Ğ°Ñ�Ñ�Ñ‡Ğ¸Ñ‚Ñ‹Ğ²Ğ°ĞµĞ¼ Ğ¾Ğ±ÑŠÑ‘Ğ¼ Ğ¶Ğ¸Ğ´ĞºĞ¾Ñ�Ñ‚Ğ¸
+        # Рассчитываем объём жидкости
         water_content = get_soup_water_content(dish_name)
         water_volume = volume_ml * water_content
         
         async with get_session() as session:
-            # ĞŸĞ¾Ğ»ÑƒÑ‡Ğ°ĞµĞ¼ Ğ¿Ğ¾Ğ»ÑŒĞ·Ğ¾Ğ²Ğ°Ñ‚ĞµĞ»Ñ�
+            # Получаем пользователя
             result = await session.execute(
                 select(User).where(User.telegram_id == user_id)
             )
@@ -127,91 +128,291 @@ async def save_soup(user_id: int, dish_name: str, volume_ml: float, meal_type: s
             if not user:
                 raise ValueError(f"User {user_id} not found")
             
-            # 1. Ğ¡Ğ¾Ñ…Ñ€Ğ°Ğ½Ñ�ĞµĞ¼ ĞºĞ°Ğº Ğ¿Ñ€Ğ¸Ñ‘Ğ¼ Ğ¿Ğ¸Ñ‰Ğ¸ (Meal)
+            # 1. Сохраняем как прием пищи (Meal)
             meal = Meal(
                 user_id=user.id,
                 meal_type=meal_type,
-                datetime=datetime.now(),
+                date=datetime.now(timezone.utc).date(),
+                created_at=datetime.now(timezone.utc),
                 total_calories=nutrition['calories'],
                 total_protein=nutrition['protein'],
                 total_fat=nutrition['fat'],
                 total_carbs=nutrition['carbs'],
-                ai_description=f"{dish_name} ({volume_ml} Ğ¼Ğ»)"
+                ai_description=f"{dish_name} ({volume_ml} мл)"
             )
             session.add(meal)
             await session.flush()
             
-            # 2. Ğ¡Ğ¾Ñ…Ñ€Ğ°Ğ½Ñ�ĞµĞ¼ Ğ¶Ğ¸Ğ´ĞºĞ¾Ñ�Ñ‚ÑŒ (DrinkEntry)
-            drink = DrinkEntry(
-                user_id=user.id,
-                name=f"Ğ²Ğ¾Ğ´Ğ° Ğ¸Ğ· {dish_name}",
-                volume_ml=water_volume,
-                calories=0.0,  # Ğ’Ğ¾Ğ´Ñƒ Ğ¸Ğ· Ñ�ÑƒĞ¿Ğ° Ñ�Ñ‡Ğ¸Ñ‚Ğ°ĞµĞ¼ Ğ±ĞµĞ·ĞºĞ°Ğ»Ğ¾Ñ€Ğ¸Ğ¹Ğ½Ğ¾Ğ¹
-                source='food',  # Ğ˜Ñ�Ñ‚Ğ¾Ñ‡Ğ½Ğ¸Ğº - ĞµĞ´Ğ° (Ñ�ÑƒĞ¿)
-                reference_id=meal.id,  # Ğ¡Ñ�Ñ‹Ğ»ĞºĞ° Ğ½Ğ° Ñ�Ğ²Ñ�Ğ·Ğ°Ğ½Ğ½Ñ‹Ğ¹ Ğ¿Ñ€Ğ¸ĞµĞ¼ Ğ¿Ğ¸Ñ‰Ğ¸
-                datetime=datetime.now(timezone.utc)
+            # 2. Сохраняем ингредиенты для супа
+            food_item = FoodItem(
+                meal_id=meal.id,
+                name=dish_name,
+                quantity=volume_ml,
+                unit='мл',
+                calories=nutrition['calories'],
+                protein=nutrition['protein'],
+                fat=nutrition['fat'],
+                carbs=nutrition['carbs'],
+                created_at=datetime.now(timezone.utc)
             )
-            session.add(drink)
+            session.add(food_item)
+            
+            # 3. Сохраняем как запись воды (если есть поддержка)
+            try:
+                from database.models import WaterEntry
+                
+                water_entry = WaterEntry(
+                    user_id=user.id,
+                    date=datetime.now(timezone.utc).date(),
+                    volume_ml=water_volume,
+                    drink_name=dish_name,
+                    calories_from_food=nutrition['calories'],
+                    created_at=datetime.now(timezone.utc)
+                )
+                session.add(water_entry)
+                
+            except ImportError:
+                # Если модели WaterEntry нет, просто логируем
+                logger.info(f"[SOUP] Water volume calculated: {water_volume}ml for {dish_name}")
+            
             await session.commit()
             
-            logger.info(f"ğŸ�² Ğ¡ÑƒĞ¿ Ñ�Ğ¾Ñ…Ñ€Ğ°Ğ½Ñ‘Ğ½: {dish_name} {volume_ml}Ğ¼Ğ» = {nutrition['calories']:.1f}ĞºĞºĞ°Ğ» + {water_volume:.0f}Ğ¼Ğ» Ğ²Ğ¾Ğ´Ñ‹")
+            logger.info(f"[SOUP] Saved soup: {dish_name} {volume_ml}ml for user {user_id}")
             
             return {
-                "meal_id": meal.id,
-                "drink_id": drink.id,
-                "calories": nutrition['calories'],
-                "water_volume": water_volume
+                'meal_id': meal.id,
+                'food_item_id': food_item.id,
+                'water_volume': water_volume,
+                'nutrition': nutrition
             }
             
     except Exception as e:
-        logger.error(f"Ğ�ÑˆĞ¸Ğ±ĞºĞ° Ğ¿Ñ€Ğ¸ Ñ�Ğ¾Ñ…Ñ€Ğ°Ğ½ĞµĞ½Ğ¸Ğ¸ Ñ�ÑƒĞ¿Ğ°: {e}")
+        logger.error(f"[SOUP] Error saving soup: {e}")
         raise
 
-async def save_drink(user_id: int, text: str):
+def get_soup_categories() -> Dict[str, list]:
     """
-    Ğ¡Ğ¾Ñ…Ñ€Ğ°Ğ½Ñ�ĞµÑ‚ Ğ½Ğ°Ğ¿Ğ¸Ñ‚Ğ¾Ğº Ğ¸Ğ· Ñ‚ĞµĞºÑ�Ñ‚Ğ¾Ğ²Ğ¾Ğ³Ğ¾ Ğ¾Ğ¿Ğ¸Ñ�Ğ°Ğ½Ğ¸Ñ�
+    Возвращает категории супов
+    """
+    return {
+        'russian': ['борщ', 'щи', 'рассольник', 'солянка', 'уха'],
+        'international': ['суп', 'бульон', 'гуляш', 'рагу'],
+        'summer': ['окрошка'],
+        'hearty': ['гуляш', 'рагу', 'картошка']
+    }
+
+def suggest_similar_soups(soup_name: str) -> list:
+    """
+    Предлагает похожие супы
+    """
+    soup_name = soup_name.lower()
+    suggestions = []
     
-    Returns:
-        dict Ñ� Ğ¸Ğ½Ñ„Ğ¾Ñ€Ğ¼Ğ°Ñ†Ğ¸ĞµĞ¹ Ğ¾ Ñ�Ğ¾Ñ…Ñ€Ğ°Ğ½Ñ‘Ğ½Ğ½Ğ¾Ğ¼ Ğ½Ğ°Ğ¿Ğ¸Ñ‚ĞºĞµ
+    categories = get_soup_categories()
+    
+    for category, soups in categories.items():
+        for soup in soups:
+            if soup != soup_name and any(word in soup_name for word in soup.split()[:2]):
+                suggestions.append(soup)
+    
+    return suggestions[:5]  # Максимум 5 предложений
+
+def calculate_total_liquid(meal_items: list) -> float:
+    """
+    Рассчитывает общее количество жидкости в приеме пищи
+    """
+    total_liquid = 0.0
+    
+    for item in meal_items:
+        if is_soup(item['name']):
+            volume = convert_to_grams(item['quantity'], item.get('unit', 'г'))
+            water_content = get_soup_water_content(item['name'])
+            total_liquid += volume * water_content
+    
+    return total_liquid
+
+async def analyze_user_soup_preferences(user_id: int) -> Dict:
+    """
+    Анализирует предпочтения пользователя по супам
     """
     try:
-        # ĞŸĞ°Ñ€Ñ�Ğ¸Ğ¼ Ğ½Ğ°Ğ¿Ğ¸Ñ‚Ğ¾Ğº
-        volume, drink_name, calories = await parse_drink(text)
-        
-        if not volume:
-            raise ValueError("Ğ�Ğµ ÑƒĞ´Ğ°Ğ»Ğ¾Ñ�ÑŒ Ğ¾Ğ¿Ñ€ĞµĞ´ĞµĞ»Ğ¸Ñ‚ÑŒ Ğ¾Ğ±ÑŠÑ‘Ğ¼ Ğ½Ğ°Ğ¿Ğ¸Ñ‚ĞºĞ°")
-        
         async with get_session() as session:
-            # ĞŸĞ¾Ğ»ÑƒÑ‡Ğ°ĞµĞ¼ Ğ¿Ğ¾Ğ»ÑŒĞ·Ğ¾Ğ²Ğ°Ñ‚ĞµĞ»Ñ�
+            # Получаем все приемы супов пользователя
             result = await session.execute(
-                select(User).where(User.telegram_id == user_id)
+                select(Meal, FoodItem)
+                .join(FoodItem, Meal.id == FoodItem.meal_id)
+                .where(
+                    Meal.user_id == user_id,
+                    Meal.ai_description.ilike('%борщ%') |
+                    Meal.ai_description.ilike('%щи%') |
+                    Meal.ai_description.ilike('%суп%') |
+                    Meal.ai_description.ilike('%уха%')
+                )
+                .order_by(Meal.date.desc())
             )
-            user = result.scalar_one_or_none()
             
-            if not user:
-                raise ValueError(f"User {user_id} not found")
+            soup_records = result.all()
             
-            # Ğ¡Ğ¾Ñ…Ñ€Ğ°Ğ½Ñ�ĞµĞ¼ Ğ½Ğ°Ğ¿Ğ¸Ñ‚Ğ¾Ğº
-            drink = DrinkEntry(
-                user_id=user.id,
-                name=drink_name,
-                volume_ml=volume,
-                calories=calories,
-                source='drink',  # Ğ˜Ñ�Ñ‚Ğ¾Ñ‡Ğ½Ğ¸Ğº - Ğ½Ğ°Ğ¿Ğ¸Ñ‚Ğ¾Ğº
-                datetime=datetime.now(timezone.utc)
-            )
-            session.add(drink)
-            await session.commit()
+            if not soup_records:
+                return {
+                    'total_soups': 0,
+                    'favorite_types': [],
+                    'avg_volume': 0,
+                    'last_soups': []
+                }
             
-            logger.info(f"ğŸ¥¤ Ğ�Ğ°Ğ¿Ğ¸Ñ‚Ğ¾Ğº Ñ�Ğ¾Ñ…Ñ€Ğ°Ğ½Ñ‘Ğ½: {drink_name} {volume}Ğ¼Ğ», {calories:.1f}ĞºĞºĞ°Ğ»")
+            # Анализируем данные
+            soup_types = {}
+            volumes = []
+            last_soups = []
+            
+            for meal, food_item in soup_records[:20]:  # Последние 20 записей
+                soup_name = food_item.name
+                volume = food_item.quantity
+                
+                # Считаем типы супов
+                soup_type = 'other'
+                for category, soups in get_soup_categories().items():
+                    if any(soup in soup_name.lower() for soup in soups):
+                        soup_type = category
+                        break
+                
+                soup_types[soup_type] = soup_types.get(soup_type, 0) + 1
+                volumes.append(volume)
+                
+                last_soups.append({
+                    'name': soup_name,
+                    'volume': volume,
+                    'date': meal.date
+                })
+            
+            # Сортируем по популярности
+            favorite_types = sorted(soup_types.items(), key=lambda x: x[1], reverse=True)
             
             return {
-                "drink_id": drink.id,
-                "name": drink_name,
-                "volume": volume,
-                "calories": calories
+                'total_soups': len(soup_records),
+                'favorite_types': favorite_types,
+                'avg_volume': sum(volumes) / len(volumes) if volumes else 0,
+                'last_soups': last_soups[:10]
             }
             
     except Exception as e:
-        logger.error(f"Ğ�ÑˆĞ¸Ğ±ĞºĞ° Ğ¿Ñ€Ğ¸ Ñ�Ğ¾Ñ…Ñ€Ğ°Ğ½ĞµĞ½Ğ¸Ğ¸ Ğ½Ğ°Ğ¿Ğ¸Ñ‚ĞºĞ°: {e}")
-        raise
+        logger.error(f"[SOUP] Error analyzing preferences: {e}")
+        return {
+            'total_soups': 0,
+            'favorite_types': [],
+            'avg_volume': 0,
+            'last_soups': []
+        }
+
+def get_soup_nutrition_tips(soup_name: str) -> list:
+    """
+    Возвращает советы по питательности для супа
+    """
+    tips = []
+    soup_name = soup_name.lower()
+    
+    # Общие советы для всех супов
+    tips.append("Супы помогают поддерживать водный баланс")
+    tips.append("Горячие супы улучшают пищеварение")
+    
+    # Специфические советы
+    if 'борщ' in soup_name:
+        tips.append("Борщ богат клетчаткой и витаминами")
+        tips.append("Свекла в борще улучшает состав крови")
+    
+    elif 'щи' in soup_name:
+        tips.append("Щи содержат много витамина C")
+        tips.append("Капуста в щах полезна для пищеварения")
+    
+    elif 'уха' in soup_name:
+        tips.append("Уха богата омега-3 жирными кислотами")
+        tips.append("Рыбный бульон укрепляет иммунитет")
+    
+    elif 'окрошка' in soup_name:
+        tips.append("Окрошка освежает в жаркую погоду")
+        tips.append("Квас в окрошке улучшает микрофлору кишечника")
+    
+    elif 'гуляш' in soup_name or 'рагу' in soup_name:
+        tips.append("Густые супы более сытные")
+        tips.append("Мясо в супе обеспечивает белком")
+    
+    return tips[:5]  # Максимум 5 советов
+
+async def get_daily_soup_stats(user_id: int, target_date: datetime.date = None) -> Dict:
+    """
+    Возвращает статистику по супам за день
+    """
+    try:
+        if target_date is None:
+            target_date = datetime.now(timezone.utc).date()
+        
+        async with get_session() as session:
+            # Получаем все супы за день
+            result = await session.execute(
+                select(Meal, FoodItem)
+                .join(FoodItem, Meal.id == FoodItem.meal_id)
+                .where(
+                    Meal.user_id == user_id,
+                    Meal.date == target_date,
+                    Meal.ai_description.ilike('%борщ%') |
+                    Meal.ai_description.ilike('%щи%') |
+                    Meal.ai_description.ilike('%суп%') |
+                    Meal.ai_description.ilike('%уха%')
+                )
+            )
+            
+            soup_records = result.all()
+            
+            if not soup_records:
+                return {
+                    'total_soups': 0,
+                    'total_volume': 0,
+                    'total_liquid': 0,
+                    'total_calories': 0,
+                    'soup_types': {}
+                }
+            
+            total_volume = 0
+            total_liquid = 0
+            total_calories = 0
+            soup_types = {}
+            
+            for meal, food_item in soup_records:
+                volume = food_item.quantity
+                soup_name = food_item.name
+                
+                total_volume += volume
+                total_liquid += calculate_total_liquid([{
+                    'name': soup_name,
+                    'quantity': volume,
+                    'unit': 'мл'
+                }])
+                total_calories += meal.total_calories
+                
+                # Считаем типы
+                soup_type = 'other'
+                for category, soups in get_soup_categories().items():
+                    if any(soup in soup_name.lower() for soup in soups):
+                        soup_type = category
+                        break
+                
+                soup_types[soup_type] = soup_types.get(soup_type, 0) + 1
+            
+            return {
+                'total_soups': len(soup_records),
+                'total_volume': total_volume,
+                'total_liquid': total_liquid,
+                'total_calories': total_calories,
+                'soup_types': soup_types
+            }
+            
+    except Exception as e:
+        logger.error(f"[SOUP] Error getting daily stats: {e}")
+        return {
+            'total_soups': 0,
+            'total_volume': 0,
+            'total_liquid': 0,
+            'total_calories': 0,
+            'soup_types': {}
+        }

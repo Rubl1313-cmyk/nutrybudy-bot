@@ -1,8 +1,8 @@
 """
-РљР°Р»СЊРєСѓР»СЏС‚РѕСЂ РєР°Р»РѕСЂРёР№ Рё РЅРѕСЂРј РїРёС‚Р°РЅРёСЏ РґР»СЏ NutriBuddy
-вњ… РџСЂРѕРІРµСЂРµРЅРѕ РїРѕ РґРѕСЃС‚РѕРІРµСЂРЅС‹Рј РёСЃС‚РѕС‡РЅРёРєР°Рј:
-- Mifflin-St Jeor Equation (1990) - Р·РѕР»РѕС‚РѕР№ СЃС‚Р°РЅРґР°СЂС‚
-- WHO/FAO СЂРµРєРѕРјРµРЅРґР°С†РёРё
+Calorie calculator and nutrition norms for NutriBuddy
+✅ Verified by reliable sources:
+- Mifflin-St Jeor Equation (1990) - gold standard
+- WHO/FAO recommendations
 - USDA Dietary Guidelines
 """
 from typing import Tuple
@@ -10,19 +10,19 @@ from typing import Tuple
 
 def calculate_bmr(weight: float, height: float, age: int, gender: str) -> float:
     """
-    Р Р°СЃСЃС‡РёС‚С‹РІР°РµС‚ Р±Р°Р·Р°Р»СЊРЅС‹Р№ РјРµС‚Р°Р±РѕР»РёР·Рј (BMR) РїРѕ С„РѕСЂРјСѓР»Рµ Mifflin-St Jeor.
+    Calculates basal metabolic rate (BMR) using Mifflin-St Jeor formula.
     
-    Р¤РѕСЂРјСѓР»Р° (Mifflin et al., 1990):
-    - РњСѓР¶С‡РёРЅС‹: BMR = 10 Г— РІРµСЃ(РєРі) + 6.25 Г— СЂРѕСЃС‚(СЃРј) в€’ 5 Г— РІРѕР·СЂР°СЃС‚(Р»РµС‚) + 5
-    - Р–РµРЅС‰РёРЅС‹: BMR = 10 Г— РІРµСЃ(РєРі) + 6.25 Г— СЂРѕСЃС‚(СЃРј) в€’ 5 Г— РІРѕР·СЂР°СЃС‚(Р»РµС‚) в€’ 161
+    Formula (Mifflin et al., 1990):
+    - Men: BMR = 10 × weight(kg) + 6.25 × height(cm) − 5 × age(years) + 5
+    - Women: BMR = 10 × weight(kg) + 6.25 × height(cm) − 5 × age(years) − 161
     
-    Р�СЃС‚РѕС‡РЅРёРє: 
+    Source: 
     Mifflin, M. D., St Jeor, S. T., Hill, L. A., Scott, B. J., Daugherty, S. A., 
     & Koh, Y. O. (1990). A new predictive equation for resting energy expenditure 
     in healthy individuals. The American Journal of Clinical Nutrition, 51(2), 241-247.
     
     Returns:
-        float: BMR РІ РєРєР°Р»/РґРµРЅСЊ
+        float: BMR in kcal/day
     """
     if gender == "male":
         bmr = (10 * weight) + (6.25 * height) - (5 * age) + 5
@@ -34,28 +34,32 @@ def calculate_bmr(weight: float, height: float, age: int, gender: str) -> float:
 
 def calculate_tdee(bmr: float, activity_level: str) -> float:
     """
-    Р Р°СЃСЃС‡РёС‚С‹РІР°РµС‚ РѕР±С‰РёР№ СЂР°СЃС…РѕРґ СЌРЅРµСЂРіРёРё (TDEE) СЃ СѓС‡С‘С‚РѕРј Р°РєС‚РёРІРЅРѕСЃС‚Рё.
+    Calculates total daily energy expenditure (TDEE) considering activity.
     
-    РљРѕСЌС„С„РёС†РёРµРЅС‚С‹ Р°РєС‚РёРІРЅРѕСЃС‚Рё (Harris-Benedict):
-    - low (СЃРёРґСЏС‡РёР№): BMR Г— 1.2
-    - medium (СЃСЂРµРґРЅРёР№): BMR Г— 1.55
-    - high (РІС‹СЃРѕРєРёР№): BMR Г— 1.725
+    Activity coefficients (Harris-Benedict):
+    - low (sedentary): BMR × 1.2
+    - medium (moderate): BMR × 1.55
+    - high (active): BMR × 1.725
     
-    Р�СЃС‚РѕС‡РЅРёРє:
+    Source:
     Harris, J. A., & Benedict, F. G. (1918). A Biometric Study of Human Basal Metabolism.
     Proceedings of the National Academy of Sciences, 4(12), 370-373.
     
     Returns:
-        float: TDEE РІ РєРєР°Р»/РґРµРЅСЊ
+        float: TDEE in kcal/day
     """
     activity_multipliers = {
-        "low": 1.2,        # РЎРёРґСЏС‡РёР№ РѕР±СЂР°Р· Р¶РёР·РЅРё (РѕС„РёСЃРЅР°СЏ СЂР°Р±РѕС‚Р°)
-        "medium": 1.55,    # РЎСЂРµРґРЅСЏСЏ Р°РєС‚РёРІРЅРѕСЃС‚СЊ (С‚СЂРµРЅРёСЂРѕРІРєРё 3-5 СЂР°Р·/РЅРµРґРµР»СЋ)
-        "high": 1.725      # Р’С‹СЃРѕРєР°СЏ Р°РєС‚РёРІРЅРѕСЃС‚СЊ (С„РёР·РёС‡РµСЃРєР°СЏ СЂР°Р±РѕС‚Р° + С‚СЂРµРЅРёСЂРѕРІРєРё)
+        "sedentary": 1.2,
+        "light": 1.375,
+        "moderate": 1.55,
+        "active": 1.725,
+        "very_active": 1.9
     }
     
-    multiplier = activity_multipliers.get(activity_level, 1.55)
-    return round(bmr * multiplier, 1)
+    multiplier = activity_multipliers.get(activity_level, 1.55)  # default to moderate
+    tdee = bmr * multiplier
+    
+    return round(tdee, 1)
 
 
 def calculate_calorie_goal(
@@ -67,182 +71,519 @@ def calculate_calorie_goal(
     goal: str
 ) -> Tuple[float, float, float, float]:
     """
-    Р Р°СЃСЃС‡РёС‚С‹РІР°РµС‚ РґРЅРµРІРЅСѓСЋ РЅРѕСЂРјСѓ РєР°Р»РѕСЂРёР№ Рё Р‘Р–РЈ.
+    Calculates daily calorie and macronutrient goals.
     
-    Р¦РµР»Рё:
-    - lose (РїРѕС…СѓРґРµРЅРёРµ): TDEE - 500 РєРєР°Р» (РґРµС„РёС†РёС‚ ~0.5 РєРі/РЅРµРґРµР»СЋ)
-    - maintain (РїРѕРґРґРµСЂР¶Р°РЅРёРµ): TDEE
-    - gain (РЅР°Р±РѕСЂ): TDEE + 300 РєРєР°Р» (РїСЂРѕС„РёС†РёС‚ РґР»СЏ РЅР°Р±РѕСЂР° РјС‹С€С†)
-    
-    Р Р°СЃРїСЂРµРґРµР»РµРЅРёРµ Р‘Р–РЈ (РїРѕ СЂРµРєРѕРјРµРЅРґР°С†РёСЏРј WHO/FAO):
-    - Р‘РµР»РєРё: 15-20% РѕС‚ РєР°Р»РѕСЂРёР№ (4 РєРєР°Р»/Рі)
-    - Р–РёСЂС‹: 25-30% РѕС‚ РєР°Р»РѕСЂРёР№ (9 РєРєР°Р»/Рі)
-    - РЈРіР»РµРІРѕРґС‹: 50-55% РѕС‚ РєР°Р»РѕСЂРёР№ (4 РєРєР°Р»/Рі)
-    
-    Р�СЃС‚РѕС‡РЅРёРєРё:
-    - WHO/FAO (2003). Diet, Nutrition and the Prevention of Chronic Diseases
-    - USDA Dietary Guidelines for Americans 2020-2025
+    Args:
+        weight: Weight in kg
+        height: Height in cm
+        age: Age in years
+        gender: "male" or "female"
+        activity_level: "sedentary", "light", "moderate", "active", "very_active"
+        goal: "lose_weight", "gain_weight", "maintenance"
     
     Returns:
-        Tuple: (calories, protein_g, fat_g, carbs_g)
+        Tuple of (calories, protein_g, fat_g, carbs_g)
     """
-    # Р Р°СЃСЃС‡РёС‚С‹РІР°РµРј BMR Рё TDEE
+    # Calculate BMR and TDEE
     bmr = calculate_bmr(weight, height, age, gender)
     tdee = calculate_tdee(bmr, activity_level)
     
-    # РљРѕСЂСЂРµРєС‚РёСЂСѓРµРј РїРѕРґ С†РµР»СЊ
-    goal_multipliers = {
-        "lose": -500,        # Р”РµС„РёС†РёС‚ 500 РєРєР°Р»/РґРµРЅСЊ (~0.5 РєРі/РЅРµРґРµР»СЋ)
-        "maintain": 0,       # Р‘РµР· РёР·РјРµРЅРµРЅРёР№
-        "gain": 300          # РџСЂРѕС„РёС†РёС‚ 300 РєРєР°Р»/РґРµРЅСЊ (РјРµРґР»РµРЅРЅС‹Р№ РЅР°Р±РѕСЂ РјС‹С€С†)
+    # Adjust calories based on goal
+    if goal == "lose_weight":
+        # Deficit of 500 kcal/day for ~0.5 kg/week weight loss
+        calories = tdee - 500
+    elif goal == "gain_weight":
+        # Surplus of 300-500 kcal/day for lean mass gain
+        calories = tdee + 400
+    else:  # maintenance
+        calories = tdee
+    
+    # Ensure minimum safe calorie levels
+    if gender == "male":
+        calories = max(calories, 1500)  # Minimum for men
+    else:
+        calories = max(calories, 1200)  # Minimum for women
+    
+    # Calculate protein based on body weight and goal
+    if goal == "gain_weight":
+        protein_per_kg = 2.0  # Higher protein for muscle gain
+    elif goal == "lose_weight":
+        protein_per_kg = 2.2  # Higher protein to preserve muscle during deficit
+    else:
+        protein_per_kg = 1.6  # Standard recommendation
+    
+    protein_g = round(weight * protein_per_kg, 1)
+    
+    # Calculate fat (20-35% of total calories)
+    fat_percentage = 0.25  # 25% of calories from fat
+    fat_calories = calories * fat_percentage
+    fat_g = round(fat_calories / 9, 1)  # 9 kcal per gram of fat
+    
+    # Calculate carbs (remaining calories)
+    protein_calories = protein_g * 4  # 4 kcal per gram of protein
+    carbs_calories = calories - protein_calories - fat_calories
+    carbs_g = round(carbs_calories / 4, 1)  # 4 kcal per gram of carbs
+    
+    return round(calories), protein_g, fat_g, carbs_g
+
+
+def calculate_water_goal(
+    weight: float,
+    activity_level: str,
+    temperature: float = 20.0,
+    goal: str = "maintenance",
+    gender: str = "male"
+) -> int:
+    """
+    Calculates daily water intake goal.
+    
+    Args:
+        weight: Weight in kg
+        activity_level: Activity level
+        temperature: Temperature in Celsius
+        goal: Fitness goal
+        gender: "male" or "female"
+    
+    Returns:
+        int: Water goal in ml
+    """
+    # Base water requirement: 30-35 ml per kg body weight
+    base_water = weight * 33  # ml/kg
+    
+    # Adjust for activity level
+    activity_adjustments = {
+        "sedentary": 0.0,
+        "light": 500,      # +500ml for light activity
+        "moderate": 1000,  # +1000ml for moderate activity
+        "active": 1500,    # +1500ml for active lifestyle
+        "very_active": 2000  # +2000ml for very active
     }
     
-    adjustment = goal_multipliers.get(goal, 0)
-    calorie_goal = tdee + adjustment
+    water_intake = base_water + activity_adjustments.get(activity_level, 0)
     
-    # рџ”Ґ Р‘РµР·РѕРїР°СЃРЅС‹Р№ РјРёРЅРёРјСѓРј РєР°Р»РѕСЂРёР№ (РїРѕ СЂРµРєРѕРјРµРЅРґР°С†РёСЏРј NIH)
-    min_calories = 1200 if gender == "female" else 1500
-    calorie_goal = max(calorie_goal, min_calories)
+    # Temperature adjustment (for hot weather)
+    if temperature > 25:
+        temp_adjustment = (temperature - 25) * 100  # +100ml per degree above 25°C
+        water_intake += temp_adjustment
     
-    # Р Р°СЃСЃС‡РёС‚С‹РІР°РµРј Р‘Р–РЈ
-    # рџ”Ґ Р”Р»СЏ РїРѕС…СѓРґРµРЅРёСЏ: Р±РѕР»СЊС€Рµ Р±РµР»РєР° (30%), РјРµРЅСЊС€Рµ СѓРіР»РµРІРѕРґРѕРІ (40%)
-    if goal == "lose":
-        protein_pct = 0.30
-        fat_pct = 0.30
-        carbs_pct = 0.40
-    # рџ”Ґ Р”Р»СЏ РЅР°Р±РѕСЂР°: Р±РѕР»СЊС€Рµ СѓРіР»РµРІРѕРґРѕРІ (50%)
-    elif goal == "gain":
-        protein_pct = 0.25
-        fat_pct = 0.25
-        carbs_pct = 0.50
-    # рџ”Ґ Р”Р»СЏ РїРѕРґРґРµСЂР¶Р°РЅРёСЏ: СЃР±Р°Р»Р°РЅСЃРёСЂРѕРІР°РЅРЅРѕ
+    # Goal adjustments
+    if goal == "lose_weight":
+        water_intake += 500  # Extra water for weight loss
+    elif goal == "gain_weight":
+        water_intake += 300  # Slightly more for muscle building
+    
+    # Gender adjustments
+    if gender == "male":
+        water_intake *= 1.1  # Men typically need more water
+    
+    # Round to nearest 100ml
+    water_goal = int(round(water_intake / 100) * 100)
+    
+    # Set reasonable limits
+    water_goal = max(water_goal, 1500)   # Minimum 1.5L
+    water_goal = min(water_goal, 6000)   # Maximum 6L
+    
+    return water_goal
+
+
+def calculate_bmi(weight: float, height: float) -> float:
+    """
+    Calculates Body Mass Index (BMI).
+    
+    Args:
+        weight: Weight in kg
+        height: Height in cm
+    
+    Returns:
+        float: BMI value
+    """
+    height_m = height / 100  # Convert cm to meters
+    bmi = weight / (height_m ** 2)
+    
+    return round(bmi, 1)
+
+
+def get_bmi_category(bmi: float) -> str:
+    """
+    Gets BMI category according to WHO classification.
+    
+    Args:
+        bmi: BMI value
+    
+    Returns:
+        str: BMI category
+    """
+    if bmi < 18.5:
+        return "underweight"
+    elif bmi < 25:
+        return "normal"
+    elif bmi < 30:
+        return "overweight"
     else:
-        protein_pct = 0.20
-        fat_pct = 0.30
-        carbs_pct = 0.50
+        return "obese"
+
+
+def calculate_ideal_weight(height: float, gender: str) -> Tuple[float, float]:
+    """
+    Calculates ideal weight range using Devine formula.
     
-    # РљРѕРЅРІРµСЂС‚РёСЂСѓРµРј РїСЂРѕС†РµРЅС‚С‹ РІ РіСЂР°РјРјС‹
-    protein_g = (calorie_goal * protein_pct) / 4  # 4 РєРєР°Р»/Рі
-    fat_g = (calorie_goal * fat_pct) / 9          # 9 РєРєР°Р»/Рі
-    carbs_g = (calorie_goal * carbs_pct) / 4      # 4 РєРєР°Р»/Рі
+    Args:
+        height: Height in cm
+        gender: "male" or "female"
     
+    Returns:
+        Tuple of (min_ideal_weight, max_ideal_weight)
+    """
+    if gender == "male":
+        # Devine formula for men: 50kg + 2.3kg per inch over 5 feet
+        base_weight = 50.0
+        height_in_inches = (height / 2.54) - 60  # Convert to inches and subtract 5 feet
+    else:
+        # Devine formula for women: 45.5kg + 2.3kg per inch over 5 feet
+        base_weight = 45.5
+        height_in_inches = (height / 2.54) - 60
+    
+    ideal_weight = base_weight + (2.3 * height_in_inches)
+    
+    # Create range (±10%)
+    min_weight = ideal_weight * 0.9
+    max_weight = ideal_weight * 1.1
+    
+    return round(min_weight, 1), round(max_weight, 1)
+
+
+def calculate_body_fat_percentage(weight: float, height: float, age: int, gender: str) -> float:
+    """
+    Estimates body fat percentage using BMI method (Deurenberg formula).
+    
+    Args:
+        weight: Weight in kg
+        height: Height in cm
+        age: Age in years
+        gender: "male" or "female"
+    
+    Returns:
+        float: Estimated body fat percentage
+    """
+    bmi = calculate_bmi(weight, height)
+    
+    if gender == "male":
+        # Deurenberg formula for men
+        body_fat = (1.20 * bmi) + (0.23 * age) - 16.2
+    else:
+        # Deurenberg formula for women
+        body_fat = (1.20 * bmi) + (0.23 * age) - 5.4
+    
+    return max(0, round(body_fat, 1))
+
+
+def get_body_fat_category(age: int, gender: str, body_fat: float) -> str:
+    """
+    Gets body fat category based on age and gender.
+    
+    Args:
+        age: Age in years
+        gender: "male" or "female"
+        body_fat: Body fat percentage
+    
+    Returns:
+        str: Body fat category
+    """
+    if gender == "male":
+        if age < 30:
+            if body_fat < 8: return "essential_fat"
+            elif body_fat < 15: return "athletic"
+            elif body_fat < 20: return "fitness"
+            elif body_fat < 25: return "average"
+            else: return "obese"
+        elif age < 40:
+            if body_fat < 11: return "essential_fat"
+            elif body_fat < 17: return "athletic"
+            elif body_fat < 22: return "fitness"
+            elif body_fat < 27: return "average"
+            else: return "obese"
+        else:
+            if body_fat < 13: return "essential_fat"
+            elif body_fat < 19: return "athletic"
+            elif body_fat < 24: return "fitness"
+            elif body_fat < 29: return "average"
+            else: return "obese"
+    else:  # female
+        if age < 30:
+            if body_fat < 21: return "essential_fat"
+            elif body_fat < 24: return "athletic"
+            elif body_fat < 28: return "fitness"
+            elif body_fat < 32: return "average"
+            else: return "obese"
+        elif age < 40:
+            if body_fat < 23: return "essential_fat"
+            elif body_fat < 26: return "athletic"
+            elif body_fat < 30: return "fitness"
+            elif body_fat < 34: return "average"
+            else: return "obese"
+        else:
+            if body_fat < 25: return "essential_fat"
+            elif body_fat < 28: return "athletic"
+            elif body_fat < 32: return "fitness"
+            elif body_fat < 36: return "average"
+            else: return "obese"
+
+
+def calculate_lean_body_mass(weight: float, body_fat_percentage: float) -> float:
+    """
+    Calculates lean body mass.
+    
+    Args:
+        weight: Weight in kg
+        body_fat_percentage: Body fat percentage
+    
+    Returns:
+        float: Lean body mass in kg
+    """
+    fat_mass = weight * (body_fat_percentage / 100)
+    lean_mass = weight - fat_mass
+    
+    return round(lean_mass, 1)
+
+
+def calculate_calorie_burn_rate(
+    weight: float,
+    height: float,
+    age: int,
+    gender: str,
+    activity_level: str
+) -> Dict[str, float]:
+    """
+    Calculates calorie burn rate for different activities.
+    
+    Args:
+        weight: Weight in kg
+        height: Height in cm
+        age: Age in years
+        gender: "male" or "female"
+        activity_level: Activity level
+    
+    Returns:
+        Dict with activity burn rates (kcal per hour)
+    """
+    bmr = calculate_bmr(weight, height, age, gender)
+    
+    # MET values (Metabolic Equivalent of Task)
+    activities = {
+        "resting": 1.0,      # Sitting, resting
+        "walking": 3.5,      # Moderate walking
+        "running": 8.0,      # Running
+        "cycling": 6.0,      # Moderate cycling
+        "swimming": 7.0,     # Moderate swimming
+        "strength": 6.0,     # Weight training
+        "yoga": 2.5,         # Yoga
+        "dancing": 4.5,      # Social dancing
+        "cleaning": 3.0,     # House cleaning
+        "gardening": 4.0,    # Gardening
+    }
+    
+    # Calculate calories per hour for each activity
+    burn_rates = {}
+    for activity, met_value in activities.items():
+        # Calories per hour = BMR × MET value ÷ 24
+        calories_per_hour = (bmr * met_value) / 24
+        burn_rates[activity] = round(calories_per_hour, 1)
+    
+    return burn_rates
+
+
+def calculate_weight_change_timeline(
+    current_weight: float,
+    target_weight: float,
+    daily_calorie_difference: int
+) -> Dict[str, any]:
+    """
+    Calculates timeline for weight change.
+    
+    Args:
+        current_weight: Current weight in kg
+        target_weight: Target weight in kg
+        daily_calorie_difference: Daily calorie difference (+ for surplus, - for deficit)
+    
+    Returns:
+        Dict with timeline information
+    """
+    weight_difference = target_weight - current_weight
+    
+    # 7700 kcal = 1 kg of body weight
+    total_calorie_difference = abs(weight_difference) * 7700
+    
+    if daily_calorie_difference == 0:
+        return {
+            "days_to_goal": float('inf'),
+            "weeks_to_goal": float('inf'),
+            "months_to_goal": float('inf'),
+            "daily_weight_change": 0,
+            "weekly_weight_change": 0
+        }
+    
+    days_to_goal = total_calorie_difference / abs(daily_calorie_difference)
+    daily_weight_change = daily_calorie_difference / 7700  # kg per day
+    
+    return {
+        "days_to_goal": round(days_to_goal, 1),
+        "weeks_to_goal": round(days_to_goal / 7, 1),
+        "months_to_goal": round(days_to_goal / 30, 1),
+        "daily_weight_change": round(daily_weight_change, 3),
+        "weekly_weight_change": round(daily_weight_change * 7, 2)
+    }
+
+
+def get_nutrition_recommendations(
+    calories: float,
+    protein: float,
+    fat: float,
+    carbs: float
+) -> Dict[str, str]:
+    """
+    Gets nutrition recommendations based on calculated goals.
+    
+    Args:
+        calories: Daily calorie goal
+        protein: Daily protein goal in grams
+        fat: Daily fat goal in grams
+        carbs: Daily carbs goal in grams
+    
+    Returns:
+        Dict with recommendations
+    """
+    recommendations = {}
+    
+    # Protein recommendations
+    if protein < 50:
+        recommendations["protein"] = "Consider increasing protein intake for better muscle maintenance"
+    elif protein > 200:
+        recommendations["protein"] = "Very high protein intake - ensure adequate hydration"
+    else:
+        recommendations["protein"] = "Protein intake is within recommended range"
+    
+    # Fat recommendations
+    fat_percentage = (fat * 9) / calories * 100
+    if fat_percentage < 20:
+        recommendations["fat"] = "Fat intake is low - consider healthy fats for hormone production"
+    elif fat_percentage > 35:
+        recommendations["fat"] = "Fat intake is high - consider reducing saturated fats"
+    else:
+        recommendations["fat"] = "Fat intake is within recommended range"
+    
+    # Carbs recommendations
+    carbs_percentage = (carbs * 4) / calories * 100
+    if carbs_percentage < 45:
+        recommendations["carbs"] = "Low carb approach - ensure adequate fiber intake"
+    elif carbs_percentage > 65:
+        recommendations["carbs"] = "High carb intake - focus on complex carbohydrates"
+    else:
+        recommendations["carbs"] = "Carb intake is within recommended range"
+    
+    # Overall recommendations
+    if calories < 1200:
+        recommendations["overall"] = "Very low calorie intake - consult with nutritionist"
+    elif calories > 4000:
+        recommendations["overall"] = "Very high calorie intake - ensure balanced nutrition"
+    else:
+        recommendations["overall"] = "Calorie intake is appropriate for weight management"
+    
+    return recommendations
+
+
+# =============================================================================
+# 🎯 UTILITY FUNCTIONS
+# =============================================================================
+def format_nutrition_goals(calories: float, protein: float, fat: float, carbs: float) -> str:
+    """
+    Formats nutrition goals into readable string.
+    
+    Args:
+        calories: Daily calorie goal
+        protein: Daily protein goal in grams
+        fat: Daily fat goal in grams
+        carbs: Daily carbs goal in grams
+    
+    Returns:
+        str: Formatted nutrition goals
+    """
     return (
-        round(calorie_goal, 1),
-        round(protein_g, 1),
-        round(fat_g, 1),
-        round(carbs_g, 1)
+        f"🔥 Calories: {calories:.0f} kcal\n"
+        f"🥩 Protein: {protein:.1f} g\n"
+        f"🧈 Fat: {fat:.1f} g\n"
+        f"🍞 Carbs: {carbs:.1f} g"
     )
 
 
-def calculate_water_goal(weight: float, activity_level: str, temperature: float, goal: str = "maintain", gender: str = "male") -> float:
+def calculate_macronutrient_percentages(protein: float, fat: float, carbs: float) -> Dict[str, float]:
     """
-    Р Р°СЃСЃС‡РёС‚С‹РІР°РµС‚ РЅРѕСЂРјСѓ РїРѕС‚СЂРµР±Р»РµРЅРёСЏ Р¶РёРґРєРѕСЃС‚Рё СЃ СѓС‡РµС‚РѕРј С†РµР»Рё Рё РїРѕР»Р°.
-    
-    Р¤РѕСЂРјСѓР»Р° (Institute of Medicine):
-    - Р‘Р°Р·РѕРІР°СЏ: 30 РјР» РЅР° 1 РєРі РІРµСЃР° (РІРєР»СЋС‡Р°РµС‚ РІСЃСЋ Р¶РёРґРєРѕСЃС‚СЊ)
-    - РџРѕР»: +200 РјР» РґР»СЏ РјСѓР¶С‡РёРЅ, -100 РјР» РґР»СЏ Р¶РµРЅС‰РёРЅ (EFSA 2024)
-    - РђРєС‚РёРІРЅРѕСЃС‚СЊ: +500 РјР» РїСЂРё СЃСЂРµРґРЅРµР№, +1000 РјР» РїСЂРё РІС‹СЃРѕРєРѕР№
-    - РўРµРјРїРµСЂР°С‚СѓСЂР°: +200 РјР» РЅР° РєР°Р¶РґС‹Рµ 10В°C РІС‹С€Рµ 20В°C
-    - Р¦РµР»СЊ: +500 РјР» РґР»СЏ РїРѕС…СѓРґРµРЅРёСЏ (РґРѕРїРѕР»РЅРёС‚РµР»СЊРЅР°СЏ РІРѕРґР° РїРµСЂРµРґ РµРґРѕР№)
-    
-    Р�СЃС‚РѕС‡РЅРёРєРё (РѕР±РЅРѕРІР»РµРЅРѕ 2024-2026):
-    - Institute of Medicine (2005). Dietary Reference Intakes for Water
-      Р РµРєРѕРјРµРЅРґР°С†РёРё РІРєР»СЋС‡Р°СЋС‚ Р’РЎР® Р¶РёРґРєРѕСЃС‚СЊ (РІРѕРґР°, РЅР°РїРёС‚РєРё, РїРёС‰Р°)
-    - EFSA Panel on Dietetic Products (2010)
-      2.0 Р» РґР»СЏ Р¶РµРЅС‰РёРЅ, 2.5 Р» РґР»СЏ РјСѓР¶С‡РёРЅ (РѕР±С‰Р°СЏ Р¶РёРґРєРѕСЃС‚СЊ)
-    - Systematic Review Hakam et al (2024, JAMA Network Open)
-      18 Р РљРў РїРѕРєР°Р·Р°Р»Рё СЃС‚Р°С‚РёСЃС‚РёС‡РµСЃРєРё Р·РЅР°С‡РёРјРѕРµ СЃРЅРёР¶РµРЅРёРµ РІРµСЃР° РїСЂРё СѓРІРµР»РёС‡РµРЅРёРё РїРѕС‚СЂРµР±Р»РµРЅРёСЏ РІРѕРґС‹
-    - Van Walleghen et al (2024): 500 РјР» РІРѕРґС‹ РїРµСЂРµРґ РµРґРѕР№ СЃРЅРёР¶Р°РµС‚ РїРѕС‚СЂРµР±Р»РµРЅРёРµ РЅР° 111 РєРєР°Р»
-    - Davy et al (2024): 13% СЃРЅРёР¶РµРЅРёРµ РєР°Р»РѕСЂРёР№РЅРѕСЃС‚Рё РїСЂРёРµРјР° РїРёС‰Рё СЃ РІРѕРґРѕР№ РїРµСЂРµРґ РµРґРѕР№
-    - EFSA (2024): 20-30% Р¶РёРґРєРѕСЃС‚Рё РїРѕСЃС‚СѓРїР°РµС‚ РёР· РїРёС‰Рё
-    
-    РќР°СѓС‡РЅС‹Рµ С‚СЂРµРЅРґС‹ 2024-2026:
-    - Р”РѕРїРѕР»РЅРёС‚РµР»СЊРЅР°СЏ РІРѕРґР° (500 РјР» РїРµСЂРµРґ РµРґРѕР№) - РЅР°РёР±РѕР»РµРµ СЌС„С„РµРєС‚РёРІРЅР°СЏ СЃС‚СЂР°С‚РµРіРёСЏ
-    - Р—Р°РјРµРЅР° СЃР»Р°РґРєРёС… РЅР°РїРёС‚РєРѕРІ РІРѕРґРѕР№ СЃРЅРёР¶Р°РµС‚ РЅР°Р±РѕСЂ РІРµСЃР° РЅР° 0.5 РєРі Р·Р° 4 РіРѕРґР°
-    - Р“РёРґСЂР°С‚Р°С†РёСЏ СѓР»СѓС‡С€Р°РµС‚ РєРѕРЅС‚СЂРѕР»СЊ РіР»СЋРєРѕР·С‹ РїСЂРё РґРёР°Р±РµС‚Рµ (FBG)
-    - Р’РѕРґР° СЃС‚РёРјСѓР»РёСЂСѓРµС‚ СЃРёРјРїР°С‚РёС‡РµСЃРєСѓСЋ СЃРёСЃС‚РµРјСѓ, РїРѕРІС‹С€Р°СЏ СЂР°СЃС…РѕРґ РєР°Р»РѕСЂРёР№
-    
-    РџСЂРёРјРµС‡Р°РЅРёРµ:
-    - 20-30% Р¶РёРґРєРѕСЃС‚Рё РїРѕСЃС‚СѓРїР°РµС‚ РёР· РїРёС‰Рё (EFSA 2024)
-    - 70-80% РёР· РЅР°РїРёС‚РєРѕРІ (РІРѕРґР°, С‡Р°Р№, РєРѕС„Рµ, СЃРѕРєРё)
-    - Р”РѕРїРѕР»РЅРёС‚РµР»СЊРЅР°СЏ РІРѕРґР° СѓСЃРёР»РёРІР°РµС‚ РЅР°СЃС‹С‰РµРЅРёРµ Рё СЃРЅРёР¶Р°РµС‚ РїРѕС‚СЂРµР±Р»РµРЅРёРµ РїРёС‰Рё
-    - Р—Р°РјРµРЅР° РєР°Р»РѕСЂРёР№РЅС‹С… РЅР°РїРёС‚РєРѕРІ - РєР»СЋС‡РµРІРѕР№ С„Р°РєС‚РѕСЂ РїРѕС…СѓРґРµРЅРёСЏ
+    Calculates macronutrient percentages.
     
     Args:
-        weight: РІРµСЃ РІ РєРі
-        activity_level: СѓСЂРѕРІРµРЅСЊ Р°РєС‚РёРІРЅРѕСЃС‚Рё (low/medium/high)
-        temperature: С‚РµРјРїРµСЂР°С‚СѓСЂР° РІ В°C
-        goal: С†РµР»СЊ (lose_weight/maintain/gain_weight)
-        gender: РїРѕР» (male/female)
+        protein: Protein in grams
+        fat: Fat in grams
+        carbs: Carbs in grams
     
     Returns:
-        float: РќРѕСЂРјР° РћР‘Р©Р•Р™ Р¶РёРґРєРѕСЃС‚Рё РІ РјР»/РґРµРЅСЊ
+        Dict with percentages
     """
-    # Р‘Р°Р·РѕРІР°СЏ РЅРѕСЂРјР°: 30 РјР» РЅР° 1 РєРі
-    base_water = weight * 30
+    protein_calories = protein * 4
+    fat_calories = fat * 9
+    carbs_calories = carbs * 4
+    total_calories = protein_calories + fat_calories + carbs_calories
     
-    # РљРѕСЂСЂРµРєС†РёСЏ РЅР° РїРѕР» (EFSA 2024)
-    gender_adjustment = 200 if gender == "male" else -100
-    total_water = base_water + gender_adjustment
-    
-    # РљРѕСЂСЂРµРєС†РёСЏ РЅР° Р°РєС‚РёРІРЅРѕСЃС‚СЊ
-    activity_additions = {
-        "low": 0,
-        "medium": 500,
-        "high": 1000
-    }
-    activity_water = activity_additions.get(activity_level, 0)
-    total_water += activity_water
-    
-    # РљРѕСЂСЂРµРєС†РёСЏ РЅР° С‚РµРјРїРµСЂР°С‚СѓСЂСѓ
-    temp_water = 0
-    if temperature > 20:
-        temp_water = ((temperature - 20) / 10) * 200
-    total_water += temp_water
-    
-    # РљРѕСЂСЂРµРєС†РёСЏ РЅР° С†РµР»СЊ (РѕСЃРЅРѕРІР°РЅРѕ РЅР° РёСЃСЃР»РµРґРѕРІР°РЅРёСЏС… 2024-2026)
-    if goal == "lose_weight":
-        total_water += 500  # РґРѕРїРѕР»РЅРёС‚РµР»СЊРЅР°СЏ РІРѕРґР° РїРµСЂРµРґ РµРґРѕР№ (500 РјР» x 2 РѕСЃРЅРѕРІРЅС‹С… РїСЂРёРµРјР°)
-        # Van Walleghen 2024: 500 РјР» РїРµСЂРµРґ РµРґРѕР№ СЃРЅРёР¶Р°РµС‚ РїРѕС‚СЂРµР±Р»РµРЅРёРµ РЅР° 111 РєРєР°Р»
-        # Davy 2024: 13% СЃРЅРёР¶РµРЅРёРµ РєР°Р»РѕСЂРёР№РЅРѕСЃС‚Рё РїСЂРёРµРјР° РїРёС‰Рё
-        # Hakam 2024: СЃС‚Р°С‚РёСЃС‚РёС‡РµСЃРєРё Р·РЅР°С‡РёРјРѕРµ СЃРЅРёР¶РµРЅРёРµ РІРµСЃР° РІ 18 Р РљРў
-    elif goal == "gain_weight":
-        # Р”Р»СЏ РЅР°Р±РѕСЂР° РјР°СЃСЃС‹ РѕСЃС‚Р°РІР»СЏРµРј Р±Р°Р·РѕРІСѓСЋ РЅРѕСЂРјСѓ
-        pass
-    # Р”Р»СЏ maintain РѕСЃС‚Р°РІР»СЏРµРј Р±РµР· РёР·РјРµРЅРµРЅРёР№
-    
-    return round(total_water, 1)
-
-
-def calculate_calorie_balance(consumed: float, burned: float, goal: float) -> dict:
-    """
-    Р Р°СЃСЃС‡РёС‚С‹РІР°РµС‚ Р±Р°Р»Р°РЅСЃ РєР°Р»РѕСЂРёР№ Р·Р° РґРµРЅСЊ.
-    
-    Returns:
-        dict: {
-            'consumed': РїРѕС‚СЂРµР±Р»РµРЅРѕ,
-            'burned': СЃРѕР¶Р¶РµРЅРѕ,
-            'goal': С†РµР»СЊ,
-            'balance': Р±Р°Р»Р°РЅСЃ (consumed - burned),
-            'remaining': РѕСЃС‚Р°Р»РѕСЃСЊ РґРѕ С†РµР»Рё,
-            'status': СЃС‚Р°С‚СѓСЃ ('вњ… Р’ РЅРѕСЂРјРµ', 'вљ пёЏ РџСЂРµРІС‹С€РµРЅРёРµ', 'рџ”Ґ Р”РµС„РёС†РёС‚')
-        }
-    """
-    balance = consumed - burned
-    remaining = goal - balance
-    
-    if remaining > 100:
-        status = "рџ”Ґ Р’ РґРµС„РёС†РёС‚Рµ"
-    elif remaining < -100:
-        status = "вљ пёЏ РџСЂРµРІС‹С€РµРЅРёРµ"
-    else:
-        status = "вњ… Р’ РЅРѕСЂРјРµ"
+    if total_calories == 0:
+        return {"protein": 0, "fat": 0, "carbs": 0}
     
     return {
-        'consumed': round(consumed, 1),
-        'burned': round(burned, 1),
-        'goal': round(goal, 1),
-        'balance': round(balance, 1),
-        'remaining': round(remaining, 1),
-        'status': status
+        "protein": round((protein_calories / total_calories) * 100, 1),
+        "fat": round((fat_calories / total_calories) * 100, 1),
+        "carbs": round((carbs_calories / total_calories) * 100, 1)
     }
+
+
+def validate_nutrition_inputs(
+    weight: float,
+    height: float,
+    age: int,
+    gender: str,
+    activity_level: str,
+    goal: str
+) -> Dict[str, str]:
+    """
+    Validates nutrition calculation inputs.
+    
+    Args:
+        weight: Weight in kg
+        height: Height in cm
+        age: Age in years
+        gender: "male" or "female"
+        activity_level: Activity level
+        goal: Fitness goal
+    
+    Returns:
+        Dict with validation errors
+    """
+    errors = {}
+    
+    if weight < 30 or weight > 300:
+        errors["weight"] = "Weight must be between 30 and 300 kg"
+    
+    if height < 100 or height > 250:
+        errors["height"] = "Height must be between 100 and 250 cm"
+    
+    if age < 10 or age > 120:
+        errors["age"] = "Age must be between 10 and 120 years"
+    
+    if gender not in ["male", "female"]:
+        errors["gender"] = "Gender must be 'male' or 'female'"
+    
+    valid_activities = ["sedentary", "light", "moderate", "active", "very_active"]
+    if activity_level not in valid_activities:
+        errors["activity_level"] = f"Activity level must be one of: {', '.join(valid_activities)}"
+    
+    valid_goals = ["lose_weight", "gain_weight", "maintenance"]
+    if goal not in valid_goals:
+        errors["goal"] = f"Goal must be one of: {', '.join(valid_goals)}"
+    
+    return errors

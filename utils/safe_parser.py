@@ -1,73 +1,73 @@
 """
-Ğ£Ñ‚Ğ¸Ğ»Ğ¸Ñ‚Ñ‹ Ğ´Ğ»Ñ� Ğ±ĞµĞ·Ğ¾Ğ¿Ğ°Ñ�Ğ½Ğ¾Ğ³Ğ¾ Ğ¿Ğ°Ñ€Ñ�Ğ¸Ğ½Ğ³Ğ° Ñ‡Ğ¸Ñ�ĞµĞ» Ğ¸Ğ· Ğ¿Ğ¾Ğ»ÑŒĞ·Ğ¾Ğ²Ğ°Ñ‚ĞµĞ»ÑŒÑ�ĞºĞ¾Ğ³Ğ¾ Ğ²Ğ²Ğ¾Ğ´Ğ°
+Утилиты для безопасного парсинга пользовательского ввода
 """
 import re
 import logging
-from typing import Optional, Tuple
+from typing import Tuple, Optional, List
 
 logger = logging.getLogger(__name__)
 
-def safe_parse_float(text: str, field_name: str = "Ñ‡Ğ¸Ñ�Ğ»Ğ¾") -> Tuple[Optional[float], Optional[str]]:
+def safe_parse_float(text: str, field_name: str = "число") -> Tuple[Optional[float], Optional[str]]:
     """
-    Ğ‘ĞµĞ·Ğ¾Ğ¿Ğ°Ñ�Ğ½Ğ¾ Ğ¿Ğ°Ñ€Ñ�Ğ¸Ñ‚ float Ğ¸Ğ· Ñ‚ĞµĞºÑ�Ñ‚Ğ° Ñ� Ñ€Ğ°Ñ�ÑˆĞ¸Ñ€ĞµĞ½Ğ½Ğ¾Ğ¹ Ğ¾Ğ±Ñ€Ğ°Ğ±Ğ¾Ñ‚ĞºĞ¾Ğ¹ Ğ¾ÑˆĞ¸Ğ±Ğ¾Ğº
+    Безопасное парсинг float из текста с расширенной обработкой
     
     Args:
-        text: Ğ¢ĞµĞºÑ�Ñ‚ Ğ´Ğ»Ñ� Ğ¿Ğ°Ñ€Ñ�Ğ¸Ğ½Ğ³Ğ°
-        field_name: Ğ�Ğ°Ğ·Ğ²Ğ°Ğ½Ğ¸Ğµ Ğ¿Ğ¾Ğ»Ñ� Ğ´Ğ»Ñ� Ñ�Ğ¾Ğ¾Ğ±Ñ‰ĞµĞ½Ğ¸Ğ¹ Ğ¾Ğ± Ğ¾ÑˆĞ¸Ğ±ĞºĞ°Ñ…
+        text: Текст для парсинга
+        field_name: Название поля для сообщений об ошибках
         
     Returns:
-        Tuple[Optional[float], Optional[str]]: (Ğ·Ğ½Ğ°Ñ‡ĞµĞ½Ğ¸Ğµ, Ğ¾ÑˆĞ¸Ğ±ĞºĞ°)
+        Tuple[Optional[float], Optional[str]]: (значение, ошибка)
     """
     if not text or not isinstance(text, str):
-        return None, f"Ğ¢ĞµĞºÑ�Ñ‚ Ğ´Ğ»Ñ� {field_name} Ğ¾Ñ‚Ñ�ÑƒÑ‚Ñ�Ñ‚Ğ²ÑƒĞµÑ‚ Ğ¸Ğ»Ğ¸ Ğ½ĞµĞºĞ¾Ñ€Ñ€ĞµĞºÑ‚ĞµĞ½"
+        return None, f"Текст для {field_name} отсутствует или некорректен"
     
     try:
-        # Ğ£Ğ±Ğ¸Ñ€Ğ°ĞµĞ¼ Ğ¿Ñ€Ğ¾Ğ±ĞµĞ»Ñ‹ Ğ¸ Ğ·Ğ°Ğ¼ĞµĞ½Ñ�ĞµĞ¼ Ğ·Ğ°Ğ¿Ñ�Ñ‚Ñ‹Ğµ Ğ½Ğ° Ñ‚Ğ¾Ñ‡ĞºĞ¸
+        # Убираем пробелы и заменяем запятые на точки
         clean_text = text.strip().replace(',', '.')
         
-        # Ğ˜Ñ‰ĞµĞ¼ Ñ‡Ğ¸Ñ�Ğ»Ğ° Ğ² Ñ‚ĞµĞºÑ�Ñ‚Ğµ
+        # Ищем число в тексте
         number_match = re.search(r'[-+]?\d*\.?\d+', clean_text)
         
         if not number_match:
-            return None, f"Ğ�Ğµ ÑƒĞ´Ğ°Ğ»Ğ¾Ñ�ÑŒ Ğ½Ğ°Ğ¹Ñ‚Ğ¸ {field_name} Ğ² Ñ‚ĞµĞºÑ�Ñ‚Ğµ"
+            return None, f"Не удалось найти {field_name} в тексте"
         
         number_str = number_match.group()
         value = float(number_str)
         
-        # ĞŸÑ€Ğ¾Ğ²ĞµÑ€Ñ�ĞµĞ¼ Ğ½Ğ° Ğ²Ğ°Ğ»Ğ¸Ğ´Ğ½Ñ‹Ğµ Ğ´Ğ¸Ğ°Ğ¿Ğ°Ğ·Ğ¾Ğ½Ñ‹ Ğ´Ğ»Ñ� Ñ€Ğ°Ğ·Ğ½Ñ‹Ñ… Ñ‚Ğ¸Ğ¿Ğ¾Ğ² Ğ´Ğ°Ğ½Ğ½Ñ‹Ñ…
-        if field_name == "Ğ²ĞµÑ�" and not (30 <= value <= 300):
-            return None, f"Ğ’ĞµÑ� Ğ´Ğ¾Ğ»Ğ¶ĞµĞ½ Ğ±Ñ‹Ñ‚ÑŒ Ğ¾Ñ‚ 30 Ğ´Ğ¾ 300 ĞºĞ³"
+        # Проверяем на валидные диапазоны для разных типов данных
+        if field_name == "вес" and not (30 <= value <= 300):
+            return None, f"Вес должен быть от 30 до 300 кг"
         
-        if field_name == "Ñ€Ğ¾Ñ�Ñ‚" and not (100 <= value <= 250):
-            return None, f"Ğ Ğ¾Ñ�Ñ‚ Ğ´Ğ¾Ğ»Ğ¶ĞµĞ½ Ğ±Ñ‹Ñ‚ÑŒ Ğ¾Ñ‚ 100 Ğ´Ğ¾ 250 Ñ�Ğ¼"
+        if field_name == "рост" and not (100 <= value <= 250):
+            return None, f"Рост должен быть от 100 до 250 см"
         
-        if field_name == "Ğ²Ğ¾Ğ·Ñ€Ğ°Ñ�Ñ‚" and not (10 <= value <= 120):
-            return None, f"Ğ’Ğ¾Ğ·Ñ€Ğ°Ñ�Ñ‚ Ğ´Ğ¾Ğ»Ğ¶ĞµĞ½ Ğ±Ñ‹Ñ‚ÑŒ Ğ¾Ñ‚ 10 Ğ´Ğ¾ 120 Ğ»ĞµÑ‚"
+        if field_name == "возраст" and not (10 <= value <= 120):
+            return None, f"Возраст должен быть от 10 до 120 лет"
         
-        if field_name in ["ĞºĞ°Ğ»Ğ¾Ñ€Ğ¸Ğ¸", "Ğ±ĞµĞ»ĞºĞ¸", "Ğ¶Ğ¸Ñ€Ñ‹", "ÑƒĞ³Ğ»ĞµĞ²Ğ¾Ğ´Ñ‹"] and value < 0:
-            return None, f"{field_name.capitalize()} Ğ½Ğµ Ğ¼Ğ¾Ğ³ÑƒÑ‚ Ğ±Ñ‹Ñ‚ÑŒ Ğ¾Ñ‚Ñ€Ğ¸Ñ†Ğ°Ñ‚ĞµĞ»ÑŒĞ½Ñ‹Ğ¼Ğ¸"
+        if field_name in ["калории", "белки", "жиры", "углеводы"] and value < 0:
+            return None, f"{field_name.capitalize()} не может быть отрицательным"
         
-        if field_name == "Ñ‚ĞµĞ¼Ğ¿ĞµÑ€Ğ°Ñ‚ÑƒÑ€Ğ°" and not (-50 <= value <= 60):
-            return None, f"Ğ¢ĞµĞ¼Ğ¿ĞµÑ€Ğ°Ñ‚ÑƒÑ€Ğ° Ğ´Ğ¾Ğ»Ğ¶Ğ½Ğ° Ğ±Ñ‹Ñ‚ÑŒ Ğ¾Ñ‚ -50Â°C Ğ´Ğ¾ 60Â°C"
+        if field_name == "температура" and not (-50 <= value <= 60):
+            return None, f"Температура должна быть от -50°C до 60°C"
         
         return value, None
         
     except ValueError as e:
-        return None, f"Ğ�ĞµĞºĞ¾Ñ€Ñ€ĞµĞºÑ‚Ğ½Ñ‹Ğ¹ Ñ„Ğ¾Ñ€Ğ¼Ğ°Ñ‚ {field_name}: {str(e)}"
+        return None, f"Некорректный формат {field_name}: {str(e)}"
     except Exception as e:
         logger.error(f"Unexpected error parsing {field_name} from '{text}': {e}")
-        return None, f"Ğ�ÑˆĞ¸Ğ±ĞºĞ° Ğ¿Ñ€Ğ¸ Ğ¾Ğ±Ñ€Ğ°Ğ±Ğ¾Ñ‚ĞºĞµ {field_name}"
+        return None, f"Ошибка при обработке {field_name}"
 
-def safe_parse_int(text: str, field_name: str = "Ñ‡Ğ¸Ñ�Ğ»Ğ¾") -> Tuple[Optional[int], Optional[str]]:
+def safe_parse_int(text: str, field_name: str = "число") -> Tuple[Optional[int], Optional[str]]:
     """
-    Ğ‘ĞµĞ·Ğ¾Ğ¿Ğ°Ñ�Ğ½Ğ¾ Ğ¿Ğ°Ñ€Ñ�Ğ¸Ñ‚ int Ğ¸Ğ· Ñ‚ĞµĞºÑ�Ñ‚Ğ°
+    Безопасное парсинг int из текста
     
     Args:
-        text: Ğ¢ĞµĞºÑ�Ñ‚ Ğ´Ğ»Ñ� Ğ¿Ğ°Ñ€Ñ�Ğ¸Ğ½Ğ³Ğ°
-        field_name: Ğ�Ğ°Ğ·Ğ²Ğ°Ğ½Ğ¸Ğµ Ğ¿Ğ¾Ğ»Ñ� Ğ´Ğ»Ñ� Ñ�Ğ¾Ğ¾Ğ±Ñ‰ĞµĞ½Ğ¸Ğ¹ Ğ¾Ğ± Ğ¾ÑˆĞ¸Ğ±ĞºĞ°Ñ…
+        text: Текст для парсинга
+        field_name: Название поля для сообщений об ошибках
         
     Returns:
-        Tuple[Optional[int], Optional[str]]: (Ğ·Ğ½Ğ°Ñ‡ĞµĞ½Ğ¸Ğµ, Ğ¾ÑˆĞ¸Ğ±ĞºĞ°)
+        Tuple[Optional[int], Optional[str]]: (значение, ошибка)
     """
     value, error = safe_parse_float(text, field_name)
     if error:
@@ -76,42 +76,278 @@ def safe_parse_int(text: str, field_name: str = "Ñ‡Ğ¸Ñ�Ğ»Ğ¾") -> Tup
     try:
         return int(value), None
     except (ValueError, TypeError):
-        return None, f"Ğ—Ğ½Ğ°Ñ‡ĞµĞ½Ğ¸Ğµ Ğ´Ğ¾Ğ»Ğ¶Ğ½Ğ¾ Ğ±Ñ‹Ñ‚ÑŒ Ñ†ĞµĞ»Ñ‹Ğ¼ Ñ‡Ğ¸Ñ�Ğ»Ğ¾Ğ¼"
+        return None, f"Значение должно быть целым числом"
 
 def extract_multiple_numbers(text: str, max_count: int = 5) -> list:
     """
-    Ğ˜Ğ·Ğ²Ğ»ĞµĞºĞ°ĞµÑ‚ Ğ²Ñ�Ğµ Ñ‡Ğ¸Ñ�Ğ»Ğ° Ğ¸Ğ· Ñ‚ĞµĞºÑ�Ñ‚Ğ°
+    Извлекает все числа из текста
     
     Args:
-        text: Ğ¢ĞµĞºÑ�Ñ‚ Ğ´Ğ»Ñ� Ğ°Ğ½Ğ°Ğ»Ğ¸Ğ·Ğ°
-        max_count: ĞœĞ°ĞºÑ�Ğ¸Ğ¼Ğ°Ğ»ÑŒĞ½Ğ¾Ğµ ĞºĞ¾Ğ»Ğ¸Ñ‡ĞµÑ�Ñ‚Ğ²Ğ¾ Ñ‡Ğ¸Ñ�ĞµĞ» Ğ´Ğ»Ñ� Ğ¸Ğ·Ğ²Ğ»ĞµÑ‡ĞµĞ½Ğ¸Ñ�
+        text: Текст для анализа
+        max_count: Максимальное количество чисел для извлечения
         
     Returns:
-        list: Ğ¡Ğ¿Ğ¸Ñ�Ğ¾Ğº Ğ½Ğ°Ğ¹Ğ´ĞµĞ½Ğ½Ñ‹Ñ… Ñ‡Ğ¸Ñ�ĞµĞ»
+        list: Список найденных чисел
     """
     try:
         numbers = re.findall(r'[-+]?\d*\.?\d+', text)
-        return [float(num) for num in numbers[:max_count]]
-    except Exception:
+        # Конвертируем в float, затем в int если целые
+        result = []
+        for num_str in numbers[:max_count]:
+            try:
+                if '.' in num_str:
+                    result.append(float(num_str))
+                else:
+                    result.append(int(num_str))
+            except ValueError:
+                continue
+        return result
+    except Exception as e:
+        logger.error(f"Error extracting numbers from '{text}': {e}")
         return []
 
 def format_parsing_error(field_name: str, error: str, examples: list = None) -> str:
     """
-    Ğ¤Ğ¾Ñ€Ğ¼Ğ°Ñ‚Ğ¸Ñ€ÑƒĞµÑ‚ Ñ�Ğ¾Ğ¾Ğ±Ñ‰ĞµĞ½Ğ¸Ğµ Ğ¾Ğ± Ğ¾ÑˆĞ¸Ğ±ĞºĞµ Ğ¿Ğ°Ñ€Ñ�Ğ¸Ğ½Ğ³Ğ°
+    Форматирует сообщение об ошибке парсинга
     
     Args:
-        field_name: Ğ�Ğ°Ğ·Ğ²Ğ°Ğ½Ğ¸Ğµ Ğ¿Ğ¾Ğ»Ñ�
-        error: Ğ¢ĞµĞºÑ�Ñ‚ Ğ¾ÑˆĞ¸Ğ±ĞºĞ¸
-        examples: ĞŸÑ€Ğ¸Ğ¼ĞµÑ€Ñ‹ ĞºĞ¾Ñ€Ñ€ĞµĞºÑ‚Ğ½Ğ¾Ğ³Ğ¾ Ğ²Ğ²Ğ¾Ğ´Ğ°
+        field_name: Название поля
+        error: Текст ошибки
+        examples: Примеры корректного ввода
         
     Returns:
-        str: Ğ¤Ğ¾Ñ€Ğ¼Ğ¸Ñ€Ğ¾Ğ²Ğ°Ğ½Ğ½Ğ¾Ğµ Ñ�Ğ¾Ğ¾Ğ±Ñ‰ĞµĞ½Ğ¸Ğµ Ğ¾Ğ± Ğ¾ÑˆĞ¸Ğ±ĞºĞµ
+        str: Формированное сообщение об ошибке
     """
-    message = f"â�Œ Ğ�ÑˆĞ¸Ğ±ĞºĞ° Ğ¿Ñ€Ğ¸ Ğ²Ğ²Ğ¾Ğ´Ğµ {field_name}: {error}"
+    message = f"[ERROR] Ошибка ввода {field_name}: {error}"
     
     if examples:
-        message += "\n\nğŸ’¡ <b>ĞŸÑ€Ğ¸Ğ¼ĞµÑ€Ñ‹ ĞºĞ¾Ñ€Ñ€ĞµĞºÑ‚Ğ½Ğ¾Ğ³Ğ¾ Ğ²Ğ²Ğ¾Ğ´Ğ°:</b>\n"
-        for example in examples:
-            message += f"â€¢ {example}\n"
+        examples_str = ", ".join(str(ex) for ex in examples)
+        message += f"\n\nПримеры: {examples_str}"
     
     return message
+
+def clean_numeric_input(text: str) -> str:
+    """
+    Очищает текстовый ввод от лишних символов
+    
+    Args:
+        text: Исходный текст
+        
+    Returns:
+        str: Очищенный текст
+    """
+    if not text:
+        return ""
+    
+    # Убираем пробелы по краям
+    cleaned = text.strip()
+    
+    # Заменяем запятые на точки
+    cleaned = cleaned.replace(',', '.')
+    
+    # Убираем лишние пробелы внутри числа
+    cleaned = re.sub(r'(\d+)\s+(\d+)', r'\1\2', cleaned)
+    
+    # Убираем все символы кроме цифр, точки, минуса, плюса
+    cleaned = re.sub(r'[^\d\.\+\-]', '', cleaned)
+    
+    return cleaned
+
+def validate_percentage(value: float) -> Tuple[bool, Optional[str]]:
+    """
+    Валидация процентного значения
+    
+    Args:
+        value: Значение для проверки
+        
+    Returns:
+        Tuple[bool, Optional[str]]: (валидно, ошибка)
+    """
+    if not (0 <= value <= 100):
+        return False, "Процент должен быть от 0 до 100"
+    return True, None
+
+def validate_date_format(date_str: str) -> Tuple[bool, Optional[str]]:
+    """
+    Валидация формата даты
+    
+    Args:
+        date_str: Строка с датой
+        
+    Returns:
+        Tuple[bool, Optional[str]]: (валидно, ошибка)
+    """
+    try:
+        from datetime import datetime
+        # Пробуем разные форматы
+        formats = ['%d.%m.%Y', '%d/%m/%Y', '%Y-%m-%d']
+        
+        for fmt in formats:
+            try:
+                datetime.strptime(date_str, fmt)
+                return True, None
+            except ValueError:
+                continue
+        
+        return False, "Неверный формат даты. Используйте ДД.ММ.ГГГГ"
+    except Exception:
+        return False, "Ошибка при обработке даты"
+
+def validate_time_format(time_str: str) -> Tuple[bool, Optional[str]]:
+    """
+    Валидация формата времени
+    
+    Args:
+        time_str: Строка со временем
+        
+    Returns:
+        Tuple[bool, Optional[str]]: (валидно, ошибка)
+    """
+    try:
+        from datetime import datetime
+        # Пробуем разные форматы
+        formats = ['%H:%M', '%H:%M:%S', '%H.%M', '%H.%M.%S']
+        
+        for fmt in formats:
+            try:
+                datetime.strptime(time_str, fmt)
+                return True, None
+            except ValueError:
+                continue
+        
+        return False, "Неверный формат времени. Используйте ЧЧ:ММ"
+    except Exception:
+        return False, "Ошибка при обработке времени"
+
+def extract_email(text: str) -> Optional[str]:
+    """
+    Извлекает email из текста
+    
+    Args:
+        text: Текст для анализа
+        
+    Returns:
+        Optional[str]: Найденный email или None
+    """
+    try:
+        email_pattern = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
+        match = re.search(email_pattern, text)
+        return match.group() if match else None
+    except Exception:
+        return None
+
+def extract_phone(text: str) -> Optional[str]:
+    """
+    Извлекает номер телефона из текста
+    
+    Args:
+        text: Текст для анализа
+        
+    Returns:
+        Optional[str]: Найденный телефон или None
+    """
+    try:
+        # Убираем все кроме цифр, плюса, минуса, скобок
+        cleaned = re.sub(r'[^\d\+\-\(\)\s]', '', text)
+        # Убираем пробелы
+        cleaned = re.sub(r'\s', '', cleaned)
+        
+        # Проверяем минимальную длину
+        if len(cleaned) >= 10:
+            return cleaned
+        return None
+    except Exception:
+        return None
+
+def parse_weight_input(text: str) -> Tuple[Optional[float], Optional[str]]:
+    """
+    Специализированный парсер для ввода веса
+    
+    Args:
+        text: Текст с весом
+        
+    Returns:
+        Tuple[Optional[float], Optional[str]]: (вес, ошибка)
+    """
+    # Ищем паттерны вроде "70 кг", "70кг", "70.5 кг"
+    patterns = [
+        r'(\d+\.?\d*)\s*кг',
+        r'(\d+\.?\d*)\s*kg',
+        r'^(\d+\.?\d*)$'  # Просто число
+    ]
+    
+    for pattern in patterns:
+        match = re.search(pattern, text.lower())
+        if match:
+            try:
+                weight = float(match.group(1))
+                if 30 <= weight <= 300:
+                    return weight, None
+                else:
+                    return None, "Вес должен быть от 30 до 300 кг"
+            except ValueError:
+                continue
+    
+    return None, "Не удалось определить вес. Используйте формат: 70 кг"
+
+def parse_height_input(text: str) -> Tuple[Optional[int], Optional[str]]:
+    """
+    Специализированный парсер для ввода роста
+    
+    Args:
+        text: Текст с ростом
+        
+    Returns:
+        Tuple[Optional[int], Optional[str]]: (рост, ошибка)
+    """
+    # Ищем паттерны вроде "175 см", "175см", "175"
+    patterns = [
+        r'(\d+)\s*см',
+        r'(\d+)\s*cm',
+        r'^(\d+)$'  # Просто число
+    ]
+    
+    for pattern in patterns:
+        match = re.search(pattern, text.lower())
+        if match:
+            try:
+                height = int(match.group(1))
+                if 100 <= height <= 250:
+                    return height, None
+                else:
+                    return None, "Рост должен быть от 100 до 250 см"
+            except ValueError:
+                continue
+    
+    return None, "Не удалось определить рост. Используйте формат: 175 см"
+
+def parse_age_input(text: str) -> Tuple[Optional[int], Optional[str]]:
+    """
+    Специализированный парсер для ввода возраста
+    
+    Args:
+        text: Текст с возрастом
+        
+    Returns:
+        Tuple[Optional[int], Optional[str]]: (возраст, ошибка)
+    """
+    # Ищем паттерны вроде "25 лет", "25года", "25"
+    patterns = [
+        r'(\d+)\s*(?:лет|года|год|г)',
+        r'(\d+)\s*(?:years?|yrs?)',
+        r'^(\d+)$'  # Просто число
+    ]
+    
+    for pattern in patterns:
+        match = re.search(pattern, text.lower())
+        if match:
+            try:
+                age = int(match.group(1))
+                if 10 <= age <= 120:
+                    return age, None
+                else:
+                    return None, "Возраст должен быть от 10 до 120 лет"
+            except ValueError:
+                continue
+    
+    return None, "Не удалось определить возраст. Используйте формат: 25 лет"

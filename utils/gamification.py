@@ -1,32 +1,28 @@
 """
-Ğ¡Ğ¸Ñ�Ñ‚ĞµĞ¼Ğ° Ğ³ĞµĞ¹Ğ¼Ğ¸Ñ„Ğ¸ĞºĞ°Ñ†Ğ¸Ğ¸ Ğ¸ Ğ´Ğ¾Ñ�Ñ‚Ğ¸Ğ¶ĞµĞ½Ğ¸Ğ¹ Ğ´Ğ»Ñ� NutriBuddy Bot Ñ� Ñ�Ğ¾Ñ…Ñ€Ğ°Ğ½ĞµĞ½Ğ¸ĞµĞ¼ Ğ² Ğ‘Ğ”
+Система геймификации и достижений для NutriBuddy Bot с сохранением в БД
 """
 import logging
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Any
 from enum import Enum
-
-from database.db import get_session
-from database.gamification_models import UserAchievement, UserGamification, AchievementHistory
-from database.models import User
-from sqlalchemy import select, func
 
 logger = logging.getLogger(__name__)
 
 class AchievementType(Enum):
-    """Ğ¢Ğ¸Ğ¿Ñ‹ Ğ´Ğ¾Ñ�Ñ‚Ğ¸Ğ¶ĞµĞ½Ğ¸Ğ¹"""
+    """Типы достижений"""
     FIRST_MEAL = "first_meal"
     WEEK_STREAK = "week_streak"
     MONTH_STREAK = "month_streak"
     CALORIE_GOAL = "calorie_goal"
     WATER_GOAL = "water_goal"
-    WEIGHT_LOSS = "weight_loss"
+    ACTIVITY_GOAL = "activity_goal"
+    WEIGHT_GOAL = "weight_goal"
     PERFECT_DAY = "perfect_day"
     EARLY_BIRD = "early_bird"
     NIGHT_OWL = "night_owl"
 
 class Achievement:
-    """ĞšĞ»Ğ°Ñ�Ñ� Ğ´Ğ¾Ñ�Ñ‚Ğ¸Ğ¶ĞµĞ½Ğ¸Ñ�"""
+    """Класс достижения"""
     def __init__(self, id: str, type: AchievementType, name: str, description: str, 
                  icon: str, points: int, condition: Dict):
         self.id = id
@@ -38,359 +34,455 @@ class Achievement:
         self.condition = condition
 
 class GamificationSystem:
-    """Ğ¡Ğ¸Ñ�Ñ‚ĞµĞ¼Ğ° Ğ³ĞµĞ¹Ğ¼Ğ¸Ñ„Ğ¸ĞºĞ°Ñ†Ğ¸Ğ¸ Ñ� Ñ�Ğ¾Ñ…Ñ€Ğ°Ğ½ĞµĞ½Ğ¸ĞµĞ¼ Ğ² Ğ‘Ğ”"""
+    """Система геймификации с сохранением в БД"""
     
     def __init__(self):
         self.achievements = self._init_achievements()
     
     def _init_achievements(self) -> Dict[str, Achievement]:
-        """Ğ˜Ğ½Ğ¸Ñ†Ğ¸Ğ°Ğ»Ğ¸Ğ·Ğ°Ñ†Ğ¸Ñ� Ğ´Ğ¾Ñ�Ñ‚Ğ¸Ğ¶ĞµĞ½Ğ¸Ğ¹"""
+        """Инициализация достижений"""
         achievements = {
-            # Ğ•Ğ´Ğ°
+            # Еда
             "first_meal": Achievement(
                 "first_meal", AchievementType.FIRST_MEAL,
-                "ĞŸĞµÑ€Ğ²Ñ‹Ğ¹ ÑˆĞ°Ğ³", "Ğ—Ğ°Ğ¿Ğ¸ÑˆĞ¸Ñ‚Ğµ Ğ¿ĞµÑ€Ğ²Ñ‹Ğ¹ Ğ¿Ñ€Ğ¸ĞµĞ¼ Ğ¿Ğ¸Ñ‰Ğ¸",
-                "ğŸ�½ï¸�", 10, {"count": 1}
+                "Первый шаг", "Запишите первый прием пищи",
+                "[MEAL]", 10, {"count": 1}
             ),
             
-            # Ğ¡ĞµÑ€Ğ¸Ğ¸ Ğ´Ğ½ĞµĞ¹
+            # Серии дней
             "week_streak": Achievement(
                 "week_streak", AchievementType.WEEK_STREAK,
-                "Ğ�ĞµĞ´ĞµĞ»Ñ� Ğ´Ğ¸Ñ�Ñ†Ğ¸Ğ¿Ğ»Ğ¸Ğ½Ñ‹", "Ğ—Ğ°Ğ¿Ğ¸Ñ�Ñ‹Ğ²Ğ°Ğ¹Ñ‚Ğµ ĞµĞ´Ñƒ 7 Ğ´Ğ½ĞµĞ¹ Ğ¿Ğ¾Ğ´Ñ€Ñ�Ğ´",
-                "ğŸ”¥", 50, {"days": 7}
+                "Неделя подряд", "Используйте бот 7 дней подряд",
+                "[WEEK]", 50, {"days": 7}
             ),
             
             "month_streak": Achievement(
                 "month_streak", AchievementType.MONTH_STREAK,
-                "ĞœĞµÑ�Ñ�Ñ† Ğ¼Ğ°Ñ�Ñ‚ĞµÑ€Ñ�Ñ‚Ğ²Ğ°", "Ğ—Ğ°Ğ¿Ğ¸Ñ�Ñ‹Ğ²Ğ°Ğ¹Ñ‚Ğµ ĞµĞ´Ñƒ 30 Ğ´Ğ½ĞµĞ¹ Ğ¿Ğ¾Ğ´Ñ€Ñ�Ğ´",
-                "ğŸ’�", 200, {"days": 30}
+                "Месяц подряд", "Используйте бот 30 дней подряд",
+                "[MONTH]", 200, {"days": 30}
             ),
             
-            # Ğ¦ĞµĞ»Ğ¸
-            "calorie_goal": Achievement(
-                "calorie_goal", AchievementType.CALORIE_GOAL,
-                "ĞœĞ°Ñ�Ñ‚ĞµÑ€ ĞºĞ°Ğ»Ğ¾Ñ€Ğ¸Ğ¹", "Ğ’Ñ‹Ğ¿Ğ¾Ğ»Ğ½Ğ¸Ñ‚Ğµ Ğ´Ğ½ĞµĞ²Ğ½ÑƒÑ� Ğ½Ğ¾Ñ€Ğ¼Ñƒ ĞºĞ°Ğ»Ğ¾Ñ€Ğ¸Ğ¹",
-                "ğŸ�¯", 30, {"type": "daily_goal", "metric": "calories"}
+            # Цели по калориям
+            "calorie_goal_week": Achievement(
+                "calorie_goal_week", AchievementType.CALORIE_GOAL,
+                "Мастер калорий", "Выполняйте цель по калориям неделю",
+                "[CALORIES]", 75, {"days": 7, "goal_met": True}
             ),
             
-            "water_goal": Achievement(
-                "water_goal", AchievementType.WATER_GOAL,
-                "Ğ“Ğ¸Ğ´Ñ€Ğ°Ñ‚Ğ°Ñ†Ğ¸Ñ�", "Ğ’Ñ‹Ğ¿ĞµĞ¹Ñ‚Ğµ Ğ´Ğ½ĞµĞ²Ğ½ÑƒÑ� Ğ½Ğ¾Ñ€Ğ¼Ñƒ Ğ²Ğ¾Ğ´Ñ‹",
-                "ğŸ’§", 25, {"type": "daily_goal", "metric": "water"}
+            # Цели по воде
+            "water_goal_week": Achievement(
+                "water_goal_week", AchievementType.WATER_GOAL,
+                "Гидратация", "Выполняйте цель по воде неделю",
+                "[WATER]", 60, {"days": 7, "goal_met": True}
             ),
             
-            # Ğ’ĞµÑ�
-            "weight_loss_1kg": Achievement(
-                "weight_loss_1kg", AchievementType.WEIGHT_LOSS,
-                "ĞŸĞµÑ€Ğ²Ñ‹Ğ¹ ĞºĞ¸Ğ»Ğ¾Ğ³Ñ€Ğ°Ğ¼Ğ¼", "ĞŸĞ¾Ñ…ÑƒĞ´ĞµĞ¹Ñ‚Ğµ Ğ½Ğ° 1 ĞºĞ³",
-                "âš–ï¸�", 40, {"kg": 1}
+            # Цели по активности
+            "activity_goal_week": Achievement(
+                "activity_goal_week", AchievementType.ACTIVITY_GOAL,
+                "Энергия", "Выполняйте цель по активности неделю",
+                "[ACTIVITY]", 80, {"days": 7, "goal_met": True}
             ),
             
-            "weight_loss_5kg": Achievement(
-                "weight_loss_5kg", AchievementType.WEIGHT_LOSS,
-                "Ğ—Ğ½Ğ°Ñ‡Ğ¸Ğ¼Ñ‹Ğ¹ Ñ€ĞµĞ·ÑƒĞ»ÑŒÑ‚Ğ°Ñ‚", "ĞŸĞ¾Ñ…ÑƒĞ´ĞµĞ¹Ñ‚Ğµ Ğ½Ğ° 5 ĞºĞ³",
-                "ğŸ�†", 150, {"kg": 5}
-            ),
-            
-            # Ğ˜Ğ´ĞµĞ°Ğ»ÑŒĞ½Ñ‹Ğ¹ Ğ´ĞµĞ½ÑŒ
+            # Идеальный день
             "perfect_day": Achievement(
                 "perfect_day", AchievementType.PERFECT_DAY,
-                "Ğ˜Ğ´ĞµĞ°Ğ»ÑŒĞ½Ñ‹Ğ¹ Ğ´ĞµĞ½ÑŒ", "Ğ’Ñ‹Ğ¿Ğ¾Ğ»Ğ½Ğ¸Ñ‚Ğµ Ğ²Ñ�Ğµ Ñ†ĞµĞ»Ğ¸ Ğ·Ğ° Ğ´ĞµĞ½ÑŒ",
-                "â­�", 75, {"type": "perfect_day"}
+                "Идеальный день", "Выполните все цели за день",
+                "[PERFECT]", 100, {"goals_met": "all"}
             ),
             
-            # Ğ’Ñ€ĞµĞ¼Ñ�
+            # Ранние птицы
             "early_bird": Achievement(
                 "early_bird", AchievementType.EARLY_BIRD,
-                "Ğ–Ğ°Ğ²Ğ¾Ñ€Ğ¾Ğ½Ğ¾Ğº", "Ğ—Ğ°Ğ¿Ğ¸ÑˆĞ¸Ñ‚Ğµ Ğ·Ğ°Ğ²Ñ‚Ñ€Ğ°Ğº Ğ´Ğ¾ 8 ÑƒÑ‚Ñ€Ğ°",
-                "ğŸŒ…", 20, {"time_before": "08:00", "meal_type": "breakfast"}
+                "Ранняя пташка", "Запишите завтрак до 8 утра",
+                "[MORNING]", 30, {"meal_before": "08:00"}
             ),
             
+            # Совы
             "night_owl": Achievement(
                 "night_owl", AchievementType.NIGHT_OWL,
-                "Ğ¡Ğ¾Ğ²Ğ°", "Ğ—Ğ°Ğ¿Ğ¸ÑˆĞ¸Ñ‚Ğµ ÑƒĞ¶Ğ¸Ğ½ Ğ¿Ğ¾Ñ�Ğ»Ğµ 9 Ğ²ĞµÑ‡ĞµÑ€Ğ°",
-                "ğŸŒ™", 15, {"time_after": "21:00", "meal_type": "dinner"}
+                "Сова", "Запишите ужин после 9 вечера",
+                "[EVENING]", 25, {"meal_after": "21:00"}
             )
         }
+        
         return achievements
     
-    async def check_achievements(self, user_id: int, event_type: str, data: Dict) -> List[Achievement]:
-        """ĞŸÑ€Ğ¾Ğ²ĞµÑ€ĞºĞ° Ğ´Ğ¾Ñ�Ñ‚Ğ¸Ğ¶ĞµĞ½Ğ¸Ğ¹ Ğ´Ğ»Ñ� Ñ�Ğ¾Ğ±Ñ‹Ñ‚Ğ¸Ñ� Ñ� Ñ�Ğ¾Ñ…Ñ€Ğ°Ğ½ĞµĞ½Ğ¸ĞµĞ¼ Ğ² Ğ‘Ğ”"""
-        new_achievements = []
+    async def check_achievements(self, user_id: int, action: str, data: Dict = None) -> List[Achievement]:
+        """
+        Проверяет достижения для пользователя
         
-        # ĞŸĞ¾Ğ»ÑƒÑ‡Ğ°ĞµĞ¼ Ğ¸Ğ»Ğ¸ Ñ�Ğ¾Ğ·Ğ´Ğ°ĞµĞ¼ Ğ¿Ñ€Ğ¾Ğ³Ñ€ĞµÑ�Ñ� Ğ¿Ğ¾Ğ»ÑŒĞ·Ğ¾Ğ²Ğ°Ñ‚ĞµĞ»Ñ� Ğ¸Ğ· Ğ‘Ğ”
-        user_progress = await self._get_user_progress(user_id)
-        
-        # Ğ�Ğ±Ğ½Ğ¾Ğ²Ğ»Ñ�ĞµĞ¼ Ñ�Ñ‚Ğ°Ñ‚Ğ¸Ñ�Ñ‚Ğ¸ĞºÑƒ
-        await self._update_progress_in_db(user_progress, event_type, data)
-        
-        # ĞŸÑ€Ğ¾Ğ²ĞµÑ€Ñ�ĞµĞ¼ ĞºĞ°Ğ¶Ğ´Ğ¾Ğµ Ğ´Ğ¾Ñ�Ñ‚Ğ¸Ğ¶ĞµĞ½Ğ¸Ğµ
-        for achievement in self.achievements.values():
-            if not await self._has_achievement(user_id, achievement.id):
-                if self._check_achievement_condition(achievement, user_progress, data):
-                    await self._award_achievement(user_id, achievement)
-                    new_achievements.append(achievement)
-                    logger.info(f"User {user_id} earned achievement: {achievement.name}")
-        
-        return new_achievements
+        Args:
+            user_id: ID пользователя
+            action: Тип действия (meal, water, activity, etc.)
+            data: Данные для проверки условий
+            
+        Returns:
+            List[Achievement]: Список разблокированных достижений
+        """
+        try:
+            from database.db import get_session
+            from database.models import User, UserAchievement
+            
+            unlocked = []
+            
+            with get_session() as session:
+                user = session.query(User).filter(User.telegram_id == user_id).first()
+                if not user:
+                    return []
+                
+                # Проверяем каждое достижение
+                for achievement_id, achievement in self.achievements.items():
+                    # Проверяем, не получено ли уже достижение
+                    existing = session.query(UserAchievement).filter(
+                        UserAchievement.user_id == user.id,
+                        UserAchievement.achievement_id == achievement_id
+                    ).first()
+                    
+                    if existing:
+                        continue
+                    
+                    # Проверяем условия достижения
+                    if await self._check_achievement_condition(user, achievement, action, data, session):
+                        # Сохраняем достижение в БД
+                        user_achievement = UserAchievement(
+                            user_id=user.id,
+                            achievement_id=achievement_id,
+                            earned_at=datetime.utcnow()
+                        )
+                        session.add(user_achievement)
+                        session.commit()
+                        
+                        unlocked.append(achievement)
+                        logger.info(f"[ACHIEVEMENT] User {user_id} unlocked: {achievement.name}")
+            
+            return unlocked
+            
+        except Exception as e:
+            logger.error(f"Error checking achievements for user {user_id}: {e}")
+            return []
     
-    async def _get_user_progress(self, user_id: int) -> UserGamification:
-        """ĞŸĞ¾Ğ»ÑƒÑ‡ĞµĞ½Ğ¸Ğµ Ğ¿Ñ€Ğ¾Ğ³Ñ€ĞµÑ�Ñ�Ğ° Ğ¿Ğ¾Ğ»ÑŒĞ·Ğ¾Ğ²Ğ°Ñ‚ĞµĞ»Ñ� Ğ¸Ğ· Ğ‘Ğ”"""
-        async with get_session() as session:
-            # Ğ¡Ğ½Ğ°Ñ‡Ğ°Ğ»Ğ° Ğ¸Ñ‰ĞµĞ¼ Ğ¿Ğ¾Ğ»ÑŒĞ·Ğ¾Ğ²Ğ°Ñ‚ĞµĞ»Ñ� Ğ² Ğ¾Ñ�Ğ½Ğ¾Ğ²Ğ½Ğ¾Ğ¹ Ñ‚Ğ°Ğ±Ğ»Ğ¸Ñ†Ğµ
-            user_result = await session.execute(
-                select(User).where(User.telegram_id == user_id)
-            )
-            user = user_result.scalar_one_or_none()
-            
-            if not user:
-                logger.error(f"User {user_id} not found in main table")
-                raise ValueError(f"User {user_id} not found")
-            
-            # ĞŸĞ¾Ğ»ÑƒÑ‡Ğ°ĞµĞ¼ Ğ¸Ğ»Ğ¸ Ñ�Ğ¾Ğ·Ğ´Ğ°ĞµĞ¼ Ğ³ĞµĞ¹Ğ¼Ğ¸Ñ„Ğ¸ĞºĞ°Ñ†Ğ¸Ñ�
-            gamif_result = await session.execute(
-                select(UserGamification).where(UserGamification.user_id == user.id)
-            )
-            gamif = gamif_result.scalar_one_or_none()
-            
-            if not gamif:
-                gamif = UserGamification(
-                    user_id=user.id,
-                    total_points=0,
-                    level=1,
-                    current_streak=0,
-                    max_streak=0,
-                    meals_logged=0,
-                    water_ml_total=0
-                )
-                session.add(gamif)
-                await session.commit()
-                await session.refresh(gamif)
-            
-            return gamif
-    
-    async def _update_progress_in_db(self, progress: UserGamification, event_type: str, data: Dict):
-        """Ğ�Ğ±Ğ½Ğ¾Ğ²Ğ»ĞµĞ½Ğ¸Ğµ Ğ¿Ñ€Ğ¾Ğ³Ñ€ĞµÑ�Ñ�Ğ° Ğ¿Ğ¾Ğ»ÑŒĞ·Ğ¾Ğ²Ğ°Ñ‚ĞµĞ»Ñ� Ğ² Ğ‘Ğ”"""
-        today = datetime.now().date()
-        
-        if event_type == "meal_logged":
-            progress.last_activity_date = datetime.now()
-            progress.meals_logged += 1
-            
-            # ĞŸÑ€Ğ¾Ğ²ĞµÑ€Ñ�ĞµĞ¼ Ğ²Ñ€ĞµĞ¼Ñ�
-            meal_time = data.get('time', datetime.now()).time()
-            meal_type = data.get('meal_type', '')
-            
-            if meal_type == 'breakfast' and meal_time.hour < 8:
-                progress.early_breakfasts += 1
-            elif meal_type == 'dinner' and meal_time.hour >= 21:
-                progress.late_dinners += 1
-        
-        elif event_type == "water_logged":
-            progress.last_activity_date = datetime.now()
-            progress.water_ml_total += data.get('amount', 0)
-        
-        elif event_type == "weight_logged":
-            progress.last_activity_date = datetime.now()
-            weight = data.get('weight', 0)
-            if progress.start_weight is None or progress.start_weight == 0:
-                progress.start_weight = weight
-            progress.current_weight = weight
-        
-        # Ğ�Ğ±Ğ½Ğ¾Ğ²Ğ»Ñ�ĞµĞ¼ Ñ�ĞµÑ€Ğ¸Ñ� Ğ´Ğ½ĞµĞ¹
-        await self._update_streak(progress)
-        
-        # Ğ¡Ğ¾Ñ…Ñ€Ğ°Ğ½Ñ�ĞµĞ¼ Ğ¸Ğ·Ğ¼ĞµĞ½ĞµĞ½Ğ¸Ñ�
-        async with get_session() as session:
-            await session.merge(progress)
-            await session.commit()
-    
-    async def _update_streak(self, progress: UserGamification):
-        """Ğ�Ğ±Ğ½Ğ¾Ğ²Ğ»ĞµĞ½Ğ¸Ğµ Ñ�ĞµÑ€Ğ¸Ğ¸ Ğ´Ğ½ĞµĞ¹"""
-        if not progress.last_activity_date:
-            return
-        
-        today = datetime.now().date()
-        last_activity = progress.last_activity_date.date()
-        
-        if today == last_activity:
-            # Ğ�ĞºÑ‚Ğ¸Ğ²Ğ½Ğ¾Ñ�Ñ‚ÑŒ Ñ�ĞµĞ³Ğ¾Ğ´Ğ½Ñ� - Ñ�ĞµÑ€Ğ¸Ñ� Ğ¿Ñ€Ğ¾Ğ´Ğ¾Ğ»Ğ¶Ğ°ĞµÑ‚Ñ�Ñ�
-            if progress.current_streak == 0:
-                progress.current_streak = 1
-            # Ğ•Ñ�Ğ»Ğ¸ ÑƒĞ¶Ğµ Ğ±Ñ‹Ğ»Ğ° Ğ°ĞºÑ‚Ğ¸Ğ²Ğ½Ğ¾Ñ�Ñ‚ÑŒ Ñ�ĞµĞ³Ğ¾Ğ´Ğ½Ñ�, Ñ�ĞµÑ€Ğ¸Ñ� Ğ½Ğµ Ğ¼ĞµĞ½Ñ�ĞµÑ‚Ñ�Ñ�
-        elif today == last_activity + timedelta(days=1):
-            # Ğ�ĞºÑ‚Ğ¸Ğ²Ğ½Ğ¾Ñ�Ñ‚ÑŒ Ğ²Ñ‡ĞµÑ€Ğ° - ÑƒĞ²ĞµĞ»Ğ¸Ñ‡Ğ¸Ğ²Ğ°ĞµĞ¼ Ñ�ĞµÑ€Ğ¸Ñ�
-            progress.current_streak += 1
-        else:
-            # ĞŸÑ€Ğ¾Ğ¿ÑƒÑ‰ĞµĞ½ Ğ´ĞµĞ½ÑŒ - Ñ�Ğ±Ñ€Ğ°Ñ�Ñ‹Ğ²Ğ°ĞµĞ¼ Ñ�ĞµÑ€Ğ¸Ñ�
-            if progress.current_streak > progress.max_streak:
-                progress.max_streak = progress.current_streak
-            progress.current_streak = 1
-        
-        # Ğ�Ğ±Ğ½Ğ¾Ğ²Ğ»Ñ�ĞµĞ¼ ÑƒÑ€Ğ¾Ğ²ĞµĞ½ÑŒ
-        progress.level = progress.total_points // 100 + 1
-    
-    async def _has_achievement(self, user_id: int, achievement_id: str) -> bool:
-        """ĞŸÑ€Ğ¾Ğ²ĞµÑ€ĞºĞ° Ğ½Ğ°Ğ»Ğ¸Ñ‡Ğ¸Ñ� Ğ´Ğ¾Ñ�Ñ‚Ğ¸Ğ¶ĞµĞ½Ğ¸Ñ� Ñƒ Ğ¿Ğ¾Ğ»ÑŒĞ·Ğ¾Ğ²Ğ°Ñ‚ĞµĞ»Ñ�"""
-        async with get_session() as session:
-            # ĞŸĞ¾Ğ»ÑƒÑ‡Ğ°ĞµĞ¼ ID Ğ¿Ğ¾Ğ»ÑŒĞ·Ğ¾Ğ²Ğ°Ñ‚ĞµĞ»Ñ�
-            user_result = await session.execute(
-                select(User).where(User.telegram_id == user_id)
-            )
-            user = user_result.scalar_one_or_none()
-            
-            if not user:
-                return False
-            
-            # ĞŸÑ€Ğ¾Ğ²ĞµÑ€Ñ�ĞµĞ¼ Ğ´Ğ¾Ñ�Ñ‚Ğ¸Ğ¶ĞµĞ½Ğ¸Ğµ
-            result = await session.execute(
-                select(UserAchievement).where(
-                    UserAchievement.user_id == user.id,
-                    UserAchievement.achievement_id == achievement_id
-                )
-            )
-            return result.scalar_one_or_none() is not None
-    
-    async def _award_achievement(self, user_id: int, achievement: Achievement):
-        """ĞŸÑ€Ğ¸Ñ�Ğ²Ğ¾ĞµĞ½Ğ¸Ğµ Ğ´Ğ¾Ñ�Ñ‚Ğ¸Ğ¶ĞµĞ½Ğ¸Ñ� Ğ¿Ğ¾Ğ»ÑŒĞ·Ğ¾Ğ²Ğ°Ñ‚ĞµĞ»Ñ�"""
-        async with get_session() as session:
-            # ĞŸĞ¾Ğ»ÑƒÑ‡Ğ°ĞµĞ¼ ID Ğ¿Ğ¾Ğ»ÑŒĞ·Ğ¾Ğ²Ğ°Ñ‚ĞµĞ»Ñ�
-            user_result = await session.execute(
-                select(User).where(User.telegram_id == user_id)
-            )
-            user = user_result.scalar_one_or_none()
-            
-            if not user:
-                return
-            
-            # Ğ”Ğ¾Ğ±Ğ°Ğ²Ğ»Ñ�ĞµĞ¼ Ğ´Ğ¾Ñ�Ñ‚Ğ¸Ğ¶ĞµĞ½Ğ¸Ğµ
-            user_achievement = UserAchievement(
-                user_id=user.id,
-                achievement_id=achievement.id,
-                points=achievement.points,
-                earned_at=datetime.now()
-            )
-            session.add(user_achievement)
-            
-            # Ğ”Ğ¾Ğ±Ğ°Ğ²Ğ»Ñ�ĞµĞ¼ Ğ² Ğ¸Ñ�Ñ‚Ğ¾Ñ€Ğ¸Ñ�
-            history = AchievementHistory(
-                user_id=user.id,
-                achievement_id=achievement.id,
-                achievement_name=achievement.name,
-                achievement_description=achievement.description,
-                points_earned=achievement.points,
-                earned_at=datetime.now()
-            )
-            session.add(history)
-            
-            # Ğ�Ğ±Ğ½Ğ¾Ğ²Ğ»Ñ�ĞµĞ¼ Ğ¾Ğ±Ñ‰ÑƒÑ� Ñ�Ñ‚Ğ°Ñ‚Ğ¸Ñ�Ñ‚Ğ¸ĞºÑƒ
-            gamif_result = await session.execute(
-                select(UserGamification).where(UserGamification.user_id == user.id)
-            )
-            gamif = gamif_result.scalar_one_or_none()
-            
-            if gamif:
-                gamif.total_points += achievement.points
-                gamif.level = gamif.total_points // 100 + 1
-            
-            await session.commit()
-    
-    def _check_achievement_condition(self, achievement: Achievement, 
-                                   progress: UserGamification, data: Dict) -> bool:
-        """ĞŸÑ€Ğ¾Ğ²ĞµÑ€ĞºĞ° ÑƒÑ�Ğ»Ğ¾Ğ²Ğ¸Ñ� Ğ´Ğ¾Ñ�Ñ‚Ğ¸Ğ¶ĞµĞ½Ğ¸Ñ�"""
+    async def _check_achievement_condition(self, user, achievement: Achievement, 
+                                        action: str, data: Dict, session) -> bool:
+        """Проверяет условия конкретного достижения"""
         condition = achievement.condition
         
         if achievement.type == AchievementType.FIRST_MEAL:
-            return progress.meals_logged >= condition["count"]
+            return action == "meal" and condition["count"] == 1
         
         elif achievement.type == AchievementType.WEEK_STREAK:
-            return progress.current_streak >= condition["days"]
+            if action != "daily_check":
+                return False
+            # Проверяем серию дней
+            streak_days = await self._get_user_streak(user.id, session)
+            return streak_days >= condition["days"]
         
         elif achievement.type == AchievementType.MONTH_STREAK:
-            return progress.current_streak >= condition["days"]
+            if action != "daily_check":
+                return False
+            streak_days = await self._get_user_streak(user.id, session)
+            return streak_days >= condition["days"]
         
         elif achievement.type == AchievementType.CALORIE_GOAL:
-            return data.get('calorie_goal_reached', False)
+            if action != "daily_check":
+                return False
+            return await self._check_goal_streak(user.id, "calories", condition["days"], session)
         
         elif achievement.type == AchievementType.WATER_GOAL:
-            return data.get('water_goal_reached', False)
+            if action != "daily_check":
+                return False
+            return await self._check_goal_streak(user.id, "water", condition["days"], session)
         
-        elif achievement.type == AchievementType.WEIGHT_LOSS:
-            if progress.start_weight and progress.current_weight:
-                weight_lost = progress.start_weight - progress.current_weight
-                return weight_lost >= condition["kg"]
-            return False
+        elif achievement.type == AchievementType.ACTIVITY_GOAL:
+            if action != "daily_check":
+                return False
+            return await self._check_goal_streak(user.id, "activity", condition["days"], session)
         
         elif achievement.type == AchievementType.PERFECT_DAY:
-            return data.get('perfect_day', False)
+            if action != "daily_check":
+                return False
+            return await self._check_perfect_day(user.id, session)
         
         elif achievement.type == AchievementType.EARLY_BIRD:
-            return progress.early_breakfasts >= 1
+            if action != "meal":
+                return False
+            meal_time = data.get("time", datetime.now()).time()
+            target_time = datetime.strptime(condition["meal_before"], "%H:%M").time()
+            return meal_time <= target_time
         
         elif achievement.type == AchievementType.NIGHT_OWL:
-            return progress.late_dinners >= 1
+            if action != "meal":
+                return False
+            meal_time = data.get("time", datetime.now()).time()
+            target_time = datetime.strptime(condition["meal_after"], "%H:%M").time()
+            return meal_time >= target_time
         
         return False
     
-    async def get_user_stats(self, user_id: int) -> Dict:
-        """ĞŸĞ¾Ğ»ÑƒÑ‡ĞµĞ½Ğ¸Ğµ Ñ�Ñ‚Ğ°Ñ‚Ğ¸Ñ�Ñ‚Ğ¸ĞºĞ¸ Ğ¿Ğ¾Ğ»ÑŒĞ·Ğ¾Ğ²Ğ°Ñ‚ĞµĞ»Ñ�"""
-        async with get_session() as session:
-            # ĞŸĞ¾Ğ»ÑƒÑ‡Ğ°ĞµĞ¼ ID Ğ¿Ğ¾Ğ»ÑŒĞ·Ğ¾Ğ²Ğ°Ñ‚ĞµĞ»Ñ�
-            user_result = await session.execute(
-                select(User).where(User.telegram_id == user_id)
-            )
-            user = user_result.scalar_one_or_none()
+    async def _get_user_streak(self, user_id: int, session) -> int:
+        """Получает серию дней использования бота"""
+        try:
+            from database.models import MealEntry, DrinkEntry, ActivityEntry
+            from datetime import date
             
-            if not user:
-                return self._get_empty_stats()
+            today = date.today()
+            streak = 0
             
-            # ĞŸĞ¾Ğ»ÑƒÑ‡Ğ°ĞµĞ¼ Ñ�Ñ‚Ğ°Ñ‚Ğ¸Ñ�Ñ‚Ğ¸ĞºÑƒ Ğ³ĞµĞ¹Ğ¼Ğ¸Ñ„Ğ¸ĞºĞ°Ñ†Ğ¸Ğ¸
-            gamif_result = await session.execute(
-                select(UserGamification).where(UserGamification.user_id == user.id)
-            )
-            gamif = gamif_result.scalar_one_or_none()
-            
-            if not gamif:
-                return self._get_empty_stats()
-            
-            # ĞŸĞ¾Ğ»ÑƒÑ‡Ğ°ĞµĞ¼ ĞºĞ¾Ğ»Ğ¸Ñ‡ĞµÑ�Ñ‚Ğ²Ğ¾ Ğ´Ğ¾Ñ�Ñ‚Ğ¸Ğ¶ĞµĞ½Ğ¸Ğ¹
-            achievements_count = await session.execute(
-                select(func.count(UserAchievement.id)).where(
-                    UserAchievement.user_id == user.id
+            # Проверяем каждый день назад
+            for i in range(365):  # Максимум год назад
+                check_date = today - timedelta(days=i)
+                
+                # Проверяем, была ли активность в этот день
+                has_activity = (
+                    session.query(MealEntry).filter(
+                        MealEntry.user_id == user_id,
+                        MealEntry.date == check_date
+                    ).first() or
+                    session.query(DrinkEntry).filter(
+                        DrinkEntry.user_id == user_id,
+                        DrinkEntry.date == check_date
+                    ).first() or
+                    session.query(ActivityEntry).filter(
+                        ActivityEntry.user_id == user_id,
+                        ActivityEntry.date == check_date
+                    ).first()
                 )
-            )
-            achievements_count = achievements_count.scalar() or 0
+                
+                if has_activity:
+                    streak += 1
+                else:
+                    break
             
-            level = gamif.total_points // 100 + 1
-            points_to_next = (level * 100) - gamif.total_points
+            return streak
+            
+        except Exception as e:
+            logger.error(f"Error calculating streak for user {user_id}: {e}")
+            return 0
+    
+    async def _check_goal_streak(self, user_id: int, goal_type: str, days: int, session) -> bool:
+        """Проверяет серию выполнения целей"""
+        try:
+            from database.models import User
+            from utils.daily_stats import get_daily_stats
+            from datetime import date
+            
+            user = session.query(User).filter(User.id == user_id).first()
+            if not user:
+                return False
+            
+            today = date.today()
+            
+            for i in range(days):
+                check_date = today - timedelta(days=i)
+                stats = await get_daily_stats(user_id, check_date)
+                
+                if goal_type == "calories":
+                    goal_met = stats.get('calories_consumed', 0) >= user.daily_calorie_goal * 0.9  # 90% от цели
+                elif goal_type == "water":
+                    goal_met = stats.get('water_consumed', 0) >= user.daily_water_goal * 0.9
+                elif goal_type == "activity":
+                    goal_met = stats.get('activity_minutes', 0) >= 30  # Минимум 30 минут
+                else:
+                    goal_met = False
+                
+                if not goal_met:
+                    return False
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error checking goal streak for user {user_id}: {e}")
+            return False
+    
+    async def _check_perfect_day(self, user_id: int, session) -> bool:
+        """Проверяет идеальный день"""
+        try:
+            from database.models import User
+            from utils.daily_stats import get_daily_stats
+            from datetime import date
+            
+            user = session.query(User).filter(User.id == user_id).first()
+            if not user:
+                return False
+            
+            today = date.today()
+            stats = await get_daily_stats(user_id, today)
+            
+            # Проверяем все цели
+            calorie_goal_met = stats.get('calories_consumed', 0) >= user.daily_calorie_goal * 0.9
+            water_goal_met = stats.get('water_consumed', 0) >= user.daily_water_goal * 0.9
+            activity_goal_met = stats.get('activity_minutes', 0) >= 30
+            has_meals = stats.get('meals_count', 0) >= 3  # Минимум 3 приема пищи
+            
+            return calorie_goal_met and water_goal_met and activity_goal_met and has_meals
+            
+        except Exception as e:
+            logger.error(f"Error checking perfect day for user {user_id}: {e}")
+            return False
+    
+    async def get_user_achievements(self, user_id: int) -> List[Dict]:
+        """Получает все достижения пользователя"""
+        try:
+            from database.db import get_session
+            from database.models import User, UserAchievement
+            
+            with get_session() as session:
+                user = session.query(User).filter(User.telegram_id == user_id).first()
+                if not user:
+                    return []
+                
+                achievements = session.query(UserAchievement).filter(
+                    UserAchievement.user_id == user.id
+                ).order_by(UserAchievement.earned_at.desc()).all()
+                
+                result = []
+                for user_achievement in achievements:
+                    achievement = self.achievements.get(user_achievement.achievement_id)
+                    if achievement:
+                        result.append({
+                            'id': achievement.id,
+                            'name': achievement.name,
+                            'description': achievement.description,
+                            'icon': achievement.icon,
+                            'points': achievement.points,
+                            'earned_at': user_achievement.earned_at
+                        })
+                
+                return result
+                
+        except Exception as e:
+            logger.error(f"Error getting user achievements for {user_id}: {e}")
+            return []
+    
+    async def get_user_points(self, user_id: int) -> int:
+        """Получает общее количество очков пользователя"""
+        try:
+            achievements = await self.get_user_achievements(user_id)
+            return sum(achievement['points'] for achievement in achievements)
+        except Exception as e:
+            logger.error(f"Error getting user points for {user_id}: {e}")
+            return 0
+    
+    async def get_user_level(self, user_id: int) -> Dict:
+        """Получает уровень пользователя"""
+        try:
+            points = await self.get_user_points(user_id)
+            
+            # Уровни: каждые 100 очков = новый уровень
+            level = points // 100 + 1
+            points_to_next = ((level) * 100) - points
+            progress = (points % 100)
             
             return {
-                "level": level,
-                "total_points": gamif.total_points,
-                "points_to_next": points_to_next,
-                "achievements_count": achievements_count,
-                "streak_days": gamif.current_streak,
-                "max_streak": gamif.max_streak,
-                "meals_logged": gamif.meals_logged,
-                "water_ml_total": gamif.water_ml_total,
-                "current_weight": gamif.current_weight,
-                "start_weight": gamif.start_weight
+                'level': level,
+                'points': points,
+                'points_to_next': points_to_next,
+                'progress': progress
             }
+            
+        except Exception as e:
+            logger.error(f"Error getting user level for {user_id}: {e}")
+            return {'level': 1, 'points': 0, 'points_to_next': 100, 'progress': 0}
     
-    def _get_empty_stats(self) -> Dict:
-        """ĞŸÑƒÑ�Ñ‚Ğ°Ñ� Ñ�Ñ‚Ğ°Ñ‚Ğ¸Ñ�Ñ‚Ğ¸ĞºĞ° Ğ´Ğ»Ñ� Ğ½Ğ¾Ğ²Ğ¾Ğ³Ğ¾ Ğ¿Ğ¾Ğ»ÑŒĞ·Ğ¾Ğ²Ğ°Ñ‚ĞµĞ»Ñ�"""
-        return {
-            "level": 1,
-            "total_points": 0,
-            "points_to_next": 100,
-            "achievements_count": 0,
-            "streak_days": 0,
-            "max_streak": 0,
-            "meals_logged": 0,
-            "water_ml_total": 0,
-            "current_weight": None,
-            "start_weight": None
-        }
+    def get_achievement_progress(self, user_id: int, achievement_id: str) -> Dict:
+        """Получает прогресс по достижению"""
+        try:
+            achievement = self.achievements.get(achievement_id)
+            if not achievement:
+                return {}
+            
+            # TODO: Реализовать расчет прогресса для каждого типа достижения
+            # Это требует более сложной логики для отслеживания прогресса
+            
+            return {
+                'achievement_id': achievement_id,
+                'name': achievement.name,
+                'current': 0,
+                'target': 1,
+                'progress': 0
+            }
+            
+        except Exception as e:
+            logger.error(f"Error getting achievement progress for {user_id}: {e}")
+            return {}
+    
+    async def get_leaderboard(self, period: str = "all", limit: int = 10) -> List[Dict]:
+        """Получает таблицу лидеров"""
+        try:
+            from database.db import get_session
+            from database.models import User, UserAchievement
+            from sqlalchemy import func
+            
+            with get_session() as session:
+                # Получаем всех пользователей с их достижениями
+                query = session.query(
+                    User.telegram_id,
+                    User.first_name,
+                    func.count(UserAchievement.id).label('achievements_count'),
+                    func.sum(self.achievements['achievement_id'].points).label('total_points')
+                ).outerjoin(UserAchievement).group_by(User.id)
+                
+                # Фильтрация по периоду (TODO: добавить фильтрацию по дате)
+                if period == "week":
+                    pass  # TODO: добавить фильтрацию за неделю
+                elif period == "month":
+                    pass  # TODO: добавить фильтрацию за месяц
+                
+                results = query.order_by(func.sum(UserAchievement.points).desc()).limit(limit).all()
+                
+                leaderboard = []
+                for i, (telegram_id, first_name, achievements_count, total_points) in enumerate(results, 1):
+                    leaderboard.append({
+                        'position': i,
+                        'telegram_id': telegram_id,
+                        'name': first_name or f"User_{telegram_id}",
+                        'achievements_count': achievements_count or 0,
+                        'total_points': total_points or 0
+                    })
+                
+                return leaderboard
+                
+        except Exception as e:
+            logger.error(f"Error getting leaderboard: {e}")
+            return []
 
-# Ğ“Ğ»Ğ¾Ğ±Ğ°Ğ»ÑŒĞ½Ñ‹Ğ¹ Ñ�ĞºĞ·ĞµĞ¼Ğ¿Ğ»Ñ�Ñ€ Ñ�Ğ¸Ñ�Ñ‚ĞµĞ¼Ñ‹
-gamification = GamificationSystem()
+# Глобальная экземпляр системы геймификации
+gamification_system = GamificationSystem()
+
+async def check_achievements(user_id: int, action: str, data: Dict = None) -> List[Achievement]:
+    """Проверяет достижения для пользователя"""
+    return await gamification_system.check_achievements(user_id, action, data)
+
+async def get_user_achievements(user_id: int) -> List[Dict]:
+    """Получает достижения пользователя"""
+    return await gamification_system.get_user_achievements(user_id)
+
+async def get_user_points(user_id: int) -> int:
+    """Получает очки пользователя"""
+    return await gamification_system.get_user_points(user_id)
+
+async def get_user_level(user_id: int) -> Dict:
+    """Получает уровень пользователя"""
+    return await gamification_system.get_user_level(user_id)
+
+async def get_leaderboard(period: str = "all", limit: int = 10) -> List[Dict]:
+    """Получает таблицу лидеров"""
+    return await gamification_system.get_leaderboard(period, limit)
+
+def format_achievement_message(achievement: Achievement) -> str:
+    """Форматирует сообщение о достижении"""
+    return (
+        f"[ACHIEVEMENT] <b>Новое достижение!</b>\n\n"
+        f"{achievement.icon} <b>{achievement.name}</b>\n"
+        f"{achievement.description}\n"
+        f"[POINTS] +{achievement.points} очков\n\n"
+        f"[INFO] <i>Проверьте все достижения в профиле!</i>"
+    )
+
+def format_level_info(level_info: Dict) -> str:
+    """Форматирует информацию об уровне"""
+    return (
+        f"[LEVEL] <b>Уровень {level_info['level']}</b>\n"
+        f"[POINTS] Очки: {level_info['points']}\n"
+        f"[PROGRESS] Прогресс: {level_info['progress']}/100\n"
+        f"[NEXT] До следующего уровня: {level_info['points_to_next']} очков"
+    )

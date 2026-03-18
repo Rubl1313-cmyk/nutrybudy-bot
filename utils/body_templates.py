@@ -1,321 +1,476 @@
 """
 utils/body_templates.py
-Ğ¨Ğ°Ğ±Ğ»Ğ¾Ğ½Ñ‹ Ğ´Ğ»Ñ� Ğ²Ñ‹Ğ²Ğ¾Ğ´Ğ° Ñ€Ğ°Ñ�ÑˆĞ¸Ñ€ĞµĞ½Ğ½Ğ¾Ğ¹ Ñ…Ğ°Ñ€Ğ°ĞºÑ‚ĞµÑ€Ğ¸Ñ�Ñ‚Ğ¸ĞºĞ¸ Ñ‚ĞµĞ»Ğ°
+Шаблоны для вывода расширенной характеристики тела
 """
 import logging
 from typing import Dict, Any
-
-from services.body_stats import get_body_composition_analysis, get_weight_change_trend
 
 logger = logging.getLogger(__name__)
 
 def get_body_analysis_text(user, previous_weights: list = None) -> str:
     """
-    Ğ¤Ğ¾Ñ€Ğ¼Ğ¸Ñ€ÑƒĞµÑ‚ Ñ€Ğ°Ğ·Ğ²ĞµÑ€Ğ½ÑƒÑ‚Ñ‹Ğ¹ Ñ‚ĞµĞºÑ�Ñ‚ Ğ°Ğ½Ğ°Ğ»Ğ¸Ğ·Ğ° ĞºĞ¾Ğ¼Ğ¿Ğ¾Ğ·Ğ¸Ñ†Ğ¸Ğ¸ Ñ‚ĞµĞ»Ğ°
+    Формирует развернутый текст анализа композиции тела
     
     Args:
-        user: Ğ�Ğ±ÑŠĞµĞºÑ‚ Ğ¿Ğ¾Ğ»ÑŒĞ·Ğ¾Ğ²Ğ°Ñ‚ĞµĞ»Ñ� Ğ¸Ğ· Ğ±Ğ°Ğ·Ñ‹ Ğ´Ğ°Ğ½Ğ½Ñ‹Ñ…
-        previous_weights: Ğ¡Ğ¿Ğ¸Ñ�Ğ¾Ğº Ğ¿Ñ€ĞµĞ´Ñ‹Ğ´ÑƒÑ‰Ğ¸Ñ… Ğ²ĞµÑ�Ğ¾Ğ² Ğ´Ğ»Ñ� Ğ°Ğ½Ğ°Ğ»Ğ¸Ğ·Ğ° Ñ‚Ñ€ĞµĞ½Ğ´Ğ°
+        user: Объект пользователя из базы данных
+        previous_weights: Список предыдущих весов для анализа тренда
         
     Returns:
-        str: Ğ�Ñ‚Ñ„Ğ¾Ñ€Ğ¼Ğ°Ñ‚Ğ¸Ñ€Ğ¾Ğ²Ğ°Ğ½Ğ½Ñ‹Ğ¹ Ñ‚ĞµĞºÑ�Ñ‚ Ñ� HTML-Ñ€Ğ°Ğ·Ğ¼ĞµÑ‚ĞºĞ¾Ğ¹
+        str: Отформатированный текст с HTML-разметкой
     """
     try:
-        # ĞŸĞ¾Ğ»ÑƒÑ‡Ğ°ĞµĞ¼ Ğ¿Ğ¾Ğ»Ğ½Ñ‹Ğ¹ Ğ°Ğ½Ğ°Ğ»Ğ¸Ğ· ĞºĞ¾Ğ¼Ğ¿Ğ¾Ğ·Ğ¸Ñ†Ğ¸Ğ¸ Ñ‚ĞµĞ»Ğ°
+        # Получаем полный анализ композиции тела
         body_analysis = get_body_composition_analysis(
             weight=user.weight,
             height=user.height,
             age=user.age,
             gender=user.gender,
-            neck_cm=user.neck_cm,
-            waist_cm=user.waist_cm,
-            hip_cm=user.hip_cm,
-            wrist_cm=getattr(user, 'wrist_cm', None),
-            chest_cm=getattr(user, 'chest_cm', None),
-            forearm_cm=getattr(user, 'forearm_cm', None),
-            calf_cm=getattr(user, 'calf_cm', None),
-            shoulder_width_cm=getattr(user, 'shoulder_width_cm', None),
+            neck_cm=getattr(user, 'neck_cm', None),
+            waist_cm=getattr(user, 'waist_cm', None),
             hip_width_cm=getattr(user, 'hip_width_cm', None)
         )
         
-        # Ğ�Ğ½Ğ°Ğ»Ğ¸Ğ· Ñ‚Ñ€ĞµĞ½Ğ´Ğ° Ğ²ĞµÑ�Ğ°
+        # Анализ тренда веса
         weight_trend = get_weight_change_trend(user.weight, previous_weights) if previous_weights else None
         
-        # Ğ¤Ğ¾Ñ€Ğ¼Ğ¸Ñ€ÑƒĞµĞ¼ Ñ‚ĞµĞºÑ�Ñ‚
+        # Формируем текст
         text = f"""
-ğŸ§¬ <b>ĞŸĞ¾Ğ»Ğ½Ñ‹Ğ¹ Ğ°Ğ½Ğ°Ğ»Ğ¸Ğ· Ğ²Ğ°ÑˆĞµĞ³Ğ¾ Ñ‚ĞµĞ»Ğ°</b>
+[BODY] <b>Полный анализ вашего тела</b>
 
-ğŸ“Š <b>ĞšĞ¾Ğ¼Ğ¿Ğ¾Ğ·Ğ¸Ñ†Ğ¸Ñ� Ñ‚ĞµĞ»Ğ°:</b>
-â€¢ Ğ˜Ğ½Ğ´ĞµĞºÑ� Ğ¼Ğ°Ñ�Ñ�Ñ‹ Ñ‚ĞµĞ»Ğ° (Ğ˜ĞœĞ¢): {body_analysis['bmi']} {body_analysis['bmi_color']} â€” <i>{body_analysis['bmi_status']}</i>
-â€¢ Ğ˜Ğ´ĞµĞ°Ğ»ÑŒĞ½Ñ‹Ğ¹ Ğ²ĞµÑ�: {body_analysis['ideal_weights']['healthy_range']} ĞºĞ³
-â€¢ ĞŸÑ€Ğ¾Ñ†ĞµĞ½Ñ‚ Ğ¶Ğ¸Ñ€Ğ°: {body_analysis['body_fat']}% {'ğŸ�¯' if body_analysis['has_navy_data'] else 'ğŸ“Š'}
-â€¢ ĞœÑ‹ÑˆĞµÑ‡Ğ½Ğ°Ñ� Ğ¼Ğ°Ñ�Ñ�Ğ°: {body_analysis['muscle_mass']} ĞºĞ³
-ğŸ’¡ <i>Ğ˜ĞœĞ¢ Ğ¿Ğ¾ĞºĞ°Ğ·Ñ‹Ğ²Ğ°ĞµÑ‚ Ñ�Ğ¾Ğ¾Ñ‚Ğ½Ğ¾ÑˆĞµĞ½Ğ¸Ğµ Ğ²ĞµÑ�Ğ° Ğº Ñ€Ğ¾Ñ�Ñ‚Ñƒ. ĞŸÑ€Ğ¾Ñ†ĞµĞ½Ñ‚ Ğ¶Ğ¸Ñ€Ğ° Ğ¸ Ğ¼Ñ‹ÑˆĞµÑ‡Ğ½Ğ°Ñ� Ğ¼Ğ°Ñ�Ñ�Ğ° Ğ¿Ğ¾Ğ¼Ğ¾Ğ³Ğ°Ñ�Ñ‚ Ğ¾Ñ†ĞµĞ½Ğ¸Ñ‚ÑŒ Ñ�Ğ¾Ñ�Ñ‚Ğ°Ğ² Ñ‚ĞµĞ»Ğ°.</i>
-â€¢ Ğ’Ğ¾Ğ´Ğ° Ğ² Ğ¾Ñ€Ğ³Ğ°Ğ½Ğ¸Ğ·Ğ¼Ğµ: {body_analysis['body_water']} Ğ» ({round((body_analysis['body_water']/user.weight)*100, 1)}% Ğ¾Ñ‚ Ğ²ĞµÑ�Ğ°)
-ğŸ’¡ <i>Ğ’Ğ¾Ğ´Ğ° Ñ�Ğ¾Ñ�Ñ‚Ğ°Ğ²Ğ»Ñ�ĞµÑ‚ Ğ¾Ñ�Ğ½Ğ¾Ğ²Ğ½ÑƒÑ� Ñ‡Ğ°Ñ�Ñ‚ÑŒ Ñ‚ĞµĞ»Ğ°. Ğ�Ğ¿Ñ‚Ğ¸Ğ¼Ğ°Ğ»ÑŒĞ½Ñ‹Ğ¹ ÑƒÑ€Ğ¾Ğ²ĞµĞ½ÑŒ - 60-70% Ğ¾Ñ‚ Ğ²ĞµÑ�Ğ°.</i>
+[COMPOSITION] <b>Композиция тела:</b>
+• Индекс массы тела (ИМТ): {body_analysis['bmi']} {body_analysis['bmi_color']} — <i>{body_analysis['bmi_status']}</i>
+• Идеальный вес: {body_analysis['ideal_weights']['healthy_range']} кг
+• Процент жира: {body_analysis['body_fat']}% {'[DATA]' if body_analysis['has_navy_data'] else '[ESTIMATED]'}
+• Мышечная масса: {body_analysis['muscle_mass']} кг
+[INFO] <i>ИМТ показывает соотношение веса к росту. Процент жира и мышечная масса помогают оценить состав тела.</i>
+• Вода в организме: {body_analysis['body_water']} л ({round((body_analysis['body_water']/user.weight)*100, 1)}% от веса)
+[INFO] <i>Вода составляет основную часть тела. Оптимальный уровень - 60-70% от веса.</i>
 """
         
-        # Ğ”Ğ¾Ğ±Ğ°Ğ²Ğ»Ñ�ĞµĞ¼ Ğ½Ğ¾Ğ²Ñ‹Ğµ Ğ¼ĞµÑ‚Ñ€Ğ¸ĞºĞ¸
+        # Добавляем новые метрики
         if body_analysis.get('whtr'):
-            status = "âœ… Ğ½Ğ¾Ñ€Ğ¼Ğ°" if body_analysis['whtr'] < 0.5 else "âš ï¸� Ğ²Ñ‹ÑˆĞµ Ğ½Ğ¾Ñ€Ğ¼Ñ‹"
-            text += f"â€¢ Ğ�Ñ‚Ğ½Ğ¾ÑˆĞµĞ½Ğ¸Ğµ Ñ‚Ğ°Ğ»Ğ¸Ğ¸/Ñ€Ğ¾Ñ�Ñ‚: {body_analysis['whtr']} ({status})\n"
-            text += f"  ğŸ’¡ <i>WHTR Ğ¿Ğ¾Ğ¼Ğ¾Ğ³Ğ°ĞµÑ‚ Ğ¾Ñ†ĞµĞ½Ğ¸Ñ‚ÑŒ Ñ€Ğ¸Ñ�ĞºĞ¸ Ğ´Ğ»Ñ� Ğ·Ğ´Ğ¾Ñ€Ğ¾Ğ²ÑŒÑ�. Ğ—Ğ½Ğ°Ñ‡ĞµĞ½Ğ¸Ğµ <0.5 Ñ�Ñ‡Ğ¸Ñ‚Ğ°ĞµÑ‚Ñ�Ñ� Ğ¾Ğ¿Ñ‚Ğ¸Ğ¼Ğ°Ğ»ÑŒĞ½Ñ‹Ğ¼. Ğ’Ğ°ÑˆĞ° Ñ†ĞµĞ»ĞµĞ²Ğ°Ñ� Ñ‚Ğ°Ğ»Ğ¸Ñ�: < {round(0.5*user.height)} Ñ�Ğ¼</i>\n"
+            status = "[OK] норма" if body_analysis['whtr'] < 0.5 else "[WARNING] выше нормы"
+            text += f"• Отношение талии/рост: {body_analysis['whtr']} ({status})\n"
+            text += f"  [INFO] <i>WHTR помогает оценить риски для здоровья. Значение <0.5 считается оптимальным. Ваша целевая талия: < {round(0.5*user.height)} см</i>\n"
         
         if body_analysis.get('metabolic_age'):
             age_diff = body_analysis['metabolic_age'] - user.age
             if age_diff < 0:
-                age_comment = f"Ğ½Ğ° {abs(age_diff)} Ğ³Ğ¾Ğ´Ğ° Ğ¼Ğ»Ğ°Ğ´ÑˆĞµ Ğ²Ğ°ÑˆĞµĞ³Ğ¾ Ñ€ĞµĞ°Ğ»ÑŒĞ½Ğ¾Ğ³Ğ¾ Ğ²Ğ¾Ğ·Ñ€Ğ°Ñ�Ñ‚Ğ° â€“ Ğ¾Ñ‚Ğ»Ğ¸Ñ‡Ğ½Ğ¾!"
+                age_comment = f"на {abs(age_diff)} года младше вашего реального возраста – отлично!"
             elif age_diff > 0:
-                age_comment = f"Ğ½Ğ° {age_diff} Ğ»ĞµÑ‚ Ñ�Ñ‚Ğ°Ñ€ÑˆĞµ â€“ Ñ�Ñ‚Ğ¾Ğ¸Ñ‚ Ğ¾Ğ±Ñ€Ğ°Ñ‚Ğ¸Ñ‚ÑŒ Ğ²Ğ½Ğ¸Ğ¼Ğ°Ğ½Ğ¸Ğµ Ğ½Ğ° Ñ�Ğ¾Ñ�Ñ‚Ğ°Ğ² Ñ‚ĞµĞ»Ğ°."
+                age_comment = f"на {age_diff} лет старше – стоит обратить внимание на состав тела."
             else:
-                age_comment = "Ñ�Ğ¾Ğ²Ğ¿Ğ°Ğ´Ğ°ĞµÑ‚ Ñ� Ğ²Ğ°ÑˆĞ¸Ğ¼ Ğ²Ğ¾Ğ·Ñ€Ğ°Ñ�Ñ‚Ğ¾Ğ¼."
-            text += f"â€¢ ĞœĞµÑ‚Ğ°Ğ±Ğ¾Ğ»Ğ¸Ñ‡ĞµÑ�ĞºĞ¸Ğ¹ Ğ²Ğ¾Ğ·Ñ€Ğ°Ñ�Ñ‚: {body_analysis['metabolic_age']} Ğ»ĞµÑ‚ ({age_comment})\n"
-            text += f"  ğŸ’¡ <i>ĞŸĞ¾ĞºĞ°Ğ·Ñ‹Ğ²Ğ°ĞµÑ‚ 'Ğ²Ğ¾Ğ·Ñ€Ğ°Ñ�Ñ‚' Ğ²Ğ°ÑˆĞµĞ³Ğ¾ Ğ¾Ğ±Ğ¼ĞµĞ½Ğ° Ğ²ĞµÑ‰ĞµÑ�Ñ‚Ğ². Ğ•Ñ�Ğ»Ğ¸ Ğ¼Ğ»Ğ°Ğ´ÑˆĞµ Ñ€ĞµĞ°Ğ»ÑŒĞ½Ğ¾Ğ³Ğ¾ â€“ Ğ¾Ñ‚Ğ»Ğ¸Ñ‡Ğ½Ğ¾, ĞµÑ�Ğ»Ğ¸ Ñ�Ñ‚Ğ°Ñ€ÑˆĞµ â€“ Ñ�Ñ‚Ğ¾Ğ¸Ñ‚ ÑƒĞ»ÑƒÑ‡ÑˆĞ¸Ñ‚ÑŒ Ñ„Ğ¸Ğ·Ğ¸Ñ‡ĞµÑ�ĞºÑƒÑ� Ğ°ĞºÑ‚Ğ¸Ğ²Ğ½Ğ¾Ñ�Ñ‚ÑŒ.</i>\n"
+                age_comment = "совпадает с вашим возрастом."
+            text += f"• Метаболический возраст: {body_analysis['metabolic_age']} лет ({age_comment})\n"
         
         if body_analysis.get('absi') and body_analysis.get('absi_risk'):
-            text += f"â€¢ Ğ˜Ğ½Ğ´ĞµĞºÑ� Ñ„Ğ¾Ñ€Ğ¼Ñ‹ Ñ‚ĞµĞ»Ğ° (ABSI): {body_analysis['absi']:.3f} â€“ {body_analysis['absi_risk']} Ñ€Ğ¸Ñ�Ğº\n"
-            text += f"  ğŸ’¡ <i>ABSI Ğ¿Ğ¾Ğ¼Ğ¾Ğ³Ğ°ĞµÑ‚ Ğ¾Ñ†ĞµĞ½Ğ¸Ñ‚ÑŒ Ñ€Ğ°Ñ�Ğ¿Ñ€ĞµĞ´ĞµĞ»ĞµĞ½Ğ¸Ğµ Ğ¶Ğ¸Ñ€Ğ° Ğ² Ğ¾Ñ€Ğ³Ğ°Ğ½Ğ¸Ğ·Ğ¼Ğµ. Ğ­Ñ‚Ğ¾ Ğ´Ğ¾Ğ¿Ğ¾Ğ»Ğ½Ğ¸Ñ‚ĞµĞ»ÑŒĞ½Ñ‹Ğ¹ Ğ¿Ğ¾ĞºĞ°Ğ·Ğ°Ñ‚ĞµĞ»ÑŒ Ğ´Ğ»Ñ� Ğ¼Ğ¾Ğ½Ğ¸Ñ‚Ğ¾Ñ€Ğ¸Ğ½Ğ³Ğ° Ğ·Ğ´Ğ¾Ñ€Ğ¾Ğ²ÑŒÑ�.</i>\n"
+            text += f"• Индекс формы тела (ABSI): {body_analysis['absi']:.3f} – {body_analysis['absi_risk']} риск\n"
+            text += f"  [INFO] <i>ABSI помогает оценить распределение жира в организме. Это дополнительный показатель для мониторинга здоровья.</i>\n"
         
         if body_analysis.get('muscle_segments'):
             ms = body_analysis['muscle_segments']
-            text += f"â€¢ ĞœÑ‹ÑˆĞµÑ‡Ğ½Ğ°Ñ� Ğ¼Ğ°Ñ�Ñ�Ğ° Ğ¿Ğ¾ Ñ�ĞµĞ³Ğ¼ĞµĞ½Ñ‚Ğ°Ğ¼:\n  ğŸ’ª Ğ ÑƒĞºĞ¸: {ms['arms']} ĞºĞ³ | Ğ�Ğ¾Ğ³Ğ¸: {ms['legs']} ĞºĞ³ | Ğ¢ÑƒĞ»Ğ¾Ğ²Ğ¸Ñ‰Ğµ: {ms['trunk']} ĞºĞ³\n  ğŸ’¡ ĞŸĞ¾Ğ·Ğ²Ğ¾Ğ»Ñ�ĞµÑ‚ Ğ¾Ñ†ĞµĞ½Ğ¸Ñ‚ÑŒ Ñ€Ğ°Ğ²Ğ½Ğ¾Ğ¼ĞµÑ€Ğ½Ğ¾Ñ�Ñ‚ÑŒ Ñ€Ğ°Ğ·Ğ²Ğ¸Ñ‚Ğ¸Ñ�. Ğ‘Ğ¾Ğ»ÑŒÑˆĞµ Ğ¾Ğ±Ñ…Ğ²Ğ°Ñ‚Ñ‹ â€“ Ğ±Ğ¾Ğ»ÑŒÑˆĞµ Ğ¼Ñ‹ÑˆÑ† Ğ² Ñ�Ñ‚Ğ¾Ğ¹ Ğ·Ğ¾Ğ½Ğµ.\n"
+            text += f"\n[MUSCLES] <b>Анализ мышечной массы:</b>\n"
+            text += f"• Руки: {ms['arms']} кг ({ms['arms_percent']:.1f}% от общей массы)\n"
+            text += f"• Ноги: {ms['legs']} кг ({ms['legs_percent']:.1f}%)\n"
+            text += f"• Туловище: {ms['torso']} кг ({ms['torso_percent']:.1f}%)\n"
+            text += f"[INFO] <i>Сбалансированное развитие всех групп мышц важно для здоровья и силовых показателей.</i>\n"
         
-        # Ğ”Ğ¾Ğ±Ğ°Ğ²Ğ»Ñ�ĞµĞ¼ Ğ¸Ğ½Ñ„Ğ¾Ñ€Ğ¼Ğ°Ñ†Ğ¸Ñ� Ğ¾ Ñ€Ğ¸Ñ�ĞºĞµ Ğ²Ğ¸Ñ�Ñ†ĞµÑ€Ğ°Ğ»ÑŒĞ½Ğ¾Ğ³Ğ¾ Ğ¶Ğ¸Ñ€Ğ°
+        # Добавляем информацию о риске висцерального жира
         if body_analysis['visceral_risk']:
-            text += f"â€¢ Ğ Ğ¸Ñ�Ğº Ğ²Ğ¸Ñ�Ñ†ĞµÑ€Ğ°Ğ»ÑŒĞ½Ğ¾Ğ³Ğ¾ Ğ¶Ğ¸Ñ€Ğ°: {body_analysis['visceral_risk']} {body_analysis['visceral_risk_color']}\n"
-            text += f"  ğŸ’¡ <i>Ğ’Ğ¸Ñ�Ñ†ĞµÑ€Ğ°Ğ»ÑŒĞ½Ñ‹Ğ¹ Ğ¶Ğ¸Ñ€ â€“ Ñ�Ñ‚Ğ¾ Ğ¶Ğ¸Ñ€ Ğ²Ğ¾ĞºÑ€ÑƒĞ³ Ğ²Ğ½ÑƒÑ‚Ñ€ĞµĞ½Ğ½Ğ¸Ñ… Ğ¾Ñ€Ğ³Ğ°Ğ½Ğ¾Ğ². Ğ•Ğ³Ğ¾ ÑƒÑ€Ğ¾Ğ²ĞµĞ½ÑŒ Ğ²Ğ°Ğ¶ĞµĞ½ Ğ´Ğ»Ñ� Ğ¾Ñ†ĞµĞ½ĞºĞ¸ Ğ¾Ğ±Ñ‰ĞµĞ³Ğ¾ Ñ�Ğ¾Ñ�Ñ‚Ğ¾Ñ�Ğ½Ğ¸Ñ� Ğ·Ğ´Ğ¾Ñ€Ğ¾Ğ²ÑŒÑ�.</i>\n"
+            text += f"• Риск висцерального жира: {body_analysis['visceral_risk']} {body_analysis['visceral_risk_color']}\n"
+            text += f"  [INFO] <i>Висцеральный жир – это жир вокруг внутренних органов. Его избыток повышает риск многих заболеваний.</i>\n"
         
-        # Ğ”Ğ¾Ğ±Ğ°Ğ²Ğ»Ñ�ĞµĞ¼ Ñ‚Ğ¸Ğ¿ Ñ‚ĞµĞ»Ğ¾Ñ�Ğ»Ğ¾Ğ¶ĞµĞ½Ğ¸Ñ�
-        if body_analysis['body_type'] != "Ğ�Ğµ Ğ¾Ğ¿Ñ€ĞµĞ´ĞµĞ»ĞµĞ½":
-            text += f"â€¢ Ğ¢Ğ¸Ğ¿ Ñ‚ĞµĞ»Ğ¾Ñ�Ğ»Ğ¾Ğ¶ĞµĞ½Ğ¸Ñ�: {body_analysis['body_type']}\n"
-            text += f"  ğŸ’¡ <i>Ğ�Ğ¿Ñ€ĞµĞ´ĞµĞ»Ñ�ĞµÑ‚Ñ�Ñ� Ğ¿Ğ¾ Ñ�Ñ‚Ñ€Ğ¾ĞµĞ½Ğ¸Ñ� Ñ�ĞºĞµĞ»ĞµÑ‚Ğ°. Ğ’Ğ»Ğ¸Ñ�ĞµÑ‚ Ğ½Ğ° Ñ€Ğ°Ñ�Ğ¿Ñ€ĞµĞ´ĞµĞ»ĞµĞ½Ğ¸Ğµ Ğ¶Ğ¸Ñ€Ğ° Ğ¸ Ğ¼Ñ‹ÑˆÑ†, Ğ½Ğ¾ Ğ½Ğµ Ñ�Ğ²Ğ»Ñ�ĞµÑ‚Ñ�Ñ� Ğ¾Ğ³Ñ€Ğ°Ğ½Ğ¸Ñ‡ĞµĞ½Ğ¸ĞµĞ¼ Ğ´Ğ»Ñ� Ğ´Ğ¾Ñ�Ñ‚Ğ¸Ğ¶ĞµĞ½Ğ¸Ñ� Ñ†ĞµĞ»ĞµĞ¹.</i>\n"
+        # Добавляем рекомендации
+        text += f"\n[RECOMMENDATIONS] <b>Персональные рекомендации:</b>\n"
+        recommendations = get_body_recommendations(body_analysis, user)
+        for rec in recommendations:
+            text += f"• {rec}\n"
         
-        text += f"""
-ğŸ”¥ <b>Ğ�Ğ±Ğ¼ĞµĞ½ Ğ²ĞµÑ‰ĞµÑ�Ñ‚Ğ²:</b>
-â€¢ Ğ‘Ğ°Ğ·Ğ¾Ğ²Ñ‹Ğ¹ Ğ¼ĞµÑ‚Ğ°Ğ±Ğ¾Ğ»Ğ¸Ğ·Ğ¼ (BMR): ~{int(user.daily_calorie_goal * 0.7)} ĞºĞºĞ°Ğ»/Ğ´ĞµĞ½ÑŒ
-â€¢ Ğ�Ğ±Ñ‰Ğ¸Ğ¹ Ñ€Ğ°Ñ�Ñ…Ğ¾Ğ´ (TDEE): {user.daily_calorie_goal} ĞºĞºĞ°Ğ»/Ğ´ĞµĞ½ÑŒ
-â€¢ Ğ­Ğ½ĞµÑ€Ğ³Ğ¸Ñ� Ğ½Ğ° Ğ¿ĞµÑ€ĞµĞ²Ğ°Ñ€Ğ¸Ğ²Ğ°Ğ½Ğ¸Ğµ Ğ¿Ğ¸Ñ‰Ğ¸: ~{int(user.daily_calorie_goal * 0.1)} ĞºĞºĞ°Ğ»/Ğ´ĞµĞ½ÑŒ
-ğŸ’¡ <i>Ğ‘Ğ°Ğ·Ğ¾Ğ²Ñ‹Ğ¹ Ğ¼ĞµÑ‚Ğ°Ğ±Ğ¾Ğ»Ğ¸Ğ·Ğ¼ - Ñ�Ñ‚Ğ¾ Ñ�Ğ½ĞµÑ€Ğ³Ğ¸Ñ�, ĞºĞ¾Ñ‚Ğ¾Ñ€ÑƒÑ� Ñ‚ĞµĞ»Ğ¾ Ñ‚Ñ€Ğ°Ñ‚Ğ¸Ñ‚ Ğ² Ñ�Ğ¾Ñ�Ñ‚Ğ¾Ñ�Ğ½Ğ¸Ğ¸ Ğ¿Ğ¾ĞºĞ¾Ñ� (Ğ´Ñ‹Ñ…Ğ°Ğ½Ğ¸Ğµ, Ñ�ĞµÑ€Ğ´Ñ†ĞµĞ±Ğ¸ĞµĞ½Ğ¸Ğµ). Ğ�Ğ±Ñ‰Ğ¸Ğ¹ Ñ€Ğ°Ñ�Ñ…Ğ¾Ğ´ Ğ²ĞºĞ»Ñ�Ñ‡Ğ°ĞµÑ‚ Ğ²Ñ�Ğµ ĞµĞ¶ĞµĞ´Ğ½ĞµĞ²Ğ½Ñ‹Ğµ Ğ°ĞºÑ‚Ğ¸Ğ²Ğ½Ğ¾Ñ�Ñ‚Ğ¸.</i>
-
-ğŸ’§ <b>Ğ’Ğ¾Ğ´Ğ½Ñ‹Ğ¹ Ğ±Ğ°Ğ»Ğ°Ğ½Ñ�:</b>
-â€¢ Ğ�Ğ±Ñ‰Ğ°Ñ� Ğ½Ğ¾Ñ€Ğ¼Ğ° Ğ¶Ğ¸Ğ´ĞºĞ¾Ñ�Ñ‚Ğ¸: {user.daily_water_goal} Ğ¼Ğ»/Ğ´ĞµĞ½ÑŒ
-â€¢ Ğ’ Ñ‚Ğ¾Ğ¼ Ñ‡Ğ¸Ñ�Ğ»Ğµ Ñ‡Ğ¸Ñ�Ñ‚Ğ¾Ğ¹ Ğ²Ğ¾Ğ´Ñ‹: ~{int(user.daily_water_goal * 0.75)} Ğ¼Ğ»/Ğ´ĞµĞ½ÑŒ
-ğŸ’¡ <i>ĞŸÑ€Ğ¸ Ñ†ĞµĞ»Ğ¸ "Ğ¿Ğ¾Ñ…ÑƒĞ´ĞµĞ½Ğ¸Ğµ" Ğ½Ğ¾Ñ€Ğ¼Ğ° ÑƒĞ²ĞµĞ»Ğ¸Ñ‡ĞµĞ½Ğ° Ğ½Ğ° 500 Ğ¼Ğ» (Ğ´Ğ¾Ğ¿Ğ¾Ğ»Ğ½Ğ¸Ñ‚ĞµĞ»ÑŒĞ½Ğ°Ñ� Ğ²Ğ¾Ğ´Ğ° Ğ¿ĞµÑ€ĞµĞ´ ĞµĞ´Ğ¾Ğ¹). Ğ˜Ñ�Ñ�Ğ»ĞµĞ´Ğ¾Ğ²Ğ°Ğ½Ğ¸Ñ� 2024-2026 Ğ¿Ğ¾ĞºĞ°Ğ·Ñ‹Ğ²Ğ°Ñ�Ñ‚: 500 Ğ¼Ğ» Ğ¿ĞµÑ€ĞµĞ´ ĞµĞ´Ğ¾Ğ¹ Ñ�Ğ½Ğ¸Ğ¶Ğ°Ñ�Ñ‚ Ğ¿Ğ¾Ñ‚Ñ€ĞµĞ±Ğ»ĞµĞ½Ğ¸Ğµ Ğ½Ğ° 111 ĞºĞºĞ°Ğ».</i>
-"""
+        # Добавляем тренд веса
+        if weight_trend:
+            text += f"\n[TREND] <b>Анализ тренда веса:</b>\n"
+            text += f"• {weight_trend['description']}\n"
+            text += f"• Изменение за период: {weight_trend['change']:+.1f} кг\n"
+            text += f"• Среднее изменение в неделю: {weight_trend['weekly_change']:+.2f} кг\n"
+            text += f"[INFO] <i>{weight_trend['recommendation']}</i>\n"
         
-        # Ğ”Ğ¾Ğ±Ğ°Ğ²Ğ»Ñ�ĞµĞ¼ Ñ‚Ñ€ĞµĞ½Ğ´ Ğ²ĞµÑ�Ğ°
-        if weight_trend and weight_trend['period'] > 0:
-            text += f"""
-ğŸ“ˆ <b>Ğ”Ğ¸Ğ½Ğ°Ğ¼Ğ¸ĞºĞ° Ğ²ĞµÑ�Ğ°:</b>
-â€¢ Ğ¢Ñ€ĞµĞ½Ğ´: {weight_trend['trend_emoji']} {weight_trend['trend']}
-â€¢ Ğ˜Ğ·Ğ¼ĞµĞ½ĞµĞ½Ğ¸Ğµ: {weight_trend['change']:+.1f} ĞºĞ³ Ğ·Ğ° {weight_trend['period']} Ğ²Ğ·Ğ²ĞµÑˆĞ¸Ğ²Ğ°Ğ½Ğ¸Ğ¹
-â€¢ Ğ¡Ñ€ĞµĞ´Ğ½Ğ¸Ğ¹ Ñ‚ĞµĞ¼Ğ¿: {weight_trend['rate']:+.2f} ĞºĞ³ Ğ·Ğ° Ğ½ĞµĞ´ĞµĞ»Ñ�
-ğŸ’¡ <i>ĞŸĞ¾ĞºĞ°Ğ·Ñ‹Ğ²Ğ°ĞµÑ‚, ĞºĞ°Ğº Ğ¼ĞµĞ½Ñ�ĞµÑ‚Ñ�Ñ� Ğ²Ğ°Ñˆ Ğ²ĞµÑ� Ñ�Ğ¾ Ğ²Ñ€ĞµĞ¼ĞµĞ½ĞµĞ¼. ĞŸĞ¾Ğ»Ğ¾Ğ¶Ğ¸Ñ‚ĞµĞ»ÑŒĞ½Ñ‹Ğ¹ Ñ‚ĞµĞ¼Ğ¿ - Ğ½Ğ°Ğ±Ğ¾Ñ€ Ğ²ĞµÑ�Ğ°, Ğ¾Ñ‚Ñ€Ğ¸Ñ†Ğ°Ñ‚ĞµĞ»ÑŒĞ½Ñ‹Ğ¹ - Ğ¿Ğ¾Ñ…ÑƒĞ´ĞµĞ½Ğ¸Ğµ.</i>
-"""
+        # Добавляем цели
+        text += f"\n[GOALS] <b>Рекомендуемые цели:</b>\n"
+        goals = get_body_goals(body_analysis, user)
+        for goal in goals:
+            text += f"• {goal}\n"
         
-        # Ğ”Ğ¾Ğ±Ğ°Ğ²Ğ»Ñ�ĞµĞ¼ Ñ€ĞµĞºĞ¾Ğ¼ĞµĞ½Ğ´Ğ°Ñ†Ğ¸Ğ¸ Ğ½Ğ° Ğ¾Ñ�Ğ½Ğ¾Ğ²Ğµ Ğ°Ğ½Ğ°Ğ»Ğ¸Ğ·Ğ°
-        text += f"""
-ğŸ�¯ <b>ĞŸĞµÑ€Ñ�Ğ¾Ğ½Ğ°Ğ»ÑŒĞ½Ñ‹Ğµ Ñ€ĞµĞºĞ¾Ğ¼ĞµĞ½Ğ´Ğ°Ñ†Ğ¸Ğ¸:</b>
-"""
-        
-        # Ğ ĞµĞºĞ¾Ğ¼ĞµĞ½Ğ´Ğ°Ñ†Ğ¸Ğ¸ Ğ¿Ğ¾ Ğ˜ĞœĞ¢
-        bmi = body_analysis['bmi']
-        if bmi < 18.5:
-            text += "â€¢ ğŸ“ˆ Ğ’Ğ°Ñˆ Ğ˜ĞœĞ¢ Ğ½Ğ¸Ğ¶Ğµ Ğ½Ğ¾Ñ€Ğ¼Ñ‹. Ğ ĞµĞºĞ¾Ğ¼ĞµĞ½Ğ´ÑƒĞµÑ‚Ñ�Ñ� Ğ¿Ñ€Ğ¾Ñ„Ğ¸Ñ†Ğ¸Ñ‚ ĞºĞ°Ğ»Ğ¾Ñ€Ğ¸Ğ¹ +300-500 ĞºĞºĞ°Ğ»\n"
-        elif bmi >= 25:
-            text += "â€¢ ğŸ“‰ Ğ’Ğ°Ñˆ Ğ˜ĞœĞ¢ Ğ²Ñ‹ÑˆĞµ Ğ½Ğ¾Ñ€Ğ¼Ñ‹. Ğ ĞµĞºĞ¾Ğ¼ĞµĞ½Ğ´ÑƒĞµÑ‚Ñ�Ñ� Ğ´ĞµÑ„Ğ¸Ñ†Ğ¸Ñ‚ ĞºĞ°Ğ»Ğ¾Ñ€Ğ¸Ğ¹ -300-500 ĞºĞºĞ°Ğ»\n"
-        else:
-            text += "â€¢ âœ… Ğ’Ğ°Ñˆ Ğ˜ĞœĞ¢ Ğ² Ğ½Ğ¾Ñ€Ğ¼Ğµ. ĞŸĞ¾Ğ´Ğ´ĞµÑ€Ğ¶Ğ¸Ğ²Ğ°Ğ¹Ñ‚Ğµ Ñ‚ĞµĞºÑƒÑ‰Ğ¸Ğ¹ ĞºĞ°Ğ»Ğ¾Ñ€Ğ°Ğ¶\n"
-        
-        # Ğ ĞµĞºĞ¾Ğ¼ĞµĞ½Ğ´Ğ°Ñ†Ğ¸Ğ¸ Ğ¿Ğ¾ % Ğ¶Ğ¸Ñ€Ğ°
-        body_fat = body_analysis['body_fat']
-        if user.gender == 'male':
-            if body_fat > 20:
-                text += "â€¢ ğŸ�ƒ Ğ ĞµĞºĞ¾Ğ¼ĞµĞ½Ğ´ÑƒĞµÑ‚Ñ�Ñ� ÑƒĞ²ĞµĞ»Ğ¸Ñ‡Ğ¸Ñ‚ÑŒ ĞºĞ°Ñ€Ğ´Ğ¸Ğ¾-Ğ½Ğ°Ğ³Ñ€ÑƒĞ·ĞºĞ¸ Ğ´Ğ¾ 3-5 Ñ€Ğ°Ğ· Ğ² Ğ½ĞµĞ´ĞµĞ»Ñ�\n"
-            elif body_fat < 8:
-                text += "â€¢ ğŸ’ª Ğ’Ğ°Ñˆ % Ğ¶Ğ¸Ñ€Ğ° Ğ½Ğ¸Ğ·ĞºĞ¸Ğ¹. Ğ¤Ğ¾ĞºÑƒÑ�Ğ¸Ñ€ÑƒĞ¹Ñ‚ĞµÑ�ÑŒ Ğ½Ğ° Ñ�Ğ¸Ğ»Ğ¾Ğ²Ñ‹Ñ… Ñ‚Ñ€ĞµĞ½Ğ¸Ñ€Ğ¾Ğ²ĞºĞ°Ñ…\n"
-        else:
-            if body_fat > 30:
-                text += "â€¢ ğŸ�ƒ Ğ ĞµĞºĞ¾Ğ¼ĞµĞ½Ğ´ÑƒĞµÑ‚Ñ�Ñ� ÑƒĞ²ĞµĞ»Ğ¸Ñ‡Ğ¸Ñ‚ÑŒ ĞºĞ°Ñ€Ğ´Ğ¸Ğ¾-Ğ½Ğ°Ğ³Ñ€ÑƒĞ·ĞºĞ¸ Ğ´Ğ¾ 3-5 Ñ€Ğ°Ğ· Ğ² Ğ½ĞµĞ´ĞµĞ»Ñ�\n"
-            elif body_fat < 15:
-                text += "â€¢ ğŸ’ª Ğ’Ğ°Ñˆ % Ğ¶Ğ¸Ñ€Ğ° Ğ½Ğ¸Ğ·ĞºĞ¸Ğ¹. Ğ¤Ğ¾ĞºÑƒÑ�Ğ¸Ñ€ÑƒĞ¹Ñ‚ĞµÑ�ÑŒ Ğ½Ğ° Ñ�Ğ¸Ğ»Ğ¾Ğ²Ñ‹Ñ… Ñ‚Ñ€ĞµĞ½Ğ¸Ñ€Ğ¾Ğ²ĞºĞ°Ñ…\n"
-        
-        # Ğ ĞµĞºĞ¾Ğ¼ĞµĞ½Ğ´Ğ°Ñ†Ğ¸Ğ¸ Ğ¿Ğ¾ Ğ²Ğ¾Ğ´Ğµ
-        text += f"â€¢ ğŸ’§ ĞŸĞµĞ¹Ñ‚Ğµ Ğ²Ğ¾Ğ´Ñƒ Ñ€ĞµĞ³ÑƒĞ»Ñ�Ñ€Ğ½Ğ¾: {user.daily_water_goal // 4} Ğ¼Ğ» ĞºĞ°Ğ¶Ğ´Ñ‹Ğµ 4 Ñ‡Ğ°Ñ�Ğ°\n"
-        
-        # Ğ ĞµĞºĞ¾Ğ¼ĞµĞ½Ğ´Ğ°Ñ†Ğ¸Ğ¸ Ğ¿Ğ¾ Ğ±ĞµĞ»ĞºÑƒ
-        protein_per_kg = user.daily_protein_goal / user.weight
-        text += f"â€¢ ğŸ¥© Ğ‘ĞµĞ»Ğ¾Ğº: {protein_per_kg:.1f}Ğ³ Ğ½Ğ° 1 ĞºĞ³ Ğ²ĞµÑ�Ğ° ({user.daily_protein_goal}Ğ³ Ğ² Ğ´ĞµĞ½ÑŒ)\n"
-        
-        # Ğ”Ğ¾Ğ±Ğ°Ğ²Ğ»Ñ�ĞµĞ¼ Ğ¼Ğ¾Ñ‚Ğ¸Ğ²Ğ°Ñ†Ğ¸Ğ¾Ğ½Ğ½Ğ¾Ğµ Ñ�Ğ¾Ğ¾Ğ±Ñ‰ĞµĞ½Ğ¸Ğµ
-        text += f"""
-ğŸ’ª <b>Ğ’Ğ°ÑˆĞ° Ñ†ĞµĞ»ÑŒ:</b> {user.goal.replace('_', ' ').title()}
-ğŸ�¯ <b>ĞŸÑ€Ğ¾Ğ³Ğ½Ğ¾Ğ· Ğ´Ğ¾Ñ�Ñ‚Ğ¸Ğ¶ĞµĞ½Ğ¸Ñ�:</b> {'~4-6 Ğ¼ĞµÑ�Ñ�Ñ†ĞµĞ²' if user.goal == 'lose_weight' else '~2-3 Ğ¼ĞµÑ�Ñ�Ñ†Ğ°'} Ğ¿Ñ€Ğ¸ Ñ‚ĞµĞºÑƒÑ‰ĞµĞ¼ Ñ‚ĞµĞ¼Ğ¿Ğµ
-
-ğŸ“� <b>Ğ¡Ğ¾Ğ²ĞµÑ‚ Ğ´Ğ½Ñ�:</b> {_get_daily_tip(user, body_analysis)}
-"""
-        
-        return text
+        return text.strip()
         
     except Exception as e:
-        logger.error(f"Error generating body analysis: {e}")
-        return "â�Œ Ğ�Ğµ ÑƒĞ´Ğ°Ğ»Ğ¾Ñ�ÑŒ Ñ�Ñ„Ğ¾Ñ€Ğ¼Ğ¸Ñ€Ğ¾Ğ²Ğ°Ñ‚ÑŒ Ğ°Ğ½Ğ°Ğ»Ğ¸Ğ· Ñ‚ĞµĞ»Ğ°. ĞŸĞ¾Ğ¿Ñ€Ğ¾Ğ±ÑƒĞ¹Ñ‚Ğµ Ğ¿Ğ¾Ğ·Ğ¶Ğµ."
+        logger.error(f"Error generating body analysis text: {e}")
+        return "[ERROR] Не удалось сформировать анализ тела. Попробуйте позже."
 
-def get_body_summary_text(user) -> str:
+def get_body_composition_analysis(weight: float, height: float, age: int, gender: str,
+                                neck_cm: float = None, waist_cm: float = None, 
+                                hip_width_cm: float = None) -> Dict[str, Any]:
     """
-    ĞšÑ€Ğ°Ñ‚ĞºĞ°Ñ� Ñ�Ğ²Ğ¾Ğ´ĞºĞ° Ğ¿Ğ¾ Ñ‚ĞµĞ»Ñƒ Ğ´Ğ»Ñ� Ğ±Ñ‹Ñ�Ñ‚Ñ€Ñ‹Ñ… ÑƒĞ²ĞµĞ´Ğ¾Ğ¼Ğ»ĞµĞ½Ğ¸Ğ¹
+    Выполняет полный анализ композиции тела
     
     Args:
-        user: Ğ�Ğ±ÑŠĞµĞºÑ‚ Ğ¿Ğ¾Ğ»ÑŒĞ·Ğ¾Ğ²Ğ°Ñ‚ĞµĞ»Ñ�
+        weight: Вес в кг
+        height: Рост в см
+        age: Возраст
+        gender: Пол (male/female)
+        neck_cm: Обхват шеи в см
+        waist_cm: Обхват талии в см
+        hip_width_cm: Ширина бедер в см
         
     Returns:
-        str: ĞšÑ€Ğ°Ñ‚ĞºĞ¸Ğ¹ Ñ‚ĞµĞºÑ�Ñ‚ Ñ� Ğ¾Ñ�Ğ½Ğ¾Ğ²Ğ½Ñ‹Ğ¼Ğ¸ Ğ¿Ğ¾ĞºĞ°Ğ·Ğ°Ñ‚ĞµĞ»Ñ�Ğ¼Ğ¸
+        dict: Анализ композиции тела
     """
     try:
-        body_analysis = get_body_composition_analysis(
-            weight=user.weight,
-            height=user.height,
-            age=user.age,
-            gender=user.gender,
-            neck_cm=user.neck_cm,
-            waist_cm=user.waist_cm,
-            hip_cm=user.hip_cm
-        )
+        # Базовые расчеты
+        bmi = calculate_bmi(weight, height)
+        bmi_status, bmi_color = get_bmi_classification(bmi)
         
-        text = f"""
-âš–ï¸� <b>Ğ’Ğ°ÑˆĞ° Ñ�Ğ²Ğ¾Ğ´ĞºĞ°:</b>
-â€¢ Ğ’ĞµÑ�: {user.weight} ĞºĞ³
-â€¢ Ğ˜ĞœĞ¢: {body_analysis['bmi']} {body_analysis['bmi_color']}
-â€¢ % Ğ¶Ğ¸Ñ€Ğ°: {body_analysis['body_fat']}%
-â€¢ Ğ�Ğ¾Ñ€Ğ¼Ğ° ĞºĞ°Ğ»Ğ¾Ñ€Ğ¸Ğ¹: {user.daily_calorie_goal} ĞºĞºĞ°Ğ»
-"""
+        # Расчет идеального веса
+        ideal_weights = calculate_ideal_weight(height, gender, age)
         
-        return text
+        # Расчет процента жира
+        body_fat_data = calculate_body_fat_percentage(weight, height, age, gender, neck_cm, waist_cm, hip_width_cm)
         
-    except Exception as e:
-        logger.error(f"Error generating body summary: {e}")
-        return "â�Œ Ğ�Ğµ ÑƒĞ´Ğ°Ğ»Ğ¾Ñ�ÑŒ Ğ¿Ğ¾Ğ»ÑƒÑ‡Ğ¸Ñ‚ÑŒ Ñ�Ğ²Ğ¾Ğ´ĞºÑƒ"
-
-def get_progress_comparison_text(current_user, previous_user_data: Dict) -> str:
-    """
-    Ğ¡Ñ€Ğ°Ğ²Ğ½ĞµĞ½Ğ¸Ğµ Ñ‚ĞµĞºÑƒÑ‰Ğ¸Ñ… Ğ¿Ğ¾ĞºĞ°Ğ·Ğ°Ñ‚ĞµĞ»ĞµĞ¹ Ñ� Ğ¿Ñ€ĞµĞ´Ñ‹Ğ´ÑƒÑ‰Ğ¸Ğ¼Ğ¸
-    
-    Args:
-        current_user: Ğ¢ĞµĞºÑƒÑ‰Ğ¸Ğ¹ Ğ¾Ğ±ÑŠĞµĞºÑ‚ Ğ¿Ğ¾Ğ»ÑŒĞ·Ğ¾Ğ²Ğ°Ñ‚ĞµĞ»Ñ�
-        previous_user_data: Ğ¡Ğ»Ğ¾Ğ²Ğ°Ñ€ÑŒ Ñ� Ğ¿Ñ€ĞµĞ´Ñ‹Ğ´ÑƒÑ‰Ğ¸Ğ¼Ğ¸ Ğ´Ğ°Ğ½Ğ½Ñ‹Ğ¼Ğ¸
+        # Расчет мышечной массы
+        muscle_mass = calculate_muscle_mass(weight, body_fat_data['percentage'])
         
-    Returns:
-        str: Ğ¢ĞµĞºÑ�Ñ‚ Ñ�Ñ€Ğ°Ğ²Ğ½ĞµĞ½Ğ¸Ñ� Ñ� Ğ¸Ğ·Ğ¼ĞµĞ½ĞµĞ½Ğ¸Ñ�Ğ¼Ğ¸
-    """
-    try:
-        text = "ğŸ“Š <b>Ğ¡Ñ€Ğ°Ğ²Ğ½ĞµĞ½Ğ¸Ğµ Ğ¿Ğ¾ĞºĞ°Ğ·Ğ°Ñ‚ĞµĞ»ĞµĞ¹:</b>\n\n"
+        # Расчет воды в организме
+        body_water = calculate_body_water(weight, age, gender)
         
-        # Ğ¡Ñ€Ğ°Ğ²Ğ½ĞµĞ½Ğ¸Ğµ Ğ²ĞµÑ�Ğ°
-        old_weight = previous_user_data.get('weight', current_user.weight)
-        weight_change = current_user.weight - old_weight
-        if abs(weight_change) >= 0.1:
-            emoji = "ğŸ“ˆ" if weight_change > 0 else "ğŸ“‰"
-            text += f"â€¢ Ğ’ĞµÑ�: {old_weight} â†’ {current_user.weight} ĞºĞ³ {emoji} {weight_change:+.1f} ĞºĞ³\n"
+        # Расчет WHTR (Waist-to-Height Ratio)
+        whtr = None
+        if waist_cm:
+            whtr = waist_cm / height
         
-        # Ğ¡Ñ€Ğ°Ğ²Ğ½ĞµĞ½Ğ¸Ğµ Ğ˜ĞœĞ¢
-        old_height = previous_user_data.get('height', current_user.height)
-        old_bmi = old_weight / ((old_height / 100) ** 2)
-        current_bmi = current_user.weight / ((current_user.height / 100) ** 2)
-        bmi_change = current_bmi - old_bmi
-        if abs(bmi_change) >= 0.1:
-            text += f"â€¢ Ğ˜ĞœĞ¢: {old_bmi:.1f} â†’ {current_bmi:.1f} {bmi_change:+.1f}\n"
+        # Расчет метаболического возраста
+        metabolic_age = calculate_metabolic_age(bmi, body_fat_data['percentage'], age)
         
-        # Ğ¡Ñ€Ğ°Ğ²Ğ½ĞµĞ½Ğ¸Ğµ Ğ½Ğ¾Ñ€Ğ¼ ĞºĞ°Ğ»Ğ¾Ñ€Ğ¸Ğ¹
-        old_calories = previous_user_data.get('daily_calorie_goal', current_user.daily_calorie_goal)
-        calories_change = current_user.daily_calorie_goal - old_calories
-        if calories_change != 0:
-            text += f"â€¢ Ğ�Ğ¾Ñ€Ğ¼Ğ° ĞºĞ°Ğ»Ğ¾Ñ€Ğ¸Ğ¹: {old_calories} â†’ {current_user.daily_calorie_goal} ĞºĞºĞ°Ğ» ({calories_change:+.0f})\n"
+        # Расчет ABSI (A Body Shape Index)
+        absi_value = calculate_absi(weight, height, waist_cm, age, gender)
+        absi_risk, absi_percentile = get_absi_risk(absi_value, age, gender)
         
-        return text
+        # Расчет сегментов мышечной массы
+        muscle_segments = calculate_muscle_segments(muscle_mass, gender)
         
-    except Exception as e:
-        logger.error(f"Error generating progress comparison: {e}")
-        return "â�Œ Ğ�Ğµ ÑƒĞ´Ğ°Ğ»Ğ¾Ñ�ÑŒ Ñ�Ñ€Ğ°Ğ²Ğ½Ğ¸Ñ‚ÑŒ Ğ¿Ğ¾ĞºĞ°Ğ·Ğ°Ñ‚ĞµĞ»Ğ¸"
-
-def _get_daily_tip(user, body_analysis: Dict) -> str:
-    """
-    Ğ“ĞµĞ½ĞµÑ€Ğ¸Ñ€ÑƒĞµÑ‚ ĞµĞ¶ĞµĞ´Ğ½ĞµĞ²Ğ½Ñ‹Ğ¹ Ñ�Ğ¾Ğ²ĞµÑ‚ Ğ½Ğ° Ğ¾Ñ�Ğ½Ğ¾Ğ²Ğµ Ğ´Ğ°Ğ½Ğ½Ñ‹Ñ… Ğ¿Ğ¾Ğ»ÑŒĞ·Ğ¾Ğ²Ğ°Ñ‚ĞµĞ»Ñ�
-    
-    Args:
-        user: Ğ�Ğ±ÑŠĞµĞºÑ‚ Ğ¿Ğ¾Ğ»ÑŒĞ·Ğ¾Ğ²Ğ°Ñ‚ĞµĞ»Ñ�
-        body_analysis: Ğ�Ğ½Ğ°Ğ»Ğ¸Ğ· ĞºĞ¾Ğ¼Ğ¿Ğ¾Ğ·Ğ¸Ñ†Ğ¸Ğ¸ Ñ‚ĞµĞ»Ğ°
+        # Оценка риска висцерального жира
+        visceral_risk, visceral_color = assess_visceral_fat_risk(waist_cm, gender, body_fat_data['percentage'])
         
-    Returns:
-        str: ĞŸĞµÑ€Ñ�Ğ¾Ğ½Ğ°Ğ»ÑŒĞ½Ñ‹Ğ¹ Ñ�Ğ¾Ğ²ĞµÑ‚
-    """
-    tips = []
-    
-    # Ğ¡Ğ¾Ğ²ĞµÑ‚Ñ‹ Ğ¿Ğ¾ Ğ˜ĞœĞ¢
-    bmi = body_analysis['bmi']
-    if bmi < 18.5:
-        tips.append("Ğ”Ğ¾Ğ±Ğ°Ğ²ÑŒÑ‚Ğµ ĞºĞ°Ğ»Ğ¾Ñ€Ğ¸Ğ¹Ğ½Ñ‹Ğµ Ğ¿ĞµÑ€ĞµĞºÑƒÑ�Ñ‹ Ğ¼ĞµĞ¶Ğ´Ñƒ Ğ¾Ñ�Ğ½Ğ¾Ğ²Ğ½Ñ‹Ğ¼Ğ¸ Ğ¿Ñ€Ğ¸ĞµĞ¼Ğ°Ğ¼Ğ¸ Ğ¿Ğ¸Ñ‰Ğ¸")
-    elif bmi >= 25:
-        tips.append("Ğ—Ğ°Ğ¼ĞµĞ½Ğ¸Ñ‚Ğµ Ğ¾Ğ´Ğ¸Ğ½ Ğ¿Ñ€Ğ¸ĞµĞ¼ Ğ¿Ğ¸Ñ‰Ğ¸ Ğ½Ğ° Ğ¾Ğ²Ğ¾Ñ‰Ğ½Ğ¾Ğ¹ Ñ�Ğ°Ğ»Ğ°Ñ‚ Ñ� Ğ±ĞµĞ»ĞºĞ¾Ğ¼")
-    else:
-        tips.append("ĞŸĞ¾Ğ´Ğ´ĞµÑ€Ğ¶Ğ¸Ğ²Ğ°Ğ¹Ñ‚Ğµ Ğ±Ğ°Ğ»Ğ°Ğ½Ñ� Ğ¼ĞµĞ¶Ğ´Ñƒ Ğ±ĞµĞ»ĞºĞ°Ğ¼Ğ¸, Ğ¶Ğ¸Ñ€Ğ°Ğ¼Ğ¸ Ğ¸ ÑƒĞ³Ğ»ĞµĞ²Ğ¾Ğ´Ğ°Ğ¼Ğ¸")
-    
-    # Ğ¡Ğ¾Ğ²ĞµÑ‚Ñ‹ Ğ¿Ğ¾ % Ğ¶Ğ¸Ñ€Ğ°
-    body_fat = body_analysis['body_fat']
-    if body_fat > 25:
-        tips.append("Ğ£Ğ²ĞµĞ»Ğ¸Ñ‡ÑŒÑ‚Ğµ Ğ¿Ğ¾Ñ‚Ñ€ĞµĞ±Ğ»ĞµĞ½Ğ¸Ğµ ĞºĞ»ĞµÑ‚Ñ‡Ğ°Ñ‚ĞºĞ¸ Ğ´Ğ¾ 25-30Ğ³ Ğ² Ğ´ĞµĞ½ÑŒ")
-    elif body_fat < 12:
-        tips.append("Ğ£Ğ±ĞµĞ´Ğ¸Ñ‚ĞµÑ�ÑŒ, Ñ‡Ñ‚Ğ¾ Ğ¿Ğ¾Ğ»ÑƒÑ‡Ğ°ĞµÑ‚Ğµ Ğ´Ğ¾Ñ�Ñ‚Ğ°Ñ‚Ğ¾Ñ‡Ğ½Ğ¾ Ğ·Ğ´Ğ¾Ñ€Ğ¾Ğ²Ñ‹Ñ… Ğ¶Ğ¸Ñ€Ğ¾Ğ²")
-    
-    # Ğ¡Ğ¾Ğ²ĞµÑ‚Ñ‹ Ğ¿Ğ¾ Ñ†ĞµĞ»Ğ¸
-    if user.goal == 'lose_weight':
-        tips.append("Ğ¡Ğ¾Ğ·Ğ´Ğ°Ğ¹Ñ‚Ğµ Ğ½ĞµĞ±Ğ¾Ğ»ÑŒÑˆĞ¾Ğ¹ Ğ´ĞµÑ„Ğ¸Ñ†Ğ¸Ñ‚ ĞºĞ°Ğ»Ğ¾Ñ€Ğ¸Ğ¹ Ñ‡ĞµÑ€ĞµĞ· Ğ¿Ğ¸Ñ‚Ğ°Ğ½Ğ¸Ğµ, Ğ½Ğµ Ñ‡ĞµÑ€ĞµĞ· Ğ³Ğ¾Ğ»Ğ¾Ğ´")
-    elif user.goal == 'gain_weight':
-        tips.append("Ğ”Ğ¾Ğ±Ğ°Ğ²ÑŒÑ‚Ğµ Ñ�Ğ¸Ğ»Ğ¾Ğ²Ñ‹Ğµ Ñ‚Ñ€ĞµĞ½Ğ¸Ñ€Ğ¾Ğ²ĞºĞ¸ 3 Ñ€Ğ°Ğ·Ğ° Ğ² Ğ½ĞµĞ´ĞµĞ»Ñ�")
-    else:
-        tips.append("ĞŸĞ¾Ğ´Ğ´ĞµÑ€Ğ¶Ğ¸Ğ²Ğ°Ğ¹Ñ‚Ğµ Ñ€ĞµĞ³ÑƒĞ»Ñ�Ñ€Ğ½Ñ‹Ğ¹ Ñ€ĞµĞ¶Ğ¸Ğ¼ Ğ¿Ğ¸Ñ‚Ğ°Ğ½Ğ¸Ñ� Ğ¸ Ñ‚Ñ€ĞµĞ½Ğ¸Ñ€Ğ¾Ğ²Ğ¾Ğº")
-    
-    # Ğ¡Ğ¾Ğ²ĞµÑ‚Ñ‹ Ğ¿Ğ¾ Ğ²Ğ¾Ğ´Ğµ
-    tips.append("Ğ�Ğ°Ñ‡Ğ¸Ğ½Ğ°Ğ¹Ñ‚Ğµ Ğ´ĞµĞ½ÑŒ Ñ�Ğ¾ Ñ�Ñ‚Ğ°ĞºĞ°Ğ½Ğ° Ğ²Ğ¾Ğ´Ñ‹ Ğ´Ğ»Ñ� Ğ·Ğ°Ğ¿ÑƒÑ�ĞºĞ° Ğ¼ĞµÑ‚Ğ°Ğ±Ğ¾Ğ»Ğ¸Ğ·Ğ¼Ğ°")
-    
-    # Ğ’Ñ‹Ğ±Ğ¸Ñ€Ğ°ĞµĞ¼ Ñ�Ğ»ÑƒÑ‡Ğ°Ğ¹Ğ½Ñ‹Ğ¹ Ñ�Ğ¾Ğ²ĞµÑ‚
-    import random
-    return random.choice(tips)
-
-def get_body_goals_text(user) -> str:
-    """
-    Ğ¢ĞµĞºÑ�Ñ‚ Ñ� Ñ†ĞµĞ»Ñ�Ğ¼Ğ¸ Ğ¸ Ğ¿Ñ€Ğ¾Ğ³Ñ€ĞµÑ�Ñ�Ğ¾Ğ¼
-    
-    Args:
-        user: Ğ�Ğ±ÑŠĞµĞºÑ‚ Ğ¿Ğ¾Ğ»ÑŒĞ·Ğ¾Ğ²Ğ°Ñ‚ĞµĞ»Ñ�
-        
-    Returns:
-        str: Ğ¢ĞµĞºÑ�Ñ‚ Ñ� Ñ†ĞµĞ»Ñ�Ğ¼Ğ¸
-    """
-    try:
-        goal_texts = {
-            'lose_weight': 'ĞŸĞ¾Ñ…ÑƒĞ´ĞµĞ½Ğ¸Ğµ',
-            'maintain': 'ĞŸĞ¾Ğ´Ğ´ĞµÑ€Ğ¶Ğ°Ğ½Ğ¸Ğµ Ğ²ĞµÑ�Ğ°', 
-            'gain_weight': 'Ğ�Ğ°Ğ±Ğ¾Ñ€ Ğ¼Ğ°Ñ�Ñ�Ñ‹'
+        return {
+            'bmi': round(bmi, 1),
+            'bmi_status': bmi_status,
+            'bmi_color': bmi_color,
+            'ideal_weights': ideal_weights,
+            'body_fat': round(body_fat_data['percentage'], 1),
+            'has_navy_data': body_fat_data['method'] == 'navy',
+            'muscle_mass': round(muscle_mass, 1),
+            'body_water': round(body_water, 1),
+            'whtr': round(whtr, 2) if whtr else None,
+            'metabolic_age': metabolic_age,
+            'absi': round(absi_value, 3) if absi_value else None,
+            'absi_risk': absi_risk,
+            'absi_percentile': absi_percentile,
+            'muscle_segments': muscle_segments,
+            'visceral_risk': visceral_risk,
+            'visceral_risk_color': visceral_color
         }
         
-        current_goal = goal_texts.get(user.goal, 'Ğ�Ğµ ÑƒĞºĞ°Ğ·Ğ°Ğ½Ğ°')
-        
-        text = f"""
-ğŸ�¯ <b>Ğ’Ğ°ÑˆĞ¸ Ñ†ĞµĞ»Ğ¸:</b>
-â€¢ Ğ�Ñ�Ğ½Ğ¾Ğ²Ğ½Ğ°Ñ� Ñ†ĞµĞ»ÑŒ: {current_goal}
-â€¢ Ğ¦ĞµĞ»ĞµĞ²Ğ¾Ğ¹ Ğ²ĞµÑ�: {user.weight} ĞºĞ³ (Ñ‚ĞµĞºÑƒÑ‰Ğ¸Ğ¹)
-â€¢ Ğ”Ğ½ĞµĞ²Ğ½Ğ°Ñ� Ğ½Ğ¾Ñ€Ğ¼Ğ° ĞºĞ°Ğ»Ğ¾Ñ€Ğ¸Ğ¹: {user.daily_calorie_goal} ĞºĞºĞ°Ğ»
-â€¢ Ğ‘ĞµĞ»ĞºĞ¸: {user.daily_protein_goal}Ğ³ | Ğ–Ğ¸Ñ€Ñ‹: {user.daily_fat_goal}Ğ³ | Ğ£Ğ³Ğ»ĞµĞ²Ğ¾Ğ´Ñ‹: {user.daily_carbs_goal}Ğ³
-â€¢ Ğ’Ğ¾Ğ´Ğ°: {user.daily_water_goal} Ğ¼Ğ»
+    except Exception as e:
+        logger.error(f"Error in body composition analysis: {e}")
+        return {}
 
-ğŸ“ˆ <b>Ğ ĞµĞºĞ¾Ğ¼ĞµĞ½Ğ´ÑƒĞµĞ¼Ñ‹Ğ¹ Ñ‚ĞµĞ¼Ğ¿ Ğ¸Ğ·Ğ¼ĞµĞ½ĞµĞ½Ğ¸Ğ¹:</b>
-â€¢ Ğ‘ĞµĞ·Ğ¾Ğ¿Ğ°Ñ�Ğ½Ñ‹Ğ¹ Ñ‚ĞµĞ¼Ğ¿ Ğ¿Ğ¾Ñ…ÑƒĞ´ĞµĞ½Ğ¸Ñ�: 0.5-1 ĞºĞ³ Ğ² Ğ½ĞµĞ´ĞµĞ»Ñ�
-â€¢ Ğ‘ĞµĞ·Ğ¾Ğ¿Ğ°Ñ�Ğ½Ñ‹Ğ¹ Ñ‚ĞµĞ¼Ğ¿ Ğ½Ğ°Ğ±Ğ¾Ñ€Ğ°: 0.25-0.5 ĞºĞ³ Ğ² Ğ½ĞµĞ´ĞµĞ»Ñ�
-â€¢ Ğ”Ğ»Ñ� Ğ¿Ğ¾Ğ´Ğ´ĞµÑ€Ğ¶Ğ°Ğ½Ğ¸Ñ�: Ñ�Ñ‚Ğ°Ğ±Ğ¸Ğ»ÑŒĞ½Ğ¾Ñ�Ñ‚ÑŒ Â±0.5 ĞºĞ³
-"""
+def calculate_bmi(weight: float, height: float) -> float:
+    """Рассчитывает ИМТ"""
+    height_m = height / 100
+    return weight / (height_m ** 2)
+
+def get_bmi_classification(bmi: float) -> tuple:
+    """Возвращает классификацию ИМТ и цвет"""
+    if bmi < 16.5:
+        return "Выраженный дефицит массы", "🔴"
+    elif bmi < 18.5:
+        return "Недостаточная масса", "🟡"
+    elif bmi < 25:
+        return "Нормальная масса", "🟢"
+    elif bmi < 30:
+        return "Избыточная масса", "🟡"
+    elif bmi < 35:
+        return "Ожирение I степени", "🟠"
+    elif bmi < 40:
+        return "Ожирение II степени", "🔴"
+    else:
+        return "Ожирение III степени", "🔴"
+
+def calculate_ideal_weight(height: float, gender: str, age: int) -> Dict[str, str]:
+    """Рассчитывает идеальный вес разными методами"""
+    # Формула Девина
+    if gender.lower() == 'male':
+        devine = 50 + 2.3 * ((height / 2.54) - 60)
+    else:
+        devine = 45.5 + 2.3 * ((height / 2.54) - 60)
+    
+    # Формула Хамви
+    if gender.lower() == 'male':
+        hamwi = 48 + 2.7 * ((height / 2.54) - 60)
+    else:
+        hamwi = 45.5 + 2.2 * ((height / 2.54) - 60)
+    
+    # Формула Брока
+    brock = height - 100
+    
+    # Здоровый диапазон (ИМТ 18.5-24.9)
+    height_m = height / 100
+    min_healthy = 18.5 * (height_m ** 2)
+    max_healthy = 24.9 * (height_m ** 2)
+    
+    return {
+        'devine': f"{round(devine, 1)}",
+        'hamwi': f"{round(hamwi, 1)}",
+        'brock': f"{round(brock, 1)}",
+        'healthy_range': f"{round(min_healthy, 1)}-{round(max_healthy, 1)}"
+    }
+
+def calculate_body_fat_percentage(weight: float, height: float, age: int, gender: str,
+                                neck_cm: float = None, waist_cm: float = None, 
+                                hip_width_cm: float = None) -> Dict[str, Any]:
+    """
+    Рассчитывает процент жира в организме
+    
+    Returns:
+        dict: {'percentage': float, 'method': str}
+    """
+    # Если есть обмеры по методу ВМФ США
+    if neck_cm and waist_cm and hip_width_cm:
+        try:
+            if gender.lower() == 'male':
+                body_fat = 86.010 * math.log10(waist_cm - neck_cm) + 70.64 * math.log10(height) - 36.76
+            else:
+                body_fat = 163.205 * math.log10(waist_cm + hip_width_cm - neck_cm) - 97.684 * math.log10(height) - 78.387
+            
+            return {'percentage': body_fat, 'method': 'navy'}
+        except:
+            pass
+    
+    # Запасная формула (упрощенная)
+    if gender.lower() == 'male':
+        body_fat = (1.20 * calculate_bmi(weight, height)) + (0.23 * age) - 16.2
+    else:
+        body_fat = (1.20 * calculate_bmi(weight, height)) + (0.23 * age) - 5.4
+    
+    return {'percentage': max(body_fat, 5), 'method': 'formula'}
+
+def calculate_muscle_mass(weight: float, body_fat_percentage: float) -> float:
+    """Рассчитывает мышечную массу"""
+    # Упрощенная формула: мышечная масса = вес * (1 - процент жира) * 0.7
+    # Коэффициент 0.7 учитывает, что безжировая масса включает не только мышцы
+    return weight * (1 - body_fat_percentage / 100) * 0.7
+
+def calculate_body_water(weight: float, age: int, gender: str) -> float:
+    """Рассчитывает количество воды в организме"""
+    # Средний процент воды в организме
+    if gender.lower() == 'male':
+        water_percentage = 0.60
+    else:
+        water_percentage = 0.55
+    
+    # Корректировка с возрастом
+    if age > 60:
+        water_percentage -= 0.05
+    elif age > 40:
+        water_percentage -= 0.02
+    
+    return weight * water_percentage
+
+def calculate_metabolic_age(bmi: float, body_fat_percentage: float, chronological_age: int) -> int:
+    """Рассчитывает метаболический возраст"""
+    # Упрощенная формула
+    if bmi < 25 and body_fat_percentage < 20:
+        return max(chronological_age - 5, 18)
+    elif bmi < 30 and body_fat_percentage < 30:
+        return chronological_age
+    else:
+        return min(chronological_age + 5, chronological_age + 10)
+
+def calculate_absi(weight: float, height: float, waist_cm: float, age: int, gender: str) -> float:
+    """Рассчитывает индекс формы тела (ABSI)"""
+    if not waist_cm:
+        return None
+    
+    try:
+        height_m = height / 100
+        bmi = calculate_bmi(weight, height)
         
-        return text
+        # Упрощенная формула ABSI
+        absi = waist_cm / (height_m ** (2/3) * (weight ** (1/6)))
+        
+        return absi
+    except:
+        return None
+
+def get_absi_risk(absi_value: float, age: int, gender: str) -> tuple:
+    """Оценивает риск по ABSI"""
+    if not absi_value:
+        return "Невозможно оценить", 0
+    
+    # Упрощенные пороговые значения
+    if absi_value < 0.08:
+        return "Низкий", 20
+    elif absi_value < 0.09:
+        return "Средний", 50
+    else:
+        return "Высокий", 80
+
+def calculate_muscle_segments(muscle_mass: float, gender: str) -> Dict[str, float]:
+    """Распределяет мышечную массу по сегментам"""
+    # Примерное распределение мышечной массы
+    if gender.lower() == 'male':
+        segments = {
+            'arms': 0.15,   # 15%
+            'legs': 0.35,   # 35%
+            'torso': 0.50   # 50%
+        }
+    else:
+        segments = {
+            'arms': 0.12,   # 12%
+            'legs': 0.33,   # 33%
+            'torso': 0.55   # 55%
+        }
+    
+    result = {}
+    for segment, percentage in segments.items():
+        mass = muscle_mass * percentage
+        result[segment] = round(mass, 1)
+        result[f"{segment}_percent"] = round(percentage * 100, 1)
+    
+    return result
+
+def assess_visceral_fat_risk(waist_cm: float, gender: str, body_fat_percentage: float) -> tuple:
+    """Оценивает риск висцерального жира"""
+    if not waist_cm:
+        return "Невозможно оценить", "⚪"
+    
+    # Пороговые значения для обхвата талии
+    if gender.lower() == 'male':
+        threshold = 94  # см
+    else:
+        threshold = 80  # см
+    
+    if waist_cm < threshold:
+        return "Низкий", "🟢"
+    elif waist_cm < threshold + 10:
+        return "Средний", "🟡"
+    else:
+        return "Высокий", "🔴"
+
+def get_weight_change_trend(current_weight: float, previous_weights: list) -> Dict[str, Any]:
+    """Анализирует тренд веса"""
+    if not previous_weights or len(previous_weights) < 2:
+        return None
+    
+    try:
+        # Рассчитываем изменение
+        first_weight = previous_weights[0]
+        last_weight = previous_weights[-1]
+        total_change = current_weight - first_weight
+        
+        # Среднее изменение в неделю
+        weeks = len(previous_weights)
+        weekly_change = total_change / weeks if weeks > 0 else 0
+        
+        # Определяем тренд
+        if abs(total_change) < 0.5:
+            trend = "Стабильный вес"
+            recommendation = "Ваш вес стабилен. Продолжайте придерживаться текущего режима."
+        elif total_change > 0:
+            if weekly_change > 0.5:
+                trend = "Быстрый набор веса"
+                recommendation = "Вес увеличивается слишком быстро. Стоит обратить внимание на питание и активность."
+            else:
+                trend = "Умеренный набор веса"
+                recommendation = "Вес постепенно увеличивается. Контролируйте калории и активность."
+        else:
+            if abs(weekly_change) > 0.5:
+                trend = "Быстрая потеря веса"
+                recommendation = "Вес снижается слишком быстро. Убедитесь, что это безопасно для здоровья."
+            else:
+                trend = "Умеренная потеря веса"
+                recommendation = "Хороший темп похудения. Продолжайте в том же духе."
+        
+        return {
+            'trend': trend,
+            'description': trend,
+            'change': total_change,
+            'weekly_change': weekly_change,
+            'recommendation': recommendation
+        }
         
     except Exception as e:
-        logger.error(f"Error generating body goals: {e}")
-        return "â�Œ Ğ�Ğµ ÑƒĞ´Ğ°Ğ»Ğ¾Ñ�ÑŒ Ğ¿Ğ¾Ğ»ÑƒÑ‡Ğ¸Ñ‚ÑŒ Ñ†ĞµĞ»Ğ¸"
+        logger.error(f"Error analyzing weight trend: {e}")
+        return None
+
+def get_body_recommendations(analysis: Dict, user) -> list:
+    """Генерирует персональные рекомендации"""
+    recommendations = []
+    
+    # Рекомендации по ИМТ
+    bmi = analysis.get('bmi', 0)
+    if bmi < 18.5:
+        recommendations.append("Увеличьте калорийность питания для достижения здорового веса")
+    elif bmi > 25:
+        recommendations.append("Создайте умеренный дефицит калорий для нормализации веса")
+    
+    # Рекомендации по проценту жира
+    body_fat = analysis.get('body_fat', 0)
+    if body_fat > 25 and user.gender == 'male':
+        recommendations.append("Добавьте силовые тренировки для снижения процента жира")
+    elif body_fat > 32 and user.gender == 'female':
+        recommendations.append("Сочетайте кардио и силовые тренировки для улучшения композиции тела")
+    
+    # Рекомендации по мышечной массе
+    muscle_mass = analysis.get('muscle_mass', 0)
+    if muscle_mass < user.weight * 0.4:  # Мышцы составляют менее 40% от веса
+        recommendations.append("Увеличьте потребление белка и добавьте силовые тренировки")
+    
+    # Рекомендации по WHTR
+    whtr = analysis.get('whtr')
+    if whtr and whtr > 0.5:
+        recommendations.append("Сократите потребление простых углеводов и увеличьте активность")
+    
+    # Общие рекомендации
+    recommendations.append("Пейте достаточно воды (30-40 мл на кг веса)")
+    recommendations.append("Спите 7-9 часов в сутки для восстановления")
+    recommendations.append("Регулярно измеряйте прогресс и корректируйте план")
+    
+    return recommendations[:5]  # Ограничиваем 5 рекомендациями
+
+def get_body_goals(analysis: Dict, user) -> list:
+    """Генерирует цели на основе анализа"""
+    goals = []
+    
+    # Цель по весу
+    ideal_range = analysis.get('ideal_weights', {}).get('healthy_range', '0-0')
+    goals.append(f"Достичь веса в диапазоне {ideal_range} кг")
+    
+    # Цель по проценту жира
+    body_fat = analysis.get('body_fat', 0)
+    if user.gender == 'male':
+        target_fat = max(10, body_fat - 5)
+    else:
+        target_fat = max(20, body_fat - 5)
+    goals.append(f"Снизить процент жира до {target_fat}%")
+    
+    # Цель по мышечной массе
+    current_muscle = analysis.get('muscle_mass', 0)
+    target_muscle = current_muscle * 1.1  # Увеличить на 10%
+    goals.append(f"Увеличить мышечную массу до {round(target_muscle, 1)} кг")
+    
+    # Цель по талии
+    whtr = analysis.get('whtr')
+    if whtr and whtr > 0.5:
+        target_waist = round(0.5 * user.height)
+        goals.append(f"Сократить талию до {target_waist} см")
+    
+    return goals[:4]  # Ограничиваем 4 целями

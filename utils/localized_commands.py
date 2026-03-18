@@ -1,100 +1,100 @@
 """
-Ğ›Ğ¾ĞºĞ°Ğ»Ğ¸Ğ·Ğ¾Ğ²Ğ°Ğ½Ğ½Ñ‹Ğµ ĞºĞ¾Ğ¼Ğ°Ğ½Ğ´Ñ‹ Ğ´Ğ»Ñ� NutriBuddy Bot
+Локализованные команды для NutriBuddy Bot
 """
 from aiogram.filters import Command
 from aiogram.types import Message
-from typing import Dict, Callable
+from aiogram import F
 import logging
 
 logger = logging.getLogger(__name__)
 
-# Ğ¡Ğ»Ğ¾Ğ²Ğ°Ñ€ÑŒ Ğ»Ğ¾ĞºĞ°Ğ»Ğ¸Ğ·Ğ¾Ğ²Ğ°Ğ½Ğ½Ñ‹Ñ… ĞºĞ¾Ğ¼Ğ°Ğ½Ğ´
+# Словарь локализованных команд
 LOCALIZED_COMMANDS = {
-    # Ğ ÑƒÑ�Ñ�ĞºĞ¸Ğµ Ğ°Ğ»Ğ¸Ğ°Ñ�Ñ‹ Ğ´Ğ»Ñ� Ğ°Ğ½Ğ³Ğ»Ğ¸Ğ¹Ñ�ĞºĞ¸Ñ… ĞºĞ¾Ğ¼Ğ°Ğ½Ğ´
-    "Ğ´Ğ¾Ñ�Ñ‚Ğ¸Ğ¶ĞµĞ½Ğ¸Ñ�": {
+    # Русские алиасы для английских команд
+    "достижения": {
         "original": "achievements",
-        "description": "ĞŸĞ¾ĞºĞ°Ğ·Ğ°Ñ‚ÑŒ Ğ´Ğ¾Ñ�Ñ‚Ğ¸Ğ¶ĞµĞ½Ğ¸Ñ� Ğ¸ Ğ¿Ñ€Ğ¾Ğ³Ñ€ĞµÑ�Ñ�"
+        "description": "Показать достижения и прогресс"
     },
-    "Ğ¿Ñ€Ğ¾Ğ³Ñ€ĞµÑ�Ñ�": {
+    "прогресс": {
         "original": "progress", 
-        "description": "ĞŸĞ¾ĞºĞ°Ğ·Ğ°Ñ‚ÑŒ Ñ�Ñ‚Ğ°Ñ‚Ğ¸Ñ�Ñ‚Ğ¸ĞºÑƒ Ğ¿Ñ€Ğ¾Ğ³Ñ€ĞµÑ�Ñ�Ğ°"
+        "description": "Показать статистику прогресса"
     },
-    "Ğ¿Ñ€Ğ¾Ñ„Ğ¸Ğ»ÑŒ": {
+    "профиль": {
         "original": "profile",
-        "description": "ĞŸĞ¾ĞºĞ°Ğ·Ğ°Ñ‚ÑŒ Ğ¿Ñ€Ğ¾Ñ„Ğ¸Ğ»ÑŒ"
+        "description": "Показать профиль"
     },
-    "Ğ½Ğ°Ñ�Ñ‚Ñ€Ğ¾Ğ¸Ñ‚ÑŒ_Ğ¿Ñ€Ğ¾Ñ„Ğ¸Ğ»ÑŒ": {
+    "настроить_профиль": {
         "original": "set_profile",
-        "description": "Ğ�Ğ°Ñ�Ñ‚Ñ€Ğ¾Ğ¸Ñ‚ÑŒ Ğ¿Ñ€Ğ¾Ñ„Ğ¸Ğ»ÑŒ"
+        "description": "Настроить профиль"
     },
-    "Ğ²Ğ¾Ğ´Ğ°": {
+    "вода": {
         "original": "water",
-        "description": "Ğ—Ğ°Ğ¿Ğ¸Ñ�Ğ°Ñ‚ÑŒ Ğ²Ğ¾Ğ´Ñƒ"
+        "description": "Записать воду"
     },
-    "Ğ·Ğ°Ğ¿Ğ¸Ñ�Ğ°Ñ‚ÑŒ_Ğ²Ğ¾Ğ´Ñƒ": {
+    "записать_воду": {
         "original": "log_water", 
-        "description": "Ğ—Ğ°Ğ¿Ğ¸Ñ�Ğ°Ñ‚ÑŒ Ğ²Ğ¾Ğ´Ñƒ"
+        "description": "Записать воду"
     },
-    "ĞµĞ´Ğ°": {
+    "еда": {
         "original": "log_food",
-        "description": "Ğ—Ğ°Ğ¿Ğ¸Ñ�Ğ°Ñ‚ÑŒ Ğ¿Ñ€Ğ¸ĞµĞ¼ Ğ¿Ğ¸Ñ‰Ğ¸"
+        "description": "Записать прием пищи"
     },
-    "Ğ·Ğ°Ğ¿Ğ¸Ñ�Ğ°Ñ‚ÑŒ_ĞµĞ´Ñƒ": {
+    "записать_еду": {
         "original": "log_food",
-        "description": "Ğ—Ğ°Ğ¿Ğ¸Ñ�Ğ°Ñ‚ÑŒ Ğ¿Ñ€Ğ¸ĞµĞ¼ Ğ¿Ğ¸Ñ‰Ğ¸"
+        "description": "Записать прием пищи"
     },
-    "Ğ²ĞµÑ�": {
+    "вес": {
         "original": "weight",
-        "description": "ĞŸĞ¾ĞºĞ°Ğ·Ğ°Ñ‚ÑŒ Ğ²ĞµÑ�"
+        "description": "Показать вес"
     },
-    "Ğ·Ğ°Ğ¿Ğ¸Ñ�Ğ°Ñ‚ÑŒ_Ğ²ĞµÑ�": {
+    "записать_вес": {
         "original": "log_weight",
-        "description": "Ğ—Ğ°Ğ¿Ğ¸Ñ�Ğ°Ñ‚ÑŒ Ğ²ĞµÑ�"
+        "description": "Записать вес"
     },
-    "Ğ°ĞºÑ‚Ğ¸Ğ²Ğ½Ğ¾Ñ�Ñ‚ÑŒ": {
+    "активность": {
         "original": "fitness",
-        "description": "Ğ¤Ğ¸Ñ‚Ğ½ĞµÑ� Ğ¸ Ğ°ĞºÑ‚Ğ¸Ğ²Ğ½Ğ¾Ñ�Ñ‚ÑŒ"
+        "description": "Фитнес и активность"
     },
-    "Ñ‚Ñ€ĞµĞ½Ğ¸Ñ€Ğ¾Ğ²ĞºĞ°": {
+    "тренировка": {
         "original": "activity",
-        "description": "Ğ—Ğ°Ğ¿Ğ¸Ñ�Ğ°Ñ‚ÑŒ Ñ‚Ñ€ĞµĞ½Ğ¸Ñ€Ğ¾Ğ²ĞºÑƒ"
+        "description": "Записать тренировку"
     },
-    "Ğ¿Ğ»Ğ°Ğ½": {
+    "план": {
         "original": "meal_plan",
-        "description": "ĞŸĞ»Ğ°Ğ½ Ğ¿Ğ¸Ñ‚Ğ°Ğ½Ğ¸Ñ�"
+        "description": "План питания"
     },
-    "Ğ´Ğ¸ĞµÑ‚Ğ°": {
+    "диета": {
         "original": "diet",
-        "description": "Ğ”Ğ¸ĞµÑ‚Ğ° Ğ¸ Ğ¿Ğ»Ğ°Ğ½"
+        "description": "Диета и план"
     },
-    "Ñ�Ğ¿Ñ€Ğ¾Ñ�Ğ¸Ñ‚ÑŒ": {
+    "спросить": {
         "original": "ask",
-        "description": "Ğ—Ğ°Ğ´Ğ°Ñ‚ÑŒ Ğ²Ğ¾Ğ¿Ñ€Ğ¾Ñ� AI"
+        "description": "Задать вопрос AI"
     },
-    "Ğ¿Ğ¾Ğ¼Ğ¾Ñ‰Ğ½Ğ¸Ğº": {
+    "помощник": {
         "original": "ai",
-        "description": "AI Ğ¿Ğ¾Ğ¼Ğ¾Ñ‰Ğ½Ğ¸Ğº"
+        "description": "AI помощник"
     },
-    "Ğ¿Ğ¾Ğ³Ğ¾Ğ´Ğ°": {
+    "погода": {
         "original": "weather",
-        "description": "ĞŸĞ¾Ğ³Ğ¾Ğ´Ğ°"
+        "description": "Погода"
     },
-    "Ñ�Ñ‚Ğ°Ñ‚Ğ¸Ñ�Ñ‚Ğ¸ĞºĞ°": {
+    "статистика": {
         "original": "stats",
-        "description": "Ğ¡Ñ‚Ğ°Ñ‚Ğ¸Ñ�Ñ‚Ğ¸ĞºĞ°"
+        "description": "Статистика"
     },
-    "Ğ¿Ğ¾Ğ¼Ğ¾Ñ‰ÑŒ": {
+    "помощь": {
         "original": "help",
-        "description": "ĞŸĞ¾Ğ¼Ğ¾Ñ‰ÑŒ"
+        "description": "Помощь"
     },
-    "Ñ�Ñ‚Ğ°Ñ€Ñ‚": {
+    "старт": {
         "original": "start",
-        "description": "Ğ�Ğ°Ñ‡Ğ°Ñ‚ÑŒ"
+        "description": "Начать"
     }
 }
 
 class LocalizedCommand:
-    """Ğ›Ğ¾ĞºĞ°Ğ»Ğ¸Ğ·Ğ¾Ğ²Ğ°Ğ½Ğ½Ğ°Ñ� ĞºĞ¾Ğ¼Ğ°Ğ½Ğ´Ğ°"""
+    """Локализованная команда"""
     
     def __init__(self, russian_command: str, original_command: str, description: str):
         self.russian = russian_command
@@ -102,18 +102,15 @@ class LocalizedCommand:
         self.description = description
     
     def __str__(self):
-        return f"/{self.russian} (/{self.original})"
-    
-    def get_help_text(self) -> str:
         return f"/{self.russian} - {self.description}"
 
 def create_localized_command_filter(russian_command: str):
-    """Ğ¡Ğ¾Ğ·Ğ´Ğ°ĞµÑ‚ Ñ„Ğ¸Ğ»ÑŒÑ‚Ñ€ Ğ´Ğ»Ñ� Ğ»Ğ¾ĞºĞ°Ğ»Ğ¸Ğ·Ğ¾Ğ²Ğ°Ğ½Ğ½Ğ¾Ğ¹ ĞºĞ¾Ğ¼Ğ°Ğ½Ğ´Ñ‹"""
+    """Создает фильтр для локализованной команды"""
     original_command = LOCALIZED_COMMANDS.get(russian_command, {}).get("original")
     if not original_command:
         return None
     
-    # Ğ¡Ğ¾Ğ·Ğ´Ğ°ĞµĞ¼ Ñ„Ğ¸Ğ»ÑŒÑ‚Ñ€, ĞºĞ¾Ñ‚Ğ¾Ñ€Ñ‹Ğ¹ Ñ€ĞµĞ°Ğ³Ğ¸Ñ€ÑƒĞµÑ‚ Ğ½Ğ° Ğ¾Ğ±Ğµ ĞºĞ¾Ğ¼Ğ°Ğ½Ğ´Ñ‹
+    # Создаем фильтр, который реагирует на обе команды
     class LocalizedCommandFilter:
         def __init__(self, ru_cmd: str, en_cmd: str):
             self.ru_cmd = ru_cmd
@@ -124,59 +121,162 @@ def create_localized_command_filter(russian_command: str):
             if not text:
                 return False
             
-            # ĞŸÑ€Ğ¾Ğ²ĞµÑ€Ñ�ĞµĞ¼ Ğ¾Ğ±Ğ° Ğ²Ğ°Ñ€Ğ¸Ğ°Ğ½Ñ‚Ğ°
+            # Проверяем оба варианта
             return (text.startswith(f"/{self.ru_cmd}") or 
                    text.startswith(f"/{self.en_cmd}"))
     
     return LocalizedCommandFilter(russian_command, original_command)
 
 def get_localized_help() -> str:
-    """Ğ’Ğ¾Ğ·Ğ²Ñ€Ğ°Ñ‰Ğ°ĞµÑ‚ Ñ�Ğ¿Ñ€Ğ°Ğ²ĞºÑƒ Ñ� Ğ»Ğ¾ĞºĞ°Ğ»Ğ¸Ğ·Ğ¾Ğ²Ğ°Ğ½Ğ½Ñ‹Ğ¼Ğ¸ ĞºĞ¾Ğ¼Ğ°Ğ½Ğ´Ğ°Ğ¼Ğ¸"""
-    help_text = "ğŸŒŸ <b>ĞšĞ¾Ğ¼Ğ°Ğ½Ğ´Ñ‹ NutriBuddy Bot</b>\n\n"
+    """Возвращает справку с локализованными командами"""
+    help_text = "[HELP] <b>Команды NutriBuddy Bot</b>\n\n"
     
-    # Ğ“Ñ€ÑƒĞ¿Ğ¿Ğ¸Ñ€ÑƒĞµĞ¼ ĞºĞ¾Ğ¼Ğ°Ğ½Ğ´Ñ‹ Ğ¿Ğ¾ ĞºĞ°Ñ‚ĞµĞ³Ğ¾Ñ€Ğ¸Ñ�Ğ¼
+    # Группируем команды по категориям
     categories = {
-        "ğŸ“Š ĞŸÑ€Ğ¾Ñ„Ğ¸Ğ»ÑŒ Ğ¸ Ğ¿Ñ€Ğ¾Ğ³Ñ€ĞµÑ�Ñ�": ["Ğ¿Ñ€Ğ¾Ñ„Ğ¸Ğ»ÑŒ", "Ğ½Ğ°Ñ�Ñ‚Ñ€Ğ¾Ğ¸Ñ‚ÑŒ_Ğ¿Ñ€Ğ¾Ñ„Ğ¸Ğ»ÑŒ", "Ğ¿Ñ€Ğ¾Ğ³Ñ€ĞµÑ�Ñ�", "Ğ´Ğ¾Ñ�Ñ‚Ğ¸Ğ¶ĞµĞ½Ğ¸Ñ�", "Ñ�Ñ‚Ğ°Ñ‚Ğ¸Ñ�Ñ‚Ğ¸ĞºĞ°"],
-        "ğŸ�½ï¸� ĞŸĞ¸Ñ‚Ğ°Ğ½Ğ¸Ğµ": ["ĞµĞ´Ğ°", "Ğ·Ğ°Ğ¿Ğ¸Ñ�Ğ°Ñ‚ÑŒ_ĞµĞ´Ñƒ", "Ğ²Ğ¾Ğ´Ğ°", "Ğ·Ğ°Ğ¿Ğ¸Ñ�Ğ°Ñ‚ÑŒ_Ğ²Ğ¾Ğ´Ñƒ", "Ğ¿Ğ»Ğ°Ğ½", "Ğ´Ğ¸ĞµÑ‚Ğ°"],
-        "ğŸ’ª Ğ¤Ğ¸Ñ‚Ğ½ĞµÑ�": ["Ğ²ĞµÑ�", "Ğ·Ğ°Ğ¿Ğ¸Ñ�Ğ°Ñ‚ÑŒ_Ğ²ĞµÑ�", "Ğ°ĞºÑ‚Ğ¸Ğ²Ğ½Ğ¾Ñ�Ñ‚ÑŒ", "Ñ‚Ñ€ĞµĞ½Ğ¸Ñ€Ğ¾Ğ²ĞºĞ°"],
-        "ğŸ¤– AI Ğ¿Ğ¾Ğ¼Ğ¾Ñ‰Ğ½Ğ¸Ğº": ["Ñ�Ğ¿Ñ€Ğ¾Ñ�Ğ¸Ñ‚ÑŒ", "Ğ¿Ğ¾Ğ¼Ğ¾Ñ‰Ğ½Ğ¸Ğº", "Ğ¿Ğ¾Ğ³Ğ¾Ğ´Ğ°"],
-        "ğŸ”§ Ğ�Ñ�Ğ½Ğ¾Ğ²Ğ½Ñ‹Ğµ": ["Ñ�Ñ‚Ğ°Ñ€Ñ‚", "Ğ¿Ğ¾Ğ¼Ğ¾Ñ‰ÑŒ"]
+        "[PROFILE] Профиль и прогресс": ["профиль", "настроить_профиль", "прогресс", "достижения", "статистика"],
+        "[FOOD] Питание": ["еда", "записать_еду", "вода", "записать_воду", "план", "диета"],
+        "[FITNESS] Фитнес": ["вес", "записать_вес", "активность", "тренировка"],
+        "[AI] AI и помощь": ["спросить", "помощник", "погода", "помощь", "старт"]
     }
     
     for category, commands in categories.items():
         help_text += f"{category}\n"
         for cmd in commands:
             if cmd in LOCALIZED_COMMANDS:
-                help_text += f"  {LocalizedCommand(cmd, LOCALIZED_COMMANDS[cmd]['original'], LOCALIZED_COMMANDS[cmd]['description']).get_help_text()}\n"
+                help_text += f"/{cmd} - {LOCALIZED_COMMANDS[cmd]['description']}\n"
         help_text += "\n"
     
-    help_text += "ğŸ’¡ <i>ĞœĞ¾Ğ¶Ğ½Ğ¾ Ğ¸Ñ�Ğ¿Ğ¾Ğ»ÑŒĞ·Ğ¾Ğ²Ğ°Ñ‚ÑŒ ĞºĞ°Ğº Ñ€ÑƒÑ�Ñ�ĞºĞ¸Ğµ, Ñ‚Ğ°Ğº Ğ¸ Ğ°Ğ½Ğ³Ğ»Ğ¸Ğ¹Ñ�ĞºĞ¸Ğµ ĞºĞ¾Ğ¼Ğ°Ğ½Ğ´Ñ‹!</i>"
+    help_text += "[INFO] <i>Также можно использовать английские версии команд!</i>"
     
     return help_text
 
-def get_command_mapping() -> Dict[str, str]:
-    """Ğ’Ğ¾Ğ·Ğ²Ñ€Ğ°Ñ‰Ğ°ĞµÑ‚ Ğ¼Ğ°Ğ¿Ğ¿Ğ¸Ğ½Ğ³ Ñ€ÑƒÑ�Ñ�ĞºĞ¸Ñ… ĞºĞ¾Ğ¼Ğ°Ğ½Ğ´ Ğ½Ğ° Ğ°Ğ½Ğ³Ğ»Ğ¸Ğ¹Ñ�ĞºĞ¸Ğµ"""
-    return {cmd: info["original"] for cmd, info in LOCALIZED_COMMANDS.items()}
+def register_localized_handlers(router):
+    """Регистрирует обработчики для локализованных команд"""
+    
+    for ru_cmd, cmd_info in LOCALIZED_COMMANDS.items():
+        en_cmd = cmd_info["original"]
+        
+        # Создаем фильтр для обеих команд
+        filter_obj = create_localized_command_filter(ru_cmd)
+        
+        if filter_obj:
+            # Динамически создаем обработчик
+            @router.message(filter_obj)
+            async def handle_localized_command(message: Message, ru_cmd=ru_cmd, en_cmd=en_cmd):
+                """Обработчик локализованной команды"""
+                logger.info(f"[COMMAND] Получена локализованная команда: {message.text}")
+                
+                # Здесь можно добавить логику перенаправления на оригинальные обработчики
+                # Например, можно изменить message.text на английскую команду и пропустить дальше
+                
+                # Временно просто отвечаем справкой
+                await message.answer(
+                    f"[COMMAND] Команда {message.text} принята!\n\n"
+                    f"[INFO] Оригинальная команда: /{en_cmd}\n"
+                    f"[INFO] Функционал в разработке..."
+                )
 
-def get_all_localized_commands() -> Dict[str, LocalizedCommand]:
-    """Ğ’Ğ¾Ğ·Ğ²Ñ€Ğ°Ñ‰Ğ°ĞµÑ‚ Ğ²Ñ�Ğµ Ğ»Ğ¾ĞºĞ°Ğ»Ğ¸Ğ·Ğ¾Ğ²Ğ°Ğ½Ğ½Ñ‹Ğµ ĞºĞ¾Ğ¼Ğ°Ğ½Ğ´Ñ‹"""
-    return {
-        cmd: LocalizedCommand(cmd, info["original"], info["description"])
-        for cmd, info in LOCALIZED_COMMANDS.items()
-    }
+def get_command_mapping() -> dict:
+    """Возвращает маппинг русских команд на английские"""
+    return {ru: info["original"] for ru, info in LOCALIZED_COMMANDS.items()}
 
-# Ğ”ĞµĞºĞ¾Ñ€Ğ°Ñ‚Ğ¾Ñ€ Ğ´Ğ»Ñ� Ğ»Ğ¾ĞºĞ°Ğ»Ğ¸Ğ·Ğ¾Ğ²Ğ°Ğ½Ğ½Ñ‹Ñ… ĞºĞ¾Ğ¼Ğ°Ğ½Ğ´
+def resolve_command(text: str) -> str:
+    """Определяет оригинальную команду по локализованному тексту"""
+    if not text or not text.startswith("/"):
+        return text
+    
+    # Убираем слэш и параметры
+    cmd = text.split()[0][1:].lower()
+    
+    # Ищем в маппинге
+    for ru_cmd, en_cmd in get_command_mapping().items():
+        if cmd == ru_cmd.lower():
+            return f"/{en_cmd}"
+    
+    # Возвращаем как есть если не нашли
+    return text
+
+def is_localized_command(text: str) -> bool:
+    """Проверяет, является ли текст локализованной командой"""
+    if not text or not text.startswith("/"):
+        return False
+    
+    cmd = text.split()[0][1:].lower()
+    return cmd in LOCALIZED_COMMANDS
+
+def get_all_commands() -> list:
+    """Возвращает список всех локализованных команд"""
+    return list(LOCALIZED_COMMANDS.keys())
+
+def get_command_info(command: str) -> dict:
+    """Возвращает информацию о команде"""
+    return LOCALIZED_COMMANDS.get(command, {})
+
+def create_command_keyboard():
+    """Создает клавиатуру с основными командами"""
+    from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
+    
+    # Основные команды
+    main_commands = [
+        ["Профиль", "Прогресс"],
+        ["Записать еду", "Записать воду"],
+        ["Спросить AI", "Помощь"]
+    ]
+    
+    keyboard = []
+    for row in main_commands:
+        keyboard.append([KeyboardButton(text=cmd) for cmd in row])
+    
+    return ReplyKeyboardMarkup(
+        keyboard=keyboard,
+        resize_keyboard=True,
+        input_field_placeholder="Выберите команду или введите текст..."
+    )
+
+# Декоратор для локализованных команд
 def localized_command(russian_command: str):
-    """Ğ”ĞµĞºĞ¾Ñ€Ğ°Ñ‚Ğ¾Ñ€ Ğ´Ğ»Ñ� Ğ¾Ğ±Ñ€Ğ°Ğ±Ğ¾Ñ‚Ñ‡Ğ¸ĞºĞ¾Ğ² Ğ»Ğ¾ĞºĞ°Ğ»Ğ¸Ğ·Ğ¾Ğ²Ğ°Ğ½Ğ½Ñ‹Ñ… ĞºĞ¾Ğ¼Ğ°Ğ½Ğ´"""
-    def decorator(func: Callable):
-        original_command = LOCALIZED_COMMANDS.get(russian_command, {}).get("original")
-        if not original_command:
-            logger.warning(f"No original command found for {russian_command}")
-            return func
-        
-        # Ğ”Ğ¾Ğ±Ğ°Ğ²Ğ»Ñ�ĞµĞ¼ Ğ°Ñ‚Ñ€Ğ¸Ğ±ÑƒÑ‚Ñ‹ Ğ´Ğ»Ñ� Ñ€ĞµĞ³Ğ¸Ñ�Ñ‚Ñ€Ğ°Ñ†Ğ¸Ğ¸
-        func.localized_commands = [russian_command, original_command]
-        func.command_filter = create_localized_command_filter(russian_command)
-        
+    """Декоратор для создания обработчиков локализованных команд"""
+    def decorator(func):
+        filter_obj = create_localized_command_filter(russian_command)
+        if filter_obj:
+            return router.message(filter_obj)(func)
         return func
     return decorator
+
+# Утилиты для работы с командами
+class CommandUtils:
+    """Утилиты для работы с локализованными командами"""
+    
+    @staticmethod
+    def extract_command_args(text: str) -> tuple:
+        """Извлекает команду и аргументы из текста"""
+        if not text:
+            return None, None
+        
+        parts = text.split(maxsplit=1)
+        command = parts[0]
+        args = parts[1] if len(parts) > 1 else ""
+        
+        return command, args
+    
+    @staticmethod
+    def format_command_help(command: str) -> str:
+        """Форматирует справку для команды"""
+        info = get_command_info(command)
+        if not info:
+            return f"[ERROR] Команда /{command} не найдена"
+        
+        return (
+            f"[COMMAND] /{command}\n"
+            f"[DESCRIPTION] {info['description']}\n"
+            f"[ALIAS] Также доступна как /{info['original']}"
+        )
+    
+    @staticmethod
+    def validate_command(text: str) -> bool:
+        """Валидирует команду"""
+        if not text or not text.startswith("/"):
+            return False
+        
+        cmd = text.split()[0][1:].lower()
+        return cmd in LOCALIZED_COMMANDS or cmd in [info["original"] for info in LOCALIZED_COMMANDS.values()]

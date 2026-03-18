@@ -1,155 +1,410 @@
 """
-РџР°СЂСЃРµСЂ РЅР°РїРёС‚РєРѕРІ - РѕРїСЂРµРґРµР»РµРЅРёРµ РѕР±СЉС‘РјР° Рё РєР°Р»РѕСЂРёР№РЅРѕСЃС‚Рё
+Парсер напитков - определение объёма и калорийности
 """
 import re
 import logging
-from typing import Tuple, Optional
-from services.food_api import LOCAL_FOOD_DB
+from typing import Dict, Tuple, Optional
 
 logger = logging.getLogger(__name__)
 
-# Р‘Р°Р·Р° РєР°Р»РѕСЂРёР№РЅРѕСЃС‚Рё РЅР°РїРёС‚РєРѕРІ (РЅР° 100 РјР»)
+# База калорийности напитков (на 100 мл)
 DRINK_CALORIES_DB = {
-    'СЃРѕРє': 45,           # РЎСЂРµРґРЅСЏСЏ РєР°Р»РѕСЂРёР№РЅРѕСЃС‚СЊ СЃРѕРєР°
-    'Р°РїРµР»СЊСЃРёРЅРѕРІС‹Р№ СЃРѕРє': 45,
-    'СЏР±Р»РѕС‡РЅС‹Р№ СЃРѕРє': 42,
-    'С‚РѕРјР°С‚РЅС‹Р№ СЃРѕРє': 18,
-    'Р°РЅР°РЅР°СЃРѕРІС‹Р№ СЃРѕРє': 50,
-    'РІРёРЅРѕРіСЂР°РґРЅС‹Р№ СЃРѕРє': 60,
-    'РєРѕРјРїРѕС‚': 25,        # РљРѕРјРїРѕС‚ СЃ СЃР°С…Р°СЂРѕРј
-    'С‡Р°Р№': 2,            # Р§Р°Р№ Р±РµР· СЃР°С…Р°СЂР°
-    'С‡Р°Р№ СЃ СЃР°С…Р°СЂРѕРј': 30,
-    'РєРѕС„Рµ': 2,           # РљРѕС„Рµ Р±РµР· СЃР°С…Р°СЂР°
-    'РєРѕС„Рµ СЃ СЃР°С…Р°СЂРѕРј': 15,
-    'РєРѕС„Рµ СЃ РјРѕР»РѕРєРѕРј': 25,
-    'РјРѕР»РѕРєРѕ': 42,        # РњРѕР»РѕРєРѕ 2.5%
-    'РєРµС„РёСЂ': 35,
-    'СЂСЏР¶РµРЅРєР°': 40,
-    'Р№РѕРіСѓСЂС‚': 60,
-    'РіР°Р·РёСЂРѕРІРєР°': 40,     # РљРѕР»Р°, РџРµРїСЃРё
-    'РєРѕР»Р°': 40,
-    'РїРµРїСЃРё': 40,
-    'Р»РёРјРѕРЅР°Рґ': 35,
-    'РјРёРЅРµСЂР°Р»РєР°': 0,      # РњРёРЅРµСЂР°Р»СЊРЅР°СЏ РІРѕРґР°
-    'РіР°Р·РёСЂРѕРІРєР°': 40,
-    'СЃРјСѓР·Рё': 80,
-    'РєРѕРєС‚РµР№Р»СЊ': 120,
-    'РєР°РєР°Рѕ': 75,
-    'РіРѕСЂСЏС‡РёР№ С€РѕРєРѕР»Р°Рґ': 75,
+    'сок': 45,           # Средняя калорийность сока
+    'апельсиновый сок': 45,
+    'яблочный сок': 42,
+    'томатный сок': 18,
+    'ананасовый сок': 50,
+    'виноградный сок': 60,
+    'компот': 25,        # Компот с сахаром
+    'чай': 2,            # Чай без сахара
+    'чай с сахаром': 30,
+    'кофе': 2,           # Кофе без сахара
+    'кофе с сахаром': 15,
+    'кофе с молоком': 25,
+    'молоко': 42,        # Молоко 2.5%
+    'кефир': 35,
+    'ряженка': 40,
+    'йогурт': 60,
+    'газировка': 40,     # Кола, Пепси
+    'кола': 40,
+    'пепси': 40,
+    'лимонад': 35,
+    'минералка': 0,      # Минеральная вода
+    'газировка': 40,
+    'смузи': 80,
+    'коктейль': 120,
+    'какао': 75,
+    'горячий шоколад': 75,
 }
 
-# Р•РґРёРЅРёС†С‹ РёР·РјРµСЂРµРЅРёСЏ Рё РёС… СЌРєРІРёРІР°Р»РµРЅС‚С‹ РІ РјР»
+# Единицы измерения и их эквиваленты в мл
 VOLUME_UNITS = {
-    'РјР»': 1,
-    'Р»': 1000,
-    'СЃС‚Р°РєР°РЅ': 250,
-    'С‡Р°С€РєР°': 200,
-    'Р±СѓС‚С‹Р»РєР°': 500,
-    'С„Р»Р°РєРѕРЅ': 100,
-    'РїРѕСЂС†РёСЏ': 200,
-    'glass': 250,
-    'bottle': 500,
-    'cup': 200,
+    'мл': 1,
+    'л': 1000,
+    'стакан': 250,
+    'чашка': 200,
+    'бутылка': 500,
+    'банка': 330,
+    'пакет': 1000,
+    'флакон': 50,
+    'рюмка': 50,
+    'шот': 50,
+    'стопка': 50,
 }
 
-def parse_drink_amount(text: str) -> Optional[float]:
+# Синонимы напитков
+DRINK_SYNONYMS = {
+    'газированная вода': 'минералка',
+    'газировка': 'кола',
+    'пепси кола': 'пепси',
+    'кока кола': 'кола',
+    'апельсиновый': 'сок',
+    'яблочный': 'сок',
+    'томатный': 'сок',
+    'ананасовый': 'сок',
+    'виноградный': 'сок',
+    'черный чай': 'чай',
+    'зеленый чай': 'чай',
+    'кофе эспрессо': 'кофе',
+    'кофе американо': 'кофе',
+    'кофе капучино': 'кофе с молоком',
+    'молочный коктейль': 'коктейль',
+    'фруктовый смузи': 'смузи',
+    'овощной смузи': 'смузи',
+    'горячий шоколад': 'какао',
+    'шоколадный напиток': 'какао',
+}
+
+def parse_drink_input(text: str) -> Tuple[Optional[str], Optional[int], Optional[float]]:
     """
-    Р�Р·РІР»РµРєР°РµС‚ РѕР±СЉС‘Рј РЅР°РїРёС‚РєР° РёР· С‚РµРєСЃС‚Р°
+    Парсит ввод напитка
     
-    Examples:
-        "200 РјР»" в†’ 200
-        "0.5 Р»" в†’ 500
-        "1 СЃС‚Р°РєР°РЅ" в†’ 250
-        "2 Р±СѓС‚С‹Р»РєРё" в†’ 1000
+    Args:
+        text: Текст от пользователя
+        
+    Returns:
+        Tuple[str, int, float]: (напиток, объём в мл, калории)
     """
-    text = text.lower().strip()
+    try:
+        text = text.lower().strip()
+        
+        # Ищем напиток в тексте
+        drink_name = None
+        for drink in DRINK_CALORIES_DB.keys():
+            if drink in text:
+                drink_name = drink
+                break
+        
+        # Проверяем синонимы
+        if not drink_name:
+            for synonym, canonical in DRINK_SYNONYMS.items():
+                if synonym in text:
+                    drink_name = canonical
+                    break
+        
+        # Если напиток не найден, пробуем угадать
+        if not drink_name:
+            drink_name = guess_drink_from_text(text)
+        
+        if not drink_name:
+            return None, None, None
+        
+        # Ищем объём
+        volume = extract_volume(text)
+        if not volume:
+            # Если объём не указан, используем стандартные значения
+            volume = get_default_volume(drink_name)
+        
+        # Рассчитываем калории
+        calories = calculate_calories(drink_name, volume)
+        
+        logger.info(f"[DRINK] Parsed: {drink_name} {volume}мл {calories}ккал")
+        
+        return drink_name, volume, calories
+        
+    except Exception as e:
+        logger.error(f"Error parsing drink input '{text}': {e}")
+        return None, None, None
+
+def guess_drink_from_text(text: str) -> Optional[str]:
+    """
+    Угадывает напиток по ключевым словам
     
-    # Р�С‰РµРј С‡РёСЃР»Рѕ + РµРґРёРЅРёС†Р° РёР·РјРµСЂРµРЅРёСЏ
-    patterns = [
-        r'(\d+\.?\d*)\s*(РјР»|Р»|СЃС‚Р°РєР°РЅ|С‡Р°С€РєР°|Р±СѓС‚С‹Р»РєР°|С„Р»Р°РєРѕРЅ|РїРѕСЂС†РёСЏ|glass|bottle|cup)',
-        r'(\d+)\s*(СЃС‚Р°РєР°РЅР°|С‡Р°С€РєРё|Р±СѓС‚С‹Р»РєРё|РїРѕСЂС†РёРё)',  # РњРЅРѕР¶РµСЃС‚РІРµРЅРЅРѕРµ С‡РёСЃР»Рѕ
-    ]
+    Args:
+        text: Текст для анализа
+        
+    Returns:
+        str: Название напитка или None
+    """
+    keywords = {
+        'кофе': 'кофе',
+        'капучино': 'кофе с молоком',
+        'латте': 'кофе с молоком',
+        'чай': 'чай',
+        'сок': 'сок',
+        'молоко': 'молоко',
+        'кефир': 'кефир',
+        'ряженка': 'ряженка',
+        'йогурт': 'йогурт',
+        'кола': 'кола',
+        'пепси': 'пепси',
+        'газировка': 'кола',
+        'минералка': 'минералка',
+        'вода': 'минералка',
+        'смузи': 'смузи',
+        'коктейль': 'коктейль',
+        'какао': 'какао',
+        'шоколад': 'какао',
+        'компот': 'компот',
+        'лимонад': 'лимонад',
+    }
     
-    for pattern in patterns:
-        match = re.search(pattern, text)
-        if match:
-            amount = float(match.group(1))
-            unit = match.group(2).replace('Р°', '').replace('С‹', '').replace('Рё', '')
-            
-            if unit in VOLUME_UNITS:
-                return amount * VOLUME_UNITS[unit]
+    text_lower = text.lower()
+    
+    for keyword, drink in keywords.items():
+        if keyword in text_lower:
+            return drink
     
     return None
 
-def identify_drink_type(text: str) -> Tuple[str, float]:
+def extract_volume(text: str) -> Optional[int]:
     """
-    РћРїСЂРµРґРµР»СЏРµС‚ С‚РёРї РЅР°РїРёС‚РєР° Рё РµРіРѕ РєР°Р»РѕСЂРёР№РЅРѕСЃС‚СЊ
+    Извлекает объём из текста
     
+    Args:
+        text: Текст для анализа
+        
     Returns:
-        (РЅР°РїРёС‚РѕРє, РєР°Р»РѕСЂРёРё_РЅР°_100РјР»)
+        int: Объём в мл или None
     """
-    text = text.lower()
+    # Ищем паттерны: "200 мл", "0.5 л", "стакан", "бутылка" и т.д.
+    patterns = [
+        r'(\d+(?:\.\d+)?)\s*мл',
+        r'(\d+(?:\.\d+)?)\s*л',
+        r'(\d+)\s*стакан',
+        r'(\d+)\s*чашка',
+        r'(\d+)\s*бутылка',
+        r'(\d+)\s*банка',
+        r'(\d+)\s*пакет',
+        r'(\d+)\s*флакон',
+        r'(\d+)\s*рюмка',
+        r'(\d+)\s*шот',
+        r'(\d+)\s*стопка',
+        r'стакан',
+        r'чашка',
+        r'бутылка',
+        r'банка',
+        r'рюмка',
+        r'шот',
+        r'стопка',
+    ]
     
-    # Р�С‰РµРј С‚РѕС‡РЅРѕРµ СЃРѕРІРїР°РґРµРЅРёРµ
-    for drink_name, calories in DRINK_CALORIES_DB.items():
-        if drink_name in text:
-            return drink_name, calories
+    for pattern in patterns:
+        match = re.search(pattern, text.lower())
+        if match:
+            if match.groups():
+                # Если есть число
+                value = float(match.group(1))
+                unit = pattern.split(r'(\d+(?:\.\d+)?)\s*')[1].strip()
+                
+                if unit in ['мл']:
+                    return int(value)
+                elif unit in ['л']:
+                    return int(value * 1000)
+                elif unit in VOLUME_UNITS:
+                    return int(value * VOLUME_UNITS[unit])
+            else:
+                # Если нет числа (например, просто "стакан")
+                unit = pattern.strip()
+                if unit in VOLUME_UNITS:
+                    return VOLUME_UNITS[unit]
     
-    # Р�С‰РµРј РїРѕ РєР»СЋС‡РµРІС‹Рј СЃР»РѕРІР°Рј
-    if 'СЃРѕРє' in text:
-        return 'СЃРѕРє', DRINK_CALORIES_DB['СЃРѕРє']
-    elif 'РєРѕРјРїРѕС‚' in text:
-        return 'РєРѕРјРїРѕС‚', DRINK_CALORIES_DB['РєРѕРјРїРѕС‚']
-    elif 'С‡Р°Р№' in text:
-        if 'СЃР°С…Р°СЂ' in text or 'СЃР°С…Р°СЂРѕРј' in text:
-            return 'С‡Р°Р№ СЃ СЃР°С…Р°СЂРѕРј', DRINK_CALORIES_DB['С‡Р°Р№ СЃ СЃР°С…Р°СЂРѕРј']
-        elif 'РјРѕР»РѕРєРѕ' in text:
-            return 'С‡Р°Р№ СЃ РјРѕР»РѕРєРѕРј', DRINK_CALORIES_DB['С‡Р°Р№ СЃ РјРѕР»РѕРєРѕРј']
-        else:
-            return 'С‡Р°Р№', DRINK_CALORIES_DB['С‡Р°Р№']
-    elif 'РєРѕС„Рµ' in text:
-        if 'СЃР°С…Р°СЂ' in text or 'СЃР°С…Р°СЂРѕРј' in text:
-            return 'РєРѕС„Рµ СЃ СЃР°С…Р°СЂРѕРј', DRINK_CALORIES_DB['РєРѕС„Рµ СЃ СЃР°С…Р°СЂРѕРј']
-        elif 'РјРѕР»РѕРєРѕ' in text:
-            return 'РєРѕС„Рµ СЃ РјРѕР»РѕРєРѕРј', DRINK_CALORIES_DB['РєРѕС„Рµ СЃ РјРѕР»РѕРєРѕРј']
-        else:
-            return 'РєРѕС„Рµ', DRINK_CALORIES_DB['РєРѕС„Рµ']
-    elif 'РјРѕР»РѕРєРѕ' in text:
-        return 'РјРѕР»РѕРєРѕ', DRINK_CALORIES_DB['РјРѕР»РѕРєРѕ']
-    elif 'РєРµС„РёСЂ' in text:
-        return 'РєРµС„РёСЂ', DRINK_CALORIES_DB['РєРµС„РёСЂ']
-    elif 'РіР°Р·РёСЂРѕРІРє' in text or 'РєРѕР»Р°' in text or 'РїРµРїСЃРё' in text:
-        return 'РіР°Р·РёСЂРѕРІРєР°', DRINK_CALORIES_DB['РіР°Р·РёСЂРѕРІРєР°']
-    elif 'РјРёРЅРµСЂР°Р»' in text:
-        return 'РјРёРЅРµСЂР°Р»РєР°', DRINK_CALORIES_DB['РјРёРЅРµСЂР°Р»РєР°']
-    elif 'СЃРјСѓР·Рё' in text:
-        return 'СЃРјСѓР·Рё', DRINK_CALORIES_DB['СЃРјСѓР·Рё']
-    elif 'РєРѕРєС‚РµР№Р»' in text:
-        return 'РєРѕРєС‚РµР№Р»СЊ', DRINK_CALORIES_DB['РєРѕРєС‚РµР№Р»СЊ']
-    elif 'РєР°РєР°Рѕ' in text or 'С€РѕРєРѕР»Р°Рґ' in text:
-        return 'РіРѕСЂСЏС‡РёР№ С€РѕРєРѕР»Р°Рґ', DRINK_CALORIES_DB['РіРѕСЂСЏС‡РёР№ С€РѕРєРѕР»Р°Рґ']
-    else:
-        # РџРѕ СѓРјРѕР»С‡Р°РЅРёСЋ - РІРѕРґР°
-        return 'РІРѕРґР°', 0.0
+    return None
 
-async def parse_drink(text: str) -> Tuple[Optional[float], str, float]:
+def get_default_volume(drink_name: str) -> int:
     """
-    РџРѕР»РЅС‹Р№ РїР°СЂСЃРёРЅРі РЅР°РїРёС‚РєР° РёР· С‚РµРєСЃС‚Р°
+    Возвращает стандартный объём для напитка
+    
+    Args:
+        drink_name: Название напитка
+        
+    Returns:
+        int: Объём в мл
+    """
+    default_volumes = {
+        'кофе': 200,
+        'кофе с молоком': 250,
+        'чай': 200,
+        'чай с сахаром': 200,
+        'сок': 250,
+        'молоко': 250,
+        'кефир': 250,
+        'ряженка': 250,
+        'йогурт': 200,
+        'кола': 330,
+        'пепси': 330,
+        'минералка': 250,
+        'газировка': 330,
+        'смузи': 300,
+        'коктейль': 200,
+        'какао': 200,
+        'компот': 250,
+        'лимонад': 250,
+    }
+    
+    return default_volumes.get(drink_name, 200)
+
+def calculate_calories(drink_name: str, volume_ml: int) -> float:
+    """
+    Рассчитывает калории напитка
+    
+    Args:
+        drink_name: Название напитка
+        volume_ml: Объём в мл
+        
+    Returns:
+        float: Калории
+    """
+    calories_per_100ml = DRINK_CALORIES_DB.get(drink_name, 0)
+    return (calories_per_100ml * volume_ml) / 100
+
+def format_drink_info(drink_name: str, volume_ml: int, calories: float) -> str:
+    """
+    Форматирует информацию о напитке
+    
+    Args:
+        drink_name: Название напитка
+        volume_ml: Объём в мл
+        calories: Калории
+        
+    Returns:
+        str: Отформатированная строка
+    """
+    return f"{drink_name.title()} {volume_ml}мл - {calories:.0f} ккал"
+
+def get_drink_suggestions() -> list:
+    """
+    Возвращает список популярных напитков для подсказок
     
     Returns:
-        (РѕР±СЉС‘Рј_РјР», РЅР°Р·РІР°РЅРёРµ, РєР°Р»РѕСЂРёРё_РІ_РїРѕСЂС†РёРё)
+        list: Список напитков
     """
-    # РћРїСЂРµРґРµР»СЏРµРј РѕР±СЉС‘Рј
-    volume = parse_drink_amount(text)
+    popular_drinks = [
+        'вода',
+        'кофе',
+        'чай',
+        'сок',
+        'молоко',
+        'кефир',
+        'кола',
+        'смузи',
+        'коктейль',
+        'компот',
+    ]
+    
+    return popular_drinks
+
+def validate_drink_input(text: str) -> Tuple[bool, Optional[str]]:
+    """
+    Валидирует ввод напитка
+    
+    Args:
+        text: Текст для валидации
+        
+    Returns:
+        Tuple[bool, str]: (валидно, сообщение об ошибке)
+    """
+    if not text or len(text.strip()) < 2:
+        return False, "Слишком короткое название напитка"
+    
+    drink_name, volume, calories = parse_drink_input(text)
+    
+    if not drink_name:
+        return False, "Не удалось определить напиток"
+    
     if not volume:
-        return None, "РІРѕРґР°", 0.0
+        return False, "Не удалось определить объём"
     
-    # РћРїСЂРµРґРµР»СЏРµРј С‚РёРї РЅР°РїРёС‚РєР° Рё РєР°Р»РѕСЂРёР№РЅРѕСЃС‚СЊ
-    drink_name, calories_per_100 = identify_drink_type(text)
+    if volume < 10 or volume > 2000:
+        return False, "Объём должен быть от 10 до 2000 мл"
     
-    # Р Р°СЃСЃС‡РёС‚С‹РІР°РµРј РєР°Р»РѕСЂРёРё РІ РїРѕСЂС†РёРё
-    total_calories = calories_per_100 * volume / 100
+    return True, None
+
+def get_nutrition_info(drink_name: str, volume_ml: int) -> Dict:
+    """
+    Возвращает подробную нутритивную информацию
     
-    logger.info(f"рџҐ¤ РќР°РїРёС‚РѕРє РѕРїСЂРµРґРµР»С‘РЅ: {drink_name} {volume}РјР», {total_calories:.1f} РєРєР°Р»")
+    Args:
+        drink_name: Название напитка
+        volume_ml: Объём в мл
+        
+    Returns:
+        dict: Нутритивная информация
+    """
+    calories = calculate_calories(drink_name, volume_ml)
+    calories_per_100ml = DRINK_CALORIES_DB.get(drink_name, 0)
     
-    return volume, drink_name, total_calories
+    # Базовая информация о БЖУ для напитков
+    nutrition = {
+        'calories': calories,
+        'protein': 0.0,
+        'fat': 0.0,
+        'carbs': 0.0,
+        'sugar': 0.0,
+    }
+    
+    # Корректируем БЖУ для некоторых напитков
+    if drink_name in ['молоко', 'кефир', 'ряженка']:
+        nutrition['protein'] = volume_ml * 0.03  # ~3г белка на 100мл
+        nutrition['fat'] = volume_ml * 0.025    # ~2.5г жира на 100мл
+        nutrition['carbs'] = volume_ml * 0.05    # ~5г углеводов на 100мл
+        nutrition['sugar'] = volume_ml * 0.05    # ~5г сахара на 100мл
+    
+    elif drink_name in ['сок', 'компот', 'смузи', 'коктейль']:
+        nutrition['carbs'] = calories / 4  # Углеводы из калорий
+        nutrition['sugar'] = calories / 4  # Предполагаем, что это сахар
+    
+    elif drink_name in ['йогурт']:
+        nutrition['protein'] = volume_ml * 0.04  # ~4г белка на 100мл
+        nutrition['fat'] = volume_ml * 0.02     # ~2г жира на 100мл
+        nutrition['carbs'] = volume_ml * 0.06    # ~6г углеводов на 100мл
+        nutrition['sugar'] = volume_ml * 0.06    # ~6г сахара на 100мл
+    
+    return nutrition
+
+def is_water(drink_name: str) -> bool:
+    """
+    Проверяет, является ли напиток водой
+    
+    Args:
+        drink_name: Название напитка
+        
+    Returns:
+        bool: True если это вода
+    """
+    water_variants = ['вода', 'минералка', 'минеральная вода', 'газированная вода']
+    return drink_name.lower() in water_variants
+
+def get_drink_category(drink_name: str) -> str:
+    """
+    Возвращает категорию напитка
+    
+    Args:
+        drink_name: Название напитка
+        
+    Returns:
+        str: Категория
+    """
+    categories = {
+        'hot': ['кофе', 'чай', 'какао', 'горячий шоколад'],
+        'cold': ['сок', 'кола', 'пепси', 'газировка', 'минералка', 'смузи', 'коктейль'],
+        'dairy': ['молоко', 'кефир', 'ряженка', 'йогурт'],
+        'sweet': ['сок', 'кола', 'пепси', 'газировка', 'компот', 'лимонад', 'смузи', 'коктейль'],
+        'healthy': ['вода', 'минералка', 'чай', 'кефир', 'ряженка', 'йогурт'],
+    }
+    
+    for category, drinks in categories.items():
+        if drink_name.lower() in drinks:
+            return category
+    
+    return 'other'

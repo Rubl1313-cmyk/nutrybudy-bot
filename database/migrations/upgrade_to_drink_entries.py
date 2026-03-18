@@ -88,7 +88,7 @@ async def upgrade():
                 # Удаляем старую таблицу
                 await conn.execute(text("DROP TABLE water_entries"))
                 
-                logger.info("✅ Миграция завершена: water_entries → drink_entries")
+                logger.info("[SUCCESS] Миграция завершена: water_entries → drink_entries")
                 
             except Exception as e:
                 if "AUTOINCREMENT" in str(e) and is_postgresql:
@@ -113,11 +113,11 @@ async def upgrade():
                         FROM water_entries
                     """))
                     await conn.execute(text("DROP TABLE water_entries"))
-                    logger.info("✅ Миграция завершена с принудительным PostgreSQL синтаксисом")
+                    logger.info("[SUCCESS] Миграция завершена с принудительным PostgreSQL синтаксисом")
                 else:
                     raise e
             
-            print("✅ Миграция завершена: water_entries → drink_entries")
+            logger.info("[SUCCESS] Миграция завершена: water_entries → drink_entries")
         else:
             # Просто создаем новую таблицу с правильным синтаксисом
             if is_postgresql:
@@ -147,7 +147,7 @@ async def upgrade():
                     )
                 """))
             
-            logger.info("✅ Таблица drink_entries создана")
+            logger.info("[SUCCESS] Таблица drink_entries создана")
 
 async def downgrade():
     """Откат миграции"""
@@ -174,4 +174,4 @@ async def downgrade():
         # Удаляем drink_entries
         await conn.execute(text("DROP TABLE drink_entries"))
         
-        print("✅ Откат миграции завершен")
+        logger.info("[SUCCESS] Откат миграции завершен")

@@ -38,7 +38,7 @@ async def food_button_handler(message: Message, state: FSMContext):
 async def water_button_handler(message: Message, state: FSMContext):
     logger.info(f"🔍 REPLY HANDLER: 💧 button pressed by user {message.from_user.id}")
     await state.clear()
-    await cmd_water(message)  # Вызываем реальную команду воды
+    await cmd_water(message, state)  # Вызываем реальную команду воды с state
 
 @router.message(F.text.startswith("🤖"))
 async def ai_button_handler(message: Message, state: FSMContext):
@@ -50,7 +50,7 @@ async def ai_button_handler(message: Message, state: FSMContext):
 async def progress_button_handler(message: Message, state: FSMContext):
     logger.info(f"🔍 REPLY HANDLER: 📊 button pressed by user {message.from_user.id}")
     await state.clear()
-    await cmd_progress(message)  # Вызываем реальную команду прогресса
+    await cmd_progress(message, state)  # Вызываем реальную команду прогресса с state
 
 @router.message(F.text.startswith("👤"))
 async def profile_button_handler(message: Message, state: FSMContext):
@@ -62,7 +62,7 @@ async def profile_button_handler(message: Message, state: FSMContext):
 async def help_button_handler(message: Message, state: FSMContext):
     logger.info(f"🔍 REPLY HANDLER: ❓ button pressed by user {message.from_user.id}")
     await state.clear()
-    await cmd_help(message)  # Вызываем реальную команду помощи
+    await cmd_help(message, state)  # Вызываем реальную команду помощи с state
 
 # === Дополнительные кнопки (опционально) ===
 
@@ -70,7 +70,7 @@ async def help_button_handler(message: Message, state: FSMContext):
 async def weight_button_handler(message: Message, state: FSMContext):
     logger.info(f"🔍 REPLY HANDLER: ⚖️ button pressed by user {message.from_user.id}")
     await state.clear()
-    await cmd_weight(message)  # Вызываем реальную команду веса
+    await cmd_weight(message, state)  # Вызываем реальную команду веса с state
 
 @router.message(F.text.startswith("🏃"))
 async def activity_button_handler(message: Message, state: FSMContext):

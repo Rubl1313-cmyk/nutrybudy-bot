@@ -162,18 +162,20 @@ def register_handlers():
     
     # Регистрация роутеров - важен порядок!
     dp.include_router(common_router)
-    dp.include_router(reply_handlers_router)  # ← кнопки обрабатываются раньше всего
+    dp.include_router(reply_handlers_router)  
+    dp.include_router(progress_router)
     dp.include_router(profile_router)
     dp.include_router(weight_router)
+    dp.include_router(ai_assistant_router)
     dp.include_router(drinks_router)
     dp.include_router(activity_router)
-    dp.include_router(progress_router)
     dp.include_router(meal_plan_router)
     dp.include_router(achievements_router)
-    dp.include_router(ai_assistant_router)
     dp.include_router(food_clarification_router)
-    dp.include_router(universal_router)
     dp.include_router(reminder_callbacks_router)
+    from handlers import keyboard_buttons  # Добавлен обработчик кнопок клавиатур
+    dp.include_router(keyboard_buttons.router)
+    dp.include_router(universal_router)
     
     # Установка middleware
     from utils.middleware import SmartRateLimitMiddleware

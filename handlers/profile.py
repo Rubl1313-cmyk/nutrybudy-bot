@@ -815,3 +815,26 @@ def calculate_macros(data: dict) -> dict:
         'fat': fat,
         'carbs': carbs
     }
+
+@router.message(F.text.regexp(r'(✏️ Редактировать профиль|Редактировать профиль)'))
+async def edit_profile_button(message: Message, state: FSMContext):
+    """Обработка кнопки редактирования профиля"""
+    from handlers.common import cmd_set_profile
+    await cmd_set_profile(message, state)
+
+@router.message(F.text.regexp(r'(📊 Полный анализ|Полный анализ)'))
+async def full_analysis_button(message: Message, state: FSMContext):
+    """Обработка кнопки полного анализа"""
+    await message.answer("📊 <b>Полный анализ</b>\n\nФункция полного анализа находится в разработке...", reply_markup=get_main_keyboard_v2(), parse_mode="HTML")
+
+@router.message(F.text.regexp(r'(⚖️ Записать вес|Записать вес)'))
+async def record_weight_button(message: Message, state: FSMContext):
+    """Обработка кнопки записи веса"""
+    from handlers.weight import cmd_weight
+    await cmd_weight(message, state)
+
+@router.message(F.text.regexp(r'(🏠 Главное меню|Главное меню)'))
+async def main_menu_from_profile(message: Message):
+    """Возврат в главное меню из профиля"""
+    from handlers.common import cmd_start
+    await cmd_start(message)

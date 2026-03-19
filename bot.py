@@ -162,6 +162,7 @@ def register_handlers():
     
     # Регистрация роутеров - важен порядок!
     dp.include_router(common_router)
+    dp.include_router(universal_router)  # ВНИЗУ приоритета - срабатывает только если другие не сработали
     dp.include_router(reply_handlers_router)  
     dp.include_router(progress_router)
     dp.include_router(profile_router)
@@ -175,7 +176,6 @@ def register_handlers():
     dp.include_router(reminder_callbacks_router)
     from handlers import keyboard_buttons  # Добавлен обработчик кнопок клавиатур
     dp.include_router(keyboard_buttons.router)
-    dp.include_router(universal_router)
     
     # Установка middleware
     from utils.middleware import SmartRateLimitMiddleware

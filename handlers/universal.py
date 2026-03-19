@@ -18,7 +18,7 @@ router = Router()
 # Семафоры для обработки фото по пользователям
 user_photo_semaphores = {}
 
-@router.message(~F.command & ~F.text.contains("🍽️") & ~F.text.contains("💧") & ~F.text.contains("🤖") & ~F.text.contains("📊") & ~F.text.contains("👤") & ~F.text.contains("❓") & ~F.text.contains("⚖️") & ~F.text.contains("📅") & ~F.text.contains("🏠") & ~F.text.contains("✏️") & ~F.text.contains("") & ~F.text.contains("⚡") & ~F.text.contains("📋") & ~F.text.contains("🚀") & ~F.text.contains("💬") & ~F.text.contains("✅") & ~F.text.contains("❌") & ~F.text.contains("📏") & ~F.text.contains("🔥") & ~F.text.contains("🏃") & ~F.text.contains("🔙"))
+@router.message(~F.command & ~F.text.contains("🍽️") & ~F.text.contains("💧") & ~F.text.contains("🤖") & ~F.text.contains("📊") & ~F.text.contains("👤") & ~F.text.contains("❓") & ~F.text.contains("⚖️") & ~F.text.contains("📅") & ~F.text.contains("🏠") & ~F.text.contains("✏️") & ~F.text.contains("📸") & ~F.text.contains("⚡") & ~F.text.contains("📋") & ~F.text.contains("🚀") & ~F.text.contains("💬") & ~F.text.contains("✅") & ~F.text.contains("❌") & ~F.text.contains("📏") & ~F.text.contains("🔥") & ~F.text.contains("🏃") & ~F.text.contains("🔙"))
 async def universal_handler(message: Message, state: FSMContext):
     """
     Универсальный обработчик всех сообщений (кроме команд)

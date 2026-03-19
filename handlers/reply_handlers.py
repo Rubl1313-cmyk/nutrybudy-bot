@@ -47,7 +47,7 @@ async def ai_button_handler(message: Message, state: FSMContext):
     await cmd_ask(message, state)  # Вызываем реальную команду AI
 
 
-@router.message(F.text.lower().contains("профиль"))
+@router.message(F.text.lower().regexp(r'^(профиль|👤 профиль)$'))
 async def profile_button_handler(message: Message, state: FSMContext):
     logger.info(f"🔍 REPLY HANDLER: Profile button pressed by user {message.from_user.id}")
     # Вызываем команду показа профиля – она сама отправит нужное сообщение

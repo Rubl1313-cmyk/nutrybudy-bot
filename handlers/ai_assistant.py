@@ -53,60 +53,62 @@ async def handle_ai_conversation(message: Message, state: FSMContext):
     
     try:
         # Получаем данные пользователя для контекста
-        async with get_session() as session:
+        async for session in get_session():
             result = await session.execute(
                 select(User).where(User.telegram_id == message.from_user.id)
             )
             user = result.scalar_one_or_none()
-            
-            # Получаем историю диалога
-            data = await state.get_data()
-            conversation_history = data.get('conversation_history', [])
-            
-            # Формируем контекст для AI
-            context = build_ai_context(user, conversation_history)
-            
-            # Получаем ответ от AI
-            ai_response = await cf_manager.get_assistant_response(
-                question=user_question,
-                context=context
-            )
-            
-            # Обновляем историю диалога
-            conversation_history.append({
-                'user': user_question,
-                'assistant': ai_response,
-                'timestamp': message.date
-            })
-            
-            # Ограничиваем историю последними 10 сообщениями
-            if len(conversation_history) > 10:
-                conversation_history = conversation_history[-10:]
-            
-            await state.update_data(conversation_history=conversation_history)
-            
-            # Удаляем сообщение о загрузке
-            await loading_msg.delete()
-            
-            # Формируем красивый ответ
-            response_text = f"🤖 <b>AI Ассистент</b>\n\n"
-            response_text += f"{ai_response}\n\n"
-            response_text += "💡 <i>Хотите задать еще вопрос?</i>"
-            
-            await message.answer(response_text)
-            
+            break  # важно выйти после первого получения
+        
+        # Получаем историю диалога
+        data = await state.get_data()
+        conversation_history = data.get('conversation_history', [])
+        
+        # Формируем контекст для AI
+        context = build_ai_context(user, conversation_history)
+        
+        # Получаем ответ от AI
+        ai_response = await cf_manager.get_assistant_response(
+            question=user_question,
+            context=context
+        )
+        
+        # Обновляем историю диалога
+        conversation_history.append({
+            'user': user_question,
+            'assistant': ai_response,
+            'timestamp': message.date
+        })
+        
+        # Ограничиваем историю последними 10 сообщениями
+        if len(conversation_history) > 10:
+            conversation_history = conversation_history[-10:]
+        
+        await state.update_data(conversation_history=conversation_history)
+        
+        # Удаляем сообщение о загрузке
+        await loading_msg.delete()
+        
+        # Формируем красивый ответ
+        response_text = f"🤖 <b>AI Ассистент</b>\n\n"
+        response_text += f"{ai_response}\n\n"
+        response_text += "💡 <i>Хотите задать еще вопрос?</i>"
+        
+        await message.answer(response_text)
+        
     except Exception as e:
         logger.error(f"Error in AI conversation: {e}")
         
         # Удаляем сообщение о загрузке
         await loading_msg.delete()
         
-        # Показываем ошибку
-        error_msg = error_card(
-            "Не удалось получить ответ от AI",
-            "Попробуйте переформулировать вопрос или повторите попытку позже"
+        # Очищаем состояние, чтобы пользователь не застрял в AI режиме
+        await state.clear()
+        
+        await message.answer(
+            "❌ Произошла ошибка при обработке запроса. Диалог завершён.\n"
+            "Вы можете начать новый диалог командой /ask"
         )
-        await message.answer(error_msg)
 
 @router.message(Command("stop"))
 @router.message(Command("стоп"))

@@ -13,6 +13,7 @@ from sqlalchemy import select, func
 from database.db import get_session
 from database.models import User, DrinkEntry
 from keyboards.reply_v2 import get_main_keyboard_v2
+from utils.states import DrinkStates
 from utils.drink_parser import parse_drink
 from utils.daily_stats import get_daily_water
 from utils.premium_templates import drink_card, water_card
@@ -57,7 +58,7 @@ async def cmd_drink(message: Message, state: FSMContext):
     text += "Формат: <напиток> <объем в мл>"
     
     await message.answer(text)
-    await state.set_state({"waiting_for_drink": True})
+    await state.set_state(DrinkStates.waiting_for_drink)
 
 @router.message(lambda message: message.text and message.text.isdigit())
 async def process_water_amount(message: Message, state: FSMContext):

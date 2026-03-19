@@ -20,6 +20,10 @@ class WaterStates(StatesGroup):
     entering_amount = State()
     confirming = State()
 
+class DrinkStates(StatesGroup):
+    """Состояния для записи напитков."""
+    waiting_for_drink = State()
+
 class ActivityStates(StatesGroup):
     """Состояния для записи активности (кроме шагов)."""
     waiting_for_type = State()

@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 
 from keyboards.reply_v2 import get_main_keyboard_v2, get_confirm_keyboard, get_food_keyboard, get_help_keyboard
 from keyboards.inline import get_progress_menu
+from utils.states import ProfileStates
 
 router = Router()
 
@@ -133,7 +134,7 @@ async def cmd_set_profile(message: Message, state: FSMContext):
     await state.clear()
     
     # Сразу начинаем настройку без подтверждения
-    await state.set_state({"profile_step": "age"})
+    await state.set_state(ProfileStates.waiting_for_age)
     
     text = """� <b>Шаг 1: Возраст</b>
 
@@ -146,7 +147,7 @@ async def cmd_set_profile(message: Message, state: FSMContext):
 @router.callback_query(F.data == "start_profile_setup")
 async def start_profile_setup(callback: CallbackQuery, state: FSMContext):
     """Начало настройки профиля"""
-    await state.set_state({"profile_step": "age"})
+    await state.set_state(ProfileStates.waiting_for_age)
     
     text = """👤 <b>Шаг 1: Возраст</b>
 

@@ -7,27 +7,23 @@ from aiogram.utils.keyboard import ReplyKeyboardBuilder
 
 def get_main_keyboard_v2() -> ReplyKeyboardMarkup:
     """
-    Новая основная клавиатура с 2 строками по 3 кнопки
+    Основная клавиатура с эмодзи
     """
     builder = ReplyKeyboardBuilder()
     
-    # Первая строка
-    builder.add(KeyboardButton(text="[FOOD] Записать прием пищи"))
-    builder.add(KeyboardButton(text="[WATER] Записать воду"))
-    builder.add(KeyboardButton(text="[AI] Спросить AI"))
+    builder.add(KeyboardButton(text="🍽️ Записать прием пищи"))
+    builder.add(KeyboardButton(text="💧 Записать воду"))
+    builder.add(KeyboardButton(text="🤖 Спросить AI"))
+    builder.add(KeyboardButton(text="📊 Прогресс"))
+    builder.add(KeyboardButton(text="👤 Профиль"))
+    builder.add(KeyboardButton(text="❓ Помощь"))
     
-    # Вторая строка
-    builder.add(KeyboardButton(text="[PROGRESS] Прогресс"))
-    builder.add(KeyboardButton(text="[PROFILE] Профиль"))
-    builder.add(KeyboardButton(text="[HELP] Помощь"))
-    
-    # Третья строка
-    builder.adjust(3, 3)  # 3 кнопки в каждой строке
+    builder.adjust(3, 3)
     
     return builder.as_markup(
         resize_keyboard=True,
         one_time_keyboard=False,
-        input_field_placeholder="Напишите или выберите действие..."
+        input_field_placeholder="Выберите действие..."
     )
 
 def get_profile_keyboard() -> ReplyKeyboardMarkup:

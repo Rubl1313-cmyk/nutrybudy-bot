@@ -20,7 +20,7 @@ router = Router()
 
 # === Основные кнопки ===
 
-@router.message(F.text.lower().contains("добавить прием пищи"))
+@router.message(F.text.lower().contains("записать прием пищи"))
 async def food_button_handler(message: Message, state: FSMContext):
     logger.info(f"🔍 REPLY HANDLER: Food button pressed by user {message.from_user.id}")
     await state.clear()
@@ -40,19 +40,19 @@ async def water_button_handler(message: Message, state: FSMContext):
     await state.clear()
     await cmd_water(message, state)  # Вызываем реальную команду воды с state
 
-@router.message(F.text.lower().contains("ai-ассистент") or F.text.lower().contains("ai ассистент"))
+@router.message(F.text.lower().contains("спросить ai"))
 async def ai_button_handler(message: Message, state: FSMContext):
     logger.info(f"🔍 REPLY HANDLER: AI button pressed by user {message.from_user.id}")
     await state.clear()
     await cmd_ask(message, state)  # Вызываем реальную команду AI
 
-@router.message(F.text.lower().contains("показать прогресс"))
+@router.message(F.text.lower().contains("прогресс"))
 async def progress_button_handler(message: Message, state: FSMContext):
     logger.info(f"🔍 REPLY HANDLER: Progress button pressed by user {message.from_user.id}")
     await state.clear()
     await cmd_progress(message, state)  # Вызываем реальную команду прогресса с state
 
-@router.message(F.text.lower().contains("мой профиль"))
+@router.message(F.text.lower().contains("профиль"))
 async def profile_button_handler(message: Message, state: FSMContext):
     logger.info(f"🔍 REPLY HANDLER: Profile button pressed by user {message.from_user.id}")
     # Вызываем команду показа профиля – она сама отправит нужное сообщение

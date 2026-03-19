@@ -580,7 +580,9 @@ async def cmd_profile(message: Message, state: FSMContext):
 • Шаги: {user.daily_steps_goal}
 • Активность: {user.daily_activity_goal} мин
 
-⏰ <b>Часовой пояс:</b> {user.timezone or 'UTC'}"""
+⏰ <b>Часовой пояс:</b> {get_timezone_display_name(user.timezone) if user.timezone else 'UTC'}
+
+💧 <b>Жидкости:</b> {user.daily_water_goal} мл"""
         
         await message.answer(
             profile_text,
@@ -816,25 +818,46 @@ def calculate_macros(data: dict) -> dict:
         'carbs': carbs
     }
 
-@router.message(F.text.regexp(r'(✏️ Редактировать профиль|Редактировать профиль)'))
-async def edit_profile_button(message: Message, state: FSMContext):
-    """Обработка кнопки редактирования профиля"""
-    from handlers.common import cmd_set_profile
-    await cmd_set_profile(message, state)
+@router.message(F.text.lower().regexp(r'(редактировать профиль|добавить прием пищи)'))
+async def edit_profile_or_food_button(message: Message, state: FSMContext):
+    """Обработка кнопки редактирования профиля или добавления пищи"""
+    if "редактировать" in message.text.lower():
+        from handlers.common import cmd_set_profile
+        await cmd_set_profile(message, state)
+    else:
+        logger.info(f"🔍 REPLY HANDLER: Food button pressed by user {message.from_user.id}")
+        await state.clear()
+        await message.answer(
+            "🍽️ <b>Записать приём пищи</b>\n\n"
+            "Отправьте фото блюда или напишите что вы съели.\n\n"
+            "Примеры:\n"
+            "• 200г гречки с курицей\n"
+            "• салат цезарь\n"
+            "• яблоко 2шт",
+            parse_mode="HTML"
+        )
 
-@router.message(F.text.regexp(r'(📊 Полный анализ|Полный анализ)'))
-async def full_analysis_button(message: Message, state: FSMContext):
-    """Обработка кнопки полного анализа"""
-    await message.answer("📊 <b>Полный анализ</b>\n\nФункция полного анализа находится в разработке...", reply_markup=get_main_keyboard_v2(), parse_mode="HTML")
+@router.message(F.text.lower().regexp(r'(полный анализ|показать прогресс)'))
+async def full_analysis_or_progress_button(message: Message, state: FSMContext):
+    """Обработка кнопки полного анализа или прогресса"""
+    if "полный анализ" in message.text.lower():
+        await message.answer("📊 <b>Полный анализ</b>\n\nФункция полного анализа находится в разработке...", reply_markup=get_main_keyboard_v2(), parse_mode="HTML")
+    else:
+        logger.info(f"🔍 REPLY HANDLER: Progress button pressed by user {message.from_user.id}")
+        await state.clear()
+        await cmd_progress(message, state)
 
-@router.message(F.text.regexp(r'(⚖️ Записать вес|Записать вес)'))
+@router.message(F.text.lower().regexp(r'(записать вес|записывать вес)'))
 async def record_weight_button(message: Message, state: FSMContext):
     """Обработка кнопки записи веса"""
-    from handlers.weight import cmd_weight
+    logger.info(f"🔍 REPLY HANDLER: Weight button pressed by user {message.from_user.id}")
+    await state.clear()
     await cmd_weight(message, state)
 
-@router.message(F.text.regexp(r'(🏠 Главное меню|Главное меню)'))
-async def main_menu_from_profile(message: Message):
+@router.message(F.text.lower().regexp(r'(главное меню|вернуться в главное меню)'))
+async def main_menu_from_profile(message: Message, state: FSMContext):
     """Возврат в главное меню из профиля"""
+    logger.info(f"🔍 REPLY HANDLER: Main menu button pressed by user {message.from_user.id}")
+    await state.clear()
     from handlers.common import cmd_start
     await cmd_start(message)

@@ -430,7 +430,7 @@ async def save_profile(callback: CallbackQuery, state: FSMContext):
         daily_fat = calculate_daily_fat(daily_calories)
         daily_carbs = calculate_daily_carbs(daily_calories, daily_protein, daily_fat)
         
-        async with get_session() as session:
+        async for session in get_session():
             # Проверяем, существует ли пользователь
             result = await session.execute(
                 select(User).where(User.telegram_id == user_id)
@@ -534,7 +534,7 @@ async def cmd_profile(message: Message, state: FSMContext):
     """Показать профиль"""
     await state.clear()
     
-    async with get_session() as session:
+    async for session in get_session():
         result = await session.execute(
             select(User).where(User.telegram_id == message.from_user.id)
         )
@@ -593,7 +593,7 @@ async def complete_profile_setup(message: Message, state: FSMContext):
     """Завершение настройки профиля"""
     data = await state.get_data()
     
-    async with get_session() as session:
+    async for session in get_session():
         result = await session.execute(
             select(User).where(User.telegram_id == message.from_user.id)
         )

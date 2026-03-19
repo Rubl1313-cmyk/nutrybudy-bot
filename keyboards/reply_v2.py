@@ -164,11 +164,11 @@ def get_progress_keyboard() -> ReplyKeyboardMarkup:
     """
     builder = ReplyKeyboardBuilder()
     
-    builder.add(KeyboardButton(text="[TODAY] Сегодня"))
-    builder.add(KeyboardButton(text="[WEEK] Неделя"))
-    builder.add(KeyboardButton(text="[MONTH] Месяц"))
-    builder.add(KeyboardButton(text="[STATS] Статистика"))
-    builder.add(KeyboardButton(text="[MENU] Главное меню"))
+    builder.add(KeyboardButton(text="📅 Сегодня"))
+    builder.add(KeyboardButton(text="📅 Неделя"))
+    builder.add(KeyboardButton(text="📅 Месяц"))
+    builder.add(KeyboardButton(text="📊 Всё время"))
+    builder.add(KeyboardButton(text="🏠 Главное меню"))
     
     builder.adjust(3, 2)
     

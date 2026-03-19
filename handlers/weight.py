@@ -216,7 +216,7 @@ async def get_weight_stats(user_id: int) -> dict:
     """Получить статистику веса"""
     from datetime import datetime, timezone, timedelta
     
-    async with get_session() as session:
+    async for session in get_session():
         # Получаем все записи веса
         result = await session.execute(
             select(WeightEntry).where(
@@ -279,7 +279,7 @@ async def get_weight_chart_data(user_id: int) -> list:
     """Получить данные для графика веса"""
     from datetime import datetime, timezone
     
-    async with get_session() as session:
+    async for session in get_session():
         result = await session.execute(
             select(WeightEntry).where(
                 WeightEntry.user_id == user_id

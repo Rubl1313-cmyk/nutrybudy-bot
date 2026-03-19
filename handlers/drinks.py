@@ -75,7 +75,7 @@ async def process_water_amount(message: Message, state: FSMContext):
             return
         
         # Сохраняем в базу данных
-        async with get_session() as session:
+        async for session in get_session():
             # Получаем пользователя
             result = await session.execute(
                 select(User).where(User.telegram_id == message.from_user.id)
@@ -136,7 +136,7 @@ async def process_drink(message: Message, state: FSMContext):
                 return
             
             # Сохраняем в базу данных
-            async with get_session() as session:
+            async for session in get_session():
                 # Получаем пользователя
                 result = await session.execute(
                     select(User).where(User.telegram_id == message.from_user.id)
@@ -201,7 +201,7 @@ async def cmd_water_stats(message: Message):
     text = "💧 <b>Статистика потребления воды</b>\n\n"
     
     # Получаем цель по воде
-    async with get_session() as session:
+    async for session in get_session():
         result = await session.execute(
             select(User).where(User.telegram_id == user_id)
         )
@@ -253,7 +253,7 @@ async def get_water_stats_by_periods(user_id: int) -> dict:
     """Получить статистику потребления воды по периодам"""
     from datetime import datetime, timezone, timedelta
     
-    async with get_session() as session:
+    async for session in get_session():
         now = datetime.now(timezone.utc)
         today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
         week_start = today_start - timedelta(days=today_start.weekday())
@@ -299,7 +299,7 @@ async def process_quick_water(message: Message):
             amount = int(amount_str.replace("мл", ""))
             
             # Сохраняем как обычную воду
-            async with get_session() as session:
+            async for session in get_session():
                 result = await session.execute(
                     select(User).where(User.telegram_id == message.from_user.id)
                 )

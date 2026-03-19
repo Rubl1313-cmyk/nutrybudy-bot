@@ -32,7 +32,7 @@ async def cmd_meal_plan(message: Message, state: FSMContext):
     await state.clear()
     
     # Проверяем наличие профиля
-    async with get_session() as session:
+    async for session in get_session():
         result = await session.execute(
             select(User).where(User.telegram_id == message.from_user.id)
         )
@@ -98,7 +98,7 @@ async def process_restrictions(message: Message, state: FSMContext):
     
     try:
         # Получаем данные пользователя
-        async with get_session() as session:
+        async for session in get_session():
             result = await session.execute(
                 select(User).where(User.telegram_id == message.from_user.id)
             )
@@ -208,7 +208,7 @@ async def save_meal_plan(user_id: int, plan_text: str, preferences: str):
     """Сохранить план питания в базу данных"""
     from datetime import datetime, timezone
     
-    async with get_session() as session:
+    async for session in get_session():
         # Проверяем, есть ли уже план на сегодня
         today = datetime.now(timezone.utc).date()
         
@@ -241,7 +241,7 @@ async def cmd_my_meal_plan(message: Message):
     """Показать текущий план питания"""
     user_id = message.from_user.id
     
-    async with get_session() as session:
+    async for session in get_session():
         # Получаем план на сегодня
         from datetime import datetime, timezone
         today = datetime.now(timezone.utc).date()
@@ -313,7 +313,7 @@ async def get_meal_plan_stats(user_id: int) -> dict:
     """Получить статистику выполнения плана питания"""
     from datetime import datetime, timezone, timedelta
     
-    async with get_session() as session:
+    async for session in get_session():
         now = datetime.now(timezone.utc)
         today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
         week_start = today_start - timedelta(days=today_start.weekday())

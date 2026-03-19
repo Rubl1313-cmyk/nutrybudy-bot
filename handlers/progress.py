@@ -82,15 +82,16 @@ async def show_today_progress(message: Message):
         return
     
     # Получаем цели пользователя
-    async with get_session() as session:
+    async for session in get_session():
         result = await session.execute(
             select(User).where(User.telegram_id == user_id)
         )
         user = result.scalar_one_or_none()
+        break
         
-        if not user:
-            await message.answer("❌ Профиль не найден", reply_markup=get_cancel_keyboard())
-            return
+    if not user:
+        await message.answer("❌ Профиль не найден", reply_markup=get_cancel_keyboard())
+        return
     
     text = "📅 <b>Прогресс за сегодня</b>\n\n"
     
@@ -155,11 +156,12 @@ async def show_week_progress(message: Message):
         return
     
     # Получаем цели пользователя
-    async with get_session() as session:
+    async for session in get_session():
         result = await session.execute(
             select(User).where(User.telegram_id == user_id)
         )
         user = result.scalar_one_or_none()
+        break
     
     text = "📆 <b>Прогресс за неделю</b>\n\n"
     
@@ -223,11 +225,12 @@ async def show_month_progress(message: Message):
         return
     
     # Получаем цели пользователя
-    async with get_session() as session:
+    async for session in get_session():
         result = await session.execute(
             select(User).where(User.telegram_id == user_id)
         )
         user = result.scalar_one_or_none()
+        break
     
     text = "🗓️ <b>Прогресс за месяц</b>\n\n"
     
@@ -341,7 +344,7 @@ async def get_today_stats(user_id: int) -> dict:
     """Получить статистику за сегодня"""
     from datetime import datetime, timezone
     
-    async with get_session() as session:
+    async for session in get_session():
         today = datetime.now(timezone.utc).date()
         
         # Питание
@@ -401,7 +404,7 @@ async def get_week_stats(user_id: int) -> dict:
     """Получить статистику за неделю"""
     from datetime import datetime, timezone, timedelta
     
-    async with get_session() as session:
+    async for session in get_session():
         week_start = datetime.now(timezone.utc).date() - timedelta(days=datetime.now(timezone.utc).weekday())
         week_end = week_start + timedelta(days=7)
         
@@ -477,7 +480,7 @@ async def get_month_stats(user_id: int) -> dict:
     """Получить статистику за месяц"""
     from datetime import datetime, timezone, timedelta
     
-    async with get_session() as session:
+    async for session in get_session():
         month_start = datetime.now(timezone.utc).date().replace(day=1)
         month_end = month_start + timedelta(days=31)
         
@@ -553,7 +556,7 @@ async def get_all_time_stats(user_id: int) -> dict:
     """Получить статистику за всё время"""
     from datetime import datetime, timezone
     
-    async with get_session() as session:
+    async for session in get_session():
         # Получаем всю статистику питания
         result = await session.execute(
             select(Meal).where(Meal.user_id == user_id)

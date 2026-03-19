@@ -69,7 +69,7 @@ async def handle_ai_conversation(message: Message, state: FSMContext):
         
         # Получаем ответ от AI
         ai_response = await cf_manager.get_assistant_response(
-            question=user_question,
+            user_message=user_question,
             context=context
         )
         

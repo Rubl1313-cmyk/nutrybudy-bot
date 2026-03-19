@@ -126,7 +126,7 @@ async def process_calories(message: Message, state: FSMContext):
         calories_burned = calculate_calories_burned(activity_type, duration, weight)
         
         # Сохраняем в базу данных
-        async with get_session() as session:
+        async for session in get_session():
             # Получаем пользователя
             result = await session.execute(
                 select(User).where(User.telegram_id == message.from_user.id)
@@ -174,7 +174,7 @@ async def get_daily_activity_stats(user_id: int) -> dict:
     """Получить статистику активности за день"""
     from datetime import datetime, timezone
     
-    async with get_session() as session:
+    async for session in get_session():
         # Получаем записи активности за сегодня
         today = datetime.now(timezone.utc).date()
         
@@ -248,7 +248,7 @@ async def get_activity_stats_by_periods(user_id: int) -> dict:
     """Получить статистику активности по периодам"""
     from datetime import datetime, timezone, timedelta
     
-    async with get_session() as session:
+    async for session in get_session():
         now = datetime.now(timezone.utc)
         today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
         week_start = today_start - timedelta(days=today_start.weekday())

@@ -154,30 +154,8 @@ async def no_button_handler(message: Message, state: FSMContext):
 
 @router.message(F.text.startswith("📏"))
 async def metric_units_handler(message: Message):
-    """Метрические единицы"""
+    """Метрическая система"""
     await message.answer("📏 <b>Метрическая система</b>\n\nИспользуются килограммы и сантиметры.")
-
-@router.message(F.text.startswith("📏"))
-async def imperial_units_handler(message: Message):
-    """Имперские единицы"""
-    await message.answer("📏 <b>Имперская система</b>\n\nИспользуются фунты и дюймы.")
-
-# === Обработчики уведомлений ===
-
-@router.message(F.text.startswith("🔔"))
-async def water_notifications_handler(message: Message):
-    """Настройки уведомлений о воде"""
-    await message.answer("🔔 <b>Напоминания о воде</b>\n\nНастройки в разработке...")
-
-@router.message(F.text.startswith("🔔"))
-async def food_notifications_handler(message: Message):
-    """Настройки уведомлений о еде"""
-    await message.answer("🔔 <b>Напоминания о еде</b>\n\nНастройки в разработке...")
-
-@router.message(F.text.startswith("🔔"))
-async def activity_notifications_handler(message: Message):
-    """Настройки уведомлений об активности"""
-    await message.answer("🔔 <b>Напоминания об активности</b>\n\nНастройки в разработке...")
 
 # === Обработчики статистики ===
 

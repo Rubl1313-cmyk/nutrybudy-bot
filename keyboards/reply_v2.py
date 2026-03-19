@@ -235,39 +235,36 @@ def get_confirm_keyboard() -> ReplyKeyboardMarkup:
 
 def get_units_keyboard() -> ReplyKeyboardMarkup:
     """
-    Клавиатура выбора системы единиц
+    Клавиатура системы единиц (только метрическая)
     """
     builder = ReplyKeyboardBuilder()
     
-    builder.add(KeyboardButton(text="📏 Метрические"))
-    builder.add(KeyboardButton(text="📏 Имперские"))
+    builder.add(KeyboardButton(text="📏 Метрическая система"))
     builder.add(KeyboardButton(text="🏠 Главное меню"))
     
-    builder.adjust(2, 1)
+    builder.adjust(1, 1)
     
     return builder.as_markup(
         resize_keyboard=True,
         one_time_keyboard=False,
-        input_field_placeholder="Выберите систему единиц..."
+        input_field_placeholder="Система единиц..."
     )
 
 def get_notifications_keyboard() -> ReplyKeyboardMarkup:
     """
-    Клавиатура настроек уведомлений
+    Клавиатура настроек уведомлений (только вода)
     """
     builder = ReplyKeyboardBuilder()
     
-    builder.add(KeyboardButton(text="� Напоминания о воде"))
-    builder.add(KeyboardButton(text="🔔 Напоминания о еде"))
-    builder.add(KeyboardButton(text="🔔 Напоминания об активности"))
-    builder.add(KeyboardButton(text="🏠 Главное меню"))
+    builder.add(KeyboardButton(text="💧 Напоминания о воде"))
+    builder.add(KeyboardButton(text=" Главное меню"))
     
-    builder.adjust(2, 2)
+    builder.adjust(1, 1)
     
     return builder.as_markup(
         resize_keyboard=True,
         one_time_keyboard=False,
-        input_field_placeholder="Настройки уведомлений..."
+        input_field_placeholder="Настройки напоминаний..."
     )
 
 def get_statistics_keyboard() -> ReplyKeyboardMarkup:

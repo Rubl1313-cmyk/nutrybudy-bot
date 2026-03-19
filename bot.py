@@ -201,15 +201,8 @@ async def schedule_reminders(reminder_service):
     # Запуск фоновых задач
     logger.info("Starting background tasks...")
     
-    # Запуск напоминаний (если включены)
-    if os.getenv('ENABLE_REMINDERS', 'true').lower() == 'true':
-        from services.reminder_service import ReminderService
-        reminder_service = ReminderService(dp.bot)
-        # Запуск проверки напоминаний каждые 6 часов
-        asyncio.create_task(schedule_reminders(reminder_service))
-        logger.info("Reminder service started")
-    else:
-        logger.info("Reminders disabled")
+    # Напоминания отключены
+    logger.info("Reminders disabled")
 
 async def create_app():
     """Создание веб-приложения для webhook"""

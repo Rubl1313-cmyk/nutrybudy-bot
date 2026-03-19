@@ -38,11 +38,7 @@ async def cmd_weight(message: Message, state: FSMContext):
     text += "• После посещения туалета\n"
     text += "• Без одежды и обуви\n"
     text += "• Используйте одни и те же весы\n\n"
-    text += "📊 <b>Дополнительно можно записать:</b>\n"
-    text += "• % жировой массы\n"
-    text += "• Мышечная масса\n"
-    text += "• % воды в организме\n\n"
-    text += "🔢 <b>Введите вес:</b>"
+    text += " <b>Введите вес:</b>"
     
     await message.answer(text)
     await state.set_state(WeightStates.waiting_for_weight)
@@ -61,179 +57,39 @@ async def process_weight(message: Message, state: FSMContext):
             await message.answer("❌ Слишком большой вес. Максимум 300 кг. Попробуйте еще раз:")
             return
         
-        # Сохраняем вес
-        await state.update_data(weight=weight)
+        # Сохраняем вес в базу данных
+        from database.db import get_session
+        from database.models import WeightEntry
+        from datetime import datetime, timezone
         
-        # Предлагаем записать дополнительные параметры
-        from keyboards.reply_v2 import get_cancel_keyboard
-        from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
+        async for session in get_session():
+            weight_entry = WeightEntry(
+                user_id=message.from_user.id,
+                weight=weight,
+                created_at=datetime.now(timezone.utc)
+            )
+            session.add(weight_entry)
+            await session.commit()
+            break
         
-        keyboard = ReplyKeyboardMarkup(
-            keyboard=[
-                [KeyboardButton(text="✅ Только вес")],
-                [KeyboardButton(text="📊 + % жира"), KeyboardButton(text="💪 + мышечная масса")],
-                [KeyboardButton(text="🧬 + все параметры")]
-            ],
-            resize_keyboard=True
-        )
+        await state.clear()
         
-        text = f"⚖️ <b>Вес записан: {weight} кг</b>\n\n"
-        text += "Хотите добавить дополнительные параметры?\n\n"
-        text += "📈 <b>Дополнительные параметры:</b>\n"
-        text += "• % жировой массы - для отслеживания состава тела\n"
-        text += "• Мышечная масса - для контроля мышц\n"
-        text += "• % воды - для контроля гидратации\n\n"
-        text += "💡 <b>Рекомендация:</b> Для точного трекинга веса достаточно только веса"
+        text = f"✅ <b>Вес записан: {weight} кг</b>\n\n"
+        text += "📈 Вес успешно сохранен в вашем дневнике!\n\n"
+        text += "� <b>Совет:</b> Для отслеживания прогресса взвешивайтесь регулярно\n"
+        text += "🎯 <b>Цель:</b> Используйте кнопку \"📊 Прогресс\" для просмотра динамики"
         
-        await message.answer(text, reply_markup=keyboard)
+        await message.answer(text, reply_markup=get_main_keyboard_v2())
         
     except ValueError:
         await message.answer("❌ Неверный формат. Введите число (например: 70.5):")
-
-@router.message(F.text.contains("только вес") | F.text.contains("жира") | F.text.contains("мышц") | F.text.contains("воды"))
-async def handle_weight_options(message: Message, state: FSMContext):
-    """Обработка выбора дополнительных параметров"""
-    text = message.text.lower()
-    
-    if "только вес" in text:
-        # Сохраняем только вес
-        await save_weight_entry(message, state)
-    elif "жира" in text:
-        await state.set_state(WeightStates.waiting_for_body_fat)
-        await message.answer(
-            "📊 <b>% жировой массы</b>\n\n"
-            "Введите процент жира в организме (например: 15.5):\n\n"
-            "💡 <b>Нормы:</b>\n"
-            "• Мужчины: 10-20%\n"
-            "• Женщины: 18-28%"
-        )
-    elif "мышечная" in text:
-        await state.set_state(WeightStates.waiting_for_muscle_mass)
-        await message.answer(
-            "💪 <b>Мышечная масса</b>\n\n"
-            "Введите мышечную массу в кг (например: 35.5):\n\n"
-            "💡 <b>Средние значения:</b>\n"
-            "• Мужчины: 35-45 кг\n"
-            "• Женщины: 25-35 кг"
-        )
-    elif "все параметры" in text:
-        await state.set_state(WeightStates.waiting_for_body_fat)
-        await message.answer(
-            "📊 <b>% жировой массы</b>\n\n"
-            "Введите процент жира в организме (например: 15.5):"
-        )
-    else:
-        await message.answer("❌ Пожалуйста, выберите вариант из меню")
-
-@router.message(WeightStates.waiting_for_body_fat)
-async def process_body_fat(message: Message, state: FSMContext):
-    """Обработка % жировой массы"""
-    try:
-        body_fat = float(message.text.replace(',', '.'))
-        
-        if body_fat <= 0:
-            await message.answer("❌ Процент должен быть положительным числом. Попробуйте еще раз:")
-            return
-        
-        if body_fat > 60:
-            await message.answer("❌ Слишком большой процент. Максимум 60%. Попробуйте еще раз:")
-            return
-        
-        # Сохраняем % жира
-        await state.update_data(body_fat=body_fat)
-        
-        # Проверяем, нужно ли еще параметры
-        data = await state.get_data()
-        if "muscle_mass" not in data:
-            await state.set_state(WeightStates.waiting_for_muscle_mass)
-            await message.answer(
-                "💪 <b>Мышечная масса</b>\n\n"
-                "Введите мышечную массу в кг (например: 35.5):"
-            )
-        else:
-            # Все параметры собраны, сохраняем
-            await save_weight_entry(message, state)
-            
-    except ValueError:
-        await message.answer("❌ Неверный формат. Введите число (например: 15.5):")
-
-@router.message(WeightStates.waiting_for_muscle_mass)
-async def process_muscle_mass(message: Message, state: FSMContext):
-    """Обработка мышечной массы"""
-    try:
-        muscle_mass = float(message.text.replace(',', '.'))
-        
-        if muscle_mass <= 0:
-            await message.answer("❌ Масса должна быть положительным числом. Попробуйте еще раз:")
-            return
-        
-        if muscle_mass > 150:
-            await message.answer("❌ Слишком большая масса. Максимум 150 кг. Попробуйте еще раз:")
-            return
-        
-        # Сохраняем мышечную массу
-        await state.update_data(muscle_mass=muscle_mass)
-        
-        # Сохраняем запись
-        await save_weight_entry(message, state)
-        
-    except ValueError:
-        await message.answer("❌ Неверный формат. Введите число (например: 35.5):")
-
-async def save_weight_entry(message: Message, state: FSMContext):
-    """Сохранение записи веса"""
-    try:
-        data = await state.get_data()
-        weight = data['weight']
-        
-        async with get_session() as session:
-            # Получаем пользователя
-            result = await session.execute(
-                select(User).where(User.telegram_id == message.from_user.id)
-            )
-            user = result.scalar_one_or_none()
-            
-            if not user:
-                await message.answer(
-                    "❌ Сначала настройте профиль с помощью /set_profile",
-                    reply_markup=get_main_keyboard_v2()
-                )
-                await state.clear()
-                return
-            
-            # Создаем запись о весе
-            weight_entry = WeightEntry(
-                user_id=user.telegram_id,
-                weight=weight,
-                body_fat=data.get('body_fat'),
-                muscle_mass=data.get('muscle_mass'),
-                body_water=data.get('body_water')
-            )
-            
-            session.add(weight_entry)
-            await session.commit()
-            
-            # Получаем статистику веса
-            weight_stats = await get_weight_stats(user.telegram_id)
-            
-            # Создаем красивую карточку
-            card = weight_card(weight, weight_stats, user)
-            
-            await message.answer(card, reply_markup=get_main_keyboard_v2())
-            
-            # Проверяем достижения
-            from handlers.achievements import check_achievements
-            await check_achievements(user.telegram_id, 'weight', weight)
-            
-            await state.clear()
-            
     except Exception as e:
-        logger.error(f"Error saving weight entry: {e}")
-        await message.answer(
-            "❌ Произошла ошибка сохранения. Попробуйте еще раз:",
-            reply_markup=get_main_keyboard_v2()
-        )
-        await state.clear()
+        logger.error(f"Error saving weight: {e}")
+        await message.answer("❌ Ошибка при сохранении веса. Попробуйте еще раз.")
+
+# Удалены обработчики дополнительных параметров - больше не нужны
+
+# Функция больше не нужна, так как сохранение происходит напрямую в process_weight
 
 @router.message(Command("weight_stats"))
 @router.message(Command("статистика_веса"))

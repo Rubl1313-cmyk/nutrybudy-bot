@@ -40,18 +40,18 @@ async def cmd_progress(message: Message, state: FSMContext):
     
     await message.answer(text, reply_markup=get_progress_keyboard())
 
-@router.message(F.text.regexp(r'(📅 Сегодня|Сегодня|today|📅 Неделя|Неделя|week|📅 Месяц|Месяц|month|📊 Всё время|Все время|all time)'))
+@router.message(F.text.lower().regexp(r'(сегодня|today|неделя|week|месяц|month|всё время|все время|all time)'))
 async def handle_period_selection(message: Message):
     """Обработка выбора периода"""
     text = message.text.lower()
     
-    if "сегодня" in text or "today" in text.lower():
+    if "сегодня" in text or "today" in text:
         await show_today_progress(message)
-    elif "неделя" in text or "week" in text.lower():
+    elif "неделя" in text or "week" in text:
         await show_week_progress(message)
-    elif "месяц" in text or "month" in text.lower():
+    elif "месяц" in text or "month" in text:
         await show_month_progress(message)
-    elif ("всё время" in text or "все время" in text or "all time" in text.lower()):
+    elif "всё время" in text or "все время" in text or "all time" in text:
         await show_all_time_progress(message)
     else:
         await message.answer("❌ Пожалуйста, выберите период из меню")

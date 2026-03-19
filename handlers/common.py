@@ -102,10 +102,7 @@ async def cmd_help(message: Message, state: FSMContext):
 • Настройте профиль для точных рекомендаций
 • Записывайте питание регулярно
 • Пейте достаточно воды
-• Отслеживайте прогресс для мотивации
-
-❓ <b>Нужна помощь?</b>
-Свяжитесь с поддержкой: @NutriBuddy_Support"""
+• Отслеживайте прогресс для мотивации"""
     
     await message.answer(
         help_text,
@@ -178,7 +175,7 @@ async def start_profile_setup(callback: CallbackQuery, state: FSMContext):
     )
     await callback.answer()
 
-@router.callback_query(F.data == "cancel_profile")
+@router.callback_query(F.data == "cancel_profile_setup")
 async def cancel_profile_setup(callback: CallbackQuery, state: FSMContext):
     """Отмена настройки профиля"""
     await state.clear()

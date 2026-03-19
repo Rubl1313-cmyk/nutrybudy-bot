@@ -95,6 +95,12 @@ async def handle_product_selection(callback: CallbackQuery, state: FSMContext):
     
     # Получаем индекс выбранного продукта
     product_index = int(callback.data.split(":")[1])
+    
+    # Проверка на валидность индекса
+    if product_index < 0 or product_index >= len(food_items):
+        await callback.answer("❌ Неверный выбор продукта", show_alert=True)
+        return
+    
     selected_product = food_items[product_index]
     
     # Переходим к вводу веса

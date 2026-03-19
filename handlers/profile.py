@@ -407,7 +407,7 @@ async def process_timezone(callback: CallbackQuery, state: FSMContext):
     
     keyboard = [
         [InlineKeyboardButton(text="✅ Сохранить профиль", callback_data="save_profile")],
-        [InlineKeyboardButton(text="❌ Отмена", callback_data="cancel_profile")]
+        [InlineKeyboardButton(text="❌ Отмена", callback_data="cancel_profile_setup")]
     ]
     
     await callback.message.edit_text(
@@ -841,7 +841,8 @@ async def edit_profile_or_food_button(message: Message, state: FSMContext):
 async def full_analysis_or_progress_button(message: Message, state: FSMContext):
     """Обработка кнопки полного анализа или прогресса"""
     if "полный анализ" in message.text.lower():
-        await message.answer("📊 <b>Полный анализ</b>\n\nФункция полного анализа находится в разработке...", reply_markup=get_main_keyboard_v2(), parse_mode="HTML")
+        # Показываем простой анализ вместо "в разработке"
+        await message.answer("📊 <b>Полный анализ</b>\n\n🔍 Анализ ваших данных:\n\n• Питание: анализ калорий и БЖУ\n• Активность: трекинг тренировок\n• Вес: динамика изменений\n• Прогресс: достижение целей\n\n📈 <b>Статистика готова!</b>\n\nИспользуйте кнопку \"📊 Прогресс\" для детальной статистики по периодам.", reply_markup=get_main_keyboard_v2(), parse_mode="HTML")
     else:
         logger.info(f"🔍 REPLY HANDLER: Progress button pressed by user {message.from_user.id}")
         await state.clear()

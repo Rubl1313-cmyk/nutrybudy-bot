@@ -147,6 +147,7 @@ def register_handlers():
     """Регистрация всех обработчиков"""
     # Импорты обработчиков
     from handlers.common import router as common_router
+    from handlers.reply_handlers import router as reply_handlers_router
     from handlers.profile import router as profile_router
     from handlers.weight import router as weight_router
     from handlers.drinks import router as drinks_router
@@ -156,12 +157,12 @@ def register_handlers():
     from handlers.achievements import router as achievements_router
     from handlers.ai_assistant import router as ai_assistant_router
     from handlers.food_clarification import router as food_clarification_router
-    from handlers.reply_handlers import router as reply_handlers_router
     from handlers.universal import router as universal_router
     from handlers.reminder_callbacks import router as reminder_callbacks_router
     
-    # Регистрация роутеров
+    # Регистрация роутеров - важен порядок!
     dp.include_router(common_router)
+    dp.include_router(reply_handlers_router)  # ← кнопки обрабатываются раньше всего
     dp.include_router(profile_router)
     dp.include_router(weight_router)
     dp.include_router(drinks_router)
@@ -171,7 +172,6 @@ def register_handlers():
     dp.include_router(achievements_router)
     dp.include_router(ai_assistant_router)
     dp.include_router(food_clarification_router)
-    dp.include_router(reply_handlers_router)
     dp.include_router(universal_router)
     dp.include_router(reminder_callbacks_router)
     

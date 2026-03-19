@@ -11,7 +11,7 @@ from handlers.profile import cmd_profile
 from handlers.progress import cmd_progress
 from handlers.drinks import cmd_water
 from handlers.weight import cmd_weight
-from handlers.ai_assistant import cmd_ai
+from handlers.ai_assistant import cmd_ask
 from handlers.common import cmd_help
 from keyboards.reply_v2 import get_main_keyboard_v2
 
@@ -44,7 +44,7 @@ async def water_button_handler(message: Message, state: FSMContext):
 async def ai_button_handler(message: Message, state: FSMContext):
     logger.info(f"🔍 REPLY HANDLER: 🤖 button pressed by user {message.from_user.id}")
     await state.clear()
-    await cmd_ai(message)  # Вызываем реальную команду AI
+    await cmd_ask(message)  # Вызываем реальную команду AI
 
 @router.message(F.text.startswith("📊"))
 async def progress_button_handler(message: Message, state: FSMContext):

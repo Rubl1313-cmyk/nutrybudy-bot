@@ -20,7 +20,7 @@ router = Router()
 
 # === Обработчики кнопок воды ===
 
-@router.message(F.text.startswith("💧"))
+@router.message(F.text.regexp(r'^💧\s*(\d+)\s*(мл|мл|стакан|стакана|литр|л)$'))
 async def water_keyboard_handler(message: Message, state: FSMContext):
     """Обработка кнопок клавиатуры воды"""
     text = message.text
@@ -29,13 +29,19 @@ async def water_keyboard_handler(message: Message, state: FSMContext):
         amount = 200
     elif "2 стакана" in text:
         amount = 400
-    elif "500 мл" in text:
+    elif "500 мл" in text or "500мл" in text:
         amount = 500
-    elif "1 литр" in text:
+    elif "1 литр" in text or "1л" in text:
         amount = 1000
     else:
-        await message.answer("❌ Неверный формат")
-        return
+        # Извлекаем число из текста
+        import re
+        match = re.search(r'(\d+)', text)
+        if match:
+            amount = int(match.group(1))
+        else:
+            await message.answer("❌ Неверный формат")
+            return
     
     # Сохраняем воду как в process_quick_water
     async for session in get_session():
@@ -155,21 +161,6 @@ async def metric_units_handler(message: Message):
     await message.answer("📏 <b>Метрическая система</b>\n\nИспользуются килограммы и сантиметры.")
 
 # === Обработчики статистики ===
-
-@router.message(F.text.startswith("🔥"))
-async def calories_stats_handler(message: Message):
-    """Статистика калорий"""
-    await message.answer("🔥 <b>Статистика калорий</b>\n\nФункция в разработке...")
-
-@router.message(F.text.startswith("⚖️"))
-async def weight_stats_handler(message: Message):
-    """Статистика веса"""
-    await message.answer("⚖️ <b>Статистика веса</b>\n\nФункция в разработке...")
-
-@router.message(F.text.startswith("💧"))
-async def water_stats_handler(message: Message):
-    """Статистика воды"""
-    await message.answer("💧 <b>Статистика воды</b>\n\nФункция в разработке...")
 
 @router.message(F.text.startswith("🏃"))
 async def activity_stats_handler(message: Message):

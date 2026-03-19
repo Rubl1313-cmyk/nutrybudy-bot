@@ -9,10 +9,26 @@ from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-from services.langchain_agent import LangChainAgent
+logger = logging.getLogger(__name__)
+
+# Безопасный импорт LangChain
+try:
+    from services.langchain_agent import LangChainAgent
+    LANGCHAIN_AVAILABLE = True
+    logger.info("✅ LangChain imported successfully")
+except ImportError as e:
+    logger.warning(f"⚠️ LangChain not available: {e}")
+    LANGCHAIN_AVAILABLE = False
+    LangChainAgent = None
+
+def get_langchain_agent(user_id: int, state: FSMContext):
+    """Безопасное получение LangChain агента с проверкой"""
+    if not LANGCHAIN_AVAILABLE:
+        raise ImportError("LangChain is not available. AI functionality will be limited.")
+    return LangChainAgent(user_id=user_id, state=state)
+
 from utils.premium_templates import loading_card, error_card
 
-logger = logging.getLogger(__name__)
 router = Router()
 
 # Семафоры для обработки фото по пользователям
@@ -75,7 +91,7 @@ async def handle_photo_message(message: Message, state: FSMContext):
             )
             
             # Инициализируем LangChain агент
-            agent = LangChainAgent(user_id=user_id, state=state)
+            agent = get_langchain_agent(user_id, state)
             
             # Получаем фото
             photo = message.photo[-1]  # Самое большое фото
@@ -138,7 +154,7 @@ async def handle_text_message(message: Message, state: FSMContext):
         return
     
     # Инициализируем LangChain агент для текста
-    agent = LangChainAgent(user_id=user_id, state=state)
+    agent = get_langchain_agent(user_id, state)
     
     try:
         # Показываем загрузку для сложных запросов
@@ -221,7 +237,7 @@ async def handle_voice_message(message: Message, state: FSMContext):
         )
         
         # Инициализируем LangChain агент
-        agent = LangChainAgent(user_id=user_id, state=state)
+        agent = get_langchain_agent(user_id, state)
         
         # Получаем голосовое сообщение
         voice = message.voice
@@ -280,7 +296,7 @@ async def handle_video_message(message: Message, state: FSMContext):
         )
         
         # Инициализируем LangChain агент
-        agent = LangChainAgent(user_id=user_id, state=state)
+        agent = get_langchain_agent(user_id, state)
         
         # Получаем видео
         video = message.video
@@ -369,7 +385,7 @@ async def handle_photo_document(message: Message, state: FSMContext):
             )
             
             # Инициализируем LangChain агент
-            agent = LangChainAgent(user_id=user_id, state=state)
+            agent = get_langchain_agent(user_id, state)
             
             # Получаем документ
             document = message.document
@@ -445,7 +461,7 @@ async def universal_callback_handler(callback: CallbackQuery, state: FSMContext)
         current_state = await state.get_state()
         
         # Инициализируем LangChain агент для callback'ов
-        agent = LangChainAgent(user_id=user_id, state=state)
+        agent = get_langchain_agent(user_id, state)
         
         # Обрабатываем callback через агент
         result = await agent.process_callback(

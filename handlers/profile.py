@@ -534,28 +534,29 @@ async def cmd_profile(message: Message, state: FSMContext):
     """Показать профиль"""
     await state.clear()
     
-    async for session in get_session():
-        result = await session.execute(
-            select(User).where(User.telegram_id == message.from_user.id)
-        )
-        user = result.scalar_one_or_none()
-        
-        if not user:
-            text = """👤 <b>Профиль не найден</b>
+    try:
+        async for session in get_session():
+            result = await session.execute(
+                select(User).where(User.telegram_id == message.from_user.id)
+            )
+            user = result.scalar_one_or_none()
+            
+            if not user:
+                text = """👤 <b>Профиль не найден</b>
 
 Сначала настройте профиль:
 
 /set_profile - Настроить профиль"""
+                
+                await message.answer(
+                    text,
+                    reply_markup=get_main_keyboard_v2(),
+                    parse_mode="HTML"
+                )
+                return
             
-            await message.answer(
-                text,
-                reply_markup=get_main_keyboard_v2(),
-                parse_mode="HTML"
-            )
-            return
-        
-        # Формируем красивую карточку профиля
-        profile_text = f"""👤 <b>ВАШ ПРОФИЛЬ</b>
+            # Формируем красивую карточку профиля
+            profile_text = f"""👤 <b>ВАШ ПРОФИЛЬ</b>
 
 ═══════════════════════════════════
 📋 <b>Основные данные:</b>
@@ -581,20 +582,16 @@ async def cmd_profile(message: Message, state: FSMContext):
 ═══════════════════════════════════
 📊 <b>Суточные нормы:</b>
 
-🍽️ <b>Питание:</b>
-  📍 Калории: {user.daily_calorie_goal} ккал
-  🥩 Белки: {user.daily_protein_goal} г
-  🥑 Жиры: {user.daily_fat_goal} г  
-  🍞 Углеводы: {user.daily_carbs_goal} г
+� Калории: {user.daily_calorie_goal or 0} ккал
+🥩 Белки: {user.daily_protein_goal or 0}г
+� Жиры: {user.daily_fat_goal or 0}г
+� Углеводы: {user.daily_carbs_goal or 0}г
+💧 Вода: {user.daily_water_goal or 2000} мл
+👟 Шаги: {user.daily_steps_goal or 10000}
+� Активность: {user.daily_activity_goal or 30} мин
 
-💧 <b>Гидратация:</b>
-  💦 Жидкости: {user.daily_water_goal} мл
-
-🏃‍♂️ <b>Активность:</b>
-  👟 Шаги: {user.daily_steps_goal}
-  🏋️ Тренировки: {user.daily_activity_goal} мин
-
-⏰ <b>Часовой пояс:</b>
+═══════════════════════════════════
+🏰 <b>Часовой пояс:</b>
   🌍 {timezone_display}
 
 ═══════════════════════════════════"""
@@ -603,6 +600,13 @@ async def cmd_profile(message: Message, state: FSMContext):
             profile_text,
             reply_markup=get_profile_keyboard(),
             parse_mode="HTML"
+        )
+    
+    except Exception as e:
+        logger.error(f"Error in cmd_profile: {e}")
+        await message.answer(
+            "⚠️ Временная проблема с базой данных. Попробуйте позже или обратитесь к разработчику.",
+            reply_markup=get_main_keyboard_v2()
         )
 
 @router.message(F.text.contains("✅ Завершить настройку"))

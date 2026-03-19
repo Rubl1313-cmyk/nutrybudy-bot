@@ -558,13 +558,14 @@ async def cmd_profile(message: Message, state: FSMContext):
         profile_text = f"""👤 <b>Ваш профиль</b>
 
 📋 <b>Основные данные:</b>
+═══════════════════════════════════
 • Имя: {user.first_name or 'Не указано'}
 • Возраст: {user.age} лет
 • Пол: {'Мужской' if user.gender == 'male' else 'Женский'}
 • Рост: {user.height} см
 • Вес: {user.weight} кг
 • Активность: {user.activity_level}
-• Цель: {user.goal}"""
+• Цель: {'Похудение' if user.goal == 'lose_weight' else 'Набор веса' if user.goal == 'gain_weight' else 'Поддержание веса'}"""
         
         if user.city:
             profile_text += f"\n• Город: {user.city}"
@@ -572,17 +573,21 @@ async def cmd_profile(message: Message, state: FSMContext):
         profile_text += f"""
 
 📊 <b>Суточные нормы:</b>
+═══════════════════════════════════
+🍽️ <b>Питание:</b>
 • Калории: {user.daily_calorie_goal} ккал
 • Белки: {user.daily_protein_goal} г
-• Жиры: {user.daily_fat_goal} г
+• Жиры: {user.daily_fat_goal} г  
 • Углеводы: {user.daily_carbs_goal} г
-• Вода: {user.daily_water_goal} мл
+
+💧 <b>Гидратация:</b>
+• Жидкости: {user.daily_water_goal} мл
+
+🏃‍♂️ <b>Активность:</b>
 • Шаги: {user.daily_steps_goal}
-• Активность: {user.daily_activity_goal} мин
+• Тренировки: {user.daily_activity_goal} мин
 
-⏰ <b>Часовой пояс:</b> {get_timezone_display_name(user.timezone) if user.timezone else 'UTC'}
-
-💧 <b>Жидкости:</b> {user.daily_water_goal} мл"""
+⏰ <b>Часовой пояс:</b> {get_timezone_display_name(user.timezone) if user.timezone else 'UTC'}"""
         
         await message.answer(
             profile_text,

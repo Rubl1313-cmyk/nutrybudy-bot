@@ -44,7 +44,7 @@ async def water_button_handler(message: Message, state: FSMContext):
 async def ai_button_handler(message: Message, state: FSMContext):
     logger.info(f"🔍 REPLY HANDLER: 🤖 button pressed by user {message.from_user.id}")
     await state.clear()
-    await cmd_ask(message)  # Вызываем реальную команду AI
+    await cmd_ask(message, state)  # Вызываем реальную команду AI
 
 @router.message(F.text.startswith("📊"))
 async def progress_button_handler(message: Message, state: FSMContext):

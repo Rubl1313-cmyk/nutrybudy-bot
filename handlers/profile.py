@@ -557,8 +557,8 @@ async def cmd_profile(message: Message, state: FSMContext):
         # Формируем информацию о профиле
         profile_text = f"""👤 <b>Ваш профиль</b>
 
-📋 <b>Основные данные:</b>
 ═══════════════════════════════════
+📋 <b>Основные данные:</b>
 • Имя: {user.first_name or 'Не указано'}
 • Возраст: {user.age} лет
 • Пол: {'Мужской' if user.gender == 'male' else 'Женский'}
@@ -571,23 +571,26 @@ async def cmd_profile(message: Message, state: FSMContext):
             profile_text += f"\n• Город: {user.city}"
         
         profile_text += f"""
-
-📊 <b>Суточные нормы:</b>
 ═══════════════════════════════════
-🍽️ <b>Питание:</b>
+
+═══════════════════════════════════
+📊 <b>Суточные нормы:</b>
+🍽️ Питание:
 • Калории: {user.daily_calorie_goal} ккал
 • Белки: {user.daily_protein_goal} г
 • Жиры: {user.daily_fat_goal} г  
 • Углеводы: {user.daily_carbs_goal} г
 
-💧 <b>Гидратация:</b>
+💧 Гидратация:
 • Жидкости: {user.daily_water_goal} мл
 
-🏃‍♂️ <b>Активность:</b>
+🏃‍♂️ Активность:
 • Шаги: {user.daily_steps_goal}
 • Тренировки: {user.daily_activity_goal} мин
 
-⏰ <b>Часовой пояс:</b> {get_timezone_display_name(user.timezone) if user.timezone else 'UTC'}"""
+⏰ Часовой пояс: {get_timezone_display_name(user.timezone) if user.timezone else 'UTC'}
+
+═══════════════════════════════════"""
         
         await message.answer(
             profile_text,

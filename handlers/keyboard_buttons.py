@@ -1,22 +1,20 @@
 """
-handlers/keyboard_buttons.py
-Обработчики для кнопок с квадратными скобками
+Обработчики кнопок клавиатур для NutriBuddy Bot
 """
 import logging
-from aiogram.types import Message
+from aiogram import Router
 from aiogram.filters import F
 from aiogram.fsm.context import FSMContext
-from aiogram import Router
+from aiogram.types import Message
 
-from handlers.drinks import cmd_water, cmd_quick_water
-from handlers.food import cmd_log_food
-from handlers.common import cmd_help, cmd_start
+from database.db import get_session
+from database.models import User, DrinkEntry
 from keyboards.reply_v2 import get_main_keyboard_v2
 from utils.premium_templates import drink_card, water_card
 from utils.daily_stats import get_daily_water
-from database.db import get_session
-from database.models import User, DrinkEntry
-from sqlalchemy import select
+from handlers.drinks import cmd_water, cmd_quick_water
+from handlers.food import cmd_log_food
+from handlers.common import cmd_help, cmd_start
 
 logger = logging.getLogger(__name__)
 router = Router()

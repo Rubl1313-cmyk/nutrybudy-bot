@@ -54,7 +54,7 @@ class LangChainAgent:
     async def load_user(self):
         """Загружает пользователя из БД"""
         try:
-            async with get_session() as session:
+            async for session in get_session():
                 result = await session.execute(select(User).where(User.telegram_id == self.user_id))
                 self.user = result.scalar_one_or_none()
                 if self.user:

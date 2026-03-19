@@ -33,7 +33,7 @@ class AIProcessor:
             user_profile = await self._get_user_profile(user_id)
             
             # Сначала пробуем распарсить еду
-            food_result = await self.ai_manager.parse_food(text, user_profile)
+            food_result = await self.ai_manager.parse_food_text(text)
             if food_result.get("success") and food_result.get("data"):
                 data = food_result["data"]
                 # Проверяем уверенность распознавания
@@ -160,7 +160,7 @@ class AIProcessor:
     async def _get_user_profile(self, user_id: int) -> Optional[Dict]:
         """Получает профиль пользователя для контекста"""
         try:
-            async with get_session() as session:
+            async for session in get_session():
                 user_result = await session.execute(select(User).where(User.telegram_id == user_id))
                 user = user_result.scalar_one_or_none()
                 

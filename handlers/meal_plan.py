@@ -89,6 +89,12 @@ async def process_restrictions(message: Message, state: FSMContext):
     """Обработка ограничений и составление плана"""
     preferences = message.text.strip()
     
+    # Обработка кнопки "❌ Нет, спасибо"
+    if message.text == "❌ Нет, спасибо" or "нет" in message.text.lower():
+        await state.clear()
+        await message.answer("👋 Понял! Если измените решение - используйте /meal_plan", reply_markup=get_main_keyboard_v2())
+        return
+    
     if len(preferences) < 5:
         await message.answer("❌ Слишком коротко. Расскажите подробнее о предпочтениях:")
         return

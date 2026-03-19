@@ -94,7 +94,7 @@ async def get_nutrition_stats(user_id: int, start_date: Optional[date] = None) -
         dict: Статистика питания
     """
     try:
-        async with get_session() as session:
+        async for session in get_session():
             # Базовые условия
             conditions = [FoodEntry.user_id == user_id]
             if start_date:
@@ -144,7 +144,7 @@ async def get_activity_stats(user_id: int, start_date: Optional[date] = None) ->
         dict: Статистика активности
     """
     try:
-        async with get_session() as session:
+        async for session in get_session():
             # Базовые условия
             conditions = [ActivityEntry.user_id == user_id]
             if start_date:
@@ -199,7 +199,7 @@ async def get_weight_progress(user_id: int, start_date: Optional[date] = None) -
         dict: Прогресс веса
     """
     try:
-        async with get_session() as session:
+        async for session in get_session():
             # Базовые условия
             conditions = [WeightEntry.user_id == user_id]
             if start_date:
@@ -262,7 +262,7 @@ async def get_hydration_stats(user_id: int, start_date: Optional[date] = None) -
         dict: Статистика гидрации
     """
     try:
-        async with get_session() as session:
+        async for session in get_session():
             # Базовые условия
             conditions = [DrinkEntry.user_id == user_id]
             if start_date:
@@ -305,7 +305,7 @@ async def get_user_goals(user_id: int) -> Dict[str, Any]:
         dict: Цели пользователя
     """
     try:
-        async with get_session() as session:
+        async for session in get_session():
             result = await session.execute(
                 select(User).where(User.telegram_id == user_id)
             )

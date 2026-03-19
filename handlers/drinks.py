@@ -60,7 +60,7 @@ async def cmd_drink(message: Message, state: FSMContext):
     await message.answer(text)
     await state.set_state(DrinkStates.waiting_for_drink)
 
-@router.message(lambda message: message.text and message.text.isdigit())
+@router.message(DrinkStates.waiting_for_drink, lambda message: message.text and message.text.isdigit())
 async def process_water_amount(message: Message, state: FSMContext):
     """Обработка количества воды"""
     try:

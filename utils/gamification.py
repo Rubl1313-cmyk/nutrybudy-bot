@@ -445,6 +445,38 @@ class GamificationSystem:
             logger.error(f"Error getting leaderboard: {e}")
             return []
 
+    async def get_user_stats(self, user_id: int) -> dict:
+        """Возвращает статистику пользователя для достижений"""
+        try:
+            achievements = await self.get_user_achievements(user_id)
+            points = await self.get_user_points(user_id)
+            level_info = await self.get_user_level(user_id)
+            
+            return {
+                'level': level_info['level'],
+                'total_points': points,
+                'streak_days': 0,  # нужно реализовать отдельно
+                'meals_logged': len([a for a in achievements if 'meal' in a.get('achievement_id', '')]),
+                'activities_completed': len([a for a in achievements if 'activity' in a.get('achievement_id', '')]),
+                'weight_logged': len([a for a in achievements if 'weight' in a.get('achievement_id', '')]),
+                'today_actions': 0,  # нужно реализовать отдельно
+                'week_actions': 0,  # нужно реализовать отдельно
+                'month_actions': 0,  # нужно реализовать отдельно
+            }
+        except Exception as e:
+            logger.error(f"Error getting user stats for {user_id}: {e}")
+            return {
+                'level': 1,
+                'total_points': 0,
+                'streak_days': 0,
+                'meals_logged': 0,
+                'activities_completed': 0,
+                'weight_logged': 0,
+                'today_actions': 0,
+                'week_actions': 0,
+                'month_actions': 0,
+            }
+
 # Глобальная экземпляр системы геймификации
 gamification_system = GamificationSystem()
 

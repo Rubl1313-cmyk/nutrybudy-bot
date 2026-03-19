@@ -25,7 +25,7 @@ async def save_weight(user_id: int, weight_kg: float,
         dict: Результат сохранения
     """
     try:
-        async with get_session() as session:
+        async for session in get_session():
             # Создаем запись о весе
             weight_entry = WeightEntry(
                 user_id=user_id,
@@ -68,7 +68,7 @@ async def get_user_weights(user_id: int, days: int = 30) -> List[WeightEntry]:
         from datetime import timedelta
         start_date = datetime.now() - timedelta(days=days)
         
-        async with get_session() as session:
+        async for session in get_session():
             result = await session.execute(
                 select(WeightEntry).where(
                     WeightEntry.user_id == user_id,
@@ -160,7 +160,7 @@ async def get_latest_weight(user_id: int) -> Optional[WeightEntry]:
         Optional[WeightEntry]: Последняя запись веса или None
     """
     try:
-        async with get_session() as session:
+        async for session in get_session():
             result = await session.execute(
                 select(WeightEntry).where(
                     WeightEntry.user_id == user_id
@@ -184,7 +184,7 @@ async def update_user_weight_goal(user_id: int, goal_weight_kg: float) -> Dict[s
         dict: Результат обновления
     """
     try:
-        async with get_session() as session:
+        async for session in get_session():
             result = await session.execute(
                 select(User).where(User.telegram_id == user_id)
             )

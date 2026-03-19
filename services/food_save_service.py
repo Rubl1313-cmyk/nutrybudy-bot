@@ -35,7 +35,7 @@ class FoodSaveService:
             Dict с результатом сохранения
         """
         try:
-            async with get_session() as session:
+            async for session in get_session():
                 # Получаем пользователя
                 user_result = await session.execute(
                     select(User).where(User.telegram_id == user_id)
@@ -145,7 +145,7 @@ class FoodSaveService:
             Dict с результатом обновления
         """
         try:
-            async with get_session() as session:
+            async for session in get_session():
                 # Получаем прием пищи
                 meal_result = await session.execute(
                     select(FoodEntry).where(FoodEntry.id == meal_id)
@@ -188,7 +188,7 @@ class FoodSaveService:
             Dict с результатом удаления
         """
         try:
-            async with get_session() as session:
+            async for session in get_session():
                 # Получаем прием пищи
                 meal_result = await session.execute(
                     select(FoodEntry).where(FoodEntry.id == meal_id)
@@ -231,7 +231,7 @@ class FoodSaveService:
             Dict с деталями приема пищи или None
         """
         try:
-            async with get_session() as session:
+            async for session in get_session():
                 # Получаем прием пищи (FoodItem больше нет)
                 result = await session.execute(
                     select(FoodEntry).where(FoodEntry.id == meal_id)
@@ -284,7 +284,7 @@ class FoodSaveService:
             Список приемов пищи
         """
         try:
-            async with get_session() as session:
+            async for session in get_session():
                 # Базовый запрос
                 query = select(FoodEntry).where(FoodEntry.user_id == user_id)
                 
@@ -334,7 +334,7 @@ class FoodSaveService:
             Dict с результатом обновления
         """
         try:
-            async with get_session() as session:
+            async for session in get_session():
                 # Получаем прием пищи
                 meal_result = await session.execute(
                     select(FoodEntry).where(FoodEntry.id == meal_id)

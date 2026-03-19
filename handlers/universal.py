@@ -75,7 +75,7 @@ async def handle_photo_message(message: Message, state: FSMContext):
             )
             
             # Инициализируем LangChain агент
-            agent = LangChainAgent()
+            agent = LangChainAgent(user_id=user_id, state=state)
             
             # Получаем фото
             photo = message.photo[-1]  # Самое большое фото
@@ -138,7 +138,7 @@ async def handle_text_message(message: Message, state: FSMContext):
         return
     
     # Инициализируем LangChain агент для текста
-    agent = LangChainAgent()
+    agent = LangChainAgent(user_id=user_id, state=state)
     
     try:
         # Показываем загрузку для сложных запросов
@@ -221,7 +221,7 @@ async def handle_voice_message(message: Message, state: FSMContext):
         )
         
         # Инициализируем LangChain агент
-        agent = LangChainAgent()
+        agent = LangChainAgent(user_id=user_id, state=state)
         
         # Получаем голосовое сообщение
         voice = message.voice
@@ -280,7 +280,7 @@ async def handle_video_message(message: Message, state: FSMContext):
         )
         
         # Инициализируем LangChain агент
-        agent = LangChainAgent()
+        agent = LangChainAgent(user_id=user_id, state=state)
         
         # Получаем видео
         video = message.video
@@ -369,7 +369,7 @@ async def handle_photo_document(message: Message, state: FSMContext):
             )
             
             # Инициализируем LangChain агент
-            agent = LangChainAgent()
+            agent = LangChainAgent(user_id=user_id, state=state)
             
             # Получаем документ
             document = message.document
@@ -445,7 +445,7 @@ async def universal_callback_handler(callback: CallbackQuery, state: FSMContext)
         current_state = await state.get_state()
         
         # Инициализируем LangChain агент для callback'ов
-        agent = LangChainAgent()
+        agent = LangChainAgent(user_id=user_id, state=state)
         
         # Обрабатываем callback через агент
         result = await agent.process_callback(

@@ -132,30 +132,16 @@ async def cmd_set_profile(message: Message, state: FSMContext):
     """Начало настройки профиля"""
     await state.clear()
     
-    profile_text = """👤 <b>Настройка профиля</b>
-
-Давайте настроим ваш персональный профиль для точных рекомендаций.
-
-📋 <b>Что нужно указать:</b>
-• Возраст
-• Пол
-• Рост
-• Вес
-• Уровень активности
-• Цель (похудение/набор/поддержание)
-
-🎯 <b>Зачем это нужно:</b>
-• Точный расчет калорий и БЖУ
-• Персональные рекомендации
-• Корректный прогресс
-
-🚀 <b>Начать настройку?</b>"""
+    # Сразу начинаем настройку без подтверждения
+    await state.set_state({"profile_step": "age"})
     
-    await message.answer(
-        profile_text,
-        reply_markup=get_confirm_keyboard(),
-        parse_mode="HTML"
-    )
+    text = """� <b>Шаг 1: Возраст</b>
+
+Введите ваш возраст (полных лет):
+
+� <b>Пример:</b> 25"""
+    
+    await message.answer(text, parse_mode="HTML")
 
 @router.callback_query(F.data == "start_profile_setup")
 async def start_profile_setup(callback: CallbackQuery, state: FSMContext):

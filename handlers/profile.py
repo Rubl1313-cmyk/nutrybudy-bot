@@ -856,8 +856,46 @@ async def edit_profile_or_food_button(message: Message, state: FSMContext):
 async def full_analysis_or_progress_button(message: Message, state: FSMContext):
     """Обработка кнопки полного анализа или прогресса"""
     if "полный анализ" in message.text.lower():
-        # Показываем простой анализ вместо "в разработке"
-        await message.answer("📊 <b>Полный анализ</b>\n\n🔍 Анализ ваших данных:\n\n• Питание: анализ калорий и БЖУ\n• Активность: трекинг тренировок\n• Вес: динамика изменений\n• Прогресс: достижение целей\n\n📈 <b>Статистика готова!</b>\n\nИспользуйте кнопку \"📊 Прогресс\" для детальной статистики по периодам.", reply_markup=get_main_keyboard_v2(), parse_mode="HTML")
+        # Используем существующую систему полного анализа
+        from utils.body_templates import get_body_analysis_text
+        from database.db import get_session
+        
+        user_id = message.from_user.id
+        
+        async with get_session() as session:
+            from database.models import User, WeightEntry
+            result = await session.execute(select(User).where(User.telegram_id == user_id))
+            user = result.scalar_one_or_none()
+            
+            # Получаем предыдущие веса для анализа тренда
+            weight_result = await session.execute(
+                select(WeightEntry).where(WeightEntry.user_id == user_id)
+                .order_by(WeightEntry.created_at.desc()).limit(10)
+            )
+            weight_entries = weight_result.scalars().all()
+            previous_weights = [w.weight for w in weight_entries] if weight_entries else None
+        
+        if not user:
+            await message.answer("❌ Сначала создайте профиль", reply_markup=get_main_keyboard_v2())
+            return
+        
+        # Получаем полный анализ тела
+        analysis_text = get_body_analysis_text(user, previous_weights)
+        
+        # Заменяем теги на эмодзи для лучшего отображения
+        formatted_text = analysis_text.replace('[BODY]', '🧬') \
+                                  .replace('[COMPOSITION]', '📊') \
+                                  .replace('[INFO]', '💡') \
+                                  .replace('[MUSCLES]', '💪') \
+                                  .replace('[RECOMMENDATIONS]', '🎯') \
+                                  .replace('[TREND]', '📈') \
+                                  .replace('[GOALS]', '🎯') \
+                                  .replace('[DATA]', '�') \
+                                  .replace('[ESTIMATED]', '📐') \
+                                  .replace('[OK]', '✅') \
+                                  .replace('[WARNING]', '⚠️')
+        
+        await message.answer(formatted_text, reply_markup=get_main_keyboard_v2(), parse_mode="HTML")
     else:
         logger.info(f"🔍 REPLY HANDLER: Progress button pressed by user {message.from_user.id}")
         await state.clear()

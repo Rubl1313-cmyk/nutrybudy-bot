@@ -403,44 +403,205 @@ async def get_week_stats(user_id: int) -> dict:
     
     async with get_session() as session:
         week_start = datetime.now(timezone.utc).date() - timedelta(days=datetime.now(timezone.utc).weekday())
+        week_end = week_start + timedelta(days=7)
         
-        # Аналогично get_today_stats, но за период недели
-        # ... реализация аналогична get_today_stats
+        # Получаем статистику питания за неделю
+        result = await session.execute(
+            select(Meal).where(
+                Meal.user_id == user_id,
+                Meal.date >= week_start,
+                Meal.date < week_end
+            )
+        )
+        meals = result.scalars().all()
+        
+        total_calories = sum(meal.calories for meal in meals)
+        total_protein = sum(meal.protein for meal in meals)
+        total_fat = sum(meal.fat for meal in meals)
+        total_carbs = sum(meal.carbs for meal in meals)
+        
+        # Получаем статистику активности за неделю
+        result = await session.execute(
+            select(Activity).where(
+                Activity.user_id == user_id,
+                Activity.date >= week_start,
+                Activity.date < week_end
+            )
+        )
+        activities = result.scalars().all()
+        
+        total_activity_minutes = sum(activity.duration_minutes for activity in activities)
+        total_activity_calories = sum(activity.calories_burned for activity in activities)
+        
+        # Получаем статистику веса за неделю
+        result = await session.execute(
+            select(WeightEntry).where(
+                WeightEntry.user_id == user_id,
+                WeightEntry.created_at >= datetime.combine(week_start, datetime.min.time()),
+                WeightEntry.created_at < datetime.combine(week_end, datetime.min.time())
+            ).order_by(WeightEntry.created_at)
+        )
+        weight_entries = result.scalars().all()
+        
+        weight_start = weight_entries[0].weight if weight_entries else None
+        weight_end = weight_entries[-1].weight if weight_entries else None
+        
+        # Получаем статистику воды за неделю
+        result = await session.execute(
+            select(WaterEntry).where(
+                WaterEntry.user_id == user_id,
+                WaterEntry.created_at >= datetime.combine(week_start, datetime.min.time()),
+                WaterEntry.created_at < datetime.combine(week_end, datetime.min.time())
+            )
+        )
+        water_entries = result.scalars().all()
+        total_water = sum(water.amount for water in water_entries)
+        
+        # Подсчет дней с записями
+        days_with_entries = len(set(meal.date for meal in meals))
         
         return {
-            'total_days': 0,  # количество дней с записями
-            'total_calories': 0,
-            'total_protein': 0,
-            'total_water': 0,
-            'total_activity_minutes': 0,
-            'weight_start': None,
-            'weight_end': None
+            'total_days': days_with_entries,
+            'total_calories': total_calories,
+            'total_protein': total_protein,
+            'total_fat': total_fat,
+            'total_carbs': total_carbs,
+            'total_activity_minutes': total_activity_minutes,
+            'total_activity_calories': total_activity_calories,
+            'total_water': total_water,
+            'weight_start': weight_start,
+            'weight_end': weight_end
         }
 
 async def get_month_stats(user_id: int) -> dict:
     """Получить статистику за месяц"""
-    # Аналогично get_week_stats, но за месяц
-    return {
-        'total_days': 0,
-        'total_calories': 0,
-        'total_protein': 0,
-        'total_water': 0,
-        'total_activity_minutes': 0,
-        'weight_start': None,
-        'weight_end': None
-    }
+    from datetime import datetime, timezone, timedelta
+    
+    async with get_session() as session:
+        month_start = datetime.now(timezone.utc).date().replace(day=1)
+        month_end = month_start + timedelta(days=31)
+        
+        # Получаем статистику питания за месяц
+        result = await session.execute(
+            select(Meal).where(
+                Meal.user_id == user_id,
+                Meal.date >= month_start,
+                Meal.date < month_end
+            )
+        )
+        meals = result.scalars().all()
+        
+        total_calories = sum(meal.calories for meal in meals)
+        total_protein = sum(meal.protein for meal in meals)
+        total_fat = sum(meal.fat for meal in meals)
+        total_carbs = sum(meal.carbs for meal in meals)
+        
+        # Получаем статистику активности за месяц
+        result = await session.execute(
+            select(Activity).where(
+                Activity.user_id == user_id,
+                Activity.date >= month_start,
+                Activity.date < month_end
+            )
+        )
+        activities = result.scalars().all()
+        
+        total_activity_minutes = sum(activity.duration_minutes for activity in activities)
+        total_activity_calories = sum(activity.calories_burned for activity in activities)
+        
+        # Получаем статистику веса за месяц
+        result = await session.execute(
+            select(WeightEntry).where(
+                WeightEntry.user_id == user_id,
+                WeightEntry.created_at >= datetime.combine(month_start, datetime.min.time()),
+                WeightEntry.created_at < datetime.combine(month_end, datetime.min.time())
+            ).order_by(WeightEntry.created_at)
+        )
+        weight_entries = result.scalars().all()
+        
+        weight_start = weight_entries[0].weight if weight_entries else None
+        weight_end = weight_entries[-1].weight if weight_entries else None
+        
+        # Получаем статистику воды за месяц
+        result = await session.execute(
+            select(WaterEntry).where(
+                WaterEntry.user_id == user_id,
+                WaterEntry.created_at >= datetime.combine(month_start, datetime.min.time()),
+                WaterEntry.created_at < datetime.combine(month_end, datetime.min.time())
+            )
+        )
+        water_entries = result.scalars().all()
+        total_water = sum(water.amount for water in water_entries)
+        
+        # Подсчет дней с записями
+        days_with_entries = len(set(meal.date for meal in meals))
+        
+        return {
+            'total_days': days_with_entries,
+            'total_calories': total_calories,
+            'total_protein': total_protein,
+            'total_fat': total_fat,
+            'total_carbs': total_carbs,
+            'total_activity_minutes': total_activity_minutes,
+            'total_activity_calories': total_activity_calories,
+            'total_water': total_water,
+            'weight_start': weight_start,
+            'weight_end': weight_end
+        }
 
 async def get_all_time_stats(user_id: int) -> dict:
     """Получить статистику за всё время"""
-    # Аналогично, но за весь период
-    return {
-        'days_tracked': 0,
-        'total_meals': 0,
-        'total_calories': 0,
-        'total_protein': 0,
-        'total_water': 0,
-        'total_activities': 0,
-        'weight_entries': 0,
-        'weight_start': None,
-        'weight_end': None
-    }
+    from datetime import datetime, timezone
+    
+    async with get_session() as session:
+        # Получаем всю статистику питания
+        result = await session.execute(
+            select(Meal).where(Meal.user_id == user_id)
+        )
+        meals = result.scalars().all()
+        
+        total_calories = sum(meal.calories for meal in meals)
+        total_protein = sum(meal.protein for meal in meals)
+        total_fat = sum(meal.fat for meal in meals)
+        total_carbs = sum(meal.carbs for meal in meals)
+        
+        # Получаем всю статистику активности
+        result = await session.execute(
+            select(Activity).where(Activity.user_id == user_id)
+        )
+        activities = result.scalars().all()
+        
+        total_activity_minutes = sum(activity.duration_minutes for activity in activities)
+        total_activity_calories = sum(activity.calories_burned for activity in activities)
+        
+        # Получаем всю статистику веса
+        result = await session.execute(
+            select(WeightEntry).where(WeightEntry.user_id == user_id).order_by(WeightEntry.created_at)
+        )
+        weight_entries = result.scalars().all()
+        
+        weight_start = weight_entries[0].weight if weight_entries else None
+        weight_end = weight_entries[-1].weight if weight_entries else None
+        
+        # Получаем всю статистику воды
+        result = await session.execute(
+            select(WaterEntry).where(WaterEntry.user_id == user_id)
+        )
+        water_entries = result.scalars().all()
+        total_water = sum(water.amount for water in water_entries)
+        
+        # Подсчет дней с записями
+        days_with_entries = len(set(meal.date for meal in meals))
+        
+        return {
+            'total_days': days_with_entries,
+            'total_calories': total_calories,
+            'total_protein': total_protein,
+            'total_fat': total_fat,
+            'total_carbs': total_carbs,
+            'total_activity_minutes': total_activity_minutes,
+            'total_activity_calories': total_activity_calories,
+            'total_water': total_water,
+            'weight_start': weight_start,
+            'weight_end': weight_end
+        }

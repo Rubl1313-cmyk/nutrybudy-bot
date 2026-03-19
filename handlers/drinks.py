@@ -17,6 +17,7 @@ from utils.drink_parser import parse_drink
 from utils.daily_stats import get_daily_water
 from utils.premium_templates import drink_card, water_card
 from utils.ui_templates import ProgressBar
+from utils.states import WaterStates
 
 logger = logging.getLogger(__name__)
 router = Router()
@@ -37,7 +38,7 @@ async def cmd_water(message: Message, state: FSMContext):
     text += "• 1000 мл - литр"
     
     await message.answer(text)
-    await state.set_state({"waiting_for_water_amount": True})
+    await state.set_state(WaterStates.entering_amount)
 
 @router.message(Command("drink"))
 @router.message(Command("напиток"))

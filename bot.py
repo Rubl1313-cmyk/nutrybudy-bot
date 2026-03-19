@@ -161,9 +161,9 @@ def register_handlers():
     from handlers.reminder_callbacks import router as reminder_callbacks_router
     
     # Регистрация роутеров - важен порядок!
+    
+    # Сначала команды и специализированные обработчики
     dp.include_router(common_router)
-    dp.include_router(universal_router)  # ВНИЗУ приоритета - срабатывает только если другие не сработали
-    dp.include_router(reply_handlers_router)  
     dp.include_router(progress_router)
     dp.include_router(profile_router)
     dp.include_router(weight_router)
@@ -176,6 +176,12 @@ def register_handlers():
     dp.include_router(reminder_callbacks_router)
     from handlers import keyboard_buttons  # Добавлен обработчик кнопок клавиатур
     dp.include_router(keyboard_buttons.router)
+    
+    # Затем обработчики reply-кнопок (они должны быть после всех, но до универсального)
+    dp.include_router(reply_handlers_router)
+    
+    # Самый последний – универсальный (обрабатывает всё, что не попало выше)
+    dp.include_router(universal_router)
     
     # Установка middleware
     from utils.middleware import SmartRateLimitMiddleware

@@ -88,14 +88,3 @@ async def back_to_main_menu(message: Message, state: FSMContext):
         reply_markup=get_main_keyboard_v2(),
         parse_mode="HTML"
     )
-
-# === Общий обработчик для неизвестных сообщений ===
-
-@router.message()
-async def unknown_message_handler(message: Message, state: FSMContext):
-    if message.text and message.text.startswith('/'):
-        return  # команды обрабатываются в других роутерах
-    await message.answer(
-        "❌ Пожалуйста, используйте кнопки меню.",
-        reply_markup=get_main_keyboard_v2()
-    )

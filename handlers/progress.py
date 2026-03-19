@@ -57,10 +57,10 @@ async def handle_period_selection(message: Message):
         await message.answer("❌ Пожалуйста, выберите период из меню")
 
 @router.message(F.text.regexp(r'(🏠 Главное меню|Главное меню|menu)'))
-async def handle_main_menu_from_progress(message: Message):
+async def handle_main_menu_from_progress(message: Message, state: FSMContext):
     """Возврат в главное меню из прогресса"""
     from handlers.common import cmd_start
-    await cmd_start(message)
+    await cmd_start(message, state)
 
 async def show_today_progress(message: Message):
     """Показать прогресс за сегодня"""

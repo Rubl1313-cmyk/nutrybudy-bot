@@ -77,7 +77,7 @@ async def handle_ai_conversation(message: Message, state: FSMContext):
         conversation_history.append({
             'user': user_question,
             'assistant': ai_response,
-            'timestamp': message.date
+            'timestamp': message.date.isoformat()
         })
         
         # Ограничиваем историю последними 10 сообщениями

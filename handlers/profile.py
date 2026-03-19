@@ -833,7 +833,7 @@ def calculate_macros(data: dict) -> dict:
         'carbs': carbs
     }
 
-@router.message(F.text.lower().regexp(r'(редактировать профиль|записать прием пищи)'))
+@router.message(F.text.lower().regexp(r'(✏️ редактировать профиль|редактировать профиль|записать прием пищи)'))
 async def edit_profile_or_food_button(message: Message, state: FSMContext):
     """Обработка кнопки редактирования профиля или добавления пищи"""
     if "редактировать" in message.text.lower():
@@ -852,7 +852,7 @@ async def edit_profile_or_food_button(message: Message, state: FSMContext):
             parse_mode="HTML"
         )
 
-@router.message(F.text.lower().regexp(r'(полный анализ|прогресс)'))
+@router.message(F.text.lower().regexp(r'(📊 полный анализ|полный анализ|прогресс)'))
 async def full_analysis_or_progress_button(message: Message, state: FSMContext):
     """Обработка кнопки полного анализа или прогресса"""
     if "полный анализ" in message.text.lower():
@@ -890,7 +890,7 @@ async def full_analysis_or_progress_button(message: Message, state: FSMContext):
                                   .replace('[RECOMMENDATIONS]', '🎯') \
                                   .replace('[TREND]', '📈') \
                                   .replace('[GOALS]', '🎯') \
-                                  .replace('[DATA]', '�') \
+                                  .replace('[DATA]', '📊') \
                                   .replace('[ESTIMATED]', '📐') \
                                   .replace('[OK]', '✅') \
                                   .replace('[WARNING]', '⚠️')

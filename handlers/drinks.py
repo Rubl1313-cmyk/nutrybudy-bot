@@ -116,7 +116,7 @@ async def process_water_amount(message: Message, state: FSMContext):
     except ValueError:
         await message.answer("❌ Неверный формат. Введите число (например: 200):")
 
-@router.message()
+@router.message(F.text.regexp(r'^[а-яё]+\s+\d+$'))
 async def process_drink(message: Message, state: FSMContext):
     """Обработка напитков с калориями"""
     current_state = await state.get_state()
@@ -285,7 +285,7 @@ async def cmd_quick_water(message: Message):
     
     await message.answer(text, reply_markup=get_water_keyboard())
 
-@router.message()
+@router.message(F.text.startswith("💧"))
 async def process_quick_water(message: Message):
     """Обработка быстрой записи воды"""
     text = message.text

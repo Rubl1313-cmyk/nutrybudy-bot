@@ -90,7 +90,7 @@ async def process_weight(message: Message, state: FSMContext):
     except ValueError:
         await message.answer("❌ Неверный формат. Введите число (например: 70.5):")
 
-@router.message()
+@router.message(WeightStates.waiting_for_additional_options)
 async def handle_weight_options(message: Message, state: FSMContext):
     """Обработка выбора дополнительных параметров"""
     text = message.text.lower()

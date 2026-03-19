@@ -171,9 +171,9 @@ def register_handlers():
     dp.include_router(achievements_router)
     dp.include_router(ai_assistant_router)
     dp.include_router(food_clarification_router)
+    dp.include_router(reply_handlers_router)
     dp.include_router(universal_router)
     dp.include_router(reminder_callbacks_router)
-    dp.include_router(reply_handlers_router)
     
     # Установка middleware
     from utils.middleware import SmartRateLimitMiddleware

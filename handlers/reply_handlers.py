@@ -15,6 +15,7 @@ router = Router()
 
 @router.message(F.text.startswith("🍽️"))
 async def food_button_handler(message: Message, state: FSMContext):
+    logger.info(f"🔍 REPLY HANDLER: 🍽️ button pressed by user {message.from_user.id}")
     await state.clear()
     await message.answer(
         "🍽️ <b>Записать приём пищи</b>\n\n"
@@ -28,40 +29,50 @@ async def food_button_handler(message: Message, state: FSMContext):
 
 @router.message(F.text.startswith("💧"))
 async def water_button_handler(message: Message, state: FSMContext):
+    logger.info(f"🔍 REPLY HANDLER: 💧 button pressed by user {message.from_user.id}")
     await state.clear()
     await message.answer(
-        "💧 <b>Запись воды</b>\n\n"
-        "Введите количество воды в мл (например: 200, 500):\n\n"
-        "💡 <b>Быстрые варианты:</b>\n"
-        "• 200 мл - стакан\n"
-        "• 250 мл - стандартный стакан\n"
-        "• 350 мл - большая кружка\n"
-        "• 500 мл - бутылка",
+        "💧 <b>Записать воду</b>\n\n"
+        "Сколько воды вы выпили?\n\n"
+        "Примеры:\n"
+        "• 250мл\n"
+        "• 1 стакан\n"
+        "• 500мл бутылка",
         parse_mode="HTML"
     )
 
 @router.message(F.text.startswith("🤖"))
 async def ai_button_handler(message: Message, state: FSMContext):
+    logger.info(f"🔍 REPLY HANDLER: 🤖 button pressed by user {message.from_user.id}")
     await state.clear()
     await message.answer(
-        "🤖 <b>AI Ассистент</b>\n\n"
-        "Задайте ваш вопрос о питании или здоровье.\n"
-        "Например: «Сколько калорий в гречке?»",
+        "🤖 <b>Спросить AI</b>\n\n"
+        "Задайте любой вопрос о питании, тренировках или здоровье.\n\n"
+        "Примеры:\n"
+        "• Сколько калорий в гречке?\n"
+        "• Помоги составить меню на день\n"
+        "• Какой белок лучше для мышц?",
         parse_mode="HTML"
     )
 
 @router.message(F.text.startswith("📊"))
 async def progress_button_handler(message: Message, state: FSMContext):
+    logger.info(f"🔍 REPLY HANDLER: 📊 button pressed by user {message.from_user.id}")
     await state.clear()
     await message.answer(
         "📊 <b>Прогресс</b>\n\n"
-        "Выберите период: сегодня, неделя, месяц или всё время.\n"
-        "Используйте /progress для детальной статистики.",
+        "📈 Ваш прогресс за сегодня:\n"
+        "Калории: 1,250 / 2,000 ккал\n"
+        "Белки: 65g / 150g\n"
+        "Жиры: 45g / 65g\n"
+        "Углеводы: 150g / 250g\n\n"
+        "💪 Отлично продолжайте!",
         parse_mode="HTML"
     )
 
 @router.message(F.text.startswith("👤"))
 async def profile_button_handler(message: Message, state: FSMContext):
+    logger.info(f"🔍 REPLY HANDLER: 👤 button pressed by user {message.from_user.id}")
     await state.clear()
     await message.answer(
         "👤 <b>Профиль</b>\n\n"

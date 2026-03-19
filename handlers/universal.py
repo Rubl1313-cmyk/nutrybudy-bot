@@ -18,12 +18,13 @@ router = Router()
 # Семафоры для обработки фото по пользователям
 user_photo_semaphores = {}
 
-@router.message(~F.command)
+@router.message(~F.command & ~F.text.contains(["🍽️", "💧", "🏃‍♂️", "⚖️", "📊", "🍽️", "🏆", "🤖", "👤", "⚙️", "❓", "🏠", "🚶", "🚶‍♀️", "🏃", "🏃‍♂️", "✏️", "📈", "🧠"]))
 async def universal_handler(message: Message, state: FSMContext):
     """
     Универсальный обработчик всех сообщений (кроме команд)
     """
     user_id = message.from_user.id
+    logger.info(f"🔍 UNIVERSAL HANDLER: Processing message from user {user_id}: {message.text[:50]}...")
     
     try:
         # Проверяем FSM-состояние перед обработкой
@@ -127,11 +128,6 @@ async def handle_text_message(message: Message, state: FSMContext):
     """Обработка текстовых сообщений"""
     user_id = message.from_user.id
     text = message.text.strip()
-    
-    # Проверяем, не является ли это кнопкой из reply клавиатуры
-    if any(emoji in text for emoji in ["🍽️", "💧", "🏃‍♂️", "⚖️", "📊", "🍽️", "🏆", "🤖", "👤", "⚙️", "❓", "🏠", "🚶", "🚶‍♀️", "🏃", "🏃‍♂️", "✏️", "📈", "🧠"]):
-        # Это кнопка, обработка будет в reply_handlers.py
-        return
     
     # Проверяем FSM состояние
     current_state = await state.get_state()

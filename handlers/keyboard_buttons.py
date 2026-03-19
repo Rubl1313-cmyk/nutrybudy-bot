@@ -2,8 +2,7 @@
 Обработчики кнопок клавиатур для NutriBuddy Bot
 """
 import logging
-from aiogram import Router
-from aiogram.filters import F
+from aiogram import Router, F
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
 

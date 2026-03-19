@@ -46,11 +46,6 @@ async def ai_button_handler(message: Message, state: FSMContext):
     await state.clear()
     await cmd_ask(message, state)  # Вызываем реальную команду AI
 
-@router.message(F.text.lower().contains("прогресс"))
-async def progress_button_handler(message: Message, state: FSMContext):
-    logger.info(f"🔍 REPLY HANDLER: Progress button pressed by user {message.from_user.id}")
-    await state.clear()
-    await cmd_progress(message, state)  # Вызываем реальную команду прогресса с state
 
 @router.message(F.text.lower().contains("профиль"))
 async def profile_button_handler(message: Message, state: FSMContext):

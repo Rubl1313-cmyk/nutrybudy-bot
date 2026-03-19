@@ -6,6 +6,8 @@ import logging
 from aiogram import Router, F
 from aiogram.types import Message
 from aiogram.fsm.context import FSMContext
+
+from handlers.profile import cmd_profile  # <-- импортируем функцию профиля
 from keyboards.reply_v2 import get_main_keyboard_v2
 
 logger = logging.getLogger(__name__)
@@ -73,14 +75,8 @@ async def progress_button_handler(message: Message, state: FSMContext):
 @router.message(F.text.startswith("👤"))
 async def profile_button_handler(message: Message, state: FSMContext):
     logger.info(f"🔍 REPLY HANDLER: 👤 button pressed by user {message.from_user.id}")
-    await state.clear()
-    await message.answer(
-        "👤 <b>Профиль</b>\n\n"
-        "Загружаю информацию...",
-        parse_mode="HTML"
-    )
-    # Здесь можно вызвать команду /profile
-    # await cmd_profile(message)
+    # Вызываем команду показа профиля – она сама отправит нужное сообщение
+    await cmd_profile(message, state)
 
 @router.message(F.text.startswith("❓"))
 async def help_button_handler(message: Message, state: FSMContext):

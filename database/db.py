@@ -39,6 +39,27 @@ AsyncSessionLocal = async_sessionmaker(
     expire_on_commit=False,
 )
 
+# ===== КЛАСС DatabaseSession ПЕРЕМЕЩЁН СЮДА =====
+class DatabaseSession:
+    """Контекстный менеджер для работы с сессией БД"""
+    
+    def __init__(self):
+        self.session = None
+    
+    async def __aenter__(self) -> AsyncSession:
+        self.session = AsyncSessionLocal()
+        return self.session
+    
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        if exc_type:
+            await self.session.rollback()
+        else:
+            await self.session.commit()
+        
+        await self.session.close()
+        self.session = None
+# ==============================================
+
 def get_session() -> DatabaseSession:
     """Получить сессию базы данных"""
     return DatabaseSession()
@@ -298,24 +319,7 @@ async def transaction_rollback():
         logger.error(f"[DB] Ошибка отката транзакции: {e}")
 
 # Контекстный менеджер для безопасной работы с БД
-class DatabaseSession:
-    """Контекстный менеджер для работы с сессией БД"""
-    
-    def __init__(self):
-        self.session = None
-    
-    async def __aenter__(self) -> AsyncSession:
-        self.session = AsyncSessionLocal()
-        return self.session
-    
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        if exc_type:
-            await self.session.rollback()
-        else:
-            await self.session.commit()
-        
-        await self.session.close()
-        self.session = None
+# Класс DatabaseSession перемещен наверх для корректной работы get_session()
 
 # Утилитарные функции
 

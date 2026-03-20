@@ -44,7 +44,7 @@ async def water_keyboard_handler(message: Message, state: FSMContext):
             return
     
     # Сохраняем воду как в process_quick_water
-    async for session in get_session():
+    async with get_session() as session:
         result = await session.execute(
             select(User).where(User.telegram_id == message.from_user.id)
         )

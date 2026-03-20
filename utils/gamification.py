@@ -125,18 +125,24 @@ class GamificationSystem:
             
             unlocked = []
             
-            with get_session() as session:
-                user = session.query(User).filter(User.telegram_id == user_id).first()
+            async with get_session() as session:
+                result = await session.execute(
+                    select(User).where(User.telegram_id == user_id)
+                )
+                user = result.scalar_one_or_none()
                 if not user:
                     return []
                 
                 # Проверяем каждое достижение
                 for achievement_id, achievement in self.achievements.items():
                     # Проверяем, не получено ли уже достижение
-                    existing = session.query(UserAchievement).filter(
-                        UserAchievement.user_id == user.id,
-                        UserAchievement.achievement_id == achievement_id
-                    ).first()
+                    existing_result = await session.execute(
+                        select(UserAchievement).where(
+                            UserAchievement.user_id == user.id,
+                            UserAchievement.achievement_id == achievement_id
+                        )
+                    )
+                    existing = existing_result.scalar_one_or_none()
                     
                     if existing:
                         continue
@@ -320,19 +326,24 @@ class GamificationSystem:
             return False
     
     async def get_user_achievements(self, user_id: int) -> List[Dict]:
-        """Получает все достижения пользователя"""
+        """Получить достижения пользователя из БД"""
         try:
             from database.db import get_session
             from database.models import User, UserAchievement
             
-            with get_session() as session:
-                user = session.query(User).filter(User.telegram_id == user_id).first()
+            async with get_session() as session:
+                result = await session.execute(
+                    select(User).where(User.telegram_id == user_id)
+                )
+                user = result.scalar_one_or_none()
                 if not user:
                     return []
                 
-                achievements = session.query(UserAchievement).filter(
-                    UserAchievement.user_id == user.id
-                ).order_by(UserAchievement.earned_at.desc()).all()
+                result = await session.execute(
+                    select(UserAchievement).where(UserAchievement.user_id == user.id)
+                    .order_by(UserAchievement.earned_at.desc())
+                )
+                achievements = result.scalars().all()
                 
                 result = []
                 for user_achievement in achievements:
@@ -412,9 +423,9 @@ class GamificationSystem:
             from database.models import User, UserAchievement
             from sqlalchemy import func
             
-            with get_session() as session:
+            async with get_session() as session:
                 # Получаем всех пользователей с их достижениями
-                query = session.query(
+                query = select(
                     User.telegram_id,
                     User.first_name,
                     func.count(UserAchievement.id).label('achievements_count'),
@@ -427,7 +438,8 @@ class GamificationSystem:
                 elif period == "month":
                     pass  # TODO: добавить фильтрацию за месяц
                 
-                results = query.order_by(func.sum(UserAchievement.points).desc()).limit(limit).all()
+                result = await session.execute(query.order_by(func.sum(UserAchievement.points).desc()).limit(limit))
+                results = result.all()
                 
                 leaderboard = []
                 for i, (telegram_id, first_name, achievements_count, total_points) in enumerate(results, 1):

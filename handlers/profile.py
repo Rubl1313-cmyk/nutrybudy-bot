@@ -454,7 +454,7 @@ async def save_profile(callback: CallbackQuery, state: FSMContext):
                 user.daily_water_goal = calculate_daily_water(data['weight'])
                 user.daily_steps_goal = 10000
                 user.daily_activity_goal = calculate_daily_activity(data['activity_level'])
-                user.updated_at = datetime.now()
+                user.updated_at = datetime.now(timezone.utc)
             else:
                 # Создаем нового пользователя
                 user = User(
@@ -510,7 +510,7 @@ async def save_profile(callback: CallbackQuery, state: FSMContext):
         await callback.answer("Профиль сохранен!")
         
     except Exception as e:
-        logger.error(f"Error saving profile: {e}")
+        logger.error(f"Error saving profile: {e}", exc_info=True)
         await callback.answer("❌ Ошибка сохранения профиля", show_alert=True)
 
 @router.callback_query(F.data == "cancel_profile")

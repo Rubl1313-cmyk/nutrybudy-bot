@@ -93,15 +93,15 @@ class CloudflareAIManager:
                     if result.get("success", False):
                         return {"success": True, "data": result.get("result", {})}
                     else:
-                        logger.error(f"❌ Cloudflare AI failed: {result}")
-                        return {"error": "API call failed", "success": False}
+                        logger.error(f"❌ Cloudflare AI failed: {result}", exc_info=True)
+                        return {"success": False, "data": None, "error": "API call failed"}
                         
         except asyncio.TimeoutError:
-            logger.error(f"❌ Cloudflare AI timeout after {timeout}s")
-            return {"error": "Request timeout", "success": False}
+            logger.error(f"❌ Cloudflare AI timeout after {timeout}s", exc_info=True)
+            return {"success": False, "data": None, "error": "Request timeout"}
         except Exception as e:
-            logger.error(f"❌ Cloudflare AI exception: {e}")
-            return {"error": str(e), "success": False}
+            logger.error(f"❌ Cloudflare AI exception: {e}", exc_info=True)
+            return {"success": False, "data": None, "error": str(e)}
 
     @with_timeout(30)
     @with_retry(max_attempts=3, delay_seconds=1)
@@ -241,8 +241,8 @@ Respond in JSON format:
                 "model": self.models["vision"]
             }
         else:
-            logger.error(f"❌ Vision analysis failed: {result.get('error')}")
-            return {"success": False, "error": result.get("error")}
+            logger.error(f"❌ Vision analysis failed: {result.get('error')}", exc_info=True)
+            return {"success": False, "data": None, "error": result.get("error")}
 
     @with_timeout(25)
     @with_retry(max_attempts=2, delay_seconds=1)
@@ -335,8 +335,8 @@ Respond in JSON format:
                 "model": self.models["food_parser"]
             }
         else:
-            logger.error(f"❌ Text parsing failed: {result.get('error')}")
-            return {"success": False, "error": result.get("error")}
+            logger.error(f"❌ Text parsing failed: {result.get('error')}", exc_info=True)
+            return {"success": False, "data": None, "error": result.get("error")}
 
     @with_timeout(20)
     @with_retry(max_attempts=2, delay_seconds=1)
@@ -387,8 +387,8 @@ RESPONSE STYLE:
                 "model": self.models["assistant"]
             }
         else:
-            logger.error(f"❌ Assistant response failed: {result.get('error')}")
-            return {"success": False, "error": result.get("error")}
+            logger.error(f"❌ Assistant response failed: {result.get('error')}", exc_info=True)
+            return {"success": False, "data": None, "error": result.get("error")}
 
     @with_timeout(15)
     async def transcribe_audio(self, audio_data: bytes) -> Dict[str, Any]:
@@ -430,8 +430,8 @@ RESPONSE STYLE:
                 "model": self.models["whisper"]
             }
         else:
-            logger.error(f"❌ Audio transcription failed: {result.get('error')}")
-            return {"success": False, "error": result.get("error")}
+            logger.error(f"❌ Audio transcription failed: {result.get('error')}", exc_info=True)
+            return {"success": False, "data": None, "error": result.get("error")}
 
     async def health_check(self) -> Dict[str, Any]:
         """Check if Cloudflare AI is accessible"""

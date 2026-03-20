@@ -19,6 +19,7 @@ from database.db import get_session
 from database.models import User
 from services.ai_processor import ai_processor
 from services.weather import get_weather
+from services.cloudflare_llm import cloudflare_llm
 from utils.daily_stats import get_daily_stats
 
 logger = logging.getLogger(__name__)
@@ -41,7 +42,8 @@ class LangChainAgent:
         self.tools = self._create_tools()
         self.last_used = time.time()
         
-        # LLM встроенный (без эмуляции)
+        # LLM встроенный
+        self.llm = cloudflare_llm
         self.agent = create_react_agent(
             llm=self.llm.llm,
             tools=self.tools,
@@ -414,6 +416,77 @@ async def cleanup_expired_agents():
         for user_id in expired_users:
             del _agents[user_id]
             logger.info(f"[AGENT] Cleaned up expired agent for user {user_id}")
+
+# Методы для обработки разных типов сообщений
+def add_processing_methods(cls):
+    """Добавляет методы обработки сообщений к классу LangChainAgent"""
+    
+    async def process_text(self, user_id: int, text: str) -> dict:
+        """Обрабатывает текстовое сообщение"""
+        try:
+            response = await self.process_message(text)
+            return {"success": True, "message": response}
+        except Exception as e:
+            logger.error(f"process_text error: {e}", exc_info=True)
+            return {"success": False, "error": str(e)}
+
+    async def process_photo(self, user_id: int, photo_data: bytes, filename: str) -> dict:
+        """Обрабатывает фото"""
+        try:
+            from services.cloudflare_manager import cf_manager
+            result = await cf_manager.parse_food_image(photo_data)
+            if not result.get("success"):
+                return {"success": False, "error": result.get("error", "Неизвестная ошибка")}
+            
+            analysis = result.get("analysis", {})
+            dish_name = analysis.get("dish_name", "блюдо")
+            calories = analysis.get("estimated_total_calories", 0)
+            protein = analysis.get("estimated_total_protein", 0)
+            fat = analysis.get("estimated_total_fat", 0)
+            carbs = analysis.get("estimated_total_carbs", 0)
+            
+            message = (
+                f"🍽️ <b>{dish_name}</b>\n\n"
+                f"📊 Калории: {calories:.0f} ккал\n"
+                f"🥩 Белки: {protein:.1f} г\n"
+                f"🧈 Жиры: {fat:.1f} г\n"
+                f"🍞 Углеводы: {carbs:.1f} г\n\n"
+                f"✅ Распознано. Хотите сохранить?"
+            )
+            
+            return {"success": True, "message": message, "data": analysis}
+        except Exception as e:
+            logger.error(f"process_photo error: {e}", exc_info=True)
+            return {"success": False, "error": str(e)}
+
+    async def process_voice(self, user_id: int, voice_data: bytes, filename: str) -> dict:
+        """Обрабатывает голосовое сообщение"""
+        try:
+            from services.cloudflare_manager import cf_manager
+            result = await cf_manager.transcribe_audio(voice_data)
+            if not result.get("success"):
+                return {"success": False, "error": result.get("error", "Не удалось распознать голос")}
+            
+            transcription = result.get("transcription", "")
+            return await self.process_text(user_id, transcription)
+        except Exception as e:
+            logger.error(f"process_voice error: {e}", exc_info=True)
+            return {"success": False, "error": str(e)}
+
+    async def process_callback(self, user_id: int, callback_data: str, message) -> dict:
+        """Обрабатывает callback"""
+        return {"success": True, "message": "Callback обработан"}
+
+    # Добавляем методы к классу
+    cls.process_text = process_text
+    cls.process_photo = process_photo
+    cls.process_voice = process_voice
+    cls.process_callback = process_callback
+    
+    return cls
+
+# Применяем декоратор к уже существующему классу
+LangChainAgent = add_processing_methods(LangChainAgent)
 
 # Фоновая задача для очистки
 async def start_cleanup_task():

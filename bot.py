@@ -5,6 +5,9 @@ import sys
 from datetime import datetime
 from dotenv import load_dotenv
 from aiogram import Bot, Dispatcher
+from aiogram.fsm.strategy import FSMStrategy
+from aiogram.enums import ParseMode
+from utils.middleware import user_rate_limiter, global_rate_limiter
 # Начинаем настраивать логирование
 logging.basicConfig(
     level=logging.INFO,
@@ -45,13 +48,22 @@ optional_vars = {
     'ADMIN_ID': 'Admin user ID for notifications',
     'CLOUDFLARE_ACCOUNT_ID': 'Cloudflare Account ID',
     'CLOUDFLARE_API_TOKEN': 'Cloudflare API Token',
-    'LOG_TO_FILE': 'Enable file logging'
+    'LOG_TO_FILE': 'Enable file logging',
+    'DB_HOST': 'Database host',
+    'DB_PORT': 'Database port',
+    'DB_USER': 'Database user',
+    'DB_PASSWORD': 'Database password',
+    'DB_NAME': 'Database name'
 }
 
 missing_vars = []
 for var, desc in required_vars.items():
     if not os.getenv(var):
         missing_vars.append(f"{var} ({desc})")
+
+for var, desc in optional_vars.items():
+    if not os.getenv(var):
+        logger.warning(f"Optional environment variable {var} ({desc}) is not set")
 
 if missing_vars:
     logger.error(f"Missing required environment variables: {', '.join(missing_vars)}")
@@ -164,6 +176,7 @@ def register_handlers():
     
     # Сначала команды и специализированные обработчики
     dp.include_router(common_router)
+    dp.include_router(reply_handlers_router)  # Перемещаем раньше для обработки кнопок
     dp.include_router(progress_router)
     dp.include_router(profile_router)
     dp.include_router(weight_router)
@@ -174,9 +187,6 @@ def register_handlers():
     dp.include_router(achievements_router)
     dp.include_router(food_clarification_router)
     dp.include_router(reminder_callbacks_router)
-    
-    # Затем обработчики reply-кнопок (они должны быть после всех, но до универсального)
-    dp.include_router(reply_handlers_router)
     
     # Потом дополнительные клавиатуры (быстрые кнопки)
     from handlers import keyboard_buttons  # Добавлен обработчик кнопок клавиатур
@@ -243,11 +253,10 @@ async def create_app():
     return app
 
 async def main():
-    """Основная функция"""
+    """Главная функция"""
     global dp, bot
-    logging.info("Starting NutriBuddy Bot...")
     
-    # Запускаем миграции БД
+    # Запуск миграций
     from database.migrations import run_migrations
     await run_migrations()
     
@@ -273,6 +282,10 @@ async def main():
     
     dp = Dispatcher(storage=storage, fsm_strategy=FSMStrategy.CHAT)
     dp.bot = bot
+    
+    # Добавляем middleware для rate limiting
+    dp.message.middleware(user_rate_limiter)
+    dp.message.middleware(global_rate_limiter)
     
     # Регистрация обработчиков
     register_handlers()

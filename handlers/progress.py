@@ -13,6 +13,7 @@ from database.db import get_session
 from database.models import User, FoodEntry, ActivityEntry, DrinkEntry, WeightEntry
 from keyboards.reply_v2 import get_main_keyboard_v2, get_progress_keyboard, get_water_keyboard, get_activity_keyboard, get_cancel_keyboard
 from utils.daily_stats import get_period_stats
+from utils.timezone_utils import get_user_local_date
 from utils.premium_templates import daily_summary, weekly_summary
 from utils.ui_templates import ProgressBar
 
@@ -83,12 +84,11 @@ async def show_today_progress(message: Message):
             return
         
         # Получаем цели пользователя
-        async for session in get_session():
+        async with get_session() as session:
             result = await session.execute(
                 select(User).where(User.telegram_id == user_id)
             )
             user = result.scalar_one_or_none()
-            break
             
         if not user:
             await message.answer("❌ Профиль не найден", reply_markup=get_cancel_keyboard())
@@ -142,7 +142,7 @@ async def show_today_progress(message: Message):
         await message.answer(text, reply_markup=get_main_keyboard_v2())
         
     except Exception as e:
-        logger.error(f"Error in show_today_progress: {e}")
+        logger.error(f"Error in show_today_progress: {e}", exc_info=True)
         await message.answer(
             "⚠️ Временная проблема с базой данных. Попробуйте позже или обратитесь к разработчику.",
             reply_markup=get_main_keyboard_v2()
@@ -164,12 +164,11 @@ async def show_week_progress(message: Message):
         return
     
     # Получаем цели пользователя
-    async for session in get_session():
+    async with get_session() as session:
         result = await session.execute(
             select(User).where(User.telegram_id == user_id)
         )
         user = result.scalar_one_or_none()
-        break
     
     text = "📆 <b>Прогресс за неделю</b>\n\n"
     
@@ -233,12 +232,11 @@ async def show_month_progress(message: Message):
         return
     
     # Получаем цели пользователя
-    async for session in get_session():
+    async with get_session() as session:
         result = await session.execute(
             select(User).where(User.telegram_id == user_id)
         )
         user = result.scalar_one_or_none()
-        break
     
     text = "🗓️ <b>Прогресс за месяц</b>\n\n"
     
@@ -350,20 +348,26 @@ def get_motivation_message(stats: dict, user: User) -> str:
 # Функции для получения статистики
 async def get_today_stats(user_id: int) -> dict:
     """Получить статистику за сегодня"""
-    from datetime import datetime, timezone
     
     async for session in get_session():
-        today = datetime.now(timezone.utc).date()
+        result = await session.execute(
+            select(User.timezone).where(User.telegram_id == user_id)
+        )
+        user = result.scalar_one_or_none()
+        user_timezone = user.timezone if user else 'UTC'
+        
+        today = get_user_local_date(user_timezone)
         
         # Питание
         food_result = await session.execute(
             select(
                 func.sum(FoodEntry.calories),
                 func.sum(FoodEntry.protein),
-                func.count(FoodEntry.id)
+                func.sum(FoodEntry.fat),
+                func.sum(FoodEntry.carbs)
             ).where(
                 FoodEntry.user_id == user_id,
-                FoodEntry.created_at >= today
+                func.date(FoodEntry.created_at) == today
             )
         )
         food_stats = food_result.first()

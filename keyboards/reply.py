@@ -1,8 +1,12 @@
+"""
+Legacy keyboards - не используются с версии 2.0
+Сохранены для совместимости, но заменены на reply_v2.py
+"""
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 
 def get_main_keyboard():
     """
-    Основное меню NutriBuddy 2026
+    Основное меню NutriBuddy 2026 (LEGACY VERSION)
     Визуальная иерархия + премиальный дизайн
     """
     kb = [

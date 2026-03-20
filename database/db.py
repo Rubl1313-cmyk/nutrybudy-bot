@@ -105,8 +105,10 @@ async def ensure_columns_exist():
             # Добавляем недостающие колонки
             for column_name, column_def in columns_to_add:
                 if column_name not in existing_columns:
-                    alter_sql = f"ALTER TABLE users ADD COLUMN {column_name} {column_def}"
-                    await conn.execute(text(alter_sql))
+                    if dialect == "sqlite":
+                        await conn.execute(text(f"ALTER TABLE users ADD COLUMN {column_name} {column_def}"))
+                    else:
+                        await conn.execute(text(f"ALTER TABLE users ADD COLUMN IF NOT EXISTS {column_name} {column_def}"))
                     logger.info(f"[DB] Добавлена колонка: {column_name}")
             
             # Обновляем типы telegram_id и user_id в BIGINT если нужно

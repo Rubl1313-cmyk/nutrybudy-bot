@@ -29,6 +29,23 @@ async def cmd_water(message: Message, state: FSMContext):
     """Записать потребление воды"""
     await state.clear()
     
+    # Проверяем наличие пользователя и профиля
+    from database.db import get_session
+    from database.models import User
+    
+    async with get_session() as session:
+        result = await session.execute(
+            select(User).where(User.telegram_id == message.from_user.id)
+        )
+        user = result.scalar_one_or_none()
+        
+        if not user or not user.daily_water_goal:
+            await message.answer(
+                "❌ Сначала настройте профиль с помощью /set_profile",
+                reply_markup=get_main_keyboard_v2()
+            )
+            return
+    
     text = "💧 <b>Записать воду</b>\n\n"
     text += "Введите количество воды в мл (например: 200, 500):\n\n"
     text += "💡 <b>Популярные объемы:</b>\n"
@@ -95,7 +112,8 @@ async def process_water_amount(message: Message, state: FSMContext):
                 user_id=user.telegram_id,
                 drink_name="вода",
                 amount=amount,
-                calories=0
+                calories=0,
+                created_at=datetime.now(timezone.utc)
             )
             
             session.add(drink_entry)
@@ -125,14 +143,24 @@ async def process_drink(message: Message, state: FSMContext):
     
     if current_state and "waiting_for_drink" in str(current_state):
         try:
+            from utils.safe_parser import safe_parse_float
+            from utils.drink_parser import parse_drink
+            
             # Парсим сообщение
             drink_data = parse_drink(message.text)
             
-            if not drink_data:
+            if not drink_data or not drink_data[0]:
                 await message.answer(
                     "❌ Не удалось распознать напиток. Попробуйте еще раз:\n\n"
                     "Пример: Кофе 200"
                 )
+                return
+            
+            name, volume, calories = drink_data
+            
+            # Валидация объема
+            if volume < 10 or volume > 2000:
+                await message.answer("❌ Объём должен быть от 10 до 2000 мл")
                 return
             
             # Сохраняем в базу данных
@@ -157,8 +185,7 @@ async def process_drink(message: Message, state: FSMContext):
                     drink_name=drink_data['name'],
                     amount=drink_data['amount'],
                     calories=drink_data['calories'],
-                    sugar=drink_data.get('sugar', 0),
-                    caffeine=drink_data.get('caffeine', 0)
+                    created_at=datetime.now(timezone.utc)
                 )
                 
                 session.add(drink_entry)
@@ -253,15 +280,15 @@ async def get_water_stats_by_periods(user_id: int) -> dict:
     """Получить статистику потребления воды по периодам"""
     from datetime import datetime, timezone, timedelta
     
-    async for session in get_session():
+    async with get_session() as session:
         now = datetime.now(timezone.utc)
         today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
         week_start = today_start - timedelta(days=today_start.weekday())
         month_start = today_start.replace(day=1)
         
         # Функция для получения статистики за период
-        def get_period_stats(start_date):
-            result = session.execute(
+        async def get_period_stats(start_date):
+            result = await session.execute(
                 select(func.sum(DrinkEntry.amount)).where(
                     DrinkEntry.user_id == user_id,
                     DrinkEntry.created_at >= start_date
@@ -271,9 +298,9 @@ async def get_water_stats_by_periods(user_id: int) -> dict:
             return total
         
         return {
-            'today': get_period_stats(today_start),
-            'week': get_period_stats(week_start),
-            'month': get_period_stats(month_start)
+            'today': await get_period_stats(today_start),
+            'week': await get_period_stats(week_start),
+            'month': await get_period_stats(month_start)
         }
 
 @router.message(Command("quick_water"))
@@ -313,7 +340,8 @@ async def process_quick_water(message: Message):
                     user_id=user.telegram_id,
                     drink_name="вода",
                     amount=amount,
-                    calories=0
+                    calories=0,
+                    created_at=datetime.now(timezone.utc)
                 )
                 
                 session.add(drink_entry)

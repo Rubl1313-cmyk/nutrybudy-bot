@@ -351,3 +351,15 @@ def parse_age_input(text: str) -> Tuple[Optional[int], Optional[str]]:
                 continue
     
     return None, "Не удалось определить возраст. Используйте формат: 25 лет"
+
+def is_valid_weight(weight: float) -> bool:
+    """Проверяет валидность веса"""
+    return 30 <= weight <= 300
+
+def is_valid_height(height: float) -> bool:
+    """Проверяет валидность роста"""
+    return 100 <= height <= 250
+
+def is_valid_age(age: int) -> bool:
+    """Проверяет валидность возраста"""
+    return 10 <= age <= 120

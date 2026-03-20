@@ -1,21 +1,20 @@
 from . import (
-    universal,            # Универсальный обработчик с LangChain
-    common,               # Базовые команды
-    reply_handlers,       # Reply-кнопки
+    universal,             # Универсальные обработчики
+    common,               # Общие команды
+    reply_handlers,        # Обработчики кнопок
     profile,              # Профиль пользователя
-    drinks,               # Учет жидкости (единый модуль)
-    progress,             # Статистика и прогресс
-    activity,             # Учет активности
+    drinks,               # Учет воды
+    progress,             # Прогресс
+    activity,             # Активность
     weight,               # Учет веса
     meal_plan,            # Планирование питания
     ai_assistant,          # AI ассистент
-    food_clarification,    # Уточнение продуктов
     timezone_handlers,      # Обработчики часовых поясов
-    food,                 # Запись еды
+    food,                 # Запись еды (объединена с food_clarification)
 )
 
 __all__ = [
     'universal', 'common', 'reply_handlers', 'profile', 'drinks',
     'progress', 'activity', 'weight', 'meal_plan', 'ai_assistant',
-    'food_clarification', 'timezone_handlers', 'food'
+    'timezone_handlers', 'food'
 ]

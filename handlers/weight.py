@@ -47,14 +47,15 @@ async def cmd_weight(message: Message, state: FSMContext):
 async def process_weight(message: Message, state: FSMContext):
     """Обработка ввода веса"""
     try:
-        weight = float(message.text.replace(',', '.'))
+        from utils.safe_parser import safe_parse_float, is_valid_weight
         
-        if weight <= 0:
-            await message.answer("❌ Вес должен быть положительным числом. Попробуйте еще раз:")
+        weight, error = safe_parse_float(message.text, "вес")
+        if error:
+            await message.answer(f"❌ {error}. Попробуйте еще раз:")
             return
         
-        if weight > 300:
-            await message.answer("❌ Слишком большой вес. Максимум 300 кг. Попробуйте еще раз:")
+        if not is_valid_weight(weight):
+            await message.answer("❌ Вес должен быть от 30 до 300 кг. Попробуйте еще раз:")
             return
         
         # Сохраняем вес в базу данных
@@ -84,7 +85,7 @@ async def process_weight(message: Message, state: FSMContext):
     except ValueError:
         await message.answer("❌ Неверный формат. Введите число (например: 70.5):")
     except Exception as e:
-        logger.error(f"Error saving weight: {e}")
+        logger.error(f"Error saving weight: {e}", exc_info=True)
         await message.answer("❌ Ошибка при сохранении веса. Попробуйте еще раз.")
 
 # Удалены обработчики дополнительных параметров - больше не нужны
@@ -216,7 +217,7 @@ async def get_weight_stats(user_id: int) -> dict:
     """Получить статистику веса"""
     from datetime import datetime, timezone, timedelta
     
-    async for session in get_session():
+    async with get_session() as session:
         # Получаем все записи веса
         result = await session.execute(
             select(WeightEntry).where(
@@ -279,7 +280,7 @@ async def get_weight_chart_data(user_id: int) -> list:
     """Получить данные для графика веса"""
     from datetime import datetime, timezone
     
-    async for session in get_session():
+    async with get_session() as session:
         result = await session.execute(
             select(WeightEntry).where(
                 WeightEntry.user_id == user_id

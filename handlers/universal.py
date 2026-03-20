@@ -32,7 +32,8 @@ from utils.premium_templates import loading_card, error_card
 router = Router()
 
 # Семафоры для обработки фото по пользователям
-user_photo_semaphores = {}
+from weakref import WeakValueDictionary
+user_photo_semaphores = WeakValueDictionary()
 
 @router.message(~F.command & ~F.text.contains("🍽️") & ~F.text.contains("💧") & ~F.text.contains("🤖") & ~F.text.contains("📊") & ~F.text.contains("👤") & ~F.text.contains("❓") & ~F.text.contains("⚖️") & ~F.text.contains("📅") & ~F.text.contains("🏠") & ~F.text.contains("✏️") & ~F.text.contains("📸") & ~F.text.contains("⚡") & ~F.text.contains("📋") & ~F.text.contains("🚀") & ~F.text.contains("💬") & ~F.text.contains("✅") & ~F.text.contains("❌") & ~F.text.contains("📏") & ~F.text.contains("🔥") & ~F.text.contains("🏃") & ~F.text.contains("🔙"))
 async def universal_handler(message: Message, state: FSMContext):
@@ -71,7 +72,7 @@ async def universal_handler(message: Message, state: FSMContext):
             await handle_unknown_message(message, state)
             
     except Exception as e:
-        logger.error(f"Error in universal handler for user {user_id}: {e}")
+        logger.error(f"Error in universal handler for user {user_id}: {e}", exc_info=True)
         await message.answer(
             error_card(
                 "Произошла ошибка обработки",
@@ -449,55 +450,8 @@ async def handle_ai_question(message: Message, state: FSMContext):
     # Перенаправляем в обработчик AI ассистента
     await handle_ai_conversation(message, state)
 
-@router.callback_query()
-async def universal_callback_handler(callback: CallbackQuery, state: FSMContext):
-    """
-    Универсальный обработчик callback'ов
-    """
-    user_id = callback.from_user.id
-    
-    try:
-        # Проверяем FSM состояние
-        current_state = await state.get_state()
-        
-        # Инициализируем LangChain агент для callback'ов
-        agent = get_langchain_agent(user_id, state)
-        
-        # Обрабатываем callback через агент
-        result = await agent.process_callback(
-            user_id=user_id,
-            callback_data=callback.data,
-            message=callback.message
-        )
-        
-        # Отправляем результат
-        if result.get('success'):
-            if result.get('edit_message'):
-                await callback.message.edit_text(
-                    result['message'],
-                    reply_markup=result.get('reply_markup'),
-                    parse_mode="HTML"
-                )
-            else:
-                await callback.message.answer(
-                    result['message'],
-                    reply_markup=result.get('reply_markup'),
-                    parse_mode="HTML"
-                )
-        else:
-            await callback.answer(
-                result.get('error', "Произошла ошибка"),
-                show_alert=True
-            )
-            
-        await callback.answer()
-        
-    except Exception as e:
-        logger.error(f"Error in callback handler for user {user_id}: {e}")
-        await callback.answer(
-            "Произошла ошибка",
-            show_alert=True
-        )
+# Универсальный callback handler удален - все callback'и обрабатываются в соответствующих модулях
+# Это предотвращает конфликты и упрощает архитектуру
 
 # Очистка семафоров при отключении пользователя
 async def cleanup_user_semaphores(user_id: int):

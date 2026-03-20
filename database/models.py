@@ -190,20 +190,21 @@ class MealPlan(Base):
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
-class DailyStats(Base):
-    __tablename__ = 'daily_stats'
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(BigInteger, ForeignKey('users.telegram_id'), nullable=False)
-    date = Column(DateTime, nullable=False)
-    calories_consumed = Column(Float, default=0)
-    protein_consumed = Column(Float, default=0)
-    fat_consumed = Column(Float, default=0)
-    carbs_consumed = Column(Float, default=0)
-    water_consumed = Column(Float, default=0)
-    steps_taken = Column(Integer, default=0)
-    calories_burned = Column(Float, default=0)
-    activity_minutes = Column(Integer, default=0)
-    weight_change = Column(Float, nullable=True)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+# DailyStats - неиспользуемая модель, закомментирована для будущего использования
+# class DailyStats(Base):
+#     __tablename__ = 'daily_stats'
+#     
+#     id = Column(Integer, primary_key=True, autoincrement=True)
+#     user_id = Column(BigInteger, ForeignKey('users.telegram_id'), nullable=False)
+#     date = Column(DateTime, nullable=False)
+#     calories_consumed = Column(Float, default=0)
+#     protein_consumed = Column(Float, default=0)
+#     fat_consumed = Column(Float, default=0)
+#     carbs_consumed = Column(Float, default=0)
+#     water_consumed = Column(Float, default=0)
+#     steps_taken = Column(Integer, default=0)
+#     calories_burned = Column(Float, default=0)
+#     activity_minutes = Column(Integer, default=0)
+#     weight_change = Column(Float, nullable=True)
+#     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+#     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))

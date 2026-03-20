@@ -64,16 +64,14 @@ async def cmd_achievements(message: Message):
             text += f"... и ещё {len(available_achievements) - 5} достижений\n"
     else:
         text += "🎉 Вы получили все достижения! Вы настоящий чемпион!\n"
-    
+
     # Кнопка для подробной статистики
-    from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-    
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="📈 Подробная статистика", callback_data="detailed_stats")],
         [InlineKeyboardButton(text="🏅 Лидерboard", callback_data="leaderboard")],
         [InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_main")]
     ])
-    
+
     await message.answer(text, reply_markup=keyboard)
 
 @router.callback_query(F.data == "detailed_stats")
@@ -121,12 +119,11 @@ async def callback_detailed_stats(callback: CallbackQuery):
         text += "💪 <b>Хорошая серия!</b> Продолжайте в том же духе!\n"
     else:
         text += "🌱 <b>Начало пути!</b> Каждый день делает вас сильнее!\n"
-    
-    from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🔙 Назад к достижениям", callback_data="back_to_achievements")]
     ])
-    
+
     await callback.message.edit_text(text, reply_markup=keyboard)
     await callback.answer()
 

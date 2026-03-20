@@ -3,6 +3,7 @@ handlers/weight.py
 Обработчики записи веса
 """
 import logging
+from datetime import datetime, timezone
 from aiogram.types import Message, CallbackQuery
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext

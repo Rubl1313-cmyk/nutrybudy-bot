@@ -13,10 +13,12 @@ ENV/
 .vscode/
 *.swp
 *.swo
+.windsurf/
 
 # Environment
 .env
 .env.local
+.env.cloudflare
 
 # Database
 *.db
@@ -28,3 +30,8 @@ ENV/
 # OS
 .DS_Store
 Thumbs.db
+
+# Documentation (optional)
+# AI_CONFIGURATION.md
+# PREMIUM_INTERFACE_GUIDE.md
+# UPDATE_GUIDE.md

@@ -14,11 +14,11 @@ logger = logging.getLogger(__name__)
 async def save_weight(user_id: int, weight_kg: float) -> Dict[str, Any]:
     """
     Сохраняет запись веса пользователя
-    
+
     Args:
         user_id: ID пользователя
         weight_kg: Вес в килограммах
-        
+
     Returns:
         dict: Результат сохранения
     """
@@ -28,22 +28,22 @@ async def save_weight(user_id: int, weight_kg: float) -> Dict[str, Any]:
             weight_entry = WeightEntry(
                 user_id=user_id,
                 weight=weight_kg,
-                datetime=datetime.now(timezone.utc)
+                created_at=datetime.now(timezone.utc)
             )
-            
+
             session.add(weight_entry)
             await session.commit()
             await session.refresh(weight_entry)
-            
+
             logger.info(f"Weight saved: {weight_kg}kg for user {user_id}")
-            
+
             return {
                 "success": True,
                 "weight_id": weight_entry.id,
                 "weight_kg": weight_kg,
-                "datetime": weight_entry.datetime
+                "datetime": weight_entry.created_at
             }
-            
+
     except Exception as e:
         logger.error(f"Error saving weight for user {user_id}: {e}")
         return {
@@ -54,28 +54,28 @@ async def save_weight(user_id: int, weight_kg: float) -> Dict[str, Any]:
 async def get_user_weights(user_id: int, days: int = 30) -> List[WeightEntry]:
     """
     Получает записи веса пользователя за последние дни
-    
+
     Args:
         user_id: ID пользователя
         days: Количество дней для выборки
-        
+
     Returns:
         List[WeightEntry]: Список записей веса
     """
     try:
         from datetime import timedelta
         start_date = datetime.now() - timedelta(days=days)
-        
+
         async with get_session() as session:
             result = await session.execute(
                 select(WeightEntry).where(
                     WeightEntry.user_id == user_id,
-                    WeightEntry.datetime >= start_date
-                ).order_by(WeightEntry.datetime.desc())
+                    WeightEntry.created_at >= start_date
+                ).order_by(WeightEntry.created_at.desc())
             )
             weights = result.scalars().all()
             return list(weights)
-            
+
     except Exception as e:
         logger.error(f"Error getting weights for user {user_id}: {e}")
         return []
@@ -150,10 +150,10 @@ async def get_weight_stats(user_id: int, days: int = 30) -> Dict[str, Any]:
 async def get_latest_weight(user_id: int) -> Optional[WeightEntry]:
     """
     Получает последнюю запись веса пользователя
-    
+
     Args:
         user_id: ID пользователя
-        
+
     Returns:
         Optional[WeightEntry]: Последняя запись веса или None
     """
@@ -162,10 +162,10 @@ async def get_latest_weight(user_id: int) -> Optional[WeightEntry]:
             result = await session.execute(
                 select(WeightEntry).where(
                     WeightEntry.user_id == user_id
-                ).order_by(WeightEntry.datetime.desc()).limit(1)
+                ).order_by(WeightEntry.created_at.desc()).limit(1)
             )
             return result.scalar_one_or_none()
-            
+
     except Exception as e:
         logger.error(f"Error getting latest weight for user {user_id}: {e}")
         return None

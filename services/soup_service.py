@@ -4,6 +4,7 @@
 import logging
 from datetime import datetime, timezone
 from typing import Dict, Optional
+from sqlalchemy import select
 
 from database.db import get_session
 from database.models import User, FoodEntry
@@ -45,15 +46,15 @@ def is_soup(dish_name: str) -> bool:
     for keyword in soup_keywords:
         if keyword in dish_name:
             return True
-    
+
     # Проверяем по базе COMPOSITE_DISHES
-    from services.food_service import COMPOSITE_DISHES, normalize_ai_dish_name
+    from services.dish_db import COMPOSITE_DISHES, normalize_ai_dish_name
     dish_key = normalize_ai_dish_name(dish_name)
     dish_info = COMPOSITE_DISHES.get(dish_key)
-    
+
     if dish_info and dish_info.get('category') == 'soup':
         return True
-    
+
     return False
 
 def get_soup_water_content(dish_name: str) -> float:

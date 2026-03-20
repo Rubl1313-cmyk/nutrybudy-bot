@@ -1,10 +1,12 @@
 # handlers/food_clarification.py
 import logging
+from datetime import datetime, timezone
 from aiogram import Router, F, types
 from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
+from sqlalchemy import select
 
 from services.food_api import get_product_variants
 from services.ai_processor import ai_processor

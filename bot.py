@@ -8,6 +8,7 @@ from aiogram import Bot, Dispatcher
 from aiogram.fsm.strategy import FSMStrategy
 from aiogram.enums import ParseMode
 from utils.rate_limiter import user_rate_limiter, global_rate_limiter
+
 # Начинаем настраивать логирование
 logging.basicConfig(
     level=logging.INFO,
@@ -27,13 +28,10 @@ bot = None
 from aiogram.fsm.storage.redis import RedisStorage, DefaultKeyBuilder
 import redis.asyncio as redis
 from aiogram.client.default import DefaultBotProperties
-from aiogram.enums import ParseMode
 from aiogram.types import Update, BotCommand
 from aiohttp import web
 from database.db import init_db, close_db, engine
 from sqlalchemy import text
-from aiogram.fsm.strategy import FSMStrategy
-from utils.rate_limiter import user_rate_limiter, global_rate_limiter
 
 load_dotenv('.env')
 
@@ -171,9 +169,9 @@ def register_handlers():
     from handlers.food_clarification import router as food_clarification_router
     from handlers.universal import router as universal_router
     from handlers.reminder_callbacks import router as reminder_callbacks_router
-    
+
     # Регистрация роутеров - важен порядок!
-    
+
     # Сначала команды и специализированные обработчики
     dp.include_router(common_router)
     dp.include_router(reply_handlers_router)  # Перемещаем раньше для обработки кнопок
@@ -187,11 +185,11 @@ def register_handlers():
     dp.include_router(achievements_router)
     dp.include_router(food_clarification_router)
     dp.include_router(reminder_callbacks_router)
-    
+
     # Потом дополнительные клавиатуры (быстрые кнопки)
     from handlers import keyboard_buttons  # Добавлен обработчик кнопок клавиатур
     dp.include_router(keyboard_buttons.router)
-    
+
     # Самый последний – универсальный (обрабатывает всё, что не попало выше)
     dp.include_router(universal_router)
     
@@ -257,20 +255,20 @@ async def create_app():
 async def main():
     """Главная функция"""
     global dp, bot
-    
+
     # Запуск миграций
     from database.migrations import run_migrations
     await run_migrations()
-    
+
     # Валидация токена только в production
     validate_token = os.getenv('RAILWAY_ENVIRONMENT') == 'production'
-    
+
     bot = Bot(
         token=TOKEN,
         default=DefaultBotProperties(parse_mode=ParseMode.HTML),
         validate_token=validate_token
     )
-    
+
     # Redis storage для FSM (обязательный) c fallback
     try:
         redis_client = redis.from_url(REDIS_URL)
@@ -281,13 +279,13 @@ async def main():
         logger.info("Falling back to memory storage (not recommended for production)")
         from aiogram.fsm.storage.memory import MemoryStorage
         storage = MemoryStorage()
-    
+
     dp = Dispatcher(storage=storage, fsm_strategy=FSMStrategy.CHAT)
     dp.bot = bot
-    
+
     # Регистрация обработчиков
     register_handlers()
-    
+
     # Запуск в зависимости от режима
     if WEBHOOK_URL:
         # Режим webhook

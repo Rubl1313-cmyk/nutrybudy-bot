@@ -113,19 +113,21 @@ async def ensure_columns_exist():
             # Получаем существующие колонки
             if "postgresql" in DATABASE_URL:
                 result = await conn.execute(text("""
-                    SELECT column_name 
-                    FROM information_schema.columns 
+                    SELECT column_name
+                    FROM information_schema.columns
                     WHERE table_name = 'users'
                 """))
                 existing_columns = {row[0] for row in result}
+                is_sqlite = False
             else:  # SQLite
                 result = await conn.execute(text("PRAGMA table_info(users)"))
                 existing_columns = {row[1] for row in result}
-            
+                is_sqlite = True
+
             # Добавляем недостающие колонки
             for column_name, column_def in columns_to_add:
                 if column_name not in existing_columns:
-                    if dialect == "sqlite":
+                    if is_sqlite:
                         await conn.execute(text(f"ALTER TABLE users ADD COLUMN {column_name} {column_def}"))
                     else:
                         await conn.execute(text(f"ALTER TABLE users ADD COLUMN IF NOT EXISTS {column_name} {column_def}"))

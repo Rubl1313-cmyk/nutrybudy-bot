@@ -62,17 +62,17 @@ class AIProcessor:
                     }
             
             # Если не еда, обрабатываем как общий запрос к ассистенту
-            assistant_result = await self.ai_manager.ai_assistant(
-                text, user_profile=user_profile
+            assistant_result = await self.ai_manager.get_assistant_response(
+                text, context=user_profile
             )
-            
+
             if assistant_result.get("success"):
                 return {
                     "intent": "ai_response",
                     "parameters": {
-                        "response": assistant_result["data"],
-                        "model_used": assistant_result["model_used"],
-                        "tokens_used": assistant_result["tokens_used"]
+                        "response": assistant_result.get("response", ""),
+                        "model_used": assistant_result.get("model", ""),
+                        "tokens_used": 0
                     },
                     "success": True
                 }
@@ -113,10 +113,10 @@ class AIProcessor:
         """
         try:
             # Анализируем фото еды
-            result = await self.ai_manager.analyze_food_photo(image_bytes, caption)
-            
+            result = await self.ai_manager.parse_food_image(image_bytes)
+
             if result.get("success"):
-                data = result["data"]
+                data = result.get("analysis", {})
                 
                 # Форматируем результат для удобства использования
                 return {

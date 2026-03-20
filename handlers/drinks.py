@@ -4,6 +4,7 @@ handlers/drinks.py
 Поддерживает воду, соки, чай, кофе и другие напитки с калориями
 """
 import logging
+from datetime import datetime, timezone
 from aiogram.types import Message, CallbackQuery
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
@@ -13,12 +14,11 @@ from sqlalchemy import select, func
 from database.db import get_session
 from database.models import User, DrinkEntry
 from keyboards.reply_v2 import get_main_keyboard_v2
-from utils.states import DrinkStates
+from utils.states import DrinkStates, WaterStates
 from utils.drink_parser import parse_drink
 from utils.daily_stats import get_daily_water
 from utils.premium_templates import drink_card, water_card
 from utils.ui_templates import ProgressBar
-from utils.states import WaterStates
 
 logger = logging.getLogger(__name__)
 router = Router()
@@ -140,29 +140,30 @@ async def process_water_amount(message: Message, state: FSMContext):
 async def process_drink(message: Message, state: FSMContext):
     """Обработка напитков с калориями"""
     current_state = await state.get_state()
-    
+
     if current_state and "waiting_for_drink" in str(current_state):
         try:
             from utils.safe_parser import safe_parse_float
-            from utils.drink_parser import parse_drink
-            
+
             # Парсим сообщение
             drink_data = parse_drink(message.text)
-            
-            if not drink_data or not drink_data[0]:
+
+            if not drink_data or not drink_data.get('name'):
                 await message.answer(
                     "❌ Не удалось распознать напиток. Попробуйте еще раз:\n\n"
                     "Пример: Кофе 200"
                 )
                 return
-            
-            name, volume, calories = drink_data
-            
+
+            name = drink_data['name']
+            volume = drink_data['amount']
+            calories = drink_data['calories']
+
             # Валидация объема
             if volume < 10 or volume > 2000:
                 await message.answer("❌ Объём должен быть от 10 до 2000 мл")
                 return
-            
+
             # Сохраняем в базу данных
             async with get_session() as session:
                 # Получаем пользователя
@@ -170,7 +171,7 @@ async def process_drink(message: Message, state: FSMContext):
                     select(User).where(User.telegram_id == message.from_user.id)
                 )
                 user = result.scalar_one_or_none()
-                
+
                 if not user:
                     await message.answer(
                         "❌ Сначала настройте профиль с помощью /set_profile",
@@ -178,29 +179,29 @@ async def process_drink(message: Message, state: FSMContext):
                     )
                     await state.clear()
                     return
-                
+
                 # Создаем запись о напитке
                 drink_entry = DrinkEntry(
                     user_id=user.telegram_id,
-                    drink_name=drink_data['name'],
-                    amount=drink_data['amount'],
-                    calories=drink_data['calories'],
+                    drink_name=name,
+                    amount=volume,
+                    calories=calories,
                     created_at=datetime.now(timezone.utc)
                 )
-                
+
                 session.add(drink_entry)
                 await session.commit()
-                
+
                 # Получаем статистику за день
                 total_today = await get_daily_water(user.telegram_id)
-                
+
                 # Создаем красивую карточку
                 card = drink_card(
-                    drink_data['amount'],
-                    drink_data['name'],
-                    drink_data['calories'],
+                    volume,
+                    name,
+                    calories,
                     total_today,
-                    drink_data['calories'],
+                    calories,
                     user.daily_water_goal
                 )
                 

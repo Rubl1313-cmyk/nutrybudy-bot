@@ -554,3 +554,39 @@ class IntentClassifier:
         except Exception as e:
             logger.error(f"Classification error: {e}, using keywords fallback")
             return cls._classify_by_keywords(text)
+    
+    @classmethod
+    def classify_sync(cls, text: str) -> dict:
+        """
+        Синхронный метод классификации для обратной совместимости.
+        """
+        text_lower = text.lower().strip()
+        
+        # 1. Быстрая проверка по ключевым словам
+        keyword_result = cls._classify_by_keywords(text_lower)
+        if keyword_result['confidence'] > 0.7:
+            keyword_result['method'] = 'keywords'
+            return keyword_result
+        
+        # 2. Проверка по паттернам
+        pattern_result = cls._classify_by_patterns(text_lower)
+        if pattern_result['confidence'] > 0.6:
+            pattern_result['method'] = 'patterns'
+            return pattern_result
+        
+        # 3. Проверка на вопросы к AI
+        if cls._is_question(text_lower):
+            return {
+                'intent': 'ask_ai',
+                'confidence': 0.8,
+                'entities': {},
+                'method': 'question_detection'
+            }
+        
+        # 4. Fallback - если ничего не определили
+        return {
+            'intent': 'general',
+            'confidence': 0.3,
+            'entities': {},
+            'method': 'fallback'
+        }

@@ -4,7 +4,7 @@ handlers/reply_handlers.py
 """
 import logging
 from aiogram import Router, F
-from aiogram.types import Message
+from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
 
 from handlers.profile import cmd_profile
@@ -24,15 +24,8 @@ router = Router()
 async def food_button_handler(message: Message, state: FSMContext):
     logger.info(f"🔍 REPLY HANDLER: Food button pressed by user {message.from_user.id}")
     await state.clear()
-    await message.answer(
-        "🍽️ <b>Записать приём пищи</b>\n\n"
-        "Отправьте фото блюда или напишите что вы съели.\n\n"
-        "Примеры:\n"
-        "• 200г гречки с курицей\n"
-        "• салат цезарь\n"
-        "• яблоко 2шт",
-        parse_mode="HTML"
-    )
+    from handlers.common import cmd_food
+    await cmd_food(message, state)
 
 @router.message(F.text.lower().in_(["💧 записать воду", "записать воду"]))
 async def water_button_handler(message: Message, state: FSMContext):
@@ -87,6 +80,105 @@ async def activity_button_handler(message: Message, state: FSMContext):
     )
 
 # === Навигация ===
+
+@router.message(F.text.lower().in_(["📸 фото еды", "фото еды"]))
+async def photo_food_handler(message: Message, state: FSMContext):
+    """Обработка кнопки фото еды"""
+    logger.info(f"🔍 REPLY HANDLER: Photo food button pressed by user {message.from_user.id}")
+    await state.clear()
+    await message.answer(
+        "📸 <b>Отправьте фото блюда</b>\n\n"
+        "AI распознает:\n"
+        "• Ингредиенты и их количество\n"
+        "• Калорийность и БЖУ\n"
+        "• Тип приема пищи\n\n"
+        "📸 Сделайте четкое фото сверху или сбоку",
+        parse_mode="HTML"
+    )
+
+@router.message(F.text.lower().in_(["✏️ текстом", "текстом"]))
+async def text_food_handler(message: Message, state: FSMContext):
+    """Обработка кнопки текстового ввода еды"""
+    logger.info(f"🔍 REPLY HANDLER: Text food button pressed by user {message.from_user.id}")
+    await state.clear()
+    await message.answer(
+        "✏️ <b>Опишите что вы съели</b>\n\n"
+        "Форматы:\n"
+        "• «Гречка с курицей 200г»\n"
+        "• «Салат Цезарь 150г»\n"
+        "• «Яблоко 1 шт»\n"
+        "• «Кофе с молоком 250мл»\n\n"
+        "🔍 Укажите название и вес/количество",
+        parse_mode="HTML"
+    )
+
+@router.message(F.text.lower().in_(["⚡ быстрый ввод", "быстрый ввод"]))
+async def quick_food_handler(message: Message, state: FSMContext):
+    """Обработка кнопки быстрого ввода еды"""
+    logger.info(f"🔍 REPLY HANDLER: Quick food button pressed by user {message.from_user.id}")
+    await state.clear()
+    await message.answer(
+        "⚡ <b>Быстрый ввод</b>\n\n"
+        "Напишите что вы съели:\n"
+        "• гречка 200г\n"
+        "• курица 150г\n"
+        "• салат 100г\n"
+        "• банан 1шт\n\n"
+        "🚀 Я сам определю тип приема пищи и рассчитаю КБЖУ",
+        parse_mode="HTML"
+    )
+
+# === Callback обработчики для inline кнопок ===
+
+@router.callback_query(F.data.startswith("water_"))
+async def water_quick_callback(callback: CallbackQuery, state: FSMContext):
+    """Обработка быстрых кнопок воды"""
+    logger.info(f"🔍 REPLY HANDLER: Water quick callback: {callback.data}")
+    
+    try:
+        # Извлекаем объем из callback_data
+        amount = int(callback.data.split("_")[1])
+        user_id = callback.from_user.id
+        
+        # Сохраняем воду
+        from handlers.drinks import process_quick_water
+        await process_quick_water(callback.message, amount)
+        
+        await callback.answer(f"💧 Записано {amount} мл воды")
+        
+    except Exception as e:
+        logger.error(f"Error in water quick callback: {e}")
+        await callback.answer("❌ Ошибка записи воды", show_alert=True)
+
+@router.callback_query(F.data.startswith("meal_"))
+async def meal_type_callback(callback: CallbackQuery, state: FSMContext):
+    """Обработка выбора типа приема пищи"""
+    logger.info(f"🔍 REPLY HANDLER: Meal type callback: {callback.data}")
+    
+    try:
+        meal_type = callback.data.split("_")[1]
+        meal_type_names = {
+            "breakfast": "🥐 Завтрак",
+            "lunch": "🍽️ Обед", 
+            "dinner": "🍽️ Ужин",
+            "snack": "🥨 Перекус"
+        }
+        
+        meal_name = meal_type_names.get(meal_type, "🍽️ Прием пищи")
+        
+        # Сохраняем тип приема пищи в state для последующего использования
+        await state.set_data({"meal_type": meal_type})
+        
+        await callback.message.edit_text(
+            f"{meal_name} выбран!\n\n"
+            f"Теперь отправьте фото или опишите что вы съели.",
+            parse_mode="HTML"
+        )
+        await callback.answer()
+        
+    except Exception as e:
+        logger.error(f"Error in meal type callback: {e}")
+        await callback.answer("❌ Ошибка выбора типа", show_alert=True)
 
 @router.message(F.text.lower().in_(["🏠 главное меню", "главное меню"]))
 async def back_to_main_menu(message: Message, state: FSMContext):

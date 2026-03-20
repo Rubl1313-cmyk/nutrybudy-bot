@@ -253,11 +253,11 @@ async def get_weight_progress(user_id: int, start_date: Optional[date] = None) -
 async def get_hydration_stats(user_id: int, start_date: Optional[date] = None) -> Dict[str, Any]:
     """
     Получает статистику гидрации
-    
+
     Args:
         user_id: ID пользователя
         start_date: Начальная дата периода
-        
+
     Returns:
         dict: Статистика гидрации
     """
@@ -267,24 +267,24 @@ async def get_hydration_stats(user_id: int, start_date: Optional[date] = None) -
             conditions = [DrinkEntry.user_id == user_id]
             if start_date:
                 conditions.append(DrinkEntry.created_at >= start_date)
-            
+
             # Статистика по напиткам
             result = await session.execute(
                 select(
                     func.count(DrinkEntry.id).label('total_entries'),
-                    func.sum(DrinkEntry.volume_ml).label('total_volume'),
+                    func.sum(DrinkEntry.amount).label('total_volume'),
                     func.sum(DrinkEntry.calories).label('total_calories')
                 ).where(*conditions)
             )
             stats = result.first()
-            
+
             return {
                 "total_entries": stats.total_entries or 0,
                 "total_volume_ml": int(stats.total_volume or 0),
                 "total_calories": int(stats.total_calories or 0),
                 "avg_volume_per_entry": int((stats.total_volume or 0) / (stats.total_entries or 1))
             }
-            
+
     except Exception as e:
         logger.error(f"Error getting hydration stats for user {user_id}: {e}")
         return {

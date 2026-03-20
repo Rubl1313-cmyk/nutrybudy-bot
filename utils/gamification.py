@@ -511,6 +511,22 @@ async def get_user_level(user_id: int) -> Dict:
     """Получает уровень пользователя"""
     return await gamification_system.get_user_level(user_id)
 
+def get_user_rank(user_id: int) -> str:
+    """Получает ранг пользователя на основе уровня"""
+    user_stats = gamification_system.get_user_stats(user_id)
+    level = user_stats.get('level', 1)
+    
+    if level >= 20:
+        return "🏆 Легенда"
+    elif level >= 15:
+        return "⭐ Мастер"
+    elif level >= 10:
+        return "🎯 Эксперт"
+    elif level >= 5:
+        return "📈 Продвинутый"
+    else:
+        return "🌱 Новичок"
+
 async def get_leaderboard(period: str = "all", limit: int = 10) -> List[Dict]:
     """Получает таблицу лидеров"""
     return await gamification_system.get_leaderboard(period, limit)

@@ -3,6 +3,7 @@ handlers/meal_plan.py
 Планирование питания
 """
 import logging
+from datetime import datetime, timezone
 from aiogram.types import Message, CallbackQuery
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext

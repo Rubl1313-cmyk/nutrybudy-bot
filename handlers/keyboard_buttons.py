@@ -2,9 +2,12 @@
 Обработчики кнопок клавиатур для NutriBuddy Bot
 """
 import logging
+import re
+from datetime import datetime, timezone
 from aiogram import Router, F
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
+from sqlalchemy import select
 
 from database.db import get_session
 from database.models import User, DrinkEntry
@@ -35,7 +38,6 @@ async def water_keyboard_handler(message: Message, state: FSMContext):
         amount = 1000
     else:
         # Извлекаем число из текста
-        import re
         match = re.search(r'(\d+)', text)
         if match:
             amount = int(match.group(1))
@@ -165,4 +167,5 @@ async def metric_units_handler(message: Message):
 @router.message(F.text.startswith("🏃"))
 async def activity_stats_handler(message: Message):
     """Статистика активности"""
-    await message.answer("🏃 <b>Статистика активности</b>\n\nФункция в разработке...")
+    from handlers.activity import cmd_activity_stats
+    await cmd_activity_stats(message)

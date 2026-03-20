@@ -3,6 +3,7 @@ handlers/progress.py
 Обработчики статистики и прогресса
 """
 import logging
+from datetime import datetime, timezone, timedelta
 from aiogram.types import Message, CallbackQuery
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
@@ -45,7 +46,7 @@ async def cmd_progress(message: Message, state: FSMContext):
 async def handle_period_selection(message: Message):
     """Обработка выбора периода"""
     text = message.text.lower()
-    
+
     if "сегодня" in text or "today" in text:
         await show_today_progress(message)
     elif "неделя" in text or "week" in text:
@@ -56,6 +57,31 @@ async def handle_period_selection(message: Message):
         await show_all_time_progress(message)
     else:
         await message.answer("❌ Пожалуйста, выберите период из меню")
+
+# Inline callback обработчики для прогресса
+@router.callback_query(F.data == "progress_today")
+async def callback_progress_today(callback: CallbackQuery):
+    """Прогресс за сегодня"""
+    await show_today_progress(callback.message)
+    await callback.answer()
+
+@router.callback_query(F.data == "progress_week")
+async def callback_progress_week(callback: CallbackQuery):
+    """Прогресс за неделю"""
+    await show_week_progress(callback.message)
+    await callback.answer()
+
+@router.callback_query(F.data == "progress_month")
+async def callback_progress_month(callback: CallbackQuery):
+    """Прогресс за месяц"""
+    await show_month_progress(callback.message)
+    await callback.answer()
+
+@router.callback_query(F.data == "progress_all")
+async def callback_progress_all(callback: CallbackQuery):
+    """Прогресс за все время"""
+    await show_all_time_progress(callback.message)
+    await callback.answer()
 
 @router.message(F.text.regexp(r'(🏠 Главное меню|Главное меню|menu)'))
 async def handle_main_menu_from_progress(message: Message, state: FSMContext):

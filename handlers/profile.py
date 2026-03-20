@@ -430,7 +430,7 @@ async def save_profile(callback: CallbackQuery, state: FSMContext):
         daily_fat = calculate_daily_fat(daily_calories)
         daily_carbs = calculate_daily_carbs(daily_calories, daily_protein, daily_fat)
         
-        async for session in get_session():
+        async with get_session() as session:
             # Проверяем, существует ли пользователь
             result = await session.execute(
                 select(User).where(User.telegram_id == user_id)
@@ -535,7 +535,7 @@ async def cmd_profile(message: Message, state: FSMContext):
     await state.clear()
     
     try:
-        async for session in get_session():
+        async with get_session() as session:
             result = await session.execute(
                 select(User).where(User.telegram_id == message.from_user.id)
             )
@@ -614,7 +614,7 @@ async def complete_profile_setup(message: Message, state: FSMContext):
     """Завершение настройки профиля"""
     data = await state.get_data()
     
-    async for session in get_session():
+    async with get_session() as session:
         result = await session.execute(
             select(User).where(User.telegram_id == message.from_user.id)
         )
@@ -866,7 +866,7 @@ async def full_analysis_or_progress_button(message: Message, state: FSMContext):
         
         user_id = message.from_user.id
         
-        async for session in get_session():
+        async with get_session() as session:
             from database.models import User, WeightEntry
             result = await session.execute(select(User).where(User.telegram_id == user_id))
             user = result.scalar_one_or_none()
@@ -878,7 +878,6 @@ async def full_analysis_or_progress_button(message: Message, state: FSMContext):
             )
             weight_entries = weight_result.scalars().all()
             previous_weights = [w.weight for w in weight_entries] if weight_entries else None
-            break
         
         if not user:
             await message.answer("❌ Сначала создайте профиль", reply_markup=get_main_keyboard_v2())

@@ -63,7 +63,7 @@ async def process_weight(message: Message, state: FSMContext):
         from database.models import WeightEntry
         from datetime import datetime, timezone
         
-        async for session in get_session():
+        async with get_session() as session:
             weight_entry = WeightEntry(
                 user_id=message.from_user.id,
                 weight=weight,
@@ -71,7 +71,6 @@ async def process_weight(message: Message, state: FSMContext):
             )
             session.add(weight_entry)
             await session.commit()
-            break
         
         await state.clear()
         

@@ -118,7 +118,7 @@ async def save_soup(user_id: int, dish_name: str, volume_ml: float, meal_type: s
         water_content = get_soup_water_content(dish_name)
         water_volume = volume_ml * water_content
         
-        async for session in get_session():
+        async with get_session() as session:
             # Получаем пользователя
             result = await session.execute(
                 select(User).where(User.telegram_id == user_id)
@@ -189,7 +189,7 @@ async def save_drink(user_id: int, drink_name: str, volume_ml: float, calories: 
         dict с информацией о сохранении
     """
     try:
-        async for session in get_session():
+        async with get_session() as session:
             # Получаем пользователя
             result = await session.execute(
                 select(User).where(User.telegram_id == user_id)
@@ -280,7 +280,7 @@ async def analyze_user_soup_preferences(user_id: int) -> Dict:
     Анализирует предпочтения пользователя по супам
     """
     try:
-        async for session in get_session():
+        async with get_session() as session:
             # Получаем все супы пользователя
             result = await session.execute(
                 select(FoodEntry).where(
@@ -389,7 +389,7 @@ async def get_daily_soup_stats(user_id: int, target_date: datetime.date = None) 
         if target_date is None:
             target_date = datetime.now(timezone.utc).date()
         
-        async for session in get_session():
+        async with get_session() as session:
             # Получаем все супы за день
             result = await session.execute(
                 select(FoodEntry).where(

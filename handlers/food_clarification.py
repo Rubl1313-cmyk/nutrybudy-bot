@@ -218,7 +218,7 @@ async def handle_weight_input(message: Message, state: FSMContext):
         from database.db import get_session
         from database.models import User, FoodEntry
         
-        async for session in get_session():
+        async with get_session() as session:
             # Получаем пользователя
             result = await session.execute(
                 select(User).where(User.telegram_id == message.from_user.id)

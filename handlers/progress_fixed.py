@@ -19,12 +19,11 @@ async def show_today_progress(message: Message):
             return
         
         # Получаем цели пользователя
-        async for session in get_session():
+        async with get_session() as session:
             result = await session.execute(
                 select(User).where(User.telegram_id == user_id)
             )
             user = result.scalar_one_or_none()
-            break
             
         if not user:
             await message.answer("❌ Профиль не найден", reply_markup=get_cancel_keyboard())

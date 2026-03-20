@@ -53,12 +53,11 @@ async def handle_ai_conversation(message: Message, state: FSMContext):
     
     try:
         # Получаем данные пользователя для контекста
-        async for session in get_session():
+        async with get_session() as session:
             result = await session.execute(
                 select(User).where(User.telegram_id == message.from_user.id)
             )
             user = result.scalar_one_or_none()
-            break  # важно выйти после первого получения
         
         # Получаем историю диалога
         data = await state.get_data()

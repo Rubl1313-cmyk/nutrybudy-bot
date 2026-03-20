@@ -11,21 +11,19 @@ from sqlalchemy import select, func
 
 logger = logging.getLogger(__name__)
 
-async def save_weight(user_id: int, weight_kg: float, 
-                      notes: Optional[str] = None) -> Dict[str, Any]:
+async def save_weight(user_id: int, weight_kg: float) -> Dict[str, Any]:
     """
     Сохраняет запись веса пользователя
     
     Args:
         user_id: ID пользователя
         weight_kg: Вес в килограммах
-        notes: Заметки
         
     Returns:
         dict: Результат сохранения
     """
     try:
-        async for session in get_session():
+        async with get_session() as session:
             # Создаем запись о весе
             weight_entry = WeightEntry(
                 user_id=user_id,
@@ -68,7 +66,7 @@ async def get_user_weights(user_id: int, days: int = 30) -> List[WeightEntry]:
         from datetime import timedelta
         start_date = datetime.now() - timedelta(days=days)
         
-        async for session in get_session():
+        async with get_session() as session:
             result = await session.execute(
                 select(WeightEntry).where(
                     WeightEntry.user_id == user_id,
@@ -160,7 +158,7 @@ async def get_latest_weight(user_id: int) -> Optional[WeightEntry]:
         Optional[WeightEntry]: Последняя запись веса или None
     """
     try:
-        async for session in get_session():
+        async with get_session() as session:
             result = await session.execute(
                 select(WeightEntry).where(
                     WeightEntry.user_id == user_id
@@ -184,7 +182,7 @@ async def update_user_weight_goal(user_id: int, goal_weight_kg: float) -> Dict[s
         dict: Результат обновления
     """
     try:
-        async for session in get_session():
+        async with get_session() as session:
             result = await session.execute(
                 select(User).where(User.telegram_id == user_id)
             )

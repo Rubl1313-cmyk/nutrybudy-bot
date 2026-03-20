@@ -22,7 +22,7 @@ async def update_all_users_water_goal():
     Запросы к API кэшируются на день, поэтому повторные обращения к тому же городу
     в течение дня не создают лишней нагрузки.
     """
-    async for session in get_session():
+    async with get_session() as session:
         # Получаем всех пользователей, у которых есть город
         result = await session.execute(
             select(User).where(User.city.isnot(None))

@@ -160,7 +160,7 @@ class AIProcessor:
     async def _get_user_profile(self, user_id: int) -> Optional[Dict]:
         """Получает профиль пользователя для контекста"""
         try:
-            async for session in get_session():
+            async with get_session() as session:
                 user_result = await session.execute(select(User).where(User.telegram_id == user_id))
                 user = user_result.scalar_one_or_none()
                 

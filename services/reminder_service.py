@@ -25,7 +25,7 @@ class ReminderService:
         """Проверка еженедельных напоминаний"""
         logger.info("🔔 Проверка еженедельных напоминаний")
         
-        async for session in get_session():
+        async with get_session() as session:
             # Получаем всех пользователей с включенными напоминаниями
             result = await session.execute(
                 select(User).where(User.reminder_enabled == True)
@@ -42,7 +42,7 @@ class ReminderService:
             # Проверяем когда последний раз пользователь обновлял вес/обхваты
             week_ago = datetime.now() - timedelta(days=7)
             
-            async for session in get_session():
+            async with get_session() as session:
                 # Проверяем вес
                 weight_result = await session.execute(
                     select(WeightEntry).where(

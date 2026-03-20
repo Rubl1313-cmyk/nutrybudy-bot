@@ -349,7 +349,7 @@ def get_motivation_message(stats: dict, user: User) -> str:
 async def get_today_stats(user_id: int) -> dict:
     """Получить статистику за сегодня"""
     
-    async for session in get_session():
+    async with get_session() as session:
         result = await session.execute(
             select(User.timezone).where(User.telegram_id == user_id)
         )
@@ -416,7 +416,7 @@ async def get_week_stats(user_id: int) -> dict:
     """Получить статистику за неделю"""
     from datetime import datetime, timezone, timedelta
     
-    async for session in get_session():
+    async with get_session() as session:
         week_start = datetime.now(timezone.utc).date() - timedelta(days=datetime.now(timezone.utc).weekday())
         week_end = week_start + timedelta(days=7)
         
@@ -492,7 +492,7 @@ async def get_month_stats(user_id: int) -> dict:
     """Получить статистику за месяц"""
     from datetime import datetime, timezone, timedelta
     
-    async for session in get_session():
+    async with get_session() as session:
         month_start = datetime.now(timezone.utc).date().replace(day=1)
         month_end = month_start + timedelta(days=31)
         
@@ -568,7 +568,7 @@ async def get_all_time_stats(user_id: int) -> dict:
     """Получить статистику за всё время"""
     from datetime import datetime, timezone
     
-    async for session in get_session():
+    async with get_session() as session:
         # Получаем всю статистику питания
         result = await session.execute(
             select(FoodEntry).where(FoodEntry.user_id == user_id)

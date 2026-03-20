@@ -195,13 +195,15 @@ def register_handlers():
     # Самый последний – универсальный (обрабатывает всё, что не попало выше)
     dp.include_router(universal_router)
     
-    # Установка middleware
+    # Установка middleware (исправлено для aiogram 3.x)
     from utils.middleware import SmartRateLimitMiddleware
     
     dp.message.middleware(SmartRateLimitMiddleware(user_rate_limiter, is_global=False))
     dp.callback_query.middleware(SmartRateLimitMiddleware(user_rate_limiter, is_global=False))
     dp.message.middleware(SmartRateLimitMiddleware(global_rate_limiter, is_global=True))
     dp.callback_query.middleware(SmartRateLimitMiddleware(global_rate_limiter, is_global=True))
+    
+    logger.info("Rate limiting middleware enabled")
     
     logger.info("All handlers registered")
     

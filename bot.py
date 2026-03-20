@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 from aiogram import Bot, Dispatcher
 from aiogram.fsm.strategy import FSMStrategy
 from aiogram.enums import ParseMode
-from utils.middleware import user_rate_limiter, global_rate_limiter
+from utils.rate_limiter import user_rate_limiter, global_rate_limiter
 # Начинаем настраивать логирование
 logging.basicConfig(
     level=logging.INFO,

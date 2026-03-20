@@ -39,10 +39,9 @@ AsyncSessionLocal = async_sessionmaker(
     expire_on_commit=False,
 )
 
-async def get_session() -> AsyncSession:
+def get_session() -> DatabaseSession:
     """Получить сессию базы данных"""
-    async with AsyncSessionLocal() as session:
-        yield session
+    return DatabaseSession()
 
 async def init_db():
     """Инициализация базы данных"""

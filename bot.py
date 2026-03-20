@@ -285,10 +285,6 @@ async def main():
     dp = Dispatcher(storage=storage, fsm_strategy=FSMStrategy.CHAT)
     dp.bot = bot
     
-    # Добавляем middleware для rate limiting
-    dp.message.middleware(user_rate_limiter)
-    dp.message.middleware(global_rate_limiter)
-    
     # Регистрация обработчиков
     register_handlers()
     

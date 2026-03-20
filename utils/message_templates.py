@@ -18,13 +18,13 @@ class MessageTemplates:
         
         if 5 <= hour < 12:
             greeting = "Доброе утро"
-            emoji = "[MORNING]"
+            emoji = "🌅"
         elif 12 <= hour < 18:
             greeting = "Добрый день"
-            emoji = "[DAY]"
+            emoji = "☀️"
         else:
             greeting = "Добрый вечер"
-            emoji = "[EVENING]"
+            emoji = "🌙"
         
         return (
             f"{emoji} <b>{greeting}, {user_name}!</b>\n\n"
@@ -49,17 +49,17 @@ class MessageTemplates:
         """
         # Персонализированное приветствие с эмоциями
         if days_active == 0:
-            greeting_emoji = "[START]"
+            greeting_emoji = "🚀"
             status_text = "Начнём ваше путешествие к здоровью!"
-            motivation_emoji = "[ROCKET]"
+            motivation_emoji = "🚀"
         elif current_streak >= 7:
-            greeting_emoji = "[FIRE]"
+            greeting_emoji = "🔥"
             status_text = f"Вы на пути к цели уже {current_streak} дней!"
-            motivation_emoji = "[MUSCLE]"
+            motivation_emoji = "💪"
         else:
-            greeting_emoji = "[WAVE]"
+            greeting_emoji = "👋"
             status_text = "Продолжаем наш путь к здоровью!"
-            motivation_emoji = "[STAR]"
+            motivation_emoji = "⭐"
         
         # Визуально структурированное сообщение
         text = (
@@ -67,9 +67,9 @@ class MessageTemplates:
             f"[LOGO] <b>NutriBuddy</b>\n"
             f"<i>{status_text}</i>\n\n"
             f"[LINE] =====================================\n\n"
-            f"[CAMERA] <b>Фото еды</b> → я распознаю калории\n"
-            f"[TEXT] <b>Текстом</b> → я пойму и запишу\n"
-            f"[PROGRESS] <b>Прогресс</b> → ваши достижения\n\n"
+            f"⚡ <b>Фото еды</b> → я распознаю калории\n"
+            f"✍️ <b>Текстом</b> → я пойму и запишу\n"
+            f"📊 <b>Прогресс</b> → ваши достижения\n\n"
             f"[LINE] =====================================\n\n"
             f"{motivation_emoji} <i>Отправьте фото еды — начнём сейчас!</i>"
         )
@@ -88,25 +88,25 @@ class MessageTemplates:
             emoji = "[PARTY]"
             message = "Отлично! Вы достигли дневной цели!"
         elif daily_progress >= 75:
-            emoji = "[FIRE]"
+            emoji = "🔥"
             message = "Прекрасно! Почти у цели!"
         elif daily_progress >= 50:
-            emoji = "[MUSCLE]"
+            emoji = "💪"
             message = "Хорошая работа! Продолжайте в том же духе!"
         else:
-            emoji = "[STAR]"
+            emoji = "⭐"
             message = "Отличное начало дня!"
         
         text = (
             f"{emoji} <b>Приём пищи сохранён!</b>\n\n"
-            f"[FOOD] <b>{dish_name}</b>\n\n"
-            f"[NUTRITION] <b>Питательность:</b>\n"
-            f"[CALORIES] Калории: {calories:.0f} ккал\n"
-            f"[PROTEIN] Белки: {protein:.1f} г\n"
-            f"[FAT] Жиры: {fat:.1f} г\n"
-            f"[CARBS] Углеводы: {carbs:.1f} г\n\n"
-            f"[PROGRESS] <b>{message}</b>\n"
-            f"[INFO] <i>Продолжайте в том же духе! 💪</i>"
+            f"🍽️ <b>{dish_name}</b>\n\n"
+            f"📊 <b>Питательность:</b>\n"
+            f"🔥 Калории: {calories:.0f} ккал\n"
+            f"🥩 Белки: {protein:.1f} г\n"
+            f"🧈 Жиры: {fat:.1f} г\n"
+            f"🍞 Углеводы: {carbs:.1f} г\n\n"
+            f"📊 <b>{message}</b>\n"
+            f"ℹ️ <i>Продолжайте в том же духе! 💪</i>"
         )
         
         return text
@@ -199,25 +199,25 @@ class MessageTemplates:
         
         # Оценка прогресса
         if cal_progress >= 90:
-            rating = "[EXCELLENT] Отлично!"
-            emoji = "[TROPHY]"
+            rating = "🌟 Отлично!"
+            emoji = "🏆"
         elif cal_progress >= 75:
-            rating = "[GOOD] Хорошо!"
-            emoji = "[THUMBS_UP]"
+            rating = "👍 Хорошо!"
+            emoji = "👍"
         elif cal_progress >= 50:
-            rating = "[OK] Неплохо!"
-            emoji = "[NEUTRAL]"
+            rating = "👌 Неплохо!"
+            emoji = "😐"
         else:
-            rating = "[NEED_WORK] Можно лучше!"
-            emoji = "[TARGET]"
+            rating = "📈 Можно лучше!"
+            emoji = "🎯"
         
         text = (
-            f"[PROGRESS] <b>Ваш прогресс {period_name}:</b>\n\n"
-            f"[FOOD_ENTRIES] Приёмов пищи: {stats.get('meals_count', 0)}\n"
-            f"[CALORIES] Калории: {stats.get('calories_consumed', 0):.0f} / {user.daily_calorie_goal:.0f} ккал ({cal_progress:.0f}%)\n"
-            f"[WATER] Вода: {stats.get('water_consumed', 0):.0f} / {user.daily_water_goal:.0f} мл\n"
-            f"[ACTIVITY] Активность: {stats.get('activity_minutes', 0)} минут\n"
-            f"[WEIGHT] Вес: {stats.get('current_weight', 'N/A')} кг\n\n"
+            f"📊 <b>Прогресс {period_name}:</b>\n\n"
+            f"🍽️ Приёмов пищи: {stats.get('meals_count', 0)}\n"
+            f"🔥 Калории: {stats.get('calories_consumed', 0):.0f} / {user.daily_calorie_goal:.0f} ккал ({cal_progress:.0f}%)\n"
+            f"💧 Вода: {stats.get('water_consumed', 0):.0f} / {user.daily_water_goal:.0f} мл\n"
+            f"🏃 Активность: {stats.get('activity_minutes', 0)} минут\n"
+            f"⚖️ Вес: {stats.get('current_weight', 'N/A')} кг\n\n"
             f"{emoji} {rating}"
         )
         
@@ -227,131 +227,131 @@ class MessageTemplates:
     def ai_response_message(response: str, context: str = "general") -> str:
         """Форматирование ответа AI"""
         context_emojis = {
-            "nutrition": "[NUTRITION]",
-            "recipe": "[RECIPE]", 
-            "advice": "[ADVICE]",
-            "analysis": "[ANALYSIS]",
+            "nutrition": "📊",
+            "recipe": "📝", 
+            "advice": "💡",
+            "analysis": "🔍",
             "general": "[AI]"
         }
         
-        emoji = context_emojis.get(context, "[AI]")
+        emoji = context_emojis.get(context, "🤖")
         
         return (
             f"{emoji} <b>Ответ AI-ассистента:</b>\n\n"
             f"{response}\n\n"
-            f"[INFO] <i>Есть ещё вопросы? Просто спросите! 🤖</i>"
+            f"ℹ️ <i>Есть ещё вопросы? Просто спросите! 🤖</i>"
         )
     
     @staticmethod
     def error_message(error_type: str, details: str = "") -> str:
         """Красивое сообщение об ошибке"""
         error_messages = {
-            "photo_error": "[CAMERA] Не удалось обработать фото. Попробуйте сделать фото более чётким.",
-            "profile_error": "[PROFILE] Сначала настройте профиль командой /set_profile",
-            "database_error": "[DATABASE] Временная проблема с базой данных. Попробуйте позже.",
-            "ai_error": "[AI] AI-сервис временно недоступен. Попробуйте позже.",
-            "network_error": "[NETWORK] Проблемы с соединением. Проверьте интернет.",
-            "general_error": "[ERROR] Произошла ошибка. Попробуйте ещё раз."
+            "photo_error": "⚡ Не удалось обработать фото. Попробуйте сделать фото более чётким.",
+            "profile_error": "👤 Сначала настройте профиль командой /set_profile",
+            "database_error": "🗄️ Временная проблема с базой данных. Попробуйте позже.",
+            "ai_error": "🤖 AI-сервис временно недоступен. Попробуйте позже.",
+            "network_error": "🌐 Проблемы с соединением. Проверьте интернет.",
+            "general_error": "❌ Произошла ошибка. Попробуйте ещё раз."
         }
         
         message = error_messages.get(error_type, error_messages["general_error"])
         
         if details:
-            message += f"\n\n[DETAILS] <i>Детали: {details}</i>"
+            message += f"\n\n📋 <i>Детали: {details}</i>"
         
         return (
-            f"[ERROR] <b>Произошла ошибка</b>\n\n"
+            f"❌ <b>Произошла ошибка</b>\n\n"
             f"{message}\n\n"
-            f"[SUPPORT] <i>Если проблема повторяется, используйте /ask для связи с поддержкой.</i>"
+            f"🆘 <i>Если проблема повторяется, используйте /ask для связи с поддержкой.</i>"
         )
     
     @staticmethod
     def achievement_unlocked(achievement_name: str, description: str) -> str:
         """Сообщение о разблокированном достижении"""
         return (
-            f"[TROPHY] <b>Новое достижение!</b>\n\n"
-            f"[ACHIEVEMENT] <b>{achievement_name}</b>\n"
+            f"🏆 <b>Новое достижение!</b>\n\n"
+            f"🏆 <b>{achievement_name}</b>\n"
             f"{description}\n\n"
-            f"[INFO] <i>Проверьте все достижения в профиле! 🏆</i>"
+            f"ℹ️ <i>Проверьте все достижения в профиле! 🏆</i>"
         )
     
     @staticmethod
     def daily_tip(tip_text: str) -> str:
         """Ежедневный совет"""
         return (
-            f"[TIP] <b>Совет дня:</b>\n\n"
-            f"[LIGHTBULB] {tip_text}\n\n"
-            f"[INFO] <i>Следуйте советам для достижения целей! 🌟</i>"
+            f"💡 <b>Совет дня:</b>\n\n"
+            f"💡 {tip_text}\n\n"
+            f"ℹ️ <i>Следуйте советам для достижения целей! 🌟</i>"
         )
     
     @staticmethod
     def reminder_message(reminder_type: str, time: str) -> str:
         """Сообщение-напоминание"""
         reminder_messages = {
-            "water": "[WATER] Не забывайте пить воду! 💧",
-            "meal": "[FOOD] Время приёма пищи! 🍽️",
-            "activity": "[ACTIVITY] Время для активности! 🏃",
-            "sleep": "[SLEEP] Время отдыхать! 😴",
-            "weigh": "[WEIGHT] Время взвеситься! ⚖️"
+            "water": "💧 Не забывайте пить воду! 💧",
+            "meal": "🍽️ Время приёма пищи! 🍽️",
+            "activity": "🏃 Время для активности! 🏃",
+            "sleep": "😴 Время отдыхать! 😴",
+            "weigh": "⚖️ Время взвешиваться! ⚖️"
         }
         
-        message = reminder_messages.get(reminder_type, "[REMINDER] Напоминание")
+        message = reminder_messages.get(reminder_type, "⏰ Напоминание")
         
         return (
             f"{message}\n\n"
-            f"[TIME] {time}\n\n"
-            f"[INFO] <i>Регулярность — ключ к успеху! 🔑</i>"
+            f"⏰ {time}\n\n"
+            f"ℹ️ <i>Регулярность — ключ к успеху! 🔑</i>"
         )
     
     @staticmethod
     def motivational_message(progress_percentage: float, goal_type: str = "general") -> str:
         """Мотивационное сообщение"""
         if progress_percentage >= 95:
-            return "[EXCELLENT] Превосходно! Вы почти у цели! 🎯"
+            return "🌟 Превосходно! Вы почти у цели! 🎯"
         elif progress_percentage >= 80:
-            return "[GOOD] Отлично! Продолжайте в том же духе! 💪"
+            return "👍 Отлично! Продолжайте в том же духе! 💪"
         elif progress_percentage >= 60:
-            return "[OK] Хорошо! Так держать! 👍"
+            return "👌 Хорошо! Продолжайте двигаться! 🏃"
         elif progress_percentage >= 40:
-            return "[NEED_WORK] Есть куда расти! Не сдавайтесь! 📈"
+            return "📈 Есть куда расти! Не сдавайтесь! 📈"
         else:
-            return "[START] Каждое начало важно! Продолжайте! 🌟"
+            return "🌟 Каждое начало важно! Продолжайте! 🌟"
     
     @staticmethod
     def help_message() -> str:
         """Справка по боту"""
         return (
-            f"[HELP] <b>Справка по NutriBuddy Bot</b>\n\n"
-            f"[COMMANDS] <b>Основные команды:</b>\n"
+            f"❓ <b>Справка по NutriBuddy Bot</b>\n\n"
+            f"📋 <b>Основные команды:</b>\n"
             f"/start - Начать работу\n"
             f"/set_profile - Настроить профиль\n"
             f"/profile - Посмотреть профиль\n"
             f"/help - Эта справка\n\n"
-            f"[FEATURES] <b>Возможности:</b>\n"
-            f"[CAMERA] 📸 Распознавание еды по фото\n"
-            f"[CHAT] 💬 AI-ассистент по питанию\n"
-            f"[STATS] 📊 Отслеживание прогресса\n"
-            f"[REMINDERS] ⏰ Умные напоминания\n\n"
-            f"[INFO] <i>Просто отправьте фото еды или задайте вопрос! 🤖</i>"
+            f"🚀 <b>Возможности:</b>\n"
+            f"⚡ 📸 Распознавание еды по фото\n"
+            f"🤖 AI-ассистент по питанию\n"
+            f"📊 Отслеживание прогресса\n"
+            f"📝 Умные напоминания\n\n"
+            f"ℹ️ <i>Просто отправьте фото еды или задайте вопрос! 🤖</i>"
         )
     
     @staticmethod
     def profile_summary(user, stats: Dict) -> str:
         """Сводка профиля"""
         return (
-            f"[PROFILE] <b>Ваш профиль</b>\n\n"
-            f"[INFO] <b>Данные:</b>\n"
-            f"[WEIGHT] Вес: {user.weight} кг | [HEIGHT] Рост: {user.height} см\n"
-            f"[AGE] Возраст: {user.age} лет | [GENDER] Пол: {user.gender}\n"
-            f"[GOAL] Цель: {user.goal} | [ACTIVITY] Активность: {user.activity_level}\n\n"
-            f"[NORMS] <b>Нормы:</b>\n"
-            f"[CALORIES] Калории: {user.daily_calorie_goal:.0f} ккал\n"
-            f"[PROTEIN] Белки: {user.daily_protein_goal:.0f} г\n"
-            f"[FAT] Жиры: {user.daily_fat_goal:.0f} г\n"
-            f"[CARBS] Углеводы: {user.daily_carbs_goal:.0f} г\n"
-            f"[WATER] Вода: {user.daily_water_goal:.0f} мл\n\n"
-            f"[TODAY] <b>Сегодня:</b>\n"
-            f"[FOOD_ENTRIES] Приёмов: {stats.get('meals_count', 0)}\n"
-            f"[CALORIES] Калории: {stats.get('calories_consumed', 0):.0f}/{user.daily_calorie_goal:.0f}\n"
-            f"[WATER] Вода: {stats.get('water_consumed', 0):.0f}/{user.daily_water_goal:.0f} мл"
+            f"👤 <b>Ваш профиль</b>\n\n"
+            f"ℹ️ <b>Данные:</b>\n"
+            f"⚖️ Вес: {user.weight} кг | 📏 Рост: {user.height} см\n"
+            f"🎂 Возраст: {user.age} лет | 👫 Пол: {user.gender}\n"
+            f"🎯 Цель: {user.goal} | 🏃 Активность: {user.activity_level}\n\n"
+            f"📊 <b>Нормы:</b>\n"
+            f"🔥 Калории: {user.daily_calorie_goal:.0f} ккал\n"
+            f"🥩 Белки: {user.daily_protein_goal:.0f} г\n"
+            f"🧈 Жиры: {user.daily_fat_goal:.0f} г\n"
+            f"🍞 Углеводы: {user.daily_carbs_goal:.0f} г\n"
+            f"💧 Вода: {user.daily_water_goal:.0f} мл\n\n"
+            f"📅 <b>Сегодня:</b>\n"
+            f"🍽️ Приёмов: {stats.get('meals_count', 0)}\n"
+            f"🔥 Калории: {stats.get('calories_consumed', 0):.0f}/{user.daily_calorie_goal:.0f}\n"
+            f"💧 Вода: {stats.get('water_consumed', 0):.0f}/{user.daily_water_goal:.0f} мл"
         )

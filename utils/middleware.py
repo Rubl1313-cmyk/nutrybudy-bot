@@ -9,8 +9,7 @@ def SmartRateLimitMiddleware(rate_limiter, is_global: bool = False):
     """Фабрика middleware для aiogram 3.x"""
     
     class _SmartRateLimitMiddleware(BaseMiddleware):
-        def __init__(self, rate_limiter, is_global: bool = False):
-            super().__init__()
+        def __init__(self):
             self.rate_limiter = rate_limiter
             self.is_global = is_global
 
@@ -100,4 +99,4 @@ def SmartRateLimitMiddleware(rate_limiter, is_global: bool = False):
                 return 'general'
             return 'general'
 
-    return _SmartRateLimitMiddleware(rate_limiter, is_global)
+    return _SmartRateLimitMiddleware()

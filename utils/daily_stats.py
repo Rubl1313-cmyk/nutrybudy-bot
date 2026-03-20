@@ -38,7 +38,7 @@ async def get_daily_water(user_id: int, user_timezone: str = 'UTC') -> int:
             result = await session.execute(
                 select(func.sum(DrinkEntry.volume_ml)).where(
                     DrinkEntry.user_id == user_id,
-                    func.date(DrinkEntry.datetime) == today_local
+                    func.date(DrinkEntry.created_at) == today_local
                 )
             )
             return result.scalar() or 0
@@ -76,7 +76,7 @@ async def get_daily_drink_calories(user_id: int, user_timezone: str = 'UTC') -> 
             result = await session.execute(
                 select(func.sum(DrinkEntry.calories)).where(
                     DrinkEntry.user_id == user_id,
-                    func.date(DrinkEntry.datetime) == today_local
+                    func.date(DrinkEntry.created_at) == today_local
                 )
             )
             return result.scalar() or 0
@@ -175,7 +175,7 @@ async def get_period_stats(user_id: int, period: str = "day", user_timezone: str
     """
     try:
         from database.db import get_session
-        from database.models import FoodEntry, DrinkEntry, ActivityEntry, Weight, User
+        from database.models import FoodEntry, DrinkEntry, ActivityEntry, WeightEntry, User
         from sqlalchemy import select, func
         from datetime import timedelta
         
@@ -216,7 +216,7 @@ async def get_period_stats(user_id: int, period: str = "day", user_timezone: str
             
             # Добавляем статистику по жидкости и активности
             if start_date:
-                drink_conditions = [DrinkEntry.user_id == user_id, DrinkEntry.datetime >= start_date]
+                drink_conditions = [DrinkEntry.user_id == user_id, DrinkEntry.created_at >= start_date]
                 activity_conditions = [ActivityEntry.user_id == user_id, ActivityEntry.created_at >= start_date]
             else:
                 drink_conditions = [DrinkEntry.user_id == user_id]
@@ -236,12 +236,12 @@ async def get_period_stats(user_id: int, period: str = "day", user_timezone: str
             
             # Вес
             if start_date:
-                weight_conditions = [Weight.user_id == user_id, Weight.datetime >= start_date]
+                weight_conditions = [WeightEntry.user_id == user_id, WeightEntry.created_at >= start_date]
             else:
-                weight_conditions = [Weight.user_id == user_id]
+                weight_conditions = [WeightEntry.user_id == user_id]
                 
             weight_result = await session.execute(
-                select(Weight.weight, Weight.datetime).where(*weight_conditions).order_by(Weight.datetime.desc())
+                select(WeightEntry.weight, WeightEntry.created_at).where(*weight_conditions).order_by(WeightEntry.created_at.desc())
             )
             weight_entries = weight_result.all()
             

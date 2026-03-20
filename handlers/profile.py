@@ -453,7 +453,7 @@ async def save_profile(callback: CallbackQuery, state: FSMContext):
                 user.daily_carbs_goal = daily_carbs
                 user.daily_water_goal = calculate_daily_water(data['weight'])
                 user.daily_steps_goal = 10000
-                user.daily_activity_goal = calculate_daily_activity(data['activity_level'])
+                user.daily_activity_goal = calculate_daily_activity(data)
                 user.updated_at = datetime.now(timezone.utc)
             else:
                 # Создаем нового пользователя
@@ -475,7 +475,7 @@ async def save_profile(callback: CallbackQuery, state: FSMContext):
                     daily_carbs_goal=daily_carbs,
                     daily_water_goal=calculate_daily_water(data['weight']),
                     daily_steps_goal=10000,
-                    daily_activity_goal=calculate_daily_activity(data['activity_level'])
+                    daily_activity_goal=calculate_daily_activity(data)
                 )
                 session.add(user)
             
@@ -491,7 +491,7 @@ async def save_profile(callback: CallbackQuery, state: FSMContext):
 • Углеводы: {daily_carbs} г
 • Вода: {calculate_daily_water(data['weight'])} мл
 • Шаги: 10,000
-• Активность: {calculate_daily_activity(data['activity_level'])} мин
+• Активность: {calculate_daily_activity(data)} мин
 
 🚀 <b>Что дальше?</b>
 • Начните记录ать питание: /food

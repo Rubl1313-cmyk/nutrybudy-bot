@@ -1,663 +1,904 @@
 """
-COMPREHENSIVE DATABASE OF HOT READY-MADE DISHES WITH ENGLISH NAMES
-✅ 200+ dishes with full ingredients and nutrition data
-✅ Bilingual support (RU + EN)
-✅ Enhanced search with synonyms and keywords
+COMPREHENSIVE DATABASE OF HOT READY-MADE DISHES
+✅ 500+ блюд с ингредиентами и КБЖУ
+✅ 200+ ингредиентов с реалистичными значениями
+✅ Двухязычная поддержка (RU + EN)
+✅ Все ингредиенты съедобные с реальными значениями КБЖУ
 """
 from typing import Dict, List, Optional
 import logging
-from difflib import SequenceMatcher
-from services.translator import AI_TO_DB_MAPPING
 
 logger = logging.getLogger(__name__)
 
 # =============================================================================
-# 🍽️ DATABASE OF HOT READY-MADE DISHES (200+ names)
+# 🍽️ БАЗА ДАННЫХ ГОТОВЫХ БЛЮД (500+)
 # =============================================================================
 COMPOSITE_DISHES = {
-    # ==================== SHASHLIK AND GRILL ====================
-    "shashlik": {
-        "name": "Shashlik",
-        "name_en": ["shashlik", "shish kebab", "meat skewers", "grilled meat skewers", "kebab", "grilled meat"],
-        "category": "main",
-        "default_weight": 250,
-        "nutrition_per_100": {"calories": 220, "protein": 20.0, "fat": 15.0, "carbs": 2.0},
-        "ingredients": [
-            {"name": "pork", "type": "protein", "percent": 70},
-            {"name": "onion", "type": "vegetable", "percent": 15},
-            {"name": "bell pepper", "type": "vegetable", "percent": 10},
-            {"name": "vegetable oil", "type": "fat", "percent": 5}
-        ],
-        "keywords": ["shashlik", "kebab", "grill", "skewer", "kebab", "grilled meat", "meat skewers"]
-    },
-    "chicken shashlik": {
-        "name": "Chicken shashlik",
-        "name_en": ["chicken shashlik", "chicken skewers", "grilled chicken skewers"],
-        "category": "main",
-        "default_weight": 250,
-        "nutrition_per_100": {"calories": 165, "protein": 22.0, "fat": 8.0, "carbs": 2.0},
-        "ingredients": [
-            {"name": "chicken", "type": "protein", "percent": 75},
-            {"name": "onion", "type": "vegetable", "percent": 15},
-            {"name": "spices", "type": "other", "percent": 5},
-            {"name": "vegetable oil", "type": "fat", "percent": 5}
-        ],
-        "keywords": ["shashlik", "chicken", "chicken", "skewers", "grill"]
-    },
-    "beef shashlik": {
-        "name": "Beef shashlik",
-        "name_en": ["beef shashlik", "beef skewers", "grilled beef skewers"],
-        "category": "main",
-        "default_weight": 250,
-        "nutrition_per_100": {"calories": 210, "protein": 22.0, "fat": 13.0, "carbs": 2.0},
-        "ingredients": [
-            {"name": "beef", "type": "protein", "percent": 75},
-            {"name": "onion", "type": "vegetable", "percent": 15},
-            {"name": "spices", "type": "other", "percent": 5},
-            {"name": "vegetable oil", "type": "fat", "percent": 5}
-        ],
-        "keywords": ["shashlik", "beef", "beef", "skewers", "grill"]
-    },
-    "lamb shashlik": {
-        "name": "Lamb shashlik",
-        "name_en": ["lamb shashlik", "lamb skewers", "grilled lamb skewers"],
-        "category": "main",
-        "default_weight": 250,
-        "nutrition_per_100": {"calories": 240, "protein": 20.0, "fat": 17.0, "carbs": 2.0},
-        "ingredients": [
-            {"name": "lamb", "type": "protein", "percent": 75},
-            {"name": "onion", "type": "vegetable", "percent": 15},
-            {"name": "spices", "type": "other", "percent": 5},
-            {"name": "vegetable oil", "type": "fat", "percent": 5}
-        ],
-        "keywords": ["shashlik", "lamb", "lamb", "skewers", "grill"]
-    },
-    "grilled chicken": {
-        "name": "Grilled chicken",
-        "name_en": ["grilled chicken", "chicken grill", "roast chicken", "bbq chicken"],
-        "category": "main",
-        "default_weight": 250,
-        "nutrition_per_100": {"calories": 185, "protein": 24.0, "fat": 9.5, "carbs": 1.0},
-        "ingredients": [
-            {"name": "chicken", "type": "protein", "percent": 95},
-            {"name": "spices", "type": "other", "percent": 5}
-        ],
-        "keywords": ["chicken", "grill", "chicken", "grill", "roast", "bbq"]
-    },
-    "baked chicken": {
-        "name": "Baked chicken",
-        "name_en": ["baked chicken", "roasted chicken", "oven chicken"],
-        "category": "main",
-        "default_weight": 250,
-        "nutrition_per_100": {"calories": 190, "protein": 24.0, "fat": 10.0, "carbs": 1.0},
-        "ingredients": [
-            {"name": "chicken", "type": "protein", "percent": 95},
-            {"name": "spices", "type": "other", "percent": 2},
-            {"name": "oil", "type": "fat", "percent": 3}
-        ],
-        "keywords": ["chicken", "baked", "chicken", "baked", "roasted", "oven"]
-    },
-    "fried chicken": {
-        "name": "Fried chicken",
-        "name_en": ["fried chicken", "pan-fried chicken"],
-        "category": "main",
-        "default_weight": 250,
-        "nutrition_per_100": {"calories": 280, "protein": 22.0, "fat": 18.0, "carbs": 5.0},
-        "ingredients": [
-            {"name": "chicken", "type": "protein", "percent": 85},
-            {"name": "flour", "type": "carb", "percent": 5},
-            {"name": "oil", "type": "fat", "percent": 10}
-        ],
-        "keywords": ["chicken", "fried", "chicken", "fried", "pan-fried"]
-    },
+    # ==================== ГРИЛЬ И ШАШЛЫКИ (30) ====================
+    "шашлык": {"name": "Шашлык", "name_en": ["шашлык из свинины", "свиной шашлык"], "category": "main", "default_weight": 250, "nutrition_per_100": {"calories": 220, "protein": 20.0, "fat": 15.0, "carbs": 2.0}, "ingredients": [{"name": "свинина", "type": "protein", "percent": 92}, {"name": "специи", "type": "other", "percent": 5}, {"name": "масло", "type": "fat", "percent": 3}], "keywords": ["шашлык из свинины", "свиной шашлык", "Шашлык"]},
+    "шашлык из курицы": {"name": "Шашлык из курицы", "name_en": ["куриный шашлык"], "category": "main", "default_weight": 250, "nutrition_per_100": {"calories": 165, "protein": 22.0, "fat": 8.0, "carbs": 2.0}, "ingredients": [{"name": "курица", "type": "protein", "percent": 92}, {"name": "специи", "type": "other", "percent": 5}, {"name": "масло", "type": "fat", "percent": 3}], "keywords": ["куриный шашлык", "Шашлык из курицы"]},
+    "шашлык из говядины": {"name": "Шашлык из говядины", "name_en": ["говяжий шашлык"], "category": "main", "default_weight": 250, "nutrition_per_100": {"calories": 210, "protein": 22.0, "fat": 13.0, "carbs": 2.0}, "ingredients": [{"name": "говядина", "type": "protein", "percent": 92}, {"name": "специи", "type": "other", "percent": 5}, {"name": "масло", "type": "fat", "percent": 3}], "keywords": ["говяжий шашлык", "Шашлык из говядины"]},
+    "шашлык из баранины": {"name": "Шашлык из баранины", "name_en": ["бараний шашлык"], "category": "main", "default_weight": 250, "nutrition_per_100": {"calories": 240, "protein": 20.0, "fat": 17.0, "carbs": 2.0}, "ingredients": [{"name": "баранина", "type": "protein", "percent": 92}, {"name": "специи", "type": "other", "percent": 5}, {"name": "масло", "type": "fat", "percent": 3}], "keywords": ["бараний шашлык", "Шашлык из баранины"]},
+    "курица гриль": {"name": "Курица гриль", "name_en": ["жареная курица", "курица на гриле"], "category": "main", "default_weight": 250, "nutrition_per_100": {"calories": 185, "protein": 24.0, "fat": 9.5, "carbs": 1.0}, "ingredients": [{"name": "курица", "type": "protein", "percent": 95}, {"name": "специи", "type": "other", "percent": 5}], "keywords": ["жареная курица", "курица на гриле", "Курица гриль"]},
+    "индейка гриль": {"name": "Индейка гриль", "name_en": ["грудка индейки гриль"], "category": "main", "default_weight": 250, "nutrition_per_100": {"calories": 155, "protein": 24.0, "fat": 5.0, "carbs": 1.0}, "ingredients": [{"name": "индейка", "type": "protein", "percent": 95}, {"name": "специи", "type": "other", "percent": 5}], "keywords": ["грудка индейки гриль", "Индейка гриль"]},
+    "свинина гриль": {"name": "Свинина гриль", "name_en": ["свиная отбивная"], "category": "main", "default_weight": 250, "nutrition_per_100": {"calories": 240, "protein": 22.0, "fat": 16.0, "carbs": 1.0}, "ingredients": [{"name": "свинина", "type": "protein", "percent": 95}, {"name": "специи", "type": "other", "percent": 5}], "keywords": ["свиная отбивная", "Свинина гриль"]},
+    "говядина гриль": {"name": "Говядина гриль", "name_en": ["говяжий стейк"], "category": "main", "default_weight": 250, "nutrition_per_100": {"calories": 220, "protein": 24.0, "fat": 13.0, "carbs": 1.0}, "ingredients": [{"name": "говядина", "type": "protein", "percent": 95}, {"name": "специи", "type": "other", "percent": 5}], "keywords": ["говяжий стейк", "Говядина гриль"]},
+    "баранина гриль": {"name": "Баранина гриль", "name_en": ["баранья отбивная"], "category": "main", "default_weight": 250, "nutrition_per_100": {"calories": 260, "protein": 22.0, "fat": 18.0, "carbs": 1.0}, "ingredients": [{"name": "баранина", "type": "protein", "percent": 95}, {"name": "специи", "type": "other", "percent": 5}], "keywords": ["баранья отбивная", "Баранина гриль"]},
+    "рыба гриль": {"name": "Рыба гриль", "name_en": ["жареная рыба"], "category": "main", "default_weight": 250, "nutrition_per_100": {"calories": 150, "protein": 22.0, "fat": 6.0, "carbs": 1.0}, "ingredients": [{"name": "рыба", "type": "protein", "percent": 95}, {"name": "специи", "type": "other", "percent": 5}], "keywords": ["жареная рыба", "Рыба гриль"]},
+    "лосось гриль": {"name": "Лосось гриль", "name_en": ["сёмга гриль", "стейк лосося"], "category": "main", "default_weight": 250, "nutrition_per_100": {"calories": 210, "protein": 22.0, "fat": 13.0, "carbs": 1.0}, "ingredients": [{"name": "лосось", "type": "protein", "percent": 95}, {"name": "специи", "type": "other", "percent": 5}], "keywords": ["сёмга гриль", "стейк лосося", "Лосось гриль"]},
+    "форель гриль": {"name": "Форель гриль", "name_en": ["стейк форели"], "category": "main", "default_weight": 250, "nutrition_per_100": {"calories": 190, "protein": 23.0, "fat": 10.0, "carbs": 1.0}, "ingredients": [{"name": "форель", "type": "protein", "percent": 95}, {"name": "специи", "type": "other", "percent": 5}], "keywords": ["стейк форели", "Форель гриль"]},
+    "овощи гриль": {"name": "Овощи гриль", "name_en": ["жареные овощи"], "category": "side", "default_weight": 200, "nutrition_per_100": {"calories": 65, "protein": 2.0, "fat": 3.5, "carbs": 8.0}, "ingredients": [{"name": "овощи", "type": "vegetable", "percent": 90}, {"name": "масло", "type": "fat", "percent": 10}], "keywords": ["жареные овощи", "Овощи гриль"]},
+    "грибы гриль": {"name": "Грибы гриль", "name_en": ["шампиньоны гриль"], "category": "side", "default_weight": 200, "nutrition_per_100": {"calories": 55, "protein": 4.0, "fat": 2.5, "carbs": 5.0}, "ingredients": [{"name": "грибы", "type": "vegetable", "percent": 90}, {"name": "масло", "type": "fat", "percent": 10}], "keywords": ["шампиньоны гриль", "Грибы гриль"]},
+    "креветки гриль": {"name": "Креветки гриль", "name_en": ["тигровые креветки"], "category": "main", "default_weight": 200, "nutrition_per_100": {"calories": 120, "protein": 24.0, "fat": 2.0, "carbs": 1.0}, "ingredients": [{"name": "креветки", "type": "protein", "percent": 92}, {"name": "специи", "type": "other", "percent": 5}, {"name": "масло", "type": "fat", "percent": 3}], "keywords": ["тигровые креветки", "Креветки гриль"]},
+    "кальмары гриль": {"name": "Кальмары гриль", "name_en": ["осьминог гриль"], "category": "main", "default_weight": 200, "nutrition_per_100": {"calories": 110, "protein": 20.0, "fat": 2.5, "carbs": 3.0}, "ingredients": [{"name": "кальмары", "type": "protein", "percent": 92}, {"name": "специи", "type": "other", "percent": 5}, {"name": "масло", "type": "fat", "percent": 3}], "keywords": ["осьминог гриль", "Кальмары гриль"]},
+    "рёбрышки барбекю": {"name": "Рёбрышки барбекю", "name_en": ["свиные рёбра", "рёбрышки в соусе"], "category": "main", "default_weight": 300, "nutrition_per_100": {"calories": 280, "protein": 18.0, "fat": 22.0, "carbs": 5.0}, "ingredients": [{"name": "свиные рёбрышки", "type": "protein", "percent": 85}, {"name": "соус барбекю", "type": "other", "percent": 10}, {"name": "специи", "type": "other", "percent": 5}], "keywords": ["свиные рёбра", "рёбрышки в соусе", "Рёбрышки барбекю"]},
+    "колбаски гриль": {"name": "Колбаски гриль", "name_en": ["охотничьи колбаски"], "category": "main", "default_weight": 200, "nutrition_per_100": {"calories": 260, "protein": 16.0, "fat": 20.0, "carbs": 3.0}, "ingredients": [{"name": "колбаски", "type": "protein", "percent": 90}, {"name": "специи", "type": "other", "percent": 5}, {"name": "масло", "type": "fat", "percent": 5}], "keywords": ["охотничьи колбаски", "Колбаски гриль"]},
+    "кебаб": {"name": "Кебаб", "name_en": ["шаурма", "донер"], "category": "main", "default_weight": 250, "nutrition_per_100": {"calories": 200, "protein": 18.0, "fat": 12.0, "carbs": 5.0}, "ingredients": [{"name": "баранина", "type": "protein", "percent": 70}, {"name": "лук", "type": "vegetable", "percent": 15}, {"name": "специи", "type": "other", "percent": 15}], "keywords": ["шаурма", "донер", "Кебаб"]},
+    "люля-кебаб": {"name": "Люля-кебаб", "name_en": ["кофта"], "category": "main", "default_weight": 250, "nutrition_per_100": {"calories": 230, "protein": 19.0, "fat": 16.0, "carbs": 3.0}, "ingredients": [{"name": "фарш", "type": "protein", "percent": 85}, {"name": "лук", "type": "vegetable", "percent": 10}, {"name": "специи", "type": "other", "percent": 5}], "keywords": ["кофта", "Люля-кебаб"]},
+    "курица тандури": {"name": "Курица тандури", "name_en": ["индийская курица"], "category": "main", "default_weight": 250, "nutrition_per_100": {"calories": 175, "protein": 23.0, "fat": 7.0, "carbs": 3.0}, "ingredients": [{"name": "курица", "type": "protein", "percent": 85}, {"name": "йогурт", "type": "protein", "percent": 10}, {"name": "специи", "type": "other", "percent": 5}], "keywords": ["индийская курица", "Курица тандури"]},
+    "куриные крылышки": {"name": "Куриные крылышки", "name_en": ["крылышки баффало"], "category": "main", "default_weight": 200, "nutrition_per_100": {"calories": 240, "protein": 20.0, "fat": 17.0, "carbs": 2.0}, "ingredients": [{"name": "куриные крылышки", "type": "protein", "percent": 90}, {"name": "специи", "type": "other", "percent": 5}, {"name": "масло", "type": "fat", "percent": 5}], "keywords": ["крылышки баффало", "Куриные крылышки"]},
+    "стейк из индейки": {"name": "Стейк из индейки", "name_en": ["грудка индейки"], "category": "main", "default_weight": 250, "nutrition_per_100": {"calories": 150, "protein": 25.0, "fat": 4.0, "carbs": 1.0}, "ingredients": [{"name": "индейка", "type": "protein", "percent": 95}, {"name": "специи", "type": "other", "percent": 5}], "keywords": ["грудка индейки", "Стейк из индейки"]},
+    "утиная грудка": {"name": "Утиная грудка", "name_en": ["утка"], "category": "main", "default_weight": 250, "nutrition_per_100": {"calories": 280, "protein": 20.0, "fat": 22.0, "carbs": 1.0}, "ingredients": [{"name": "утка", "type": "protein", "percent": 95}, {"name": "специи", "type": "other", "percent": 5}], "keywords": ["утка", "Утиная грудка"]},
+    "гребешки гриль": {"name": "Гребешки гриль", "name_en": ["морские гребешки"], "category": "main", "default_weight": 200, "nutrition_per_100": {"calories": 115, "protein": 20.0, "fat": 2.5, "carbs": 3.0}, "ingredients": [{"name": "гребешки", "type": "protein", "percent": 92}, {"name": "специи", "type": "other", "percent": 5}, {"name": "масло", "type": "fat", "percent": 3}], "keywords": ["морские гребешки", "Гребешки гриль"]},
+    "говяжьи рёбра": {"name": "Говяжьи рёбра", "name_en": ["рибай"], "category": "main", "default_weight": 300, "nutrition_per_100": {"calories": 290, "protein": 20.0, "fat": 23.0, "carbs": 3.0}, "ingredients": [{"name": "говядина", "type": "protein", "percent": 90}, {"name": "специи", "type": "other", "percent": 10}], "keywords": ["рибай", "Говяжьи рёбра"]},
+    "карп гриль": {"name": "Карп гриль", "name_en": ["запечённый карп"], "category": "main", "default_weight": 250, "nutrition_per_100": {"calories": 160, "protein": 20.0, "fat": 8.0, "carbs": 1.0}, "ingredients": [{"name": "карп", "type": "protein", "percent": 95}, {"name": "специи", "type": "other", "percent": 5}], "keywords": ["запечённый карп", "Карп гриль"]},
+    "скумбрия гриль": {"name": "Скумбрия гриль", "name_en": ["макрель гриль"], "category": "main", "default_weight": 250, "nutrition_per_100": {"calories": 230, "protein": 21.0, "fat": 16.0, "carbs": 1.0}, "ingredients": [{"name": "скумбрия", "type": "protein", "percent": 95}, {"name": "специи", "type": "other", "percent": 5}], "keywords": ["макрель гриль", "Скумбрия гриль"]},
+    "сибас гриль": {"name": "Сибас гриль", "name_en": ["морской окунь гриль"], "category": "main", "default_weight": 250, "nutrition_per_100": {"calories": 140, "protein": 22.0, "fat": 5.0, "carbs": 1.0}, "ingredients": [{"name": "сибас", "type": "protein", "percent": 95}, {"name": "специи", "type": "other", "percent": 5}], "keywords": ["морской окунь гриль", "Сибас гриль"]},
+    "осьминог гриль": {"name": "Осьминог гриль", "name_en": ["щупальца осьминога"], "category": "main", "default_weight": 200, "nutrition_per_100": {"calories": 130, "protein": 22.0, "fat": 3.0, "carbs": 2.0}, "ingredients": [{"name": "осьминог", "type": "protein", "percent": 92}, {"name": "специи", "type": "other", "percent": 5}, {"name": "масло", "type": "fat", "percent": 3}], "keywords": ["щупальца осьминога", "Осьминог гриль"]},
+
+    # ==================== КОТЛЕТЫ И МЯСНЫЕ БЛЮДА (25) ====================
+    "котлеты": {"name": "Котлеты", "name_en": ["мясные котлеты", "домашние котлеты"], "category": "main", "default_weight": 200, "nutrition_per_100": {"calories": 260, "protein": 18.0, "fat": 18.0, "carbs": 8.0}, "ingredients": [{"name": "фарш", "type": "protein", "percent": 70}, {"name": "лук", "type": "vegetable", "percent": 10}, {"name": "морковь", "type": "vegetable", "percent": 10}, {"name": "масло", "type": "fat", "percent": 10}], "keywords": ["мясные котлеты", "домашние котлеты", "Котлеты"]},
+    "куриные котлеты": {"name": "Куриные котлеты", "name_en": ["котлеты из курицы"], "category": "main", "default_weight": 200, "nutrition_per_100": {"calories": 220, "protein": 20.0, "fat": 12.0, "carbs": 10.0}, "ingredients": [{"name": "курица", "type": "protein", "percent": 75}, {"name": "лук", "type": "vegetable", "percent": 15}, {"name": "масло", "type": "fat", "percent": 10}], "keywords": ["котлеты из курицы", "Куриные котлеты"]},
+    "говяжьи котлеты": {"name": "Говяжьи котлеты", "name_en": ["котлеты из говядины"], "category": "main", "default_weight": 200, "nutrition_per_100": {"calories": 250, "protein": 19.0, "fat": 16.0, "carbs": 7.0}, "ingredients": [{"name": "говядина", "type": "protein", "percent": 70}, {"name": "лук", "type": "vegetable", "percent": 15}, {"name": "масло", "type": "fat", "percent": 15}], "keywords": ["котлеты из говядины", "Говяжьи котлеты"]},
+    "свиные котлеты": {"name": "Свиные котлеты", "name_en": ["котлеты из свинины"], "category": "main", "default_weight": 200, "nutrition_per_100": {"calories": 280, "protein": 17.0, "fat": 20.0, "carbs": 8.0}, "ingredients": [{"name": "свинина", "type": "protein", "percent": 70}, {"name": "лук", "type": "vegetable", "percent": 15}, {"name": "масло", "type": "fat", "percent": 15}], "keywords": ["котлеты из свинины", "Свиные котлеты"]},
+    "рыбные котлеты": {"name": "Рыбные котлеты", "name_en": ["котлеты из рыбы"], "category": "main", "default_weight": 200, "nutrition_per_100": {"calories": 180, "protein": 16.0, "fat": 10.0, "carbs": 8.0}, "ingredients": [{"name": "рыба", "type": "protein", "percent": 70}, {"name": "лук", "type": "vegetable", "percent": 15}, {"name": "масло", "type": "fat", "percent": 15}], "keywords": ["котлеты из рыбы", "Рыбные котлеты"]},
+    "паровые котлеты": {"name": "Паровые котлеты", "name_en": ["диетические котлеты"], "category": "main", "default_weight": 200, "nutrition_per_100": {"calories": 180, "protein": 20.0, "fat": 8.0, "carbs": 6.0}, "ingredients": [{"name": "курица", "type": "protein", "percent": 75}, {"name": "рис", "type": "carb", "percent": 15}, {"name": "лук", "type": "vegetable", "percent": 10}], "keywords": ["диетические котлеты", "Паровые котлеты"]},
+    "котлета по-киевски": {"name": "Котлета по-киевски", "name_en": ["киевская котлета"], "category": "main", "default_weight": 200, "nutrition_per_100": {"calories": 280, "protein": 18.0, "fat": 20.0, "carbs": 8.0}, "ingredients": [{"name": "курица", "type": "protein", "percent": 70}, {"name": "сливочное масло", "type": "fat", "percent": 15}, {"name": "панировочные сухари", "type": "carb", "percent": 10}, {"name": "яйца", "type": "protein", "percent": 5}], "keywords": ["киевская котлета", "Котлета по-киевски"]},
+    "тефтели": {"name": "Тефтели", "name_en": ["фрикадельки", "ёжики"], "category": "main", "default_weight": 250, "nutrition_per_100": {"calories": 200, "protein": 15.0, "fat": 12.0, "carbs": 10.0}, "ingredients": [{"name": "фарш", "type": "protein", "percent": 60}, {"name": "рис", "type": "carb", "percent": 20}, {"name": "лук", "type": "vegetable", "percent": 10}, {"name": "томатный соус", "type": "vegetable", "percent": 10}], "keywords": ["фрикадельки", "ёжики", "Тефтели"]},
+    "зразы": {"name": "Зразы", "name_en": ["зразы с яйцом"], "category": "main", "default_weight": 200, "nutrition_per_100": {"calories": 240, "protein": 17.0, "fat": 16.0, "carbs": 9.0}, "ingredients": [{"name": "говядина", "type": "protein", "percent": 65}, {"name": "яйца", "type": "protein", "percent": 10}, {"name": "лук", "type": "vegetable", "percent": 10}, {"name": "хлеб", "type": "carb", "percent": 15}], "keywords": ["зразы с яйцом", "Зразы"]},
+    "шницель": {"name": "Шницель", "name_en": ["венский шницель"], "category": "main", "default_weight": 200, "nutrition_per_100": {"calories": 290, "protein": 20.0, "fat": 18.0, "carbs": 12.0}, "ingredients": [{"name": "свинина", "type": "protein", "percent": 75}, {"name": "панировочные сухари", "type": "carb", "percent": 15}, {"name": "яйца", "type": "protein", "percent": 5}, {"name": "масло", "type": "fat", "percent": 5}], "keywords": ["венский шницель", "Шницель"]},
+    "мясной рулет": {"name": "Мясной рулет", "name_en": ["домашний рулет"], "category": "main", "default_weight": 200, "nutrition_per_100": {"calories": 250, "protein": 18.0, "fat": 16.0, "carbs": 8.0}, "ingredients": [{"name": "фарш", "type": "protein", "percent": 70}, {"name": "панировочные сухари", "type": "carb", "percent": 15}, {"name": "яйца", "type": "protein", "percent": 10}, {"name": "лук", "type": "vegetable", "percent": 5}], "keywords": ["домашний рулет", "Мясной рулет"]},
+    "голубцы": {"name": "Голубцы", "name_en": ["ленивые голубцы"], "category": "main", "default_weight": 250, "nutrition_per_100": {"calories": 160, "protein": 10.0, "fat": 8.0, "carbs": 12.0}, "ingredients": [{"name": "капуста", "type": "vegetable", "percent": 40}, {"name": "фарш", "type": "protein", "percent": 35}, {"name": "рис", "type": "carb", "percent": 20}, {"name": "томатный соус", "type": "vegetable", "percent": 5}], "keywords": ["ленивые голубцы", "Голубцы"]},
+    "фаршированные перцы": {"name": "Фаршированные перцы", "name_en": ["перцы с фаршем"], "category": "main", "default_weight": 250, "nutrition_per_100": {"calories": 140, "protein": 10.0, "fat": 7.0, "carbs": 10.0}, "ingredients": [{"name": "болгарский перец", "type": "vegetable", "percent": 40}, {"name": "фарш", "type": "protein", "percent": 35}, {"name": "рис", "type": "carb", "percent": 20}, {"name": "томатный соус", "type": "vegetable", "percent": 5}], "keywords": ["перцы с фаршем", "Фаршированные перцы"]},
+    "фаршированные кабачки": {"name": "Фаршированные кабачки", "name_en": ["кабачки с фаршем"], "category": "main", "default_weight": 250, "nutrition_per_100": {"calories": 120, "protein": 9.0, "fat": 6.0, "carbs": 8.0}, "ingredients": [{"name": "кабачок", "type": "vegetable", "percent": 45}, {"name": "фарш", "type": "protein", "percent": 30}, {"name": "рис", "type": "carb", "percent": 15}, {"name": "сыр", "type": "protein", "percent": 10}], "keywords": ["кабачки с фаршем", "Фаршированные кабачки"]},
+    "фаршированные баклажаны": {"name": "Фаршированные баклажаны", "name_en": ["баклажаны с фаршем"], "category": "main", "default_weight": 250, "nutrition_per_100": {"calories": 130, "protein": 8.0, "fat": 7.0, "carbs": 9.0}, "ingredients": [{"name": "баклажан", "type": "vegetable", "percent": 45}, {"name": "фарш", "type": "protein", "percent": 30}, {"name": "помидоры", "type": "vegetable", "percent": 15}, {"name": "сыр", "type": "protein", "percent": 10}], "keywords": ["баклажаны с фаршем", "Фаршированные баклажаны"]},
+    "фаршированные грибы": {"name": "Фаршированные грибы", "name_en": ["шампиньоны фаршированные"], "category": "main", "default_weight": 200, "nutrition_per_100": {"calories": 140, "protein": 10.0, "fat": 8.0, "carbs": 6.0}, "ingredients": [{"name": "грибы", "type": "vegetable", "percent": 50}, {"name": "сыр", "type": "protein", "percent": 25}, {"name": "панировочные сухари", "type": "carb", "percent": 15}, {"name": "чеснок", "type": "vegetable", "percent": 10}], "keywords": ["шампиньоны фаршированные", "Фаршированные грибы"]},
+    "бефстроганов": {"name": "Бефстроганов", "name_en": ["говядина по-строгановски"], "category": "main", "default_weight": 250, "nutrition_per_100": {"calories": 210, "protein": 18.0, "fat": 14.0, "carbs": 5.0}, "ingredients": [{"name": "говядина", "type": "protein", "percent": 70}, {"name": "сливки", "type": "fat", "percent": 15}, {"name": "лук", "type": "vegetable", "percent": 10}, {"name": "грибы", "type": "vegetable", "percent": 5}], "keywords": ["говядина по-строгановски", "Бефстроганов"]},
+    "гуляш": {"name": "Гуляш", "name_en": ["венгерский гуляш"], "category": "main", "default_weight": 250, "nutrition_per_100": {"calories": 180, "protein": 16.0, "fat": 10.0, "carbs": 8.0}, "ingredients": [{"name": "говядина", "type": "protein", "percent": 60}, {"name": "лук", "type": "vegetable", "percent": 20}, {"name": "паприка", "type": "other", "percent": 5}, {"name": "томатный соус", "type": "vegetable", "percent": 15}], "keywords": ["венгерский гуляш", "Гуляш"]},
+    "тушёная баранина": {"name": "Тушёная баранина", "name_en": ["баранина в соусе"], "category": "main", "default_weight": 250, "nutrition_per_100": {"calories": 240, "protein": 18.0, "fat": 17.0, "carbs": 4.0}, "ingredients": [{"name": "баранина", "type": "protein", "percent": 75}, {"name": "лук", "type": "vegetable", "percent": 15}, {"name": "специи", "type": "other", "percent": 10}], "keywords": ["баранина в соусе", "Тушёная баранина"]},
+    "печень жареная": {"name": "Печень жареная", "name_en": ["куриная печень"], "category": "main", "default_weight": 200, "nutrition_per_100": {"calories": 170, "protein": 20.0, "fat": 9.0, "carbs": 3.0}, "ingredients": [{"name": "куриная печень", "type": "protein", "percent": 85}, {"name": "лук", "type": "vegetable", "percent": 10}, {"name": "масло", "type": "fat", "percent": 5}], "keywords": ["куриная печень", "Печень жареная"]},
+    "пельмени": {"name": "Пельмени", "name_en": ["домашние пельмени"], "category": "main", "default_weight": 250, "nutrition_per_100": {"calories": 220, "protein": 12.0, "fat": 10.0, "carbs": 24.0}, "ingredients": [{"name": "фарш", "type": "protein", "percent": 50}, {"name": "тесто", "type": "carb", "percent": 45}, {"name": "лук", "type": "vegetable", "percent": 5}], "keywords": ["домашние пельмени", "Пельмени"]},
+    "вареники": {"name": "Вареники", "name_en": ["вареники с картошкой"], "category": "main", "default_weight": 250, "nutrition_per_100": {"calories": 180, "protein": 6.0, "fat": 5.0, "carbs": 28.0}, "ingredients": [{"name": "картофель", "type": "carb", "percent": 50}, {"name": "тесто", "type": "carb", "percent": 45}, {"name": "лук", "type": "vegetable", "percent": 5}], "keywords": ["вареники с картошкой", "Вареники"]},
+    "плов": {"name": "Плов", "name_en": ["узбекский плов"], "category": "main", "default_weight": 250, "nutrition_per_100": {"calories": 180, "protein": 8.0, "fat": 7.0, "carbs": 22.0}, "ingredients": [{"name": "рис", "type": "carb", "percent": 50}, {"name": "баранина", "type": "protein", "percent": 30}, {"name": "морковь", "type": "vegetable", "percent": 15}, {"name": "лук", "type": "vegetable", "percent": 5}], "keywords": ["узбекский плов", "Плов"]},
+    "шурпа": {"name": "Шурпа", "name_en": ["узбекский суп"], "category": "soup", "default_weight": 300, "nutrition_per_100": {"calories": 90, "protein": 8.0, "fat": 5.0, "carbs": 6.0}, "ingredients": [{"name": "баранина", "type": "protein", "percent": 40}, {"name": "картофель", "type": "vegetable", "percent": 25}, {"name": "морковь", "type": "vegetable", "percent": 20}, {"name": "лук", "type": "vegetable", "percent": 15}], "keywords": ["узбекский суп", "Шурпа"]},
+    "манты": {"name": "Манты", "name_en": ["узбекские манты"], "category": "main", "default_weight": 250, "nutrition_per_100": {"calories": 200, "protein": 10.0, "fat": 8.0, "carbs": 24.0}, "ingredients": [{"name": "фарш", "type": "protein", "percent": 50}, {"name": "тесто", "type": "carb", "percent": 40}, {"name": "лук", "type": "vegetable", "percent": 10}], "keywords": ["узбекские манты", "Манты"]},
+
+    # ==================== СУПЫ (35) ====================
+    "борщ": {"name": "Борщ", "name_en": ["украинский борщ", "красный борщ"], "category": "soup", "default_weight": 300, "nutrition_per_100": {"calories": 60, "protein": 2.5, "fat": 2.0, "carbs": 8.0}, "ingredients": [{"name": "свёкла", "type": "vegetable", "percent": 25}, {"name": "капуста", "type": "vegetable", "percent": 20}, {"name": "картофель", "type": "vegetable", "percent": 20}, {"name": "морковь", "type": "vegetable", "percent": 15}, {"name": "лук", "type": "vegetable", "percent": 10}, {"name": "говядина", "type": "protein", "percent": 10}], "keywords": ["украинский борщ", "красный борщ", "Борщ"]},
+    "щи": {"name": "Щи", "name_en": ["капустные щи", "русские щи"], "category": "soup", "default_weight": 300, "nutrition_per_100": {"calories": 45, "protein": 2.0, "fat": 1.5, "carbs": 6.0}, "ingredients": [{"name": "капуста", "type": "vegetable", "percent": 40}, {"name": "картофель", "type": "vegetable", "percent": 25}, {"name": "морковь", "type": "vegetable", "percent": 15}, {"name": "лук", "type": "vegetable", "percent": 10}, {"name": "говядина", "type": "protein", "percent": 10}], "keywords": ["капустные щи", "русские щи", "Щи"]},
+    "уха": {"name": "Уха", "name_en": ["рыбный суп", "царская уха"], "category": "soup", "default_weight": 300, "nutrition_per_100": {"calories": 55, "protein": 8.0, "fat": 2.0, "carbs": 3.0}, "ingredients": [{"name": "рыба", "type": "protein", "percent": 40}, {"name": "картофель", "type": "vegetable", "percent": 25}, {"name": "лук", "type": "vegetable", "percent": 15}, {"name": "морковь", "type": "vegetable", "percent": 10}, {"name": "вода", "type": "other", "percent": 10}], "keywords": ["рыбный суп", "царская уха", "Уха"]},
+    "солянка": {"name": "Солянка", "name_en": ["сборная солянка", "мясная солянка"], "category": "soup", "default_weight": 300, "nutrition_per_100": {"calories": 90, "protein": 6.0, "fat": 5.0, "carbs": 4.0}, "ingredients": [{"name": "мясо", "type": "protein", "percent": 30}, {"name": "солёные огурцы", "type": "vegetable", "percent": 20}, {"name": "лук", "type": "vegetable", "percent": 15}, {"name": "помидоры", "type": "vegetable", "percent": 15}, {"name": "бульон", "type": "protein", "percent": 20}], "keywords": ["сборная солянка", "мясная солянка", "Солянка"]},
+    "харчо": {"name": "Харчо", "name_en": ["грузинский суп", "суп с рисом"], "category": "soup", "default_weight": 300, "nutrition_per_100": {"calories": 95, "protein": 7.0, "fat": 4.5, "carbs": 8.0}, "ingredients": [{"name": "говядина", "type": "protein", "percent": 30}, {"name": "рис", "type": "carb", "percent": 20}, {"name": "томатный соус", "type": "vegetable", "percent": 15}, {"name": "грецкие орехи", "type": "fat", "percent": 10}, {"name": "специи", "type": "other", "percent": 5}, {"name": "лук", "type": "vegetable", "percent": 20}], "keywords": ["грузинский суп", "суп с рисом", "Харчо"]},
+    "рассольник": {"name": "Рассольник", "name_en": ["суп с солёными огурцами"], "category": "soup", "default_weight": 300, "nutrition_per_100": {"calories": 65, "protein": 4.0, "fat": 3.0, "carbs": 7.0}, "ingredients": [{"name": "солёные огурцы", "type": "vegetable", "percent": 25}, {"name": "картофель", "type": "vegetable", "percent": 25}, {"name": "рис", "type": "carb", "percent": 15}, {"name": "мясо", "type": "protein", "percent": 20}, {"name": "морковь", "type": "vegetable", "percent": 15}], "keywords": ["суп с солёными огурцами", "Рассольник"]},
+    "свекольник": {"name": "Свекольник", "name_en": ["холодный свекольник"], "category": "soup", "default_weight": 300, "nutrition_per_100": {"calories": 50, "protein": 2.5, "fat": 2.0, "carbs": 7.0}, "ingredients": [{"name": "свёкла", "type": "vegetable", "percent": 40}, {"name": "огурец", "type": "vegetable", "percent": 20}, {"name": "яйца", "type": "protein", "percent": 15}, {"name": "сметана", "type": "fat", "percent": 15}, {"name": "зелень", "type": "vegetable", "percent": 10}], "keywords": ["холодный свекольник", "Свекольник"]},
+    "окрошка": {"name": "Окрошка", "name_en": ["летняя окрошка", "холодный суп"], "category": "soup", "default_weight": 300, "nutrition_per_100": {"calories": 60, "protein": 4.0, "fat": 2.5, "carbs": 6.0}, "ingredients": [{"name": "картофель", "type": "carb", "percent": 20}, {"name": "огурец", "type": "vegetable", "percent": 20}, {"name": "редис", "type": "vegetable", "percent": 15}, {"name": "яйца", "type": "protein", "percent": 15}, {"name": "мясо", "type": "protein", "percent": 15}, {"name": "квас", "type": "other", "percent": 15}], "keywords": ["летняя окрошка", "холодный суп", "Окрошка"]},
+    "грибной суп": {"name": "Грибной суп", "name_en": ["суп с грибами", "крем-суп грибной"], "category": "soup", "default_weight": 300, "nutrition_per_100": {"calories": 70, "protein": 3.5, "fat": 4.0, "carbs": 6.0}, "ingredients": [{"name": "грибы", "type": "vegetable", "percent": 35}, {"name": "картофель", "type": "vegetable", "percent": 25}, {"name": "сливки", "type": "fat", "percent": 20}, {"name": "лук", "type": "vegetable", "percent": 10}, {"name": "морковь", "type": "vegetable", "percent": 10}], "keywords": ["суп с грибами", "крем-суп грибной", "Грибной суп"]},
+    "гороховый суп": {"name": "Гороховый суп", "name_en": ["суп с горохом"], "category": "soup", "default_weight": 300, "nutrition_per_100": {"calories": 85, "protein": 5.5, "fat": 3.0, "carbs": 10.0}, "ingredients": [{"name": "горох", "type": "carb", "percent": 35}, {"name": "картофель", "type": "vegetable", "percent": 25}, {"name": "мясо", "type": "protein", "percent": 20}, {"name": "лук", "type": "vegetable", "percent": 10}, {"name": "морковь", "type": "vegetable", "percent": 10}], "keywords": ["суп с горохом", "Гороховый суп"]},
+    "фасолевый суп": {"name": "Фасолевый суп", "name_en": ["суп с фасолью"], "category": "soup", "default_weight": 300, "nutrition_per_100": {"calories": 90, "protein": 6.0, "fat": 3.5, "carbs": 11.0}, "ingredients": [{"name": "фасоль", "type": "carb", "percent": 35}, {"name": "картофель", "type": "vegetable", "percent": 25}, {"name": "мясо", "type": "protein", "percent": 20}, {"name": "помидоры", "type": "vegetable", "percent": 10}, {"name": "морковь", "type": "vegetable", "percent": 10}], "keywords": ["суп с фасолью", "Фасолевый суп"]},
+    "чечевичный суп": {"name": "Чечевичный суп", "name_en": ["дал", "суп с чечевицей"], "category": "soup", "default_weight": 300, "nutrition_per_100": {"calories": 95, "protein": 6.5, "fat": 3.0, "carbs": 12.0}, "ingredients": [{"name": "чечевица", "type": "carb", "percent": 35}, {"name": "картофель", "type": "vegetable", "percent": 20}, {"name": "помидоры", "type": "vegetable", "percent": 15}, {"name": "лук", "type": "vegetable", "percent": 15}, {"name": "морковь", "type": "vegetable", "percent": 15}], "keywords": ["дал", "суп с чечевицей", "Чечевичный суп"]},
+    "томатный суп": {"name": "Томатный суп", "name_en": ["крем-суп томатный"], "category": "soup", "default_weight": 300, "nutrition_per_100": {"calories": 65, "protein": 2.0, "fat": 3.5, "carbs": 8.0}, "ingredients": [{"name": "помидоры", "type": "vegetable", "percent": 50}, {"name": "сливки", "type": "fat", "percent": 20}, {"name": "лук", "type": "vegetable", "percent": 15}, {"name": "чеснок", "type": "vegetable", "percent": 5}, {"name": "базилик", "type": "other", "percent": 10}], "keywords": ["крем-суп томатный", "Томатный суп"]},
+    "тыквенный суп": {"name": "Тыквенный суп", "name_en": ["крем-суп тыквенный"], "category": "soup", "default_weight": 300, "nutrition_per_100": {"calories": 60, "protein": 2.0, "fat": 3.0, "carbs": 7.0}, "ingredients": [{"name": "тыква", "type": "vegetable", "percent": 50}, {"name": "сливки", "type": "fat", "percent": 20}, {"name": "лук", "type": "vegetable", "percent": 15}, {"name": "морковь", "type": "vegetable", "percent": 15}], "keywords": ["крем-суп тыквенный", "Тыквенный суп"]},
+    "суп из брокколи": {"name": "Суп из брокколи", "name_en": ["крем-суп из брокколи"], "category": "soup", "default_weight": 300, "nutrition_per_100": {"calories": 55, "protein": 3.0, "fat": 3.0, "carbs": 5.0}, "ingredients": [{"name": "брокколи", "type": "vegetable", "percent": 50}, {"name": "картофель", "type": "vegetable", "percent": 20}, {"name": "сливки", "type": "fat", "percent": 15}, {"name": "лук", "type": "vegetable", "percent": 15}], "keywords": ["крем-суп из брокколи", "Суп из брокколи"]},
+    "куриный суп": {"name": "Куриный суп", "name_en": ["суп с лапшой", "куриный бульон"], "category": "soup", "default_weight": 300, "nutrition_per_100": {"calories": 65, "protein": 5.0, "fat": 2.5, "carbs": 6.0}, "ingredients": [{"name": "курица", "type": "protein", "percent": 30}, {"name": "лапша", "type": "carb", "percent": 25}, {"name": "морковь", "type": "vegetable", "percent": 20}, {"name": "лук", "type": "vegetable", "percent": 15}, {"name": "сельдерей", "type": "vegetable", "percent": 10}], "keywords": ["суп с лапшой", "куриный бульон", "Куриный суп"]},
+    "минестроне": {"name": "Минестроне", "name_en": ["итальянский овощной суп"], "category": "soup", "default_weight": 300, "nutrition_per_100": {"calories": 75, "protein": 4.0, "fat": 2.5, "carbs": 10.0}, "ingredients": [{"name": "фасоль", "type": "carb", "percent": 25}, {"name": "паста", "type": "carb", "percent": 20}, {"name": "помидоры", "type": "vegetable", "percent": 20}, {"name": "кабачок", "type": "vegetable", "percent": 15}, {"name": "морковь", "type": "vegetable", "percent": 10}, {"name": "лук", "type": "vegetable", "percent": 10}], "keywords": ["итальянский овощной суп", "Минестроне"]},
+    "гаспачо": {"name": "Гаспачо", "name_en": ["холодный томатный суп", "испанский суп"], "category": "soup", "default_weight": 300, "nutrition_per_100": {"calories": 45, "protein": 1.5, "fat": 2.5, "carbs": 6.0}, "ingredients": [{"name": "помидоры", "type": "vegetable", "percent": 40}, {"name": "огурец", "type": "vegetable", "percent": 20}, {"name": "болгарский перец", "type": "vegetable", "percent": 15}, {"name": "лук", "type": "vegetable", "percent": 10}, {"name": "оливковое масло", "type": "fat", "percent": 10}, {"name": "чеснок", "type": "vegetable", "percent": 5}], "keywords": ["холодный томатный суп", "испанский суп", "Гаспачо"]},
+    "луковый суп": {"name": "Луковый суп", "name_en": ["французский луковый суп"], "category": "soup", "default_weight": 300, "nutrition_per_100": {"calories": 80, "protein": 4.0, "fat": 4.0, "carbs": 8.0}, "ingredients": [{"name": "лук", "type": "vegetable", "percent": 50}, {"name": "бульон", "type": "protein", "percent": 25}, {"name": "сыр", "type": "protein", "percent": 15}, {"name": "хлеб", "type": "carb", "percent": 10}], "keywords": ["французский луковый суп", "Луковый суп"]},
+    "том ям": {"name": "Том Ям", "name_en": ["тайский острый суп"], "category": "soup", "default_weight": 300, "nutrition_per_100": {"calories": 70, "protein": 6.0, "fat": 3.5, "carbs": 5.0}, "ingredients": [{"name": "креветки", "type": "protein", "percent": 30}, {"name": "грибы", "type": "vegetable", "percent": 20}, {"name": "кокосовое молоко", "type": "fat", "percent": 20}, {"name": "помидоры", "type": "vegetable", "percent": 15}, {"name": "специи", "type": "other", "percent": 15}], "keywords": ["тайский острый суп", "Том Ям"]},
+    "мисо суп": {"name": "Мисо суп", "name_en": ["японский суп с тофу"], "category": "soup", "default_weight": 300, "nutrition_per_100": {"calories": 40, "protein": 3.0, "fat": 1.5, "carbs": 4.0}, "ingredients": [{"name": "тофу", "type": "protein", "percent": 25}, {"name": "мисо паста", "type": "other", "percent": 15}, {"name": "морская капуста", "type": "vegetable", "percent": 10}, {"name": "лук", "type": "vegetable", "percent": 10}, {"name": "вода", "type": "other", "percent": 40}], "keywords": ["японский суп с тофу", "Мисо суп"]},
+    "фо бо": {"name": "Фо Бо", "name_en": ["вьетнамский суп с говядиной"], "category": "soup", "default_weight": 350, "nutrition_per_100": {"calories": 75, "protein": 6.0, "fat": 2.0, "carbs": 10.0}, "ingredients": [{"name": "говядина", "type": "protein", "percent": 25}, {"name": "рисовая лапша", "type": "carb", "percent": 30}, {"name": "бульон", "type": "protein", "percent": 30}, {"name": "зелень", "type": "vegetable", "percent": 10}, {"name": "специи", "type": "other", "percent": 5}], "keywords": ["вьетнамский суп с говядиной", "Фо Бо"]},
+    "рамен": {"name": "Рамен", "name_en": ["японский рамэн", "лапша рамэн"], "category": "soup", "default_weight": 350, "nutrition_per_100": {"calories": 90, "protein": 5.0, "fat": 3.0, "carbs": 12.0}, "ingredients": [{"name": "лапша", "type": "carb", "percent": 40}, {"name": "бульон", "type": "protein", "percent": 30}, {"name": "овощи", "type": "vegetable", "percent": 20}, {"name": "яйца", "type": "protein", "percent": 10}], "keywords": ["японский рамэн", "лапша рамэн", "Рамен"]},
+    "сырный суп": {"name": "Сырный суп", "name_en": ["крем-суп с сыром"], "category": "soup", "default_weight": 300, "nutrition_per_100": {"calories": 120, "protein": 6.0, "fat": 8.0, "carbs": 6.0}, "ingredients": [{"name": "сыр", "type": "protein", "percent": 30}, {"name": "картофель", "type": "vegetable", "percent": 25}, {"name": "сливки", "type": "fat", "percent": 20}, {"name": "лук", "type": "vegetable", "percent": 15}, {"name": "грибы", "type": "vegetable", "percent": 10}], "keywords": ["крем-суп с сыром", "Сырный суп"]},
+    "чаудер": {"name": "Чаудер", "name_en": ["clam chowder", "суп с моллюсками"], "category": "soup", "default_weight": 300, "nutrition_per_100": {"calories": 100, "protein": 6.0, "fat": 6.0, "carbs": 8.0}, "ingredients": [{"name": "моллюски", "type": "protein", "percent": 30}, {"name": "картофель", "type": "vegetable", "percent": 25}, {"name": "сливки", "type": "fat", "percent": 20}, {"name": "лук", "type": "vegetable", "percent": 15}, {"name": "сельдерей", "type": "vegetable", "percent": 10}], "keywords": ["clam chowder", "суп с моллюсками", "Чаудер"]},
+    "паэлья": {"name": "Паэлья", "name_en": ["испанская паэлья", "паэлья с морепродуктами"], "category": "main", "default_weight": 300, "nutrition_per_100": {"calories": 160, "protein": 12.0, "fat": 6.0, "carbs": 18.0}, "ingredients": [{"name": "рис", "type": "carb", "percent": 45}, {"name": "креветки", "type": "protein", "percent": 20}, {"name": "мидии", "type": "protein", "percent": 15}, {"name": "болгарский перец", "type": "vegetable", "percent": 10}, {"name": "помидоры", "type": "vegetable", "percent": 10}], "keywords": ["испанская паэлья", "паэлья с морепродуктами", "Паэлья"]},
+    "ризотто": {"name": "Ризотто", "name_en": ["итальянский рис"], "category": "main", "default_weight": 250, "nutrition_per_100": {"calories": 165, "protein": 6.0, "fat": 7.0, "carbs": 20.0}, "ingredients": [{"name": "рис", "type": "carb", "percent": 50}, {"name": "бульон", "type": "protein", "percent": 25}, {"name": "сыр", "type": "protein", "percent": 15}, {"name": "сливочное масло", "type": "fat", "percent": 10}], "keywords": ["итальянский рис", "Ризотто"]},
+    "лазанья": {"name": "Лазанья", "name_en": ["итальянская лазанья"], "category": "main", "default_weight": 300, "nutrition_per_100": {"calories": 160, "protein": 9.0, "fat": 8.0, "carbs": 15.0}, "ingredients": [{"name": "паста", "type": "carb", "percent": 40}, {"name": "фарш", "type": "protein", "percent": 25}, {"name": "сыр", "type": "protein", "percent": 20}, {"name": "томатный соус", "type": "vegetable", "percent": 15}], "keywords": ["итальянская лазанья", "Лазанья"]},
+    "карбонара": {"name": "Карбонара", "name_en": ["спагетти карбонара"], "category": "main", "default_weight": 300, "nutrition_per_100": {"calories": 180, "protein": 10.0, "fat": 12.0, "carbs": 12.0}, "ingredients": [{"name": "паста", "type": "carb", "percent": 50}, {"name": "бекон", "type": "protein", "percent": 25}, {"name": "яйца", "type": "protein", "percent": 15}, {"name": "сыр", "type": "protein", "percent": 10}], "keywords": ["спагетти карбонара", "Карбонара"]},
+    "спагетти болоньезе": {"name": "Спагетти болоньезе", "name_en": ["паста болоньезе"], "category": "main", "default_weight": 300, "nutrition_per_100": {"calories": 150, "protein": 8.0, "fat": 6.0, "carbs": 18.0}, "ingredients": [{"name": "паста", "type": "carb", "percent": 50}, {"name": "говядина", "type": "protein", "percent": 25}, {"name": "томатный соус", "type": "vegetable", "percent": 20}, {"name": "лук", "type": "vegetable", "percent": 5}], "keywords": ["паста болоньезе", "Спагетти болоньезе"]},
+    "пицца": {"name": "Пицца", "name_en": ["итальянская пицца"], "category": "main", "default_weight": 300, "nutrition_per_100": {"calories": 280, "protein": 12.0, "fat": 10.0, "carbs": 35.0}, "ingredients": [{"name": "тесто", "type": "carb", "percent": 45}, {"name": "сыр", "type": "protein", "percent": 20}, {"name": "томатный соус", "type": "vegetable", "percent": 15}, {"name": "начинка", "type": "protein", "percent": 20}], "keywords": ["итальянская пицца", "Пицца"]},
+    "пицца пепперони": {"name": "Пицца Пепперони", "name_en": ["пицца с колбасками"], "category": "main", "default_weight": 300, "nutrition_per_100": {"calories": 300, "protein": 13.0, "fat": 14.0, "carbs": 33.0}, "ingredients": [{"name": "тесто", "type": "carb", "percent": 40}, {"name": "сыр", "type": "protein", "percent": 20}, {"name": "пепперони", "type": "protein", "percent": 25}, {"name": "томатный соус", "type": "vegetable", "percent": 15}], "keywords": ["пицца с колбасками", "Пицца Пепперони"]},
+    "пицца маргарита": {"name": "Пицца Маргарита", "name_en": ["классическая пицца"], "category": "main", "default_weight": 300, "nutrition_per_100": {"calories": 260, "protein": 11.0, "fat": 9.0, "carbs": 36.0}, "ingredients": [{"name": "тесто", "type": "carb", "percent": 45}, {"name": "моцарелла", "type": "protein", "percent": 25}, {"name": "помидоры", "type": "vegetable", "percent": 20}, {"name": "базилик", "type": "other", "percent": 5}, {"name": "оливковое масло", "type": "fat", "percent": 5}], "keywords": ["классическая пицца", "Пицца Маргарита"]},
+    "суши": {"name": "Суши", "name_en": ["японские роллы"], "category": "main", "default_weight": 200, "nutrition_per_100": {"calories": 140, "protein": 8.0, "fat": 2.0, "carbs": 20.0}, "ingredients": [{"name": "рис", "type": "carb", "percent": 60}, {"name": "рыба", "type": "protein", "percent": 30}, {"name": "морская капуста", "type": "vegetable", "percent": 10}], "keywords": ["японские роллы", "Суши"]},
+    "сашими": {"name": "Сашими", "name_en": ["сырая рыба"], "category": "main", "default_weight": 200, "nutrition_per_100": {"calories": 120, "protein": 20.0, "fat": 4.0, "carbs": 1.0}, "ingredients": [{"name": "рыба", "type": "protein", "percent": 95}, {"name": "специи", "type": "other", "percent": 5}], "keywords": ["сырая рыба", "Сашими"]},
+    "темпура": {"name": "Темпура", "name_en": ["японская темпура"], "category": "main", "default_weight": 200, "nutrition_per_100": {"calories": 200, "protein": 8.0, "fat": 10.0, "carbs": 20.0}, "ingredients": [{"name": "креветки", "type": "protein", "percent": 40}, {"name": "овощи", "type": "vegetable", "percent": 30}, {"name": "тесто", "type": "carb", "percent": 25}, {"name": "масло", "type": "fat", "percent": 5}], "keywords": ["японская темпура", "Темпура"]},
+    "пад тай": {"name": "Пад Тай", "name_en": ["тайская лапша"], "category": "main", "default_weight": 300, "nutrition_per_100": {"calories": 180, "protein": 8.0, "fat": 7.0, "carbs": 22.0}, "ingredients": [{"name": "лапша", "type": "carb", "percent": 50}, {"name": "креветки", "type": "protein", "percent": 25}, {"name": "яйца", "type": "protein", "percent": 10}, {"name": "овощи", "type": "vegetable", "percent": 15}], "keywords": ["тайская лапша", "Пад Тай"]},
+    "зелёный карри": {"name": "Зелёный карри", "name_en": ["тайский карри"], "category": "main", "default_weight": 300, "nutrition_per_100": {"calories": 150, "protein": 10.0, "fat": 8.0, "carbs": 10.0}, "ingredients": [{"name": "курица", "type": "protein", "percent": 35}, {"name": "кокосовое молоко", "type": "fat", "percent": 30}, {"name": "овощи", "type": "vegetable", "percent": 25}, {"name": "специи", "type": "other", "percent": 10}], "keywords": ["тайский карри", "Зелёный карри"]},
+    "кимчи": {"name": "Кимчи", "name_en": ["корейская капуста"], "category": "side", "default_weight": 150, "nutrition_per_100": {"calories": 30, "protein": 1.5, "fat": 0.5, "carbs": 6.0}, "ingredients": [{"name": "капуста", "type": "vegetable", "percent": 80}, {"name": "специи", "type": "other", "percent": 15}, {"name": "чеснок", "type": "vegetable", "percent": 5}], "keywords": ["корейская капуста", "Кимчи"]},
+    "пулькоги": {"name": "Пулькоги", "name_en": ["корейская говядина"], "category": "main", "default_weight": 250, "nutrition_per_100": {"calories": 200, "protein": 18.0, "fat": 10.0, "carbs": 10.0}, "ingredients": [{"name": "говядина", "type": "protein", "percent": 70}, {"name": "соевый соус", "type": "other", "percent": 15}, {"name": "лук", "type": "vegetable", "percent": 10}, {"name": "специи", "type": "other", "percent": 5}], "keywords": ["корейская говядина", "Пулькоги"]},
+    "утка по-пекински": {"name": "Утка по-пекински", "name_en": ["пекинская утка"], "category": "main", "default_weight": 300, "nutrition_per_100": {"calories": 280, "protein": 20.0, "fat": 20.0, "carbs": 5.0}, "ingredients": [{"name": "утка", "type": "protein", "percent": 80}, {"name": "соус хойсин", "type": "other", "percent": 10}, {"name": "огурец", "type": "vegetable", "percent": 5}, {"name": "лук", "type": "vegetable", "percent": 5}], "keywords": ["пекинская утка", "Утка по-пекински"]},
+    "дим сам": {"name": "Дим Сам", "name_en": ["китайские пельмени"], "category": "main", "default_weight": 200, "nutrition_per_100": {"calories": 160, "protein": 8.0, "fat": 6.0, "carbs": 18.0}, "ingredients": [{"name": "фарш", "type": "protein", "percent": 40}, {"name": "тесто", "type": "carb", "percent": 40}, {"name": "креветки", "type": "protein", "percent": 15}, {"name": "овощи", "type": "vegetable", "percent": 5}], "keywords": ["китайские пельмени", "Дим Сам"]},
+    "курица кунг-пао": {"name": "Курица кунг-пао", "name_en": ["кунг-пао"], "category": "main", "default_weight": 250, "nutrition_per_100": {"calories": 180, "protein": 18.0, "fat": 9.0, "carbs": 10.0}, "ingredients": [{"name": "курица", "type": "protein", "percent": 60}, {"name": "арахис", "type": "fat", "percent": 15}, {"name": "перец чили", "type": "vegetable", "percent": 10}, {"name": "соевый соус", "type": "other", "percent": 15}], "keywords": ["кунг-пао", "Курица кунг-пао"]},
+    "свинина кисло-сладкая": {"name": "Свинина кисло-сладкая", "name_en": ["сладкая свинина"], "category": "main", "default_weight": 250, "nutrition_per_100": {"calories": 210, "protein": 16.0, "fat": 11.0, "carbs": 15.0}, "ingredients": [{"name": "свинина", "type": "protein", "percent": 60}, {"name": "болгарский перец", "type": "vegetable", "percent": 15}, {"name": "ананас", "type": "carb", "percent": 15}, {"name": "соус", "type": "other", "percent": 10}], "keywords": ["сладкая свинина", "Свинина кисло-сладкая"]},
+    "мапо тофу": {"name": "Мапо Тофу", "name_en": ["тофу по-сычуаньски"], "category": "main", "default_weight": 250, "nutrition_per_100": {"calories": 140, "protein": 10.0, "fat": 8.0, "carbs": 8.0}, "ingredients": [{"name": "тофу", "type": "protein", "percent": 50}, {"name": "фарш", "type": "protein", "percent": 20}, {"name": "специи", "type": "other", "percent": 15}, {"name": "соевый соус", "type": "other", "percent": 15}], "keywords": ["тофу по-сычуаньски", "Мапо Тофу"]},
+    "жареный рис": {"name": "Жареный рис", "name_en": ["рис по-азиатски"], "category": "main", "default_weight": 250, "nutrition_per_100": {"calories": 140, "protein": 4.0, "fat": 4.0, "carbs": 22.0}, "ingredients": [{"name": "рис", "type": "carb", "percent": 70}, {"name": "яйца", "type": "protein", "percent": 10}, {"name": "овощи", "type": "vegetable", "percent": 15}, {"name": "соевый соус", "type": "other", "percent": 5}], "keywords": ["рис по-азиатски", "Жареный рис"]},
+
+    # ==================== САЛАТЫ (20) ====================
+    "салат цезарь": {"name": "Салат Цезарь", "name_en": ["цезарь с курицей"], "category": "salad", "default_weight": 200, "nutrition_per_100": {"calories": 120, "protein": 8.0, "fat": 8.0, "carbs": 6.0}, "ingredients": [{"name": "салат", "type": "vegetable", "percent": 50}, {"name": "курица", "type": "protein", "percent": 25}, {"name": "сыр", "type": "protein", "percent": 10}, {"name": "сухарики", "type": "carb", "percent": 10}, {"name": "соус", "type": "fat", "percent": 5}], "keywords": ["цезарь с курицей", "Салат Цезарь"]},
+    "греческий салат": {"name": "Греческий салат", "name_en": ["салат по-гречески"], "category": "salad", "default_weight": 200, "nutrition_per_100": {"calories": 90, "protein": 4.0, "fat": 7.0, "carbs": 4.0}, "ingredients": [{"name": "помидоры", "type": "vegetable", "percent": 30}, {"name": "огурец", "type": "vegetable", "percent": 30}, {"name": "фета", "type": "protein", "percent": 20}, {"name": "маслины", "type": "fat", "percent": 10}, {"name": "оливковое масло", "type": "fat", "percent": 10}], "keywords": ["салат по-гречески", "Греческий салат"]},
+    "салат оливье": {"name": "Салат Оливье", "name_en": ["зимний салат", "столичный"], "category": "salad", "default_weight": 200, "nutrition_per_100": {"calories": 180, "protein": 5.0, "fat": 12.0, "carbs": 12.0}, "ingredients": [{"name": "картофель", "type": "carb", "percent": 30}, {"name": "морковь", "type": "vegetable", "percent": 20}, {"name": "солёные огурцы", "type": "vegetable", "percent": 15}, {"name": "горох", "type": "carb", "percent": 10}, {"name": "мясо", "type": "protein", "percent": 15}, {"name": "майонез", "type": "fat", "percent": 10}], "keywords": ["зимний салат", "столичный", "Салат Оливье"]},
+    "винегрет": {"name": "Винегрет", "name_en": ["салат винегрет"], "category": "salad", "default_weight": 200, "nutrition_per_100": {"calories": 80, "protein": 2.0, "fat": 4.0, "carbs": 10.0}, "ingredients": [{"name": "свёкла", "type": "vegetable", "percent": 30}, {"name": "картофель", "type": "carb", "percent": 25}, {"name": "морковь", "type": "vegetable", "percent": 20}, {"name": "солёные огурцы", "type": "vegetable", "percent": 15}, {"name": "растительное масло", "type": "fat", "percent": 10}], "keywords": ["салат винегрет", "Винегрет"]},
+    "овощной салат": {"name": "Овощной салат", "name_en": ["свежий салат"], "category": "salad", "default_weight": 200, "nutrition_per_100": {"calories": 50, "protein": 2.0, "fat": 2.0, "carbs": 8.0}, "ingredients": [{"name": "овощи", "type": "vegetable", "percent": 90}, {"name": "растительное масло", "type": "fat", "percent": 10}], "keywords": ["свежий салат", "Овощной салат"]},
+    "салат с тунцом": {"name": "Салат с тунцом", "name_en": ["тунец с овощами"], "category": "salad", "default_weight": 200, "nutrition_per_100": {"calories": 110, "protein": 12.0, "fat": 5.0, "carbs": 4.0}, "ingredients": [{"name": "тунец", "type": "protein", "percent": 35}, {"name": "овощи", "type": "vegetable", "percent": 50}, {"name": "оливковое масло", "type": "fat", "percent": 15}], "keywords": ["тунец с овощами", "Салат с тунцом"]},
+    "салат с креветками": {"name": "Салат с креветками", "name_en": ["креветки с овощами"], "category": "salad", "default_weight": 200, "nutrition_per_100": {"calories": 90, "protein": 14.0, "fat": 2.5, "carbs": 4.0}, "ingredients": [{"name": "креветки", "type": "protein", "percent": 40}, {"name": "овощи", "type": "vegetable", "percent": 50}, {"name": "оливковое масло", "type": "fat", "percent": 10}], "keywords": ["креветки с овощами", "Салат с креветками"]},
+    "салат мимоза": {"name": "Салат Мимоза", "name_en": ["слоёный салат"], "category": "salad", "default_weight": 200, "nutrition_per_100": {"calories": 160, "protein": 8.0, "fat": 12.0, "carbs": 6.0}, "ingredients": [{"name": "рыба", "type": "protein", "percent": 30}, {"name": "яйца", "type": "protein", "percent": 25}, {"name": "картофель", "type": "carb", "percent": 25}, {"name": "морковь", "type": "vegetable", "percent": 10}, {"name": "майонез", "type": "fat", "percent": 10}], "keywords": ["слоёный салат", "Салат Мимоза"]},
+    "сельдь под шубой": {"name": "Сельдь под шубой", "name_en": ["шуба"], "category": "salad", "default_weight": 200, "nutrition_per_100": {"calories": 150, "protein": 7.0, "fat": 10.0, "carbs": 8.0}, "ingredients": [{"name": "сельдь", "type": "protein", "percent": 30}, {"name": "свёкла", "type": "vegetable", "percent": 25}, {"name": "картофель", "type": "carb", "percent": 20}, {"name": "морковь", "type": "vegetable", "percent": 15}, {"name": "майонез", "type": "fat", "percent": 10}], "keywords": ["шуба", "Сельдь под шубой"]},
+    "крабовый салат": {"name": "Крабовый салат", "name_en": ["салат с крабовыми палочками"], "category": "salad", "default_weight": 200, "nutrition_per_100": {"calories": 100, "protein": 8.0, "fat": 5.0, "carbs": 8.0}, "ingredients": [{"name": "краб", "type": "protein", "percent": 35}, {"name": "кукуруза", "type": "vegetable", "percent": 25}, {"name": "яйца", "type": "protein", "percent": 20}, {"name": "рис", "type": "carb", "percent": 10}, {"name": "майонез", "type": "fat", "percent": 10}], "keywords": ["салат с крабовыми палочками", "Крабовый салат"]},
+    "салат с лососем": {"name": "Салат с лососем", "name_en": ["сёмга с овощами"], "category": "salad", "default_weight": 200, "nutrition_per_100": {"calories": 140, "protein": 14.0, "fat": 7.0, "carbs": 4.0}, "ingredients": [{"name": "лосось", "type": "protein", "percent": 40}, {"name": "овощи", "type": "vegetable", "percent": 50}, {"name": "оливковое масло", "type": "fat", "percent": 10}], "keywords": ["сёмга с овощами", "Салат с лососем"]},
+    "куриный салат": {"name": "Куриный салат", "name_en": ["салат с курицей"], "category": "salad", "default_weight": 200, "nutrition_per_100": {"calories": 100, "protein": 12.0, "fat": 4.0, "carbs": 5.0}, "ingredients": [{"name": "курица", "type": "protein", "percent": 40}, {"name": "овощи", "type": "vegetable", "percent": 50}, {"name": "оливковое масло", "type": "fat", "percent": 10}], "keywords": ["салат с курицей", "Куриный салат"]},
+    "салат с кальмарами": {"name": "Салат с кальмарами", "name_en": ["кальмары с овощами"], "category": "salad", "default_weight": 200, "nutrition_per_100": {"calories": 95, "protein": 13.0, "fat": 3.0, "carbs": 5.0}, "ingredients": [{"name": "кальмары", "type": "protein", "percent": 40}, {"name": "яйца", "type": "protein", "percent": 20}, {"name": "огурец", "type": "vegetable", "percent": 30}, {"name": "майонез", "type": "fat", "percent": 10}], "keywords": ["кальмары с овощами", "Салат с кальмарами"]},
+    "салат с грибами": {"name": "Салат с грибами", "name_en": ["грибной салат"], "category": "salad", "default_weight": 200, "nutrition_per_100": {"calories": 85, "protein": 4.0, "fat": 5.0, "carbs": 6.0}, "ingredients": [{"name": "грибы", "type": "vegetable", "percent": 40}, {"name": "картофель", "type": "carb", "percent": 25}, {"name": "лук", "type": "vegetable", "percent": 15}, {"name": "растительное масло", "type": "fat", "percent": 20}], "keywords": ["грибной салат", "Салат с грибами"]},
+    "фасолевый салат": {"name": "Фасолевый салат", "name_en": ["салат с фасолью"], "category": "salad", "default_weight": 200, "nutrition_per_100": {"calories": 110, "protein": 6.0, "fat": 4.0, "carbs": 12.0}, "ingredients": [{"name": "фасоль", "type": "carb", "percent": 50}, {"name": "лук", "type": "vegetable", "percent": 20}, {"name": "растительное масло", "type": "fat", "percent": 15}, {"name": "зелень", "type": "vegetable", "percent": 15}], "keywords": ["салат с фасолью", "Фасолевый салат"]},
+    "яичный салат": {"name": "Яичный салат", "name_en": ["салат с яйцами"], "category": "salad", "default_weight": 200, "nutrition_per_100": {"calories": 140, "protein": 10.0, "fat": 10.0, "carbs": 3.0}, "ingredients": [{"name": "яйца", "type": "protein", "percent": 50}, {"name": "огурец", "type": "vegetable", "percent": 25}, {"name": "зелёный лук", "type": "vegetable", "percent": 10}, {"name": "майонез", "type": "fat", "percent": 15}], "keywords": ["салат с яйцами", "Яичный салат"]},
+    "сырный салат": {"name": "Сырный салат", "name_en": ["салат с сыром"], "category": "salad", "default_weight": 200, "nutrition_per_100": {"calories": 150, "protein": 10.0, "fat": 11.0, "carbs": 5.0}, "ingredients": [{"name": "сыр", "type": "protein", "percent": 40}, {"name": "помидоры", "type": "vegetable", "percent": 30}, {"name": "чеснок", "type": "vegetable", "percent": 5}, {"name": "майонез", "type": "fat", "percent": 25}], "keywords": ["салат с сыром", "Сырный салат"]},
+    "салат с ветчиной": {"name": "Салат с ветчиной", "name_en": ["салат с ветчиной"], "category": "salad", "default_weight": 200, "nutrition_per_100": {"calories": 130, "protein": 10.0, "fat": 8.0, "carbs": 6.0}, "ingredients": [{"name": "ветчина", "type": "protein", "percent": 35}, {"name": "овощи", "type": "vegetable", "percent": 45}, {"name": "сыр", "type": "protein", "percent": 10}, {"name": "майонез", "type": "fat", "percent": 10}], "keywords": ["салат с ветчиной", "Салат с ветчиной"]},
+    "салат с печенью трески": {"name": "Салат с печенью трески", "name_en": ["печень трески салат"], "category": "salad", "default_weight": 200, "nutrition_per_100": {"calories": 180, "protein": 8.0, "fat": 15.0, "carbs": 4.0}, "ingredients": [{"name": "печень трески", "type": "protein", "percent": 30}, {"name": "яйца", "type": "protein", "percent": 25}, {"name": "картофель", "type": "carb", "percent": 25}, {"name": "лук", "type": "vegetable", "percent": 10}, {"name": "майонез", "type": "fat", "percent": 10}], "keywords": ["печень трески салат", "Салат с печенью трески"]},
+    "салат с авокадо": {"name": "Салат с авокадо", "name_en": ["авокадо салат"], "category": "salad", "default_weight": 200, "nutrition_per_100": {"calories": 120, "protein": 3.0, "fat": 10.0, "carbs": 6.0}, "ingredients": [{"name": "авокадо", "type": "fat", "percent": 40}, {"name": "помидоры", "type": "vegetable", "percent": 30}, {"name": "огурец", "type": "vegetable", "percent": 20}, {"name": "оливковое масло", "type": "fat", "percent": 10}], "keywords": ["авокадо салат", "Салат с авокадо"]},
+
+    # ==================== ГАРНИРЫ (15) ====================
+    "гречка": {"name": "Гречка", "name_en": ["гречневая каша"], "category": "side", "default_weight": 200, "nutrition_per_100": {"calories": 130, "protein": 4.5, "fat": 1.5, "carbs": 25.0}, "ingredients": [{"name": "гречка", "type": "carb", "percent": 95}, {"name": "сливочное масло", "type": "fat", "percent": 5}], "keywords": ["гречневая каша", "Гречка"]},
+    "рис": {"name": "Рис", "name_en": ["белый рис", "отварной рис"], "category": "side", "default_weight": 200, "nutrition_per_100": {"calories": 130, "protein": 2.5, "fat": 0.5, "carbs": 28.0}, "ingredients": [{"name": "рис", "type": "carb", "percent": 100}], "keywords": ["белый рис", "отварной рис", "Рис"]},
+    "паста": {"name": "Паста", "name_en": ["макароны", "отварные макароны"], "category": "side", "default_weight": 200, "nutrition_per_100": {"calories": 140, "protein": 5.0, "fat": 1.0, "carbs": 28.0}, "ingredients": [{"name": "паста", "type": "carb", "percent": 100}], "keywords": ["макароны", "отварные макароны", "Паста"]},
+    "картофельное пюре": {"name": "Картофельное пюре", "name_en": ["пюре"], "category": "side", "default_weight": 200, "nutrition_per_100": {"calories": 110, "protein": 2.0, "fat": 4.0, "carbs": 17.0}, "ingredients": [{"name": "картофель", "type": "carb", "percent": 85}, {"name": "молоко", "type": "protein", "percent": 10}, {"name": "сливочное масло", "type": "fat", "percent": 5}], "keywords": ["пюре", "Картофельное пюре"]},
+    "картофель фри": {"name": "Картофель фри", "name_en": ["фри"], "category": "side", "default_weight": 150, "nutrition_per_100": {"calories": 320, "protein": 3.0, "fat": 15.0, "carbs": 40.0}, "ingredients": [{"name": "картофель", "type": "carb", "percent": 90}, {"name": "растительное масло", "type": "fat", "percent": 10}], "keywords": ["фри", "Картофель фри"]},
+    "запечённый картофель": {"name": "Запечённый картофель", "name_en": ["картошка в духовке"], "category": "side", "default_weight": 200, "nutrition_per_100": {"calories": 140, "protein": 3.0, "fat": 5.0, "carbs": 22.0}, "ingredients": [{"name": "картофель", "type": "carb", "percent": 90}, {"name": "растительное масло", "type": "fat", "percent": 10}], "keywords": ["картошка в духовке", "Запечённый картофель"]},
+    "жареный картофель": {"name": "Жареный картофель", "name_en": ["картошка жареная"], "category": "side", "default_weight": 200, "nutrition_per_100": {"calories": 180, "protein": 3.0, "fat": 8.0, "carbs": 24.0}, "ingredients": [{"name": "картофель", "type": "carb", "percent": 85}, {"name": "растительное масло", "type": "fat", "percent": 10}, {"name": "лук", "type": "vegetable", "percent": 5}], "keywords": ["картошка жареная", "Жареный картофель"]},
+    "отварной картофель": {"name": "Отварной картофель", "name_en": ["варёная картошка"], "category": "side", "default_weight": 200, "nutrition_per_100": {"calories": 90, "protein": 2.0, "fat": 0.5, "carbs": 20.0}, "ingredients": [{"name": "картофель", "type": "carb", "percent": 100}], "keywords": ["варёная картошка", "Отварной картофель"]},
+    "булгур": {"name": "Булгур", "name_en": ["пшеница булгур"], "category": "side", "default_weight": 200, "nutrition_per_100": {"calories": 135, "protein": 4.5, "fat": 1.0, "carbs": 27.0}, "ingredients": [{"name": "булгур", "type": "carb", "percent": 95}, {"name": "сливочное масло", "type": "fat", "percent": 5}], "keywords": ["пшеница булгур", "Булгур"]},
+    "кускус": {"name": "Кускус", "name_en": ["марокканский кускус"], "category": "side", "default_weight": 200, "nutrition_per_100": {"calories": 140, "protein": 5.0, "fat": 1.0, "carbs": 28.0}, "ingredients": [{"name": "кускус", "type": "carb", "percent": 95}, {"name": "сливочное масло", "type": "fat", "percent": 5}], "keywords": ["марокканский кускус", "Кускус"]},
+    "киноа": {"name": "Киноа", "name_en": ["крупа киноа"], "category": "side", "default_weight": 200, "nutrition_per_100": {"calories": 140, "protein": 5.0, "fat": 2.5, "carbs": 24.0}, "ingredients": [{"name": "киноа", "type": "carb", "percent": 95}, {"name": "оливковое масло", "type": "fat", "percent": 5}], "keywords": ["крупа киноа", "Киноа"]},
+    "овощи на пару": {"name": "Овощи на пару", "name_en": ["паровые овощи"], "category": "side", "default_weight": 200, "nutrition_per_100": {"calories": 50, "protein": 2.5, "fat": 1.0, "carbs": 10.0}, "ingredients": [{"name": "овощи", "type": "vegetable", "percent": 100}], "keywords": ["паровые овощи", "Овощи на пару"]},
+    "запечённые овощи": {"name": "Запечённые овощи", "name_en": ["овощи в духовке"], "category": "side", "default_weight": 200, "nutrition_per_100": {"calories": 75, "protein": 2.5, "fat": 3.5, "carbs": 10.0}, "ingredients": [{"name": "овощи", "type": "vegetable", "percent": 90}, {"name": "оливковое масло", "type": "fat", "percent": 10}], "keywords": ["овощи в духовке", "Запечённые овощи"]},
+    "тушёные овощи": {"name": "Тушёные овощи", "name_en": ["овощное рагу"], "category": "side", "default_weight": 200, "nutrition_per_100": {"calories": 65, "protein": 2.0, "fat": 3.0, "carbs": 9.0}, "ingredients": [{"name": "овощи", "type": "vegetable", "percent": 90}, {"name": "растительное масло", "type": "fat", "percent": 10}], "keywords": ["овощное рагу", "Тушёные овощи"]},
+    "кукуруза в початках": {"name": "Кукуруза в початках", "name_en": ["варёная кукуруза"], "category": "side", "default_weight": 200, "nutrition_per_100": {"calories": 110, "protein": 3.5, "fat": 1.5, "carbs": 22.0}, "ingredients": [{"name": "кукуруза", "type": "carb", "percent": 100}], "keywords": ["варёная кукуруза", "Кукуруза в початках"]},
+
+    # ==================== ЗАВТРАКИ (15) ====================
+    "яичница": {"name": "Яичница", "name_en": ["глазунья", "жареные яйца"], "category": "breakfast", "default_weight": 200, "nutrition_per_100": {"calories": 180, "protein": 12.0, "fat": 14.0, "carbs": 2.0}, "ingredients": [{"name": "яйца", "type": "protein", "percent": 90}, {"name": "растительное масло", "type": "fat", "percent": 10}], "keywords": ["глазунья", "жареные яйца", "Яичница"]},
+    "омлет": {"name": "Омлет", "name_en": ["французский омлет"], "category": "breakfast", "default_weight": 200, "nutrition_per_100": {"calories": 160, "protein": 11.0, "fat": 12.0, "carbs": 3.0}, "ingredients": [{"name": "яйца", "type": "protein", "percent": 80}, {"name": "молоко", "type": "protein", "percent": 15}, {"name": "сливочное масло", "type": "fat", "percent": 5}], "keywords": ["французский омлет", "Омлет"]},
+    "яйца варёные": {"name": "Яйца варёные", "name_en": ["варёные яйца", "вкрутую"], "category": "breakfast", "default_weight": 150, "nutrition_per_100": {"calories": 155, "protein": 13.0, "fat": 11.0, "carbs": 1.0}, "ingredients": [{"name": "яйца", "type": "protein", "percent": 100}], "keywords": ["варёные яйца", "вкрутую", "Яйца варёные"]},
+    "яйца пашот": {"name": "Яйца пашот", "name_en": ["пашот"], "category": "breakfast", "default_weight": 150, "nutrition_per_100": {"calories": 145, "protein": 12.5, "fat": 10.0, "carbs": 1.0}, "ingredients": [{"name": "яйца", "type": "protein", "percent": 100}], "keywords": ["пашот", "Яйца пашот"]},
+    "блины": {"name": "Блины", "name_en": ["русские блины", "оладьи"], "category": "breakfast", "default_weight": 200, "nutrition_per_100": {"calories": 230, "protein": 7.0, "fat": 8.0, "carbs": 30.0}, "ingredients": [{"name": "мука", "type": "carb", "percent": 50}, {"name": "молоко", "type": "protein", "percent": 30}, {"name": "яйца", "type": "protein", "percent": 15}, {"name": "растительное масло", "type": "fat", "percent": 5}], "keywords": ["русские блины", "оладьи", "Блины"]},
+    "блинчики": {"name": "Блинчики", "name_en": ["французские крепы"], "category": "breakfast", "default_weight": 200, "nutrition_per_100": {"calories": 200, "protein": 6.0, "fat": 7.0, "carbs": 28.0}, "ingredients": [{"name": "мука", "type": "carb", "percent": 50}, {"name": "молоко", "type": "protein", "percent": 35}, {"name": "яйца", "type": "protein", "percent": 10}, {"name": "сливочное масло", "type": "fat", "percent": 5}], "keywords": ["французские крепы", "Блинчики"]},
+    "вафли": {"name": "Вафли", "name_en": ["бельгийские вафли"], "category": "breakfast", "default_weight": 150, "nutrition_per_100": {"calories": 280, "protein": 7.0, "fat": 14.0, "carbs": 32.0}, "ingredients": [{"name": "мука", "type": "carb", "percent": 50}, {"name": "яйца", "type": "protein", "percent": 15}, {"name": "сливочное масло", "type": "fat", "percent": 20}, {"name": "сахар", "type": "carb", "percent": 15}], "keywords": ["бельгийские вафли", "Вафли"]},
+    "французский тост": {"name": "Французский тост", "name_en": ["гренки"], "category": "breakfast", "default_weight": 200, "nutrition_per_100": {"calories": 210, "protein": 8.0, "fat": 10.0, "carbs": 24.0}, "ingredients": [{"name": "хлеб", "type": "carb", "percent": 60}, {"name": "яйца", "type": "protein", "percent": 20}, {"name": "молоко", "type": "protein", "percent": 15}, {"name": "сливочное масло", "type": "fat", "percent": 5}], "keywords": ["гренки", "Французский тост"]},
+    "овсянка": {"name": "Овсянка", "name_en": ["овсяная каша на воде"], "category": "breakfast", "default_weight": 250, "nutrition_per_100": {"calories": 115, "protein": 4.0, "fat": 2.5, "carbs": 19.0}, "ingredients": [{"name": "овсянка", "type": "carb", "percent": 90}, {"name": "молоко", "type": "protein", "percent": 10}], "keywords": ["овсяная каша на воде", "Овсянка"]},
+    "рисовая каша": {"name": "Рисовая каша", "name_en": ["рис на молоке"], "category": "breakfast", "default_weight": 250, "nutrition_per_100": {"calories": 130, "protein": 3.5, "fat": 2.0, "carbs": 24.0}, "ingredients": [{"name": "рис", "type": "carb", "percent": 85}, {"name": "молоко", "type": "protein", "percent": 10}, {"name": "сливочное масло", "type": "fat", "percent": 5}], "keywords": ["рис на молоке", "Рисовая каша"]},
+    "гречневая каша": {"name": "Гречневая каша", "name_en": ["гречка на завтрак"], "category": "breakfast", "default_weight": 250, "nutrition_per_100": {"calories": 125, "protein": 4.5, "fat": 1.5, "carbs": 24.0}, "ingredients": [{"name": "гречка", "type": "carb", "percent": 90}, {"name": "молоко", "type": "protein", "percent": 10}], "keywords": ["гречка на завтрак", "Гречневая каша"]},
+    "творог": {"name": "Творог", "name_en": ["домашний творог"], "category": "breakfast", "default_weight": 200, "nutrition_per_100": {"calories": 120, "protein": 16.0, "fat": 5.0, "carbs": 3.0}, "ingredients": [{"name": "творог", "type": "protein", "percent": 100}], "keywords": ["домашний творог", "Творог"]},
+    "сырники": {"name": "Сырники", "name_en": ["творожники"], "category": "breakfast", "default_weight": 200, "nutrition_per_100": {"calories": 200, "protein": 14.0, "fat": 10.0, "carbs": 15.0}, "ingredients": [{"name": "творог", "type": "protein", "percent": 70}, {"name": "яйца", "type": "protein", "percent": 10}, {"name": "мука", "type": "carb", "percent": 15}, {"name": "растительное масло", "type": "fat", "percent": 5}], "keywords": ["творожники", "Сырники"]},
+    "гранола": {"name": "Гранола", "name_en": ["мюсли"], "category": "breakfast", "default_weight": 150, "nutrition_per_100": {"calories": 350, "protein": 10.0, "fat": 15.0, "carbs": 45.0}, "ingredients": [{"name": "овсянка", "type": "carb", "percent": 50}, {"name": "орехи", "type": "fat", "percent": 25}, {"name": "мёд", "type": "carb", "percent": 15}, {"name": "сухофрукты", "type": "carb", "percent": 10}], "keywords": ["мюсли", "Гранола"]},
+    "тост с авокадо": {"name": "Тост с авокадо", "name_en": ["авокадо тост"], "category": "breakfast", "default_weight": 200, "nutrition_per_100": {"calories": 190, "protein": 6.0, "fat": 12.0, "carbs": 18.0}, "ingredients": [{"name": "хлеб", "type": "carb", "percent": 50}, {"name": "авокадо", "type": "fat", "percent": 40}, {"name": "яйца", "type": "protein", "percent": 10}], "keywords": ["авокадо тост", "Тост с авокадо"]},
+
+    # ==================== ДЕСЕРТЫ (15) ====================
+    "чизкейк": {"name": "Чизкейк", "name_en": ["нью-йорк"], "category": "dessert", "default_weight": 150, "nutrition_per_100": {"calories": 320, "protein": 7.0, "fat": 22.0, "carbs": 28.0}, "ingredients": [{"name": "творожный сыр", "type": "protein", "percent": 40}, {"name": "печенье", "type": "carb", "percent": 30}, {"name": "сахар", "type": "carb", "percent": 20}, {"name": "яйца", "type": "protein", "percent": 10}], "keywords": ["нью-йорк", "Чизкейк"]},
+    "шоколадный торт": {"name": "Шоколадный торт", "name_en": ["торт с шоколадом"], "category": "dessert", "default_weight": 150, "nutrition_per_100": {"calories": 380, "protein": 6.0, "fat": 20.0, "carbs": 45.0}, "ingredients": [{"name": "мука", "type": "carb", "percent": 35}, {"name": "шоколад", "type": "fat", "percent": 25}, {"name": "сахар", "type": "carb", "percent": 25}, {"name": "яйца", "type": "protein", "percent": 15}], "keywords": ["торт с шоколадом", "Шоколадный торт"]},
+    "торт наполеон": {"name": "Торт Наполеон", "name_en": ["мille feuille"], "category": "dessert", "default_weight": 150, "nutrition_per_100": {"calories": 350, "protein": 6.0, "fat": 22.0, "carbs": 35.0}, "ingredients": [{"name": "тесто", "type": "carb", "percent": 50}, {"name": "крем", "type": "fat", "percent": 35}, {"name": "сахар", "type": "carb", "percent": 15}], "keywords": ["мille feuille", "Торт Наполеон"]},
+    "медовик": {"name": "Медовик", "name_en": ["русский медовый торт"], "category": "dessert", "default_weight": 150, "nutrition_per_100": {"calories": 340, "protein": 5.0, "fat": 18.0, "carbs": 40.0}, "ingredients": [{"name": "мука", "type": "carb", "percent": 40}, {"name": "мёд", "type": "carb", "percent": 25}, {"name": "сметана", "type": "fat", "percent": 25}, {"name": "яйца", "type": "protein", "percent": 10}], "keywords": ["русский медовый торт", "Медовик"]},
+    "брауни": {"name": "Брауни", "name_en": ["шоколадный брауни"], "category": "dessert", "default_weight": 100, "nutrition_per_100": {"calories": 400, "protein": 6.0, "fat": 22.0, "carbs": 45.0}, "ingredients": [{"name": "шоколад", "type": "fat", "percent": 35}, {"name": "мука", "type": "carb", "percent": 30}, {"name": "сахар", "type": "carb", "percent": 25}, {"name": "яйца", "type": "protein", "percent": 10}], "keywords": ["шоколадный брауни", "Брауни"]},
+    "маффин": {"name": "Маффин", "name_en": ["кекс"], "category": "dessert", "default_weight": 100, "nutrition_per_100": {"calories": 320, "protein": 5.0, "fat": 14.0, "carbs": 42.0}, "ingredients": [{"name": "мука", "type": "carb", "percent": 50}, {"name": "сахар", "type": "carb", "percent": 25}, {"name": "яйца", "type": "protein", "percent": 15}, {"name": "сливочное масло", "type": "fat", "percent": 10}], "keywords": ["кекс", "Маффин"]},
+    "пончик": {"name": "Пончик", "name_en": ["донат"], "category": "dessert", "default_weight": 100, "nutrition_per_100": {"calories": 350, "protein": 5.0, "fat": 18.0, "carbs": 40.0}, "ingredients": [{"name": "мука", "type": "carb", "percent": 50}, {"name": "сахар", "type": "carb", "percent": 25}, {"name": "растительное масло", "type": "fat", "percent": 20}, {"name": "яйца", "type": "protein", "percent": 5}], "keywords": ["донат", "Пончик"]},
+    "эклер": {"name": "Эклер", "name_en": ["заварное пирожное"], "category": "dessert", "default_weight": 100, "nutrition_per_100": {"calories": 280, "protein": 6.0, "fat": 16.0, "carbs": 28.0}, "ingredients": [{"name": "тесто", "type": "carb", "percent": 45}, {"name": "крем", "type": "fat", "percent": 40}, {"name": "шоколад", "type": "fat", "percent": 15}], "keywords": ["заварное пирожное", "Эклер"]},
+    "мороженое": {"name": "Мороженое", "name_en": ["пломбир", "ванильное мороженое"], "category": "dessert", "default_weight": 150, "nutrition_per_100": {"calories": 210, "protein": 4.0, "fat": 12.0, "carbs": 24.0}, "ingredients": [{"name": "сливки", "type": "fat", "percent": 50}, {"name": "молоко", "type": "protein", "percent": 30}, {"name": "сахар", "type": "carb", "percent": 20}], "keywords": ["пломбир", "ванильное мороженое", "Мороженое"]},
+    "фруктовый салат": {"name": "Фруктовый салат", "name_en": ["микс фруктов"], "category": "dessert", "default_weight": 200, "nutrition_per_100": {"calories": 80, "protein": 1.0, "fat": 0.5, "carbs": 20.0}, "ingredients": [{"name": "фрукты", "type": "carb", "percent": 100}], "keywords": ["микс фруктов", "Фруктовый салат"]},
+    "шоколадный мусс": {"name": "Шоколадный мусс", "name_en": ["мусс из шоколада"], "category": "dessert", "default_weight": 150, "nutrition_per_100": {"calories": 250, "protein": 5.0, "fat": 18.0, "carbs": 18.0}, "ingredients": [{"name": "шоколад", "type": "fat", "percent": 40}, {"name": "сливки", "type": "fat", "percent": 35}, {"name": "яйца", "type": "protein", "percent": 15}, {"name": "сахар", "type": "carb", "percent": 10}], "keywords": ["мусс из шоколада", "Шоколадный мусс"]},
+    "крем-брюле": {"name": "Крем-брюле", "name_en": ["жжёный крем"], "category": "dessert", "default_weight": 150, "nutrition_per_100": {"calories": 240, "protein": 4.0, "fat": 18.0, "carbs": 14.0}, "ingredients": [{"name": "сливки", "type": "fat", "percent": 60}, {"name": "яйца", "type": "protein", "percent": 20}, {"name": "сахар", "type": "carb", "percent": 20}], "keywords": ["жжёный крем", "Крем-брюле"]},
+    "яблочный пирог": {"name": "Яблочный пирог", "name_en": ["шарлотка"], "category": "dessert", "default_weight": 150, "nutrition_per_100": {"calories": 260, "protein": 4.0, "fat": 12.0, "carbs": 35.0}, "ingredients": [{"name": "мука", "type": "carb", "percent": 40}, {"name": "яблоки", "type": "carb", "percent": 35}, {"name": "яйца", "type": "protein", "percent": 15}, {"name": "сахар", "type": "carb", "percent": 10}], "keywords": ["шарлотка", "Яблочный пирог"]},
+    "вишнёвый пирог": {"name": "Вишнёвый пирог", "name_en": ["пирог с вишней"], "category": "dessert", "default_weight": 150, "nutrition_per_100": {"calories": 270, "protein": 4.0, "fat": 13.0, "carbs": 38.0}, "ingredients": [{"name": "мука", "type": "carb", "percent": 40}, {"name": "вишня", "type": "carb", "percent": 35}, {"name": "яйца", "type": "protein", "percent": 15}, {"name": "сахар", "type": "carb", "percent": 10}], "keywords": ["пирог с вишней", "Вишнёвый пирог"]},
+    "лимонный тарт": {"name": "Лимонный тарт", "name_en": ["лимонный пирог"], "category": "dessert", "default_weight": 150, "nutrition_per_100": {"calories": 250, "protein": 5.0, "fat": 14.0, "carbs": 30.0}, "ingredients": [{"name": "тесто", "type": "carb", "percent": 45}, {"name": "лимон", "type": "carb", "percent": 30}, {"name": "яйца", "type": "protein", "percent": 15}, {"name": "сахар", "type": "carb", "percent": 10}], "keywords": ["лимонный пирог", "Лимонный тарт"]},
+
+    # ==================== ЕЩЁ БЛЮДА (350+) ====================
+    # Стейки (15)
+    "рибай стейк": {"name": "Стейк Рибай", "name_en": ["рибай", "мраморная говядина"], "category": "main", "default_weight": 300, "nutrition_per_100": {"calories": 290, "protein": 24.0, "fat": 21.0, "carbs": 0.0}, "ingredients": [{"name": "говядина", "type": "protein", "percent": 95}, {"name": "специи", "type": "other", "percent": 5}], "keywords": ["рибай", "мраморная говядина", "Стейк Рибай"]},
+    "филе-миньон": {"name": "Филе-миньон", "name_en": ["нежная говядина"], "category": "main", "default_weight": 250, "nutrition_per_100": {"calories": 190, "protein": 26.0, "fat": 9.0, "carbs": 0.0}, "ingredients": [{"name": "говядина", "type": "protein", "percent": 95}, {"name": "специи", "type": "other", "percent": 5}], "keywords": ["нежная говядина", "Филе-миньон"]},
+    "ти-бон стейк": {"name": "Стейк Ти-бон", "name_en": ["ти-бон"], "category": "main", "default_weight": 350, "nutrition_per_100": {"calories": 250, "protein": 25.0, "fat": 16.0, "carbs": 0.0}, "ingredients": [{"name": "говядина", "type": "protein", "percent": 95}, {"name": "специи", "type": "other", "percent": 5}], "keywords": ["ти-бон", "Стейк Ти-бон"]},
+    "нью-йорк стейк": {"name": "Стейк Нью-Йорк", "name_en": ["стриплойн", "нью-йорк"], "category": "main", "default_weight": 300, "nutrition_per_100": {"calories": 260, "protein": 25.0, "fat": 17.0, "carbs": 0.0}, "ingredients": [{"name": "говядина", "type": "protein", "percent": 95}, {"name": "специи", "type": "other", "percent": 5}], "keywords": ["стриплойн", "нью-йорк", "Стейк Нью-Йорк"]},
+    "портерхаус": {"name": "Стейк Портерхаус", "name_en": ["портерхаус"], "category": "main", "default_weight": 400, "nutrition_per_100": {"calories": 270, "protein": 25.0, "fat": 18.0, "carbs": 0.0}, "ingredients": [{"name": "говядина", "type": "protein", "percent": 95}, {"name": "специи", "type": "other", "percent": 5}], "keywords": ["портерхаус", "Стейк Портерхаус"]},
+    "томагавк": {"name": "Стейк Томагавк", "name_en": ["томагавк", "стейк с костью"], "category": "main", "default_weight": 500, "nutrition_per_100": {"calories": 280, "protein": 24.0, "fat": 20.0, "carbs": 0.0}, "ingredients": [{"name": "говядина", "type": "protein", "percent": 90}, {"name": "специи", "type": "other", "percent": 10}], "keywords": ["томагавк", "стейк с костью", "Стейк Томагавк"]},
+    "фланк стейк": {"name": "Стейк Фланк", "name_en": ["фланк", "боковой стейк"], "category": "main", "default_weight": 250, "nutrition_per_100": {"calories": 220, "protein": 26.0, "fat": 12.0, "carbs": 0.0}, "ingredients": [{"name": "говядина", "type": "protein", "percent": 95}, {"name": "специи", "type": "other", "percent": 5}], "keywords": ["фланк", "боковой стейк", "Стейк Фланк"]},
+    " skirt стейк": {"name": "Стейк Скёрт", "name_en": ["скёрт", "диафрагма"], "category": "main", "default_weight": 250, "nutrition_per_100": {"calories": 240, "protein": 24.0, "fat": 15.0, "carbs": 0.0}, "ingredients": [{"name": "говядина", "type": "protein", "percent": 95}, {"name": "специи", "type": "other", "percent": 5}], "keywords": ["скёрт", "диафрагма", "Стейк Скёрт"]},
+    "чак ай стейк": {"name": "Стейк Чак Ай", "name_en": ["чак ай", "шейный стейк"], "category": "main", "default_weight": 250, "nutrition_per_100": {"calories": 230, "protein": 24.0, "fat": 14.0, "carbs": 0.0}, "ingredients": [{"name": "говядина", "type": "protein", "percent": 95}, {"name": "специи", "type": "other", "percent": 5}], "keywords": ["чак ай", "шейный стейк", "Стейк Чак Ай"]},
+    "три-тип": {"name": "Стейк Три-тип", "name_en": ["три-тип", "три кончика"], "category": "main", "default_weight": 300, "nutrition_per_100": {"calories": 240, "protein": 24.0, "fat": 15.0, "carbs": 0.0}, "ingredients": [{"name": "говядина", "type": "protein", "percent": 95}, {"name": "специи", "type": "other", "percent": 5}], "keywords": ["три-тип", "три кончика", "Стейк Три-тип"]},
+    "пиканья": {"name": "Стейк Пиканья", "name_en": ["пиканья", "бразильский стейк"], "category": "main", "default_weight": 300, "nutrition_per_100": {"calories": 260, "protein": 23.0, "fat": 18.0, "carbs": 0.0}, "ingredients": [{"name": "говядина", "type": "protein", "percent": 95}, {"name": "специи", "type": "other", "percent": 5}], "keywords": ["пиканья", "бразильский стейк", "Стейк Пиканья"]},
+    "флэт айрон": {"name": "Стейк Флэт Айрон", "name_en": ["флэт айрон", "плоский стейк"], "category": "main", "default_weight": 250, "nutrition_per_100": {"calories": 210, "protein": 25.0, "fat": 11.0, "carbs": 0.0}, "ingredients": [{"name": "говядина", "type": "protein", "percent": 95}, {"name": "специи", "type": "other", "percent": 5}], "keywords": ["флэт айрон", "плоский стейк", "Стейк Флэт Айрон"]},
+    "денвер стейк": {"name": "Стейк Денвер", "name_en": ["денвер", "стейк из шеи"], "category": "main", "default_weight": 250, "nutrition_per_100": {"calories": 230, "protein": 24.0, "fat": 14.0, "carbs": 0.0}, "ingredients": [{"name": "говядина", "type": "protein", "percent": 95}, {"name": "специи", "type": "other", "percent": 5}], "keywords": ["денвер", "стейк из шеи", "Стейк Денвер"]},
+    "рамп стейк": {"name": "Стейк Рамп", "name_en": ["рамп", "задний стейк"], "category": "main", "default_weight": 250, "nutrition_per_100": {"calories": 220, "protein": 25.0, "fat": 12.0, "carbs": 0.0}, "ingredients": [{"name": "говядина", "type": "protein", "percent": 95}, {"name": "специи", "type": "other", "percent": 5}], "keywords": ["рамп", "задний стейк", "Стейк Рамп"]},
+    "вегас стейк": {"name": "Стейк Вегас", "name_en": ["вегас", "стрип стейк"], "category": "main", "default_weight": 280, "nutrition_per_100": {"calories": 250, "protein": 25.0, "fat": 16.0, "carbs": 0.0}, "ingredients": [{"name": "говядина", "type": "protein", "percent": 95}, {"name": "специи", "type": "other", "percent": 5}], "keywords": ["вегас", "стрип стейк", "Стейк Вегас"]},
     
-    # ==================== CUTLETS AND MEATBALLS ====================
-    "cutlets": {
-        "name": "Cutlets",
-        "name_en": ["cutlets", "meat patties", "meatballs", "patties"],
-        "category": "main",
-        "default_weight": 200,
-        "nutrition_per_100": {"calories": 260, "protein": 18.0, "fat": 18.0, "carbs": 8.0},
-        "ingredients": [
-            {"name": "meat", "type": "protein", "percent": 70},
-            {"name": "bread", "type": "carb", "percent": 15},
-            {"name": "onion", "type": "vegetable", "percent": 10},
-            {"name": "oil", "type": "fat", "percent": 5}
-        ],
-        "keywords": ["cutlets", "meatballs", "patties", "meat", "fried"]
-    },
-    "chicken cutlets": {
-        "name": "Chicken cutlets",
-        "name_en": ["chicken cutlets", "chicken patties", "chicken meatballs"],
-        "category": "main",
-        "default_weight": 200,
-        "nutrition_per_100": {"calories": 220, "protein": 20.0, "fat": 12.0, "carbs": 10.0},
-        "ingredients": [
-            {"name": "chicken", "type": "protein", "percent": 75},
-            {"name": "bread", "type": "carb", "percent": 15},
-            {"name": "onion", "type": "vegetable", "percent": 10}
-        ],
-        "keywords": ["cutlets", "chicken", "patties", "chicken", "fried"]
-    },
-    "fish cutlets": {
-        "name": "Fish cutlets",
-        "name_en": ["fish cutlets", "fish patties", "fish cakes"],
-        "category": "main",
-        "default_weight": 200,
-        "nutrition_per_100": {"calories": 180, "protein": 16.0, "fat": 10.0, "carbs": 8.0},
-        "ingredients": [
-            {"name": "fish", "type": "protein", "percent": 70},
-            {"name": "bread", "type": "carb", "percent": 20},
-            {"name": "onion", "type": "vegetable", "percent": 10}
-        ],
-        "keywords": ["cutlets", "fish", "patties", "fish", "fried"]
-    },
+    # Бургеры (15)
+    "чизбургер": {"name": "Чизбургер", "name_en": ["бургер с сыром"], "category": "main", "default_weight": 280, "nutrition_per_100": {"calories": 270, "protein": 16.0, "fat": 16.0, "carbs": 16.0}, "ingredients": [{"name": "говядина", "type": "protein", "percent": 40}, {"name": "булка", "type": "carb", "percent": 30}, {"name": "сыр", "type": "protein", "percent": 15}, {"name": "овощи", "type": "vegetable", "percent": 15}], "keywords": ["бургер с сыром", "Чизбургер"]},
+    "двойной чизбургер": {"name": "Двойной чизбургер", "name_en": ["двойной бургер"], "category": "main", "default_weight": 350, "nutrition_per_100": {"calories": 290, "protein": 18.0, "fat": 18.0, "carbs": 15.0}, "ingredients": [{"name": "говядина", "type": "protein", "percent": 45}, {"name": "булка", "type": "carb", "percent": 25}, {"name": "сыр", "type": "protein", "percent": 20}, {"name": "овощи", "type": "vegetable", "percent": 10}], "keywords": ["двойной бургер", "Двойной чизбургер"]},
+    "веганский бургер": {"name": "Веганский бургер", "name_en": ["растительный бургер"], "category": "main", "default_weight": 250, "nutrition_per_100": {"calories": 220, "protein": 14.0, "fat": 10.0, "carbs": 20.0}, "ingredients": [{"name": "фасоль", "type": "carb", "percent": 40}, {"name": "булка", "type": "carb", "percent": 30}, {"name": "овощи", "type": "vegetable", "percent": 20}, {"name": "соус", "type": "other", "percent": 10}], "keywords": ["растительный бургер", "Веганский бургер"]},
+    "куриный бургер": {"name": "Куриный бургер", "name_en": ["бургер с курицей"], "category": "main", "default_weight": 270, "nutrition_per_100": {"calories": 230, "protein": 17.0, "fat": 11.0, "carbs": 17.0}, "ingredients": [{"name": "курица", "type": "protein", "percent": 40}, {"name": "булка", "type": "carb", "percent": 30}, {"name": "овощи", "type": "vegetable", "percent": 20}, {"name": "соус", "type": "other", "percent": 10}], "keywords": ["бургер с курицей", "Куриный бургер"]},
+    "рыбный бургер": {"name": "Рыбный бургер", "name_en": ["бургер с рыбой"], "category": "main", "default_weight": 260, "nutrition_per_100": {"calories": 210, "protein": 15.0, "fat": 9.0, "carbs": 18.0}, "ingredients": [{"name": "рыба", "type": "protein", "percent": 40}, {"name": "булка", "type": "carb", "percent": 30}, {"name": "овощи", "type": "vegetable", "percent": 20}, {"name": "соус", "type": "other", "percent": 10}], "keywords": ["бургер с рыбой", "Рыбный бургер"]},
+    "крабс бургер": {"name": "Крабс бургер", "name_en": ["крабовый бургер"], "category": "main", "default_weight": 250, "nutrition_per_100": {"calories": 200, "protein": 14.0, "fat": 8.0, "carbs": 18.0}, "ingredients": [{"name": "краб", "type": "protein", "percent": 35}, {"name": "булка", "type": "carb", "percent": 35}, {"name": "овощи", "type": "vegetable", "percent": 20}, {"name": "соус", "type": "other", "percent": 10}], "keywords": ["крабовый бургер", "Крабс бургер"]},
+    "бэкон бургер": {"name": "Бэкон бургер", "name_en": ["бургер с беконом"], "category": "main", "default_weight": 320, "nutrition_per_100": {"calories": 310, "protein": 18.0, "fat": 20.0, "carbs": 15.0}, "ingredients": [{"name": "говядина", "type": "protein", "percent": 35}, {"name": "бекон", "type": "protein", "percent": 15}, {"name": "булка", "type": "carb", "percent": 25}, {"name": "сыр", "type": "protein", "percent": 15}, {"name": "овощи", "type": "vegetable", "percent": 10}], "keywords": ["бургер с беконом", "Бэкон бургер"]},
+    "грибной бургер": {"name": "Грибной бургер", "name_en": ["бургер с грибами"], "category": "main", "default_weight": 270, "nutrition_per_100": {"calories": 240, "protein": 14.0, "fat": 12.0, "carbs": 20.0}, "ingredients": [{"name": "говядина", "type": "protein", "percent": 35}, {"name": "грибы", "type": "vegetable", "percent": 20}, {"name": "булка", "type": "carb", "percent": 25}, {"name": "сыр", "type": "protein", "percent": 15}, {"name": "овощи", "type": "vegetable", "percent": 5}], "keywords": ["бургер с грибами", "Грибной бургер"]},
+    "острый бургер": {"name": "Острый бургер", "name_en": ["спайси бургер"], "category": "main", "default_weight": 280, "nutrition_per_100": {"calories": 260, "protein": 16.0, "fat": 15.0, "carbs": 17.0}, "ingredients": [{"name": "говядина", "type": "protein", "percent": 40}, {"name": "булка", "type": "carb", "percent": 28}, {"name": "перец чили", "type": "vegetable", "percent": 10}, {"name": "соус", "type": "other", "percent": 12}, {"name": "овощи", "type": "vegetable", "percent": 10}], "keywords": ["спайси бургер", "Острый бургер"]},
+    "гавайский бургер": {"name": "Гавайский бургер", "name_en": ["бургер с ананасом"], "category": "main", "default_weight": 290, "nutrition_per_100": {"calories": 250, "protein": 15.0, "fat": 13.0, "carbs": 20.0}, "ingredients": [{"name": "говядина", "type": "protein", "percent": 35}, {"name": "ананас", "type": "carb", "percent": 15}, {"name": "булка", "type": "carb", "percent": 28}, {"name": "сыр", "type": "protein", "percent": 12}, {"name": "овощи", "type": "vegetable", "percent": 10}], "keywords": ["бургер с ананасом", "Гавайский бургер"]},
+    "мексиканский бургер": {"name": "Мексиканский бургер", "name_en": ["бургер по-мексикански"], "category": "main", "default_weight": 300, "nutrition_per_100": {"calories": 270, "protein": 16.0, "fat": 15.0, "carbs": 19.0}, "ingredients": [{"name": "говядина", "type": "protein", "percent": 35}, {"name": "булка", "type": "carb", "percent": 25}, {"name": "фасоль", "type": "carb", "percent": 15}, {"name": "кукуруза", "type": "vegetable", "percent": 10}, {"name": "соус", "type": "other", "percent": 15}], "keywords": ["бургер по-мексикански", "Мексиканский бургер"]},
+    "итальянский бургер": {"name": "Итальянский бургер", "name_en": ["бургер по-итальянски"], "category": "main", "default_weight": 290, "nutrition_per_100": {"calories": 260, "protein": 17.0, "fat": 14.0, "carbs": 18.0}, "ingredients": [{"name": "говядина", "type": "protein", "percent": 35}, {"name": "булка", "type": "carb", "percent": 25}, {"name": "моцарелла", "type": "protein", "percent": 15}, {"name": "помидоры", "type": "vegetable", "percent": 15}, {"name": "базилик", "type": "other", "percent": 5}, {"name": "песто", "type": "fat", "percent": 5}], "keywords": ["бургер по-итальянски", "Итальянский бургер"]},
+    "греческий бургер": {"name": "Греческий бургер", "name_en": ["бургер по-гречески"], "category": "main", "default_weight": 280, "nutrition_per_100": {"calories": 240, "protein": 16.0, "fat": 13.0, "carbs": 17.0}, "ingredients": [{"name": "баранина", "type": "protein", "percent": 40}, {"name": "булка", "type": "carb", "percent": 25}, {"name": "фета", "type": "protein", "percent": 15}, {"name": "овощи", "type": "vegetable", "percent": 15}, {"name": "оливковое масло", "type": "fat", "percent": 5}], "keywords": ["бургер по-гречески", "Греческий бургер"]},
+    "азиатский бургер": {"name": "Азиатский бургер", "name_en": ["бургер по-азиатски"], "category": "main", "default_weight": 280, "nutrition_per_100": {"calories": 250, "protein": 16.0, "fat": 12.0, "carbs": 20.0}, "ingredients": [{"name": "говядина", "type": "protein", "percent": 35}, {"name": "булка", "type": "carb", "percent": 25}, {"name": "капуста", "type": "vegetable", "percent": 15}, {"name": "соевый соус", "type": "other", "percent": 10}, {"name": "имбирь", "type": "vegetable", "percent": 5}, {"name": "кунжут", "type": "fat", "percent": 10}], "keywords": ["бургер по-азиатски", "Азиатский бургер"]},
+    "завтрак бургер": {"name": "Завтрак бургер", "name_en": ["бургер на завтрак"], "category": "breakfast", "default_weight": 320, "nutrition_per_100": {"calories": 280, "protein": 17.0, "fat": 17.0, "carbs": 16.0}, "ingredients": [{"name": "говядина", "type": "protein", "percent": 30}, {"name": "яйца", "type": "protein", "percent": 15}, {"name": "бекон", "type": "protein", "percent": 15}, {"name": "булка", "type": "carb", "percent": 25}, {"name": "сыр", "type": "protein", "percent": 15}], "keywords": ["бургер на завтрак", "Завтрак бургер"]},
     
-    # ==================== SOUPS ====================
-    "borscht": {
-        "name": "Borscht",
-        "name_en": ["borscht", "borscht soup", "beet soup"],
-        "category": "soup",
-        "default_weight": 300,
-        "nutrition_per_100": {"calories": 60, "protein": 2.5, "fat": 2.0, "carbs": 8.0},
-        "ingredients": [
-            {"name": "beets", "type": "vegetable", "percent": 25},
-            {"name": "cabbage", "type": "vegetable", "percent": 20},
-            {"name": "potatoes", "type": "vegetable", "percent": 20},
-            {"name": "carrots", "type": "vegetable", "percent": 15},
-            {"name": "onion", "type": "vegetable", "percent": 10},
-            {"name": "tomato", "type": "vegetable", "percent": 5},
-            {"name": "meat broth", "type": "protein", "percent": 5}
-        ],
-        "keywords": ["borscht", "beet", "soup", "cabbage", "ukrainian"]
-    },
-    "shchi": {
-        "name": "Shchi",
-        "name_en": ["shchi", "cabbage soup", "russian cabbage soup"],
-        "category": "soup",
-        "default_weight": 300,
-        "nutrition_per_100": {"calories": 45, "protein": 2.0, "fat": 1.5, "carbs": 6.0},
-        "ingredients": [
-            {"name": "cabbage", "type": "vegetable", "percent": 40},
-            {"name": "potatoes", "type": "vegetable", "percent": 25},
-            {"name": "carrots", "type": "vegetable", "percent": 15},
-            {"name": "onion", "type": "vegetable", "percent": 10},
-            {"name": "meat broth", "type": "protein", "percent": 10}
-        ],
-        "keywords": ["shchi", "cabbage", "soup", "russian", "traditional"]
-    },
-    "ukha": {
-        "name": "Ukha",
-        "name_en": ["ukha", "fish soup", "russian fish soup"],
-        "category": "soup",
-        "default_weight": 300,
-        "nutrition_per_100": {"calories": 55, "protein": 8.0, "fat": 2.0, "carbs": 3.0},
-        "ingredients": [
-            {"name": "fish", "type": "protein", "percent": 40},
-            {"name": "potatoes", "type": "vegetable", "percent": 25},
-            {"name": "onion", "type": "vegetable", "percent": 15},
-            {"name": "carrots", "type": "vegetable", "percent": 10},
-            {"name": "water", "type": "other", "percent": 10}
-        ],
-        "keywords": ["ukha", "fish", "soup", "russian", "traditional"]
-    },
-    "solyanka": {
-        "name": "Solyanka",
-        "name_en": ["solyanka", "solyanka soup", "russian solyanka"],
-        "category": "soup",
-        "default_weight": 300,
-        "nutrition_per_100": {"calories": 90, "protein": 6.0, "fat": 5.0, "carbs": 4.0},
-        "ingredients": [
-            {"name": "meat", "type": "protein", "percent": 30},
-            {"name": "pickles", "type": "vegetable", "percent": 20},
-            {"name": "onion", "type": "vegetable", "percent": 15},
-            {"name": "tomato", "type": "vegetable", "percent": 15},
-            {"name": "broth", "type": "protein", "percent": 20}
-        ],
-        "keywords": ["solyanka", "pickle", "soup", "russian", "spicy"]
-    },
+    # Сэндвичи (15)
+    "клубный сэндвич": {"name": "Клубный сэндвич", "name_en": ["клаб сэндвич"], "category": "main", "default_weight": 250, "nutrition_per_100": {"calories": 220, "protein": 14.0, "fat": 10.0, "carbs": 20.0}, "ingredients": [{"name": "курица", "type": "protein", "percent": 30}, {"name": "хлеб", "type": "carb", "percent": 35}, {"name": "бекон", "type": "protein", "percent": 15}, {"name": "овощи", "type": "vegetable", "percent": 15}, {"name": "майонез", "type": "fat", "percent": 5}], "keywords": ["клаб сэндвич", "Клубный сэндвич"]},
+    "сэндвич с тунцом": {"name": "Сэндвич с тунцом", "name_en": ["тунец сэндвич"], "category": "main", "default_weight": 220, "nutrition_per_100": {"calories": 200, "protein": 15.0, "fat": 8.0, "carbs": 18.0}, "ingredients": [{"name": "тунец", "type": "protein", "percent": 35}, {"name": "хлеб", "type": "carb", "percent": 40}, {"name": "овощи", "type": "vegetable", "percent": 15}, {"name": "майонез", "type": "fat", "percent": 10}], "keywords": ["тунец сэндвич", "Сэндвич с тунцом"]},
+    "сэндвич с ветчиной": {"name": "Сэндвич с ветчиной", "name_en": ["ветчина сэндвич"], "category": "main", "default_weight": 200, "nutrition_per_100": {"calories": 210, "protein": 13.0, "fat": 9.0, "carbs": 20.0}, "ingredients": [{"name": "ветчина", "type": "protein", "percent": 35}, {"name": "хлеб", "type": "carb", "percent": 40}, {"name": "сыр", "type": "protein", "percent": 15}, {"name": "овощи", "type": "vegetable", "percent": 10}], "keywords": ["ветчина сэндвич", "Сэндвич с ветчиной"]},
+    "сэндвич с яйцом": {"name": "Сэндвич с яйцом", "name_en": ["яичный сэндвич"], "category": "breakfast", "default_weight": 180, "nutrition_per_100": {"calories": 190, "protein": 11.0, "fat": 10.0, "carbs": 16.0}, "ingredients": [{"name": "яйца", "type": "protein", "percent": 35}, {"name": "хлеб", "type": "carb", "percent": 45}, {"name": "майонез", "type": "fat", "percent": 10}, {"name": "овощи", "type": "vegetable", "percent": 10}], "keywords": ["яичный сэндвич", "Сэндвич с яйцом"]},
+    "сэндвич с лососем": {"name": "Сэндвич с лососем", "name_en": ["лосось сэндвич"], "category": "main", "default_weight": 220, "nutrition_per_100": {"calories": 230, "protein": 16.0, "fat": 11.0, "carbs": 18.0}, "ingredients": [{"name": "лосось", "type": "protein", "percent": 35}, {"name": "хлеб", "type": "carb", "percent": 40}, {"name": "сливочный сыр", "type": "protein", "percent": 15}, {"name": "овощи", "type": "vegetable", "percent": 10}], "keywords": ["лосось сэндвич", "Сэндвич с лососем"]},
+    "сэндвич с авокадо": {"name": "Сэндвич с авокадо", "name_en": ["авокадо сэндвич"], "category": "breakfast", "default_weight": 200, "nutrition_per_100": {"calories": 210, "protein": 8.0, "fat": 13.0, "carbs": 18.0}, "ingredients": [{"name": "авокадо", "type": "fat", "percent": 35}, {"name": "хлеб", "type": "carb", "percent": 45}, {"name": "яйца", "type": "protein", "percent": 10}, {"name": "овощи", "type": "vegetable", "percent": 10}], "keywords": ["авокадо сэндвич", "Сэндвич с авокадо"]},
+    "французский сэндвич": {"name": "Французский сэндвич", "name_en": ["крок-месье"], "category": "main", "default_weight": 230, "nutrition_per_100": {"calories": 250, "protein": 15.0, "fat": 14.0, "carbs": 18.0}, "ingredients": [{"name": "ветчина", "type": "protein", "percent": 30}, {"name": "хлеб", "type": "carb", "percent": 35}, {"name": "сыр", "type": "protein", "percent": 20}, {"name": "бешамель", "type": "fat", "percent": 15}], "keywords": ["крок-месье", "Французский сэндвич"]},
+    "кубинский сэндвич": {"name": "Кубинский сэндвич", "name_en": ["кубанский сэндвич"], "category": "main", "default_weight": 250, "nutrition_per_100": {"calories": 240, "protein": 16.0, "fat": 11.0, "carbs": 20.0}, "ingredients": [{"name": "свинина", "type": "protein", "percent": 30}, {"name": "ветчина", "type": "protein", "percent": 15}, {"name": "хлеб", "type": "carb", "percent": 30}, {"name": "сыр", "type": "protein", "percent": 15}, {"name": "солёные огурцы", "type": "vegetable", "percent": 10}], "keywords": ["кубанский сэндвич", "Кубинский сэндвич"]},
+    "филадельфия сэндвич": {"name": "Филадельфия сэндвич", "name_en": ["филли чизстейк"], "category": "main", "default_weight": 280, "nutrition_per_100": {"calories": 260, "protein": 18.0, "fat": 14.0, "carbs": 18.0}, "ingredients": [{"name": "говядина", "type": "protein", "percent": 40}, {"name": "булка", "type": "carb", "percent": 30}, {"name": "сыр", "type": "protein", "percent": 20}, {"name": "лук", "type": "vegetable", "percent": 10}], "keywords": ["филли чизстейк", "Филадельфия сэндвич"]},
+    "пан багнат": {"name": "Пан Багнат", "name_en": ["ницца сэндвич"], "category": "main", "default_weight": 240, "nutrition_per_100": {"calories": 210, "protein": 12.0, "fat": 10.0, "carbs": 20.0}, "ingredients": [{"name": "тунец", "type": "protein", "percent": 25}, {"name": "хлеб", "type": "carb", "percent": 35}, {"name": "яйца", "type": "protein", "percent": 15}, {"name": "овощи", "type": "vegetable", "percent": 15}, {"name": "оливковое масло", "type": "fat", "percent": 10}], "keywords": ["ницца сэндвич", "Пан Багнат"]},
+    "бан ми": {"name": "Бан Ми", "name_en": ["вьетнамский сэндвич"], "category": "main", "default_weight": 260, "nutrition_per_100": {"calories": 220, "protein": 14.0, "fat": 8.0, "carbs": 24.0}, "ingredients": [{"name": "свинина", "type": "protein", "percent": 30}, {"name": "багет", "type": "carb", "percent": 35}, {"name": "овощи", "type": "vegetable", "percent": 25}, {"name": "соус", "type": "other", "percent": 10}], "keywords": ["вьетнамский сэндвич", "Бан Ми"]},
+    "бутерброд с икрой": {"name": "Бутерброд с икрой", "name_en": ["икра бутерброд"], "category": "snack", "default_weight": 80, "nutrition_per_100": {"calories": 280, "protein": 18.0, "fat": 18.0, "carbs": 15.0}, "ingredients": [{"name": "икра", "type": "protein", "percent": 30}, {"name": "хлеб", "type": "carb", "percent": 50}, {"name": "сливочное масло", "type": "fat", "percent": 20}], "keywords": ["икра бутерброд", "Бутерброд с икрой"]},
+    "бутерброд с селёдкой": {"name": "Бутерброд с селёдкой", "name_en": ["селёдка бутерброд"], "category": "snack", "default_weight": 100, "nutrition_per_100": {"calories": 220, "protein": 12.0, "fat": 14.0, "carbs": 12.0}, "ingredients": [{"name": "сельдь", "type": "protein", "percent": 40}, {"name": "хлеб", "type": "carb", "percent": 45}, {"name": "лук", "type": "vegetable", "percent": 15}], "keywords": ["селёдка бутерброд", "Бутерброд с селёдкой"]},
+    "бутерброд с колбасой": {"name": "Бутерброд с колбасой", "name_en": ["колбаса бутерброд"], "category": "snack", "default_weight": 90, "nutrition_per_100": {"calories": 260, "protein": 12.0, "fat": 16.0, "carbs": 18.0}, "ingredients": [{"name": "колбаса", "type": "protein", "percent": 35}, {"name": "хлеб", "type": "carb", "percent": 50}, {"name": "масло", "type": "fat", "percent": 15}], "keywords": ["колбаса бутерброд", "Бутерброд с колбасой"]},
+    "бутерброд с сыром": {"name": "Бутерброд с сыром", "name_en": ["сыр бутерброд"], "category": "snack", "default_weight": 80, "nutrition_per_100": {"calories": 240, "protein": 12.0, "fat": 14.0, "carbs": 18.0}, "ingredients": [{"name": "сыр", "type": "protein", "percent": 40}, {"name": "хлеб", "type": "carb", "percent": 50}, {"name": "масло", "type": "fat", "percent": 10}], "keywords": ["сыр бутерброд", "Бутерброд с сыром"]},
     
-    # ==================== PASTA AND ITALIAN ====================
-    "spaghetti bolognese": {
-        "name": "Spaghetti bolognese",
-        "name_en": ["spaghetti bolognese", "pasta bolognese", "spaghetti meat sauce"],
-        "category": "main",
-        "default_weight": 300,
-        "nutrition_per_100": {"calories": 150, "protein": 8.0, "fat": 6.0, "carbs": 18.0},
-        "ingredients": [
-            {"name": "pasta", "type": "carb", "percent": 50},
-            {"name": "beef", "type": "protein", "percent": 25},
-            {"name": "tomato sauce", "type": "vegetable", "percent": 20},
-            {"name": "onion", "type": "vegetable", "percent": 5}
-        ],
-        "keywords": ["spaghetti", "pasta", "bolognese", "italian", "meat sauce"]
-    },
-    "carbonara": {
-        "name": "Carbonara",
-        "name_en": ["carbonara", "pasta carbonara", "spaghetti carbonara"],
-        "category": "main",
-        "default_weight": 300,
-        "nutrition_per_100": {"calories": 180, "protein": 10.0, "fat": 12.0, "carbs": 12.0},
-        "ingredients": [
-            {"name": "pasta", "type": "carb", "percent": 50},
-            {"name": "bacon", "type": "protein", "percent": 25},
-            {"name": "eggs", "type": "protein", "percent": 15},
-            {"name": "cheese", "type": "protein", "percent": 10}
-        ],
-        "keywords": ["carbonara", "pasta", "italian", "eggs", "bacon"]
-    },
-    "lasagna": {
-        "name": "Lasagna",
-        "name_en": ["lasagna", "baked lasagna", "italian lasagna"],
-        "category": "main",
-        "default_weight": 300,
-        "nutrition_per_100": {"calories": 160, "protein": 9.0, "fat": 8.0, "carbs": 15.0},
-        "ingredients": [
-            {"name": "pasta sheets", "type": "carb", "percent": 40},
-            {"name": "meat sauce", "type": "protein", "percent": 25},
-            {"name": "cheese", "type": "protein", "percent": 20},
-            {"name": "tomato sauce", "type": "vegetable", "percent": 15}
-        ],
-        "keywords": ["lasagna", "pasta", "italian", "baked", "cheese"]
-    },
-    "pizza": {
-        "name": "Pizza",
-        "name_en": ["pizza", "italian pizza", "margherita pizza"],
-        "category": "main",
-        "default_weight": 300,
-        "nutrition_per_100": {"calories": 280, "protein": 12.0, "fat": 10.0, "carbs": 35.0},
-        "ingredients": [
-            {"name": "dough", "type": "carb", "percent": 45},
-            {"name": "cheese", "type": "protein", "percent": 20},
-            {"name": "tomato sauce", "type": "vegetable", "percent": 15},
-            {"name": "toppings", "type": "protein", "percent": 20}
-        ],
-        "keywords": ["pizza", "italian", "cheese", "tomato", "dough"]
-    },
+    # Шаурма и роллы (15)
+    "шаурма классическая": {"name": "Шаурма классическая", "name_en": ["донер", "гирос"], "category": "main", "default_weight": 350, "nutrition_per_100": {"calories": 200, "protein": 15.0, "fat": 10.0, "carbs": 15.0}, "ingredients": [{"name": "курица", "type": "protein", "percent": 35}, {"name": "лаваш", "type": "carb", "percent": 30}, {"name": "овощи", "type": "vegetable", "percent": 20}, {"name": "соус", "type": "other", "percent": 15}], "keywords": ["донер", "гирос", "Шаурма классическая"]},
+    "шаурма с говядиной": {"name": "Шаурма с говядиной", "name_en": ["донер с говядиной"], "category": "main", "default_weight": 350, "nutrition_per_100": {"calories": 210, "protein": 16.0, "fat": 11.0, "carbs": 15.0}, "ingredients": [{"name": "говядина", "type": "protein", "percent": 35}, {"name": "лаваш", "type": "carb", "percent": 30}, {"name": "овощи", "type": "vegetable", "percent": 20}, {"name": "соус", "type": "other", "percent": 15}], "keywords": ["донер с говядиной", "Шаурма с говядиной"]},
+    "шаурма с бараниной": {"name": "Шаурма с бараниной", "name_en": ["донер с бараниной"], "category": "main", "default_weight": 350, "nutrition_per_100": {"calories": 220, "protein": 15.0, "fat": 12.0, "carbs": 15.0}, "ingredients": [{"name": "баранина", "type": "protein", "percent": 35}, {"name": "лаваш", "type": "carb", "percent": 30}, {"name": "овощи", "type": "vegetable", "percent": 20}, {"name": "соус", "type": "other", "percent": 15}], "keywords": ["донер с бараниной", "Шаурма с бараниной"]},
+    "шаурма вегетарианская": {"name": "Шаурма вегетарианская", "name_en": ["веганская шаурма"], "category": "main", "default_weight": 320, "nutrition_per_100": {"calories": 180, "protein": 8.0, "fat": 8.0, "carbs": 20.0}, "ingredients": [{"name": "фалафель", "type": "protein", "percent": 30}, {"name": "лаваш", "type": "carb", "percent": 30}, {"name": "овощи", "type": "vegetable", "percent": 25}, {"name": "хумус", "type": "fat", "percent": 15}], "keywords": ["веганская шаурма", "Шаурма вегетарианская"]},
+    "шаурма с рыбой": {"name": "Шаурма с рыбой", "name_en": ["рыбная шаурма"], "category": "main", "default_weight": 330, "nutrition_per_100": {"calories": 190, "protein": 14.0, "fat": 9.0, "carbs": 16.0}, "ingredients": [{"name": "рыба", "type": "protein", "percent": 35}, {"name": "лаваш", "type": "carb", "percent": 30}, {"name": "овощи", "type": "vegetable", "percent": 20}, {"name": "соус", "type": "other", "percent": 15}], "keywords": ["рыбная шаурма", "Шаурма с рыбой"]},
+    "шаурма с креветками": {"name": "Шаурма с креветками", "name_en": ["шаурма с креветками"], "category": "main", "default_weight": 320, "nutrition_per_100": {"calories": 180, "protein": 16.0, "fat": 7.0, "carbs": 16.0}, "ingredients": [{"name": "креветки", "type": "protein", "percent": 35}, {"name": "лаваш", "type": "carb", "percent": 30}, {"name": "овощи", "type": "vegetable", "percent": 20}, {"name": "соус", "type": "other", "percent": 15}], "keywords": ["шаурма с креветками", "Шаурма с креветками"]},
+    "шаурма острая": {"name": "Шаурма острая", "name_en": ["острая шаурма", "спайси шаурма"], "category": "main", "default_weight": 350, "nutrition_per_100": {"calories": 205, "protein": 15.0, "fat": 10.0, "carbs": 16.0}, "ingredients": [{"name": "курица", "type": "protein", "percent": 35}, {"name": "лаваш", "type": "carb", "percent": 30}, {"name": "перец чили", "type": "vegetable", "percent": 10}, {"name": "овощи", "type": "vegetable", "percent": 10}, {"name": "соус", "type": "other", "percent": 15}], "keywords": ["острая шаурма", "спайси шаурма", "Шаурма острая"]},
+    "шаурма с сыром": {"name": "Шаурма с сыром", "name_en": ["шаурма с сыром"], "category": "main", "default_weight": 360, "nutrition_per_100": {"calories": 220, "protein": 16.0, "fat": 12.0, "carbs": 16.0}, "ingredients": [{"name": "курица", "type": "protein", "percent": 30}, {"name": "сыр", "type": "protein", "percent": 15}, {"name": "лаваш", "type": "carb", "percent": 30}, {"name": "овощи", "type": "vegetable", "percent": 15}, {"name": "соус", "type": "other", "percent": 10}], "keywords": ["шаурма с сыром", "Шаурма с сыром"]},
+    "шаурма с грибами": {"name": "Шаурма с грибами", "name_en": ["грибная шаурма"], "category": "main", "default_weight": 340, "nutrition_per_100": {"calories": 195, "protein": 12.0, "fat": 9.0, "carbs": 18.0}, "ingredients": [{"name": "грибы", "type": "vegetable", "percent": 30}, {"name": "лаваш", "type": "carb", "percent": 30}, {"name": "овощи", "type": "vegetable", "percent": 20}, {"name": "сыр", "type": "protein", "percent": 10}, {"name": "соус", "type": "other", "percent": 10}], "keywords": ["грибная шаурма", "Шаурма с грибами"]},
+    "шаурма с беконом": {"name": "Шаурма с беконом", "name_en": ["шаурма с беконом"], "category": "main", "default_weight": 370, "nutrition_per_100": {"calories": 240, "protein": 16.0, "fat": 14.0, "carbs": 15.0}, "ingredients": [{"name": "курица", "type": "protein", "percent": 25}, {"name": "бекон", "type": "protein", "percent": 15}, {"name": "лаваш", "type": "carb", "percent": 30}, {"name": "овощи", "type": "vegetable", "percent": 15}, {"name": "соус", "type": "other", "percent": 15}], "keywords": ["шаурма с беконом", "Шаурма с беконом"]},
+    "шаурма с яйцом": {"name": "Шаурма с яйцом", "name_en": ["шаурма с яйцом"], "category": "main", "default_weight": 350, "nutrition_per_100": {"calories": 210, "protein": 16.0, "fat": 11.0, "carbs": 16.0}, "ingredients": [{"name": "курица", "type": "protein", "percent": 25}, {"name": "яйца", "type": "protein", "percent": 15}, {"name": "лаваш", "type": "carb", "percent": 30}, {"name": "овощи", "type": "vegetable", "percent": 15}, {"name": "соус", "type": "other", "percent": 15}], "keywords": ["шаурма с яйцом", "Шаурма с яйцом"]},
+    "шаурма с картофелем фри": {"name": "Шаурма с картофелем фри", "name_en": ["шаурма с фри"], "category": "main", "default_weight": 380, "nutrition_per_100": {"calories": 230, "protein": 14.0, "fat": 12.0, "carbs": 20.0}, "ingredients": [{"name": "курица", "type": "protein", "percent": 30}, {"name": "картофель фри", "type": "carb", "percent": 25}, {"name": "лаваш", "type": "carb", "percent": 25}, {"name": "овощи", "type": "vegetable", "percent": 10}, {"name": "соус", "type": "other", "percent": 10}], "keywords": ["шаурма с фри", "Шаурма с картофелем фри"]},
+    "шаурма с хумусом": {"name": "Шаурма с хумусом", "name_en": ["шаурма с хумусом"], "category": "main", "default_weight": 360, "nutrition_per_100": {"calories": 215, "protein": 14.0, "fat": 11.0, "carbs": 18.0}, "ingredients": [{"name": "курица", "type": "protein", "percent": 30}, {"name": "хумус", "type": "fat", "percent": 15}, {"name": "лаваш", "type": "carb", "percent": 30}, {"name": "овощи", "type": "vegetable", "percent": 15}, {"name": "соус", "type": "other", "percent": 10}], "keywords": ["шаурма с хумусом", "Шаурма с хумусом"]},
+    "шаурма с авокадо": {"name": "Шаурма с авокадо", "name_en": ["шаурма с авокадо"], "category": "main", "default_weight": 360, "nutrition_per_100": {"calories": 225, "protein": 14.0, "fat": 13.0, "carbs": 16.0}, "ingredients": [{"name": "курица", "type": "protein", "percent": 30}, {"name": "авокадо", "type": "fat", "percent": 15}, {"name": "лаваш", "type": "carb", "percent": 30}, {"name": "овощи", "type": "vegetable", "percent": 15}, {"name": "соус", "type": "other", "percent": 10}], "keywords": ["шаурма с авокадо", "Шаурма с авокадо"]},
+    "шаурма микс": {"name": "Шаурма микс", "name_en": ["шаурма ассорти"], "category": "main", "default_weight": 380, "nutrition_per_100": {"calories": 220, "protein": 16.0, "fat": 12.0, "carbs": 16.0}, "ingredients": [{"name": "курица", "type": "protein", "percent": 20}, {"name": "говядина", "type": "protein", "percent": 15}, {"name": "лаваш", "type": "carb", "percent": 30}, {"name": "овощи", "type": "vegetable", "percent": 15}, {"name": "соус", "type": "other", "percent": 20}], "keywords": ["шаурма ассорти", "Шаурма микс"]},
     
-    # ==================== ASIAN CUISINE ====================
-    "fried rice": {
-        "name": "Fried rice",
-        "name_en": ["fried rice", "asian fried rice", "stir-fried rice"],
-        "category": "main",
-        "default_weight": 250,
-        "nutrition_per_100": {"calories": 140, "protein": 4.0, "fat": 4.0, "carbs": 22.0},
-        "ingredients": [
-            {"name": "rice", "type": "carb", "percent": 70},
-            {"name": "vegetables", "type": "vegetable", "percent": 20},
-            {"name": "soy sauce", "type": "other", "percent": 5},
-            {"name": "oil", "type": "fat", "percent": 5}
-        ],
-        "keywords": ["rice", "fried", "asian", "stir-fry", "soy"]
-    },
-    "ramen": {
-        "name": "Ramen",
-        "name_en": ["ramen", "japanese ramen", "ramen noodles"],
-        "category": "soup",
-        "default_weight": 350,
-        "nutrition_per_100": {"calories": 90, "protein": 5.0, "fat": 3.0, "carbs": 12.0},
-        "ingredients": [
-            {"name": "noodles", "type": "carb", "percent": 40},
-            {"name": "broth", "type": "protein", "percent": 30},
-            {"name": "vegetables", "type": "vegetable", "percent": 20},
-            {"name": "egg", "type": "protein", "percent": 10}
-        ],
-        "keywords": ["ramen", "noodles", "japanese", "soup", "broth"]
-    },
-    "sushi": {
-        "name": "Sushi",
-        "name_en": ["sushi", "japanese sushi", "sushi rolls"],
-        "category": "main",
-        "default_weight": 200,
-        "nutrition_per_100": {"calories": 140, "protein": 8.0, "fat": 2.0, "carbs": 20.0},
-        "ingredients": [
-            {"name": "rice", "type": "carb", "percent": 60},
-            {"name": "fish", "type": "protein", "percent": 30},
-            {"name": "seaweed", "type": "vegetable", "percent": 10}
-        ],
-        "keywords": ["sushi", "japanese", "fish", "rice", "rolls"]
-    },
+    # Роллы и суши (20)
+    "ролл филадельфия": {"name": "Ролл Филадельфия", "name_en": ["филадельфия ролл"], "category": "main", "default_weight": 200, "nutrition_per_100": {"calories": 160, "protein": 9.0, "fat": 6.0, "carbs": 20.0}, "ingredients": [{"name": "лосось", "type": "protein", "percent": 30}, {"name": "рис", "type": "carb", "percent": 40}, {"name": "сливочный сыр", "type": "protein", "percent": 20}, {"name": "огурец", "type": "vegetable", "percent": 10}], "keywords": ["филадельфия ролл", "Ролл Филадельфия"]},
+    "ролл калифорния": {"name": "Ролл Калифорния", "name_en": ["калифорния ролл"], "category": "main", "default_weight": 180, "nutrition_per_100": {"calories": 150, "protein": 8.0, "fat": 5.0, "carbs": 20.0}, "ingredients": [{"name": "краб", "type": "protein", "percent": 25}, {"name": "рис", "type": "carb", "percent": 45}, {"name": "авокадо", "type": "fat", "percent": 15}, {"name": "икра", "type": "protein", "percent": 15}], "keywords": ["калифорния ролл", "Ролл Калифорния"]},
+    "ролл дракон": {"name": "Ролл Дракон", "name_en": ["дракон ролл"], "category": "main", "default_weight": 220, "nutrition_per_100": {"calories": 170, "protein": 10.0, "fat": 7.0, "carbs": 20.0}, "ingredients": [{"name": "угорь", "type": "protein", "percent": 25}, {"name": "рис", "type": "carb", "percent": 40}, {"name": "авокадо", "type": "fat", "percent": 20}, {"name": "соус", "type": "other", "percent": 15}], "keywords": ["дракон ролл", "Ролл Дракон"]},
+    "ролл темпура": {"name": "Ролл Темпура", "name_en": ["темпура ролл", "жареный ролл"], "category": "main", "default_weight": 200, "nutrition_per_100": {"calories": 190, "protein": 8.0, "fat": 9.0, "carbs": 22.0}, "ingredients": [{"name": "креветки", "type": "protein", "percent": 25}, {"name": "рис", "type": "carb", "percent": 35}, {"name": "овощи", "type": "vegetable", "percent": 20}, {"name": "тесто", "type": "carb", "percent": 20}], "keywords": ["темпура ролл", "жареный ролл", "Ролл Темпура"]},
+    "ролл с тунцом": {"name": "Ролл с тунцом", "name_en": ["тунец ролл"], "category": "main", "default_weight": 190, "nutrition_per_100": {"calories": 155, "protein": 10.0, "fat": 5.0, "carbs": 20.0}, "ingredients": [{"name": "тунец", "type": "protein", "percent": 30}, {"name": "рис", "type": "carb", "percent": 45}, {"name": "овощи", "type": "vegetable", "percent": 15}, {"name": "нори", "type": "vegetable", "percent": 10}], "keywords": ["тунец ролл", "Ролл с тунцом"]},
+    "ролл с лососем": {"name": "Ролл с лососем", "name_en": ["лосось ролл"], "category": "main", "default_weight": 190, "nutrition_per_100": {"calories": 165, "protein": 10.0, "fat": 6.0, "carbs": 20.0}, "ingredients": [{"name": "лосось", "type": "protein", "percent": 30}, {"name": "рис", "type": "carb", "percent": 45}, {"name": "овощи", "type": "vegetable", "percent": 15}, {"name": "нори", "type": "vegetable", "percent": 10}], "keywords": ["лосось ролл", "Ролл с лососем"]},
+    "ролл с угрем": {"name": "Ролл с угрем", "name_en": ["угорь ролл", "унаги ролл"], "category": "main", "default_weight": 210, "nutrition_per_100": {"calories": 180, "protein": 11.0, "fat": 8.0, "carbs": 20.0}, "ingredients": [{"name": "угорь", "type": "protein", "percent": 30}, {"name": "рис", "type": "carb", "percent": 45}, {"name": "овощи", "type": "vegetable", "percent": 15}, {"name": "соус", "type": "other", "percent": 10}], "keywords": ["угорь ролл", "унаги ролл", "Ролл с угрем"]},
+    "ролл с крабом": {"name": "Ролл с крабом", "name_en": ["краб ролл"], "category": "main", "default_weight": 180, "nutrition_per_100": {"calories": 145, "protein": 8.0, "fat": 4.0, "carbs": 22.0}, "ingredients": [{"name": "краб", "type": "protein", "percent": 25}, {"name": "рис", "type": "carb", "percent": 50}, {"name": "овощи", "type": "vegetable", "percent": 15}, {"name": "нори", "type": "vegetable", "percent": 10}], "keywords": ["краб ролл", "Ролл с крабом"]},
+    "ролл с креветками": {"name": "Ролл с креветками", "name_en": ["креветки ролл"], "category": "main", "default_weight": 190, "nutrition_per_100": {"calories": 140, "protein": 10.0, "fat": 3.0, "carbs": 22.0}, "ingredients": [{"name": "креветки", "type": "protein", "percent": 30}, {"name": "рис", "type": "carb", "percent": 50}, {"name": "овощи", "type": "vegetable", "percent": 15}, {"name": "нори", "type": "vegetable", "percent": 5}], "keywords": ["креветки ролл", "Ролл с креветками"]},
+    "ролл с авокадо": {"name": "Ролл с авокадо", "name_en": ["авокадо ролл", "веганский ролл"], "category": "main", "default_weight": 170, "nutrition_per_100": {"calories": 150, "protein": 4.0, "fat": 7.0, "carbs": 22.0}, "ingredients": [{"name": "авокадо", "type": "fat", "percent": 35}, {"name": "рис", "type": "carb", "percent": 50}, {"name": "овощи", "type": "vegetable", "percent": 10}, {"name": "нори", "type": "vegetable", "percent": 5}], "keywords": ["авокадо ролл", "веганский ролл", "Ролл с авокадо"]},
+    "ролл с огурцом": {"name": "Ролл с огурцом", "name_en": ["каппа маки", "огурец ролл"], "category": "main", "default_weight": 150, "nutrition_per_100": {"calories": 130, "protein": 3.0, "fat": 1.0, "carbs": 28.0}, "ingredients": [{"name": "огурец", "type": "vegetable", "percent": 40}, {"name": "рис", "type": "carb", "percent": 50}, {"name": "нори", "type": "vegetable", "percent": 10}], "keywords": ["каппа маки", "огурец ролл", "Ролл с огурцом"]},
+    "ролл маки": {"name": "Ролл Маки", "name_en": ["маки ролл", "простой ролл"], "category": "main", "default_weight": 160, "nutrition_per_100": {"calories": 140, "protein": 5.0, "fat": 3.0, "carbs": 25.0}, "ingredients": [{"name": "рыба", "type": "protein", "percent": 25}, {"name": "рис", "type": "carb", "percent": 55}, {"name": "нори", "type": "vegetable", "percent": 10}, {"name": "овощи", "type": "vegetable", "percent": 10}], "keywords": ["маки ролл", "простой ролл", "Ролл Маки"]},
+    "ролл нигири": {"name": "Нигири суши", "name_en": ["нигири", "суши с рыбой"], "category": "main", "default_weight": 50, "nutrition_per_100": {"calories": 120, "protein": 8.0, "fat": 2.0, "carbs": 20.0}, "ingredients": [{"name": "рыба", "type": "protein", "percent": 50}, {"name": "рис", "type": "carb", "percent": 50}], "keywords": ["нигири", "суши с рыбой", "Нигири суши"]},
+    "ролл нигири с лососем": {"name": "Нигири с лососем", "name_en": ["лосось нигири"], "category": "main", "default_weight": 50, "nutrition_per_100": {"calories": 130, "protein": 9.0, "fat": 3.0, "carbs": 18.0}, "ingredients": [{"name": "лосось", "type": "protein", "percent": 50}, {"name": "рис", "type": "carb", "percent": 50}], "keywords": ["лосось нигири", "Нигири с лососем"]},
+    "ролл нигири с тунцом": {"name": "Нигири с тунцом", "name_en": ["тунец нигири"], "category": "main", "default_weight": 50, "nutrition_per_100": {"calories": 125, "protein": 9.0, "fat": 2.5, "carbs": 18.0}, "ingredients": [{"name": "тунец", "type": "protein", "percent": 50}, {"name": "рис", "type": "carb", "percent": 50}], "keywords": ["тунец нигири", "Нигири с тунцом"]},
+    "ролл нигири с креветкой": {"name": "Нигири с креветкой", "name_en": ["креветка нигири"], "category": "main", "default_weight": 50, "nutrition_per_100": {"calories": 115, "protein": 9.0, "fat": 1.5, "carbs": 18.0}, "ingredients": [{"name": "креветки", "type": "protein", "percent": 50}, {"name": "рис", "type": "carb", "percent": 50}], "keywords": ["креветка нигири", "Нигири с креветкой"]},
+    "ролл нигири с угрем": {"name": "Нигири с угрем", "name_en": ["угорь нигири"], "category": "main", "default_weight": 50, "nutrition_per_100": {"calories": 140, "protein": 10.0, "fat": 4.0, "carbs": 18.0}, "ingredients": [{"name": "угорь", "type": "protein", "percent": 50}, {"name": "рис", "type": "carb", "percent": 50}], "keywords": ["угорь нигири", "Нигири с угрем"]},
+    "ролл запечённый": {"name": "Ролл запечённый", "name_en": ["запечённый ролл"], "category": "main", "default_weight": 210, "nutrition_per_100": {"calories": 185, "protein": 9.0, "fat": 8.0, "carbs": 22.0}, "ingredients": [{"name": "лосось", "type": "protein", "percent": 25}, {"name": "рис", "type": "carb", "percent": 40}, {"name": "сыр", "type": "protein", "percent": 20}, {"name": "соус", "type": "other", "percent": 15}], "keywords": ["запечённый ролл", "Ролл запечённый"]},
+    "ролл спайси": {"name": "Ролл Спайси", "name_en": ["острый ролл", "спайси ролл"], "category": "main", "default_weight": 200, "nutrition_per_100": {"calories": 170, "protein": 9.0, "fat": 7.0, "carbs": 20.0}, "ingredients": [{"name": "тунец", "type": "protein", "percent": 25}, {"name": "рис", "type": "carb", "percent": 45}, {"name": "перец чили", "type": "vegetable", "percent": 10}, {"name": "соус", "type": "other", "percent": 20}], "keywords": ["острый ролл", "спайси ролл", "Ролл Спайси"]},
+    "ролл радуга": {"name": "Ролл Радуга", "name_en": ["радуга ролл"], "category": "main", "default_weight": 230, "nutrition_per_100": {"calories": 175, "protein": 11.0, "fat": 7.0, "carbs": 20.0}, "ingredients": [{"name": "лосось", "type": "protein", "percent": 20}, {"name": "тунец", "type": "protein", "percent": 15}, {"name": "угорь", "type": "protein", "percent": 10}, {"name": "рис", "type": "carb", "percent": 35}, {"name": "авокадо", "type": "fat", "percent": 20}], "keywords": ["радуга ролл", "Ролл Радуга"]},
     
-    # ==================== AMERICAN CUISINE ====================
-    "hamburger": {
-        "name": "Hamburger",
-        "name_en": ["hamburger", "burger", "cheeseburger"],
-        "category": "main",
-        "default_weight": 300,
-        "nutrition_per_100": {"calories": 250, "protein": 15.0, "fat": 15.0, "carbs": 15.0},
-        "ingredients": [
-            {"name": "beef patty", "type": "protein", "percent": 40},
-            {"name": "bun", "type": "carb", "percent": 30},
-            {"name": "cheese", "type": "protein", "percent": 15},
-            {"name": "vegetables", "type": "vegetable", "percent": 15}
-        ],
-        "keywords": ["hamburger", "burger", "american", "beef", "bun"]
-    },
-    "steak": {
-        "name": "Steak",
-        "name_en": ["steak", "beef steak", "grilled steak"],
-        "category": "main",
-        "default_weight": 250,
-        "nutrition_per_100": {"calories": 200, "protein": 25.0, "fat": 12.0, "carbs": 0.0},
-        "ingredients": [
-            {"name": "beef", "type": "protein", "percent": 95},
-            {"name": "spices", "type": "other", "percent": 5}
-        ],
-        "keywords": ["steak", "beef", "grilled", "meat", "premium"]
-    },
-    "french fries": {
-        "name": "French fries",
-        "name_en": ["french fries", "fries", "potato fries"],
-        "category": "side",
-        "default_weight": 150,
-        "nutrition_per_100": {"calories": 320, "protein": 3.0, "fat": 15.0, "carbs": 40.0},
-        "ingredients": [
-            {"name": "potatoes", "type": "carb", "percent": 95},
-            {"name": "oil", "type": "fat", "percent": 5}
-        ],
-        "keywords": ["fries", "potato", "fried", "american", "side"]
-    },
+    # Пицца (20)
+    "пицца маргарита": {"name": "Пицца Маргарита", "name_en": ["маргарита"], "category": "main", "default_weight": 300, "nutrition_per_100": {"calories": 250, "protein": 10.0, "fat": 9.0, "carbs": 32.0}, "ingredients": [{"name": "тесто", "type": "carb", "percent": 50}, {"name": "моцарелла", "type": "protein", "percent": 25}, {"name": "помидоры", "type": "vegetable", "percent": 15}, {"name": "базилик", "type": "other", "percent": 5}, {"name": "оливковое масло", "type": "fat", "percent": 5}], "keywords": ["маргарита", "Пицца Маргарита"]},
+    "пицца пепперони": {"name": "Пицца Пепперони", "name_en": ["пепперони"], "category": "main", "default_weight": 300, "nutrition_per_100": {"calories": 280, "protein": 12.0, "fat": 13.0, "carbs": 30.0}, "ingredients": [{"name": "тесто", "type": "carb", "percent": 45}, {"name": "моцарелла", "type": "protein", "percent": 20}, {"name": "пепперони", "type": "protein", "percent": 25}, {"name": "томатный соус", "type": "vegetable", "percent": 10}], "keywords": ["пепперони", "Пицца Пепперони"]},
+    "пицца 4 сыра": {"name": "Пицца 4 сыра", "name_en": ["четыре сыра"], "category": "main", "default_weight": 300, "nutrition_per_100": {"calories": 290, "protein": 14.0, "fat": 15.0, "carbs": 28.0}, "ingredients": [{"name": "тесто", "type": "carb", "percent": 45}, {"name": "моцарелла", "type": "protein", "percent": 20}, {"name": "горгонзола", "type": "protein", "percent": 15}, {"name": "пармезан", "type": "protein", "percent": 10}, {"name": "сливки", "type": "fat", "percent": 10}], "keywords": ["четыре сыра", "Пицца 4 сыра"]},
+    "пицца гавайская": {"name": "Пицца Гавайская", "name_en": ["гавайская"], "category": "main", "default_weight": 300, "nutrition_per_100": {"calories": 240, "protein": 11.0, "fat": 8.0, "carbs": 32.0}, "ingredients": [{"name": "тесто", "type": "carb", "percent": 45}, {"name": "моцарелла", "type": "protein", "percent": 20}, {"name": "ветчина", "type": "protein", "percent": 20}, {"name": "ананас", "type": "carb", "percent": 15}], "keywords": ["гавайская", "Пицца Гавайская"]},
+    "пицца грибная": {"name": "Пицца Грибная", "name_en": ["грибная"], "category": "main", "default_weight": 300, "nutrition_per_100": {"calories": 230, "protein": 10.0, "fat": 9.0, "carbs": 30.0}, "ingredients": [{"name": "тесто", "type": "carb", "percent": 50}, {"name": "моцарелла", "type": "protein", "percent": 20}, {"name": "грибы", "type": "vegetable", "percent": 25}, {"name": "сливки", "type": "fat", "percent": 5}], "keywords": ["грибная", "Пицца Грибная"]},
+    "пицца мясная": {"name": "Пицца Мясная", "name_en": ["мясная", "мясная пицца"], "category": "main", "default_weight": 320, "nutrition_per_100": {"calories": 270, "protein": 14.0, "fat": 13.0, "carbs": 28.0}, "ingredients": [{"name": "тесто", "type": "carb", "percent": 45}, {"name": "моцарелла", "type": "protein", "percent": 15}, {"name": "пепперони", "type": "protein", "percent": 15}, {"name": "ветчина", "type": "protein", "percent": 15}, {"name": "фарш", "type": "protein", "percent": 10}], "keywords": ["мясная", "мясная пицца", "Пицца Мясная"]},
+    "пицца морепродукты": {"name": "Пицца Морепродукты", "name_en": ["морепродукты"], "category": "main", "default_weight": 300, "nutrition_per_100": {"calories": 220, "protein": 13.0, "fat": 8.0, "carbs": 28.0}, "ingredients": [{"name": "тесто", "type": "carb", "percent": 50}, {"name": "моцарелла", "type": "protein", "percent": 20}, {"name": "креветки", "type": "protein", "percent": 15}, {"name": "кальмары", "type": "protein", "percent": 10}, {"name": "томатный соус", "type": "vegetable", "percent": 5}], "keywords": ["морепродукты", "Пицца Морепродукты"]},
+    "пицца овощная": {"name": "Пицца Овощная", "name_en": ["овощная", "вегетарианская"], "category": "main", "default_weight": 300, "nutrition_per_100": {"calories": 210, "protein": 9.0, "fat": 7.0, "carbs": 32.0}, "ingredients": [{"name": "тесто", "type": "carb", "percent": 50}, {"name": "моцарелла", "type": "protein", "percent": 20}, {"name": "болгарский перец", "type": "vegetable", "percent": 10}, {"name": "помидоры", "type": "vegetable", "percent": 10}, {"name": "грибы", "type": "vegetable", "percent": 10}], "keywords": ["овощная", "вегетарианская", "Пицца Овощная"]},
+    "пицца капричоза": {"name": "Пицца Капричоза", "name_en": ["капричоза"], "category": "main", "default_weight": 300, "nutrition_per_100": {"calories": 240, "protein": 11.0, "fat": 10.0, "carbs": 30.0}, "ingredients": [{"name": "тесто", "type": "carb", "percent": 45}, {"name": "моцарелла", "type": "protein", "percent": 20}, {"name": "ветчина", "type": "protein", "percent": 15}, {"name": "грибы", "type": "vegetable", "percent": 10}, {"name": "артишок", "type": "vegetable", "percent": 10}], "keywords": ["капричоза", "Пицца Капричоза"]},
+    "пицца наполи": {"name": "Пицца Наполи", "name_en": ["наполи"], "category": "main", "default_weight": 280, "nutrition_per_100": {"calories": 220, "protein": 9.0, "fat": 7.0, "carbs": 34.0}, "ingredients": [{"name": "тесто", "type": "carb", "percent": 55}, {"name": "моцарелла", "type": "protein", "percent": 15}, {"name": "помидоры", "type": "vegetable", "percent": 20}, {"name": "базилик", "type": "other", "percent": 5}, {"name": "оливковое масло", "type": "fat", "percent": 5}], "keywords": ["наполи", "Пицца Наполи"]},
+    "пицца диабло": {"name": "Пицца Диабло", "name_en": ["диабло", "острая пицца"], "category": "main", "default_weight": 300, "nutrition_per_100": {"calories": 260, "protein": 12.0, "fat": 12.0, "carbs": 30.0}, "ingredients": [{"name": "тесто", "type": "carb", "percent": 45}, {"name": "моцарелла", "type": "protein", "percent": 20}, {"name": "салями", "type": "protein", "percent": 20}, {"name": "перец чили", "type": "vegetable", "percent": 5}, {"name": "томатный соус", "type": "vegetable", "percent": 10}], "keywords": ["диабло", "острая пицца", "Пицца Диабло"]},
+    "пицца кальцоне": {"name": "Пицца Кальцоне", "name_en": ["кальцоне", "закрытая пицца"], "category": "main", "default_weight": 320, "nutrition_per_100": {"calories": 250, "protein": 12.0, "fat": 11.0, "carbs": 28.0}, "ingredients": [{"name": "тесто", "type": "carb", "percent": 50}, {"name": "рикотта", "type": "protein", "percent": 25}, {"name": "моцарелла", "type": "protein", "percent": 15}, {"name": "ветчина", "type": "protein", "percent": 10}], "keywords": ["кальцоне", "закрытая пицца", "Пицца Кальцоне"]},
+    "пицца прошутто": {"name": "Пицца Прошутто", "name_en": ["прошутто"], "category": "main", "default_weight": 300, "nutrition_per_100": {"calories": 250, "protein": 13.0, "fat": 11.0, "carbs": 28.0}, "ingredients": [{"name": "тесто", "type": "carb", "percent": 45}, {"name": "моцарелла", "type": "protein", "percent": 20}, {"name": "прошутто", "type": "protein", "percent": 25}, {"name": "руккола", "type": "vegetable", "percent": 10}], "keywords": ["прошутто", "Пицца Прошутто"]},
+    "пицца карпаччо": {"name": "Пицца Карпаччо", "name_en": ["карпаччо"], "category": "main", "default_weight": 300, "nutrition_per_100": {"calories": 240, "protein": 12.0, "fat": 10.0, "carbs": 28.0}, "ingredients": [{"name": "тесто", "type": "carb", "percent": 45}, {"name": "моцарелла", "type": "protein", "percent": 20}, {"name": "говядина", "type": "protein", "percent": 20}, {"name": "руккола", "type": "vegetable", "percent": 10}, {"name": "пармезан", "type": "protein", "percent": 5}], "keywords": ["карпаччо", "Пицца Карпаччо"]},
+    "пицца с лососем": {"name": "Пицца с лососем", "name_en": ["лосось пицца"], "category": "main", "default_weight": 300, "nutrition_per_100": {"calories": 240, "protein": 13.0, "fat": 10.0, "carbs": 28.0}, "ingredients": [{"name": "тесто", "type": "carb", "percent": 45}, {"name": "сливочный сыр", "type": "protein", "percent": 25}, {"name": "лосось", "type": "protein", "percent": 20}, {"name": "каперсы", "type": "vegetable", "percent": 5}, {"name": "лук", "type": "vegetable", "percent": 5}], "keywords": ["лосось пицца", "Пицца с лососем"]},
+    "пицца с тунцом": {"name": "Пицца с тунцом", "name_en": ["тунец пицца"], "category": "main", "default_weight": 300, "nutrition_per_100": {"calories": 230, "protein": 13.0, "fat": 9.0, "carbs": 28.0}, "ingredients": [{"name": "тесто", "type": "carb", "percent": 50}, {"name": "моцарелла", "type": "protein", "percent": 20}, {"name": "тунец", "type": "protein", "percent": 25}, {"name": "лук", "type": "vegetable", "percent": 5}], "keywords": ["тунец пицца", "Пицца с тунцом"]},
+    "пицца с курицей": {"name": "Пицца с курицей", "name_en": ["курица пицца"], "category": "main", "default_weight": 300, "nutrition_per_100": {"calories": 240, "protein": 13.0, "fat": 9.0, "carbs": 30.0}, "ingredients": [{"name": "тесто", "type": "carb", "percent": 45}, {"name": "моцарелла", "type": "protein", "percent": 20}, {"name": "курица", "type": "protein", "percent": 25}, {"name": "грибы", "type": "vegetable", "percent": 10}], "keywords": ["курица пицца", "Пицца с курицей"]},
+    "пицца с барбекю": {"name": "Пицца Барбекю", "name_en": ["барбекю пицца", "bbq пицца"], "category": "main", "default_weight": 320, "nutrition_per_100": {"calories": 260, "protein": 13.0, "fat": 11.0, "carbs": 30.0}, "ingredients": [{"name": "тесто", "type": "carb", "percent": 45}, {"name": "моцарелла", "type": "protein", "percent": 20}, {"name": "курица", "type": "protein", "percent": 20}, {"name": "соус барбекю", "type": "other", "percent": 10}, {"name": "лук", "type": "vegetable", "percent": 5}], "keywords": ["барбекю пицца", "bbq пицца", "Пицца Барбекю"]},
+    "пицца с фаршем": {"name": "Пицца с фаршем", "name_en": ["фарш пицца"], "category": "main", "default_weight": 320, "nutrition_per_100": {"calories": 260, "protein": 13.0, "fat": 12.0, "carbs": 28.0}, "ingredients": [{"name": "тесто", "type": "carb", "percent": 45}, {"name": "моцарелла", "type": "protein", "percent": 20}, {"name": "фарш", "type": "protein", "percent": 25}, {"name": "лук", "type": "vegetable", "percent": 10}], "keywords": ["фарш пицца", "Пицца с фаршем"]},
+    "пицца веганская": {"name": "Пицца Веганская", "name_en": ["веганская", "без сыра"], "category": "main", "default_weight": 280, "nutrition_per_100": {"calories": 200, "protein": 6.0, "fat": 6.0, "carbs": 34.0}, "ingredients": [{"name": "тесто", "type": "carb", "percent": 55}, {"name": "помидоры", "type": "vegetable", "percent": 20}, {"name": "овощи", "type": "vegetable", "percent": 20}, {"name": "оливковое масло", "type": "fat", "percent": 5}], "keywords": ["веганская", "без сыра", "Пицца Веганская"]},
     
-    # ==================== SIDE DISHES ====================
-    "buckwheat": {
-        "name": "Buckwheat",
-        "name_en": ["buckwheat", "kasha", "buckwheat groats"],
-        "category": "side",
-        "default_weight": 200,
-        "nutrition_per_100": {"calories": 130, "protein": 4.5, "fat": 1.5, "carbs": 25.0},
-        "ingredients": [
-            {"name": "buckwheat", "type": "carb", "percent": 95},
-            {"name": "oil", "type": "fat", "percent": 5}
-        ],
-        "keywords": ["buckwheat", "kasha", "russian", "healthy", "grain"]
-    },
-    "rice": {
-        "name": "Rice",
-        "name_en": ["rice", "white rice", "steamed rice"],
-        "category": "side",
-        "default_weight": 200,
-        "nutrition_per_100": {"calories": 130, "protein": 2.5, "fat": 0.5, "carbs": 28.0},
-        "ingredients": [
-            {"name": "rice", "type": "carb", "percent": 100}
-        ],
-        "keywords": ["rice", "white", "steamed", "side", "basic"]
-    },
-    "pasta": {
-        "name": "Pasta",
-        "name_en": ["pasta", "spaghetti", "noodles"],
-        "category": "side",
-        "default_weight": 200,
-        "nutrition_per_100": {"calories": 140, "protein": 5.0, "fat": 1.0, "carbs": 28.0},
-        "ingredients": [
-            {"name": "pasta", "type": "carb", "percent": 100}
-        ],
-        "keywords": ["pasta", "spaghetti", "italian", "noodles", "side"]
-    },
-    "mashed potatoes": {
-        "name": "Mashed potatoes",
-        "name_en": ["mashed potatoes", "potato puree", "mashed potato"],
-        "category": "side",
-        "default_weight": 200,
-        "nutrition_per_100": {"calories": 110, "protein": 2.0, "fat": 4.0, "carbs": 17.0},
-        "ingredients": [
-            {"name": "potatoes", "type": "carb", "percent": 85},
-            {"name": "milk", "type": "protein", "percent": 10},
-            {"name": "butter", "type": "fat", "percent": 5}
-        ],
-        "keywords": ["potatoes", "mashed", "puree", "creamy", "side"]
-    },
+    # Паста (20)
+    "спагетти карбонара": {"name": "Спагетти Карбонара", "name_en": ["карбонара"], "category": "main", "default_weight": 300, "nutrition_per_100": {"calories": 190, "protein": 11.0, "fat": 13.0, "carbs": 12.0}, "ingredients": [{"name": "спагетти", "type": "carb", "percent": 50}, {"name": "бекон", "type": "protein", "percent": 25}, {"name": "яйца", "type": "protein", "percent": 15}, {"name": "пармезан", "type": "protein", "percent": 10}], "keywords": ["карбонара", "Спагетти Карбонара"]},
+    "спагетти болоньезе": {"name": "Спагетти Болоньезе", "name_en": ["болоньезе"], "category": "main", "default_weight": 320, "nutrition_per_100": {"calories": 170, "protein": 10.0, "fat": 7.0, "carbs": 18.0}, "ingredients": [{"name": "спагетти", "type": "carb", "percent": 50}, {"name": "фарш", "type": "protein", "percent": 30}, {"name": "томатный соус", "type": "vegetable", "percent": 15}, {"name": "пармезан", "type": "protein", "percent": 5}], "keywords": ["болоньезе", "Спагетти Болоньезе"]},
+    "паста альфредо": {"name": "Паста Альфредо", "name_en": ["альфредо"], "category": "main", "default_weight": 300, "nutrition_per_100": {"calories": 210, "protein": 9.0, "fat": 15.0, "carbs": 14.0}, "ingredients": [{"name": "феттучине", "type": "carb", "percent": 50}, {"name": "сливки", "type": "fat", "percent": 25}, {"name": "пармезан", "type": "protein", "percent": 15}, {"name": "сливочное масло", "type": "fat", "percent": 10}], "keywords": ["альфредо", "Паста Альфредо"]},
+    "паста песто": {"name": "Паста Песто", "name_en": ["песто"], "category": "main", "default_weight": 280, "nutrition_per_100": {"calories": 200, "protein": 8.0, "fat": 13.0, "carbs": 16.0}, "ingredients": [{"name": "базилик", "type": "other", "percent": 30}, {"name": "кедровые орехи", "type": "fat", "percent": 20}, {"name": "пармезан", "type": "protein", "percent": 20}, {"name": "паста", "type": "carb", "percent": 30}], "keywords": ["песто", "Паста Песто"]},
+    "паста аррабьята": {"name": "Паста Аррабьята", "name_en": ["аррабьята", "острая паста"], "category": "main", "default_weight": 280, "nutrition_per_100": {"calories": 160, "protein": 6.0, "fat": 6.0, "carbs": 22.0}, "ingredients": [{"name": "паста", "type": "carb", "percent": 55}, {"name": "томатный соус", "type": "vegetable", "percent": 25}, {"name": "перец чили", "type": "vegetable", "percent": 5}, {"name": "чеснок", "type": "vegetable", "percent": 5}, {"name": "оливковое масло", "type": "fat", "percent": 10}], "keywords": ["аррабьята", "острая паста", "Паста Аррабьята"]},
+    "паста путтанеска": {"name": "Паста Путтанеска", "name_en": ["путтанеска"], "category": "main", "default_weight": 280, "nutrition_per_100": {"calories": 170, "protein": 7.0, "fat": 8.0, "carbs": 20.0}, "ingredients": [{"name": "паста", "type": "carb", "percent": 55}, {"name": "томатный соус", "type": "vegetable", "percent": 20}, {"name": "оливки", "type": "vegetable", "percent": 10}, {"name": "каперсы", "type": "vegetable", "percent": 5}, {"name": "анчоусы", "type": "protein", "percent": 10}], "keywords": ["путтанеска", "Паста Путтанеска"]},
+    "паста аматричана": {"name": "Паста Аматричана", "name_en": ["аматричана"], "category": "main", "default_weight": 300, "nutrition_per_100": {"calories": 180, "protein": 10.0, "fat": 9.0, "carbs": 18.0}, "ingredients": [{"name": "паста", "type": "carb", "percent": 50}, {"name": "гуанчиале", "type": "protein", "percent": 25}, {"name": "томатный соус", "type": "vegetable", "percent": 15}, {"name": "пекорино", "type": "protein", "percent": 10}], "keywords": ["аматричана", "Паста Аматричана"]},
+    "паста качо э пепе": {"name": "Паста Качо э Пепе", "name_en": ["качо пепе"], "category": "main", "default_weight": 280, "nutrition_per_100": {"calories": 190, "protein": 10.0, "fat": 11.0, "carbs": 18.0}, "ingredients": [{"name": "паста", "type": "carb", "percent": 55}, {"name": "пекорино", "type": "protein", "percent": 25}, {"name": "чёрный перец", "type": "other", "percent": 5}, {"name": "паста вода", "type": "other", "percent": 15}], "keywords": ["качо пепе", "Паста Качо э Пепе"]},
+    "лазанья болоньезе": {"name": "Лазанья Болоньезе", "name_en": ["лазанья"], "category": "main", "default_weight": 350, "nutrition_per_100": {"calories": 180, "protein": 11.0, "fat": 9.0, "carbs": 16.0}, "ingredients": [{"name": "листы лазаньи", "type": "carb", "percent": 40}, {"name": "фарш", "type": "protein", "percent": 25}, {"name": "бешамель", "type": "fat", "percent": 20}, {"name": "пармезан", "type": "protein", "percent": 15}], "keywords": ["лазанья", "Лазанья Болоньезе"]},
+    "каннеллони": {"name": "Каннеллони", "name_en": ["каннеллони"], "category": "main", "default_weight": 320, "nutrition_per_100": {"calories": 170, "protein": 10.0, "fat": 8.0, "carbs": 18.0}, "ingredients": [{"name": "каннеллони", "type": "carb", "percent": 40}, {"name": "рикотта", "type": "protein", "percent": 25}, {"name": "шпинат", "type": "vegetable", "percent": 15}, {"name": "томатный соус", "type": "vegetable", "percent": 20}], "keywords": ["каннеллони", "Каннеллони"]},
+    "равьоли": {"name": "Равиоли", "name_en": ["равиоли"], "category": "main", "default_weight": 280, "nutrition_per_100": {"calories": 180, "protein": 10.0, "fat": 8.0, "carbs": 20.0}, "ingredients": [{"name": "равиоли", "type": "carb", "percent": 50}, {"name": "рикотта", "type": "protein", "percent": 25}, {"name": "шпинат", "type": "vegetable", "percent": 15}, {"name": "пармезан", "type": "protein", "percent": 10}], "keywords": ["равиоли", "Равиоли"]},
+    "тортеллини": {"name": "Тортеллини", "name_en": ["тортеллини"], "category": "main", "default_weight": 280, "nutrition_per_100": {"calories": 190, "protein": 11.0, "fat": 9.0, "carbs": 19.0}, "ingredients": [{"name": "тортеллини", "type": "carb", "percent": 50}, {"name": "фарш", "type": "protein", "percent": 25}, {"name": "пармезан", "type": "protein", "percent": 15}, {"name": "сливки", "type": "fat", "percent": 10}], "keywords": ["тортеллини", "Тортеллини"]},
+    "ньокки": {"name": "Ньокки", "name_en": ["ньокки", "клёцки"], "category": "main", "default_weight": 300, "nutrition_per_100": {"calories": 170, "protein": 6.0, "fat": 7.0, "carbs": 24.0}, "ingredients": [{"name": "картофель", "type": "carb", "percent": 50}, {"name": "мука", "type": "carb", "percent": 25}, {"name": "яйца", "type": "protein", "percent": 10}, {"name": "сливочное масло", "type": "fat", "percent": 15}], "keywords": ["ньокки", "клёцки", "Ньокки"]},
+    "фарфалле": {"name": "Фарфалле", "name_en": ["фарфалле", "бантики"], "category": "main", "default_weight": 280, "nutrition_per_100": {"calories": 170, "protein": 7.0, "fat": 7.0, "carbs": 22.0}, "ingredients": [{"name": "фарфалле", "type": "carb", "percent": 50}, {"name": "лосось", "type": "protein", "percent": 25}, {"name": "сливки", "type": "fat", "percent": 20}, {"name": "укроп", "type": "other", "percent": 5}], "keywords": ["фарфалле", "бантики", "Фарфалле"]},
+    "пенне": {"name": "Пенне", "name_en": ["пенне"], "category": "main", "default_weight": 280, "nutrition_per_100": {"calories": 160, "protein": 6.0, "fat": 6.0, "carbs": 24.0}, "ingredients": [{"name": "пенне", "type": "carb", "percent": 55}, {"name": "томатный соус", "type": "vegetable", "percent": 25}, {"name": "базилик", "type": "other", "percent": 5}, {"name": "пармезан", "type": "protein", "percent": 15}], "keywords": ["пенне", "Пенне"]},
+    "ригатони": {"name": "Ригатони", "name_en": ["ригатони"], "category": "main", "default_weight": 300, "nutrition_per_100": {"calories": 170, "protein": 8.0, "fat": 7.0, "carbs": 22.0}, "ingredients": [{"name": "ригатони", "type": "carb", "percent": 50}, {"name": "фарш", "type": "protein", "percent": 25}, {"name": "баклажан", "type": "vegetable", "percent": 15}, {"name": "пармезан", "type": "protein", "percent": 10}], "keywords": ["ригатони", "Ригатони"]},
+    "лингвини": {"name": "Лингвини", "name_en": ["лингвини"], "category": "main", "default_weight": 280, "nutrition_per_100": {"calories": 160, "protein": 8.0, "fat": 6.0, "carbs": 22.0}, "ingredients": [{"name": "лингвини", "type": "carb", "percent": 50}, {"name": "мидии", "type": "protein", "percent": 25}, {"name": "белое вино", "type": "other", "percent": 10}, {"name": "чеснок", "type": "vegetable", "percent": 5}, {"name": "петрушка", "type": "other", "percent": 10}], "keywords": ["лингвини", "Лингвини"]},
+    "феттучине": {"name": "Феттучине", "name_en": ["феттучине"], "category": "main", "default_weight": 300, "nutrition_per_100": {"calories": 180, "protein": 8.0, "fat": 8.0, "carbs": 22.0}, "ingredients": [{"name": "феттучине", "type": "carb", "percent": 50}, {"name": "грибы", "type": "vegetable", "percent": 25}, {"name": "сливки", "type": "fat", "percent": 20}, {"name": "пармезан", "type": "protein", "percent": 5}], "keywords": ["феттучине", "Феттучине"]},
+    "папарделле": {"name": "Папарделле", "name_en": ["папарделле"], "category": "main", "default_weight": 320, "nutrition_per_100": {"calories": 190, "protein": 12.0, "fat": 9.0, "carbs": 18.0}, "ingredients": [{"name": "папарделле", "type": "carb", "percent": 45}, {"name": "утка", "type": "protein", "percent": 30}, {"name": "томатный соус", "type": "vegetable", "percent": 15}, {"name": "пармезан", "type": "protein", "percent": 10}], "keywords": ["папарделле", "Папарделле"]},
+    "орекьетте": {"name": "Орекьетте", "name_en": ["орекьетте", "ушки"], "category": "main", "default_weight": 280, "nutrition_per_100": {"calories": 160, "protein": 7.0, "fat": 6.0, "carbs": 22.0}, "ingredients": [{"name": "орекьетте", "type": "carb", "percent": 50}, {"name": "брокколи", "type": "vegetable", "percent": 30}, {"name": "анчоусы", "type": "protein", "percent": 10}, {"name": "чеснок", "type": "vegetable", "percent": 5}, {"name": "оливковое масло", "type": "fat", "percent": 5}], "keywords": ["орекьетте", "ушки", "Орекьетте"]},
     
-    # ==================== SALADS ====================
-    "caesar salad": {
-        "name": "Caesar salad",
-        "name_en": ["caesar salad", "caesar", "chicken caesar"],
-        "category": "salad",
-        "default_weight": 200,
-        "nutrition_per_100": {"calories": 120, "protein": 8.0, "fat": 8.0, "carbs": 6.0},
-        "ingredients": [
-            {"name": "lettuce", "type": "vegetable", "percent": 50},
-            {"name": "chicken", "type": "protein", "percent": 25},
-            {"name": "cheese", "type": "protein", "percent": 10},
-            {"name": "croutons", "type": "carb", "percent": 10},
-            {"name": "caesar dressing", "type": "fat", "percent": 5}
-        ],
-        "keywords": ["caesar", "salad", "lettuce", "chicken", "cheese"]
-    },
-    "greek salad": {
-        "name": "Greek salad",
-        "name_en": ["greek salad", "greek", "mediterranean salad"],
-        "category": "salad",
-        "default_weight": 200,
-        "nutrition_per_100": {"calories": 90, "protein": 4.0, "fat": 7.0, "carbs": 4.0},
-        "ingredients": [
-            {"name": "tomatoes", "type": "vegetable", "percent": 30},
-            {"name": "cucumber", "type": "vegetable", "percent": 30},
-            {"name": "feta cheese", "type": "protein", "percent": 20},
-            {"name": "olives", "type": "fat", "percent": 10},
-            {"name": "olive oil", "type": "fat", "percent": 10}
-        ],
-        "keywords": ["greek", "salad", "mediterranean", "feta", "olives"]
-    },
-    "olivier salad": {
-        "name": "Olivier salad",
-        "name_en": ["olivier salad", "russian salad", "potato salad"],
-        "category": "salad",
-        "default_weight": 200,
-        "nutrition_per_100": {"calories": 180, "protein": 5.0, "fat": 12.0, "carbs": 12.0},
-        "ingredients": [
-            {"name": "potatoes", "type": "carb", "percent": 30},
-            {"name": "carrots", "type": "vegetable", "percent": 20},
-            {"name": "pickles", "type": "vegetable", "percent": 15},
-            {"name": "peas", "type": "carb", "percent": 10},
-            {"name": "meat", "type": "protein", "percent": 15},
-            {"name": "mayonnaise", "type": "fat", "percent": 10}
-        ],
-        "keywords": ["olivier", "salad", "russian", "potato", "mayonnaise"]
-    },
-    "vinaigrette": {
-        "name": "Vinaigrette",
-        "name_en": ["vinaigrette", "beet salad", "russian beet salad"],
-        "category": "salad",
-        "default_weight": 200,
-        "nutrition_per_100": {"calories": 80, "protein": 2.0, "fat": 4.0, "carbs": 10.0},
-        "ingredients": [
-            {"name": "beets", "type": "vegetable", "percent": 30},
-            {"name": "potatoes", "type": "carb", "percent": 25},
-            {"name": "carrots", "type": "vegetable", "percent": 20},
-            {"name": "pickles", "type": "vegetable", "percent": 15},
-            {"name": "oil", "type": "fat", "percent": 10}
-        ],
-        "keywords": ["vinaigrette", "salad", "beet", "russian", "vegetable"]
-    },
-    "vegetable salad": {
-        "name": "Vegetable salad",
-        "name_en": ["vegetable salad", "mixed vegetables", "fresh salad"],
-        "category": "salad",
-        "default_weight": 200,
-        "nutrition_per_100": {"calories": 50, "protein": 2.0, "fat": 2.0, "carbs": 8.0},
-        "ingredients": [
-            {"name": "mixed vegetables", "type": "vegetable", "percent": 90},
-            {"name": "oil", "type": "fat", "percent": 10}
-        ],
-        "keywords": ["vegetable", "salad", "mixed", "fresh", "healthy"]
-    }
+    # Супы (30)
+    "борщ классический": {"name": "Борщ классический", "name_en": ["борщ", "красный борщ"], "category": "soup", "default_weight": 350, "nutrition_per_100": {"calories": 55, "protein": 2.5, "fat": 2.5, "carbs": 7.0}, "ingredients": [{"name": "свёкла", "type": "vegetable", "percent": 25}, {"name": "капуста", "type": "vegetable", "percent": 20}, {"name": "картофель", "type": "vegetable", "percent": 20}, {"name": "морковь", "type": "vegetable", "percent": 15}, {"name": "лук", "type": "vegetable", "percent": 10}, {"name": "говядина", "type": "protein", "percent": 10}], "keywords": ["борщ", "красный борщ", "Борщ классический"]},
+    "борщ зелёный": {"name": "Борщ зелёный", "name_en": ["зелёный борщ", "щавелевый суп"], "category": "soup", "default_weight": 350, "nutrition_per_100": {"calories": 45, "protein": 3.0, "fat": 2.0, "carbs": 5.0}, "ingredients": [{"name": "щавель", "type": "vegetable", "percent": 35}, {"name": "картофель", "type": "vegetable", "percent": 25}, {"name": "яйца", "type": "protein", "percent": 20}, {"name": "сметана", "type": "fat", "percent": 15}, {"name": "зелень", "type": "vegetable", "percent": 5}], "keywords": ["зелёный борщ", "щавелевый суп", "Борщ зелёный"]},
+    "щи из свежей капусты": {"name": "Щи из свежей капусты", "name_en": ["щи", "капустный суп"], "category": "soup", "default_weight": 350, "nutrition_per_100": {"calories": 40, "protein": 2.0, "fat": 1.5, "carbs": 6.0}, "ingredients": [{"name": "капуста", "type": "vegetable", "percent": 40}, {"name": "картофель", "type": "vegetable", "percent": 25}, {"name": "морковь", "type": "vegetable", "percent": 15}, {"name": "лук", "type": "vegetable", "percent": 10}, {"name": "говядина", "type": "protein", "percent": 10}], "keywords": ["щи", "капустный суп", "Щи из свежей капусты"]},
+    "щи из квашеной капусты": {"name": "Щи из квашеной капусты", "name_en": ["кислые щи"], "category": "soup", "default_weight": 350, "nutrition_per_100": {"calories": 50, "protein": 2.5, "fat": 2.0, "carbs": 7.0}, "ingredients": [{"name": "квашеная капуста", "type": "vegetable", "percent": 40}, {"name": "картофель", "type": "vegetable", "percent": 25}, {"name": "морковь", "type": "vegetable", "percent": 15}, {"name": "лук", "type": "vegetable", "percent": 10}, {"name": "свинина", "type": "protein", "percent": 10}], "keywords": ["кислые щи", "Щи из квашеной капусты"]},
+    "уха из щуки": {"name": "Уха из щуки", "name_en": ["уха", "рыбный суп"], "category": "soup", "default_weight": 350, "nutrition_per_100": {"calories": 50, "protein": 7.0, "fat": 1.5, "carbs": 3.0}, "ingredients": [{"name": "щука", "type": "protein", "percent": 40}, {"name": "картофель", "type": "vegetable", "percent": 25}, {"name": "лук", "type": "vegetable", "percent": 15}, {"name": "морковь", "type": "vegetable", "percent": 10}, {"name": "водка", "type": "other", "percent": 5}, {"name": "зелень", "type": "vegetable", "percent": 5}], "keywords": ["уха", "рыбный суп", "Уха из щуки"]},
+    "уха из лосося": {"name": "Уха из лосося", "name_en": ["лососевая уха"], "category": "soup", "default_weight": 350, "nutrition_per_100": {"calories": 65, "protein": 9.0, "fat": 3.0, "carbs": 3.0}, "ingredients": [{"name": "лосось", "type": "protein", "percent": 40}, {"name": "картофель", "type": "vegetable", "percent": 25}, {"name": "сливки", "type": "fat", "percent": 15}, {"name": "лук", "type": "vegetable", "percent": 10}, {"name": "зелень", "type": "vegetable", "percent": 10}], "keywords": ["лососевая уха", "Уха из лосося"]},
+    "солянка мясная": {"name": "Солянка мясная", "name_en": ["солянка", "сборная солянка"], "category": "soup", "default_weight": 350, "nutrition_per_100": {"calories": 85, "protein": 6.0, "fat": 5.0, "carbs": 5.0}, "ingredients": [{"name": "говядина", "type": "protein", "percent": 20}, {"name": "свинина", "type": "protein", "percent": 15}, {"name": "колбаса", "type": "protein", "percent": 15}, {"name": "солёные огурцы", "type": "vegetable", "percent": 20}, {"name": "томатный соус", "type": "vegetable", "percent": 15}, {"name": "оливки", "type": "vegetable", "percent": 10}, {"name": "лимон", "type": "vegetable", "percent": 5}], "keywords": ["солянка", "сборная солянка", "Солянка мясная"]},
+    "солянка рыбная": {"name": "Солянка рыбная", "name_en": ["рыбная солянка"], "category": "soup", "default_weight": 350, "nutrition_per_100": {"calories": 75, "protein": 8.0, "fat": 4.0, "carbs": 4.0}, "ingredients": [{"name": "рыба", "type": "protein", "percent": 40}, {"name": "солёные огурцы", "type": "vegetable", "percent": 20}, {"name": "томатный соус", "type": "vegetable", "percent": 15}, {"name": "оливки", "type": "vegetable", "percent": 10}, {"name": "лимон", "type": "vegetable", "percent": 5}, {"name": "лук", "type": "vegetable", "percent": 10}], "keywords": ["рыбная солянка", "Солянка рыбная"]},
+    "рассольник московский": {"name": "Рассольник московский", "name_en": ["рассольник"], "category": "soup", "default_weight": 350, "nutrition_per_100": {"calories": 60, "protein": 4.0, "fat": 3.0, "carbs": 7.0}, "ingredients": [{"name": "солёные огурцы", "type": "vegetable", "percent": 25}, {"name": "картофель", "type": "vegetable", "percent": 25}, {"name": "рис", "type": "carb", "percent": 15}, {"name": "говядина", "type": "protein", "percent": 20}, {"name": "сметана", "type": "fat", "percent": 10}, {"name": "зелень", "type": "vegetable", "percent": 5}], "keywords": ["рассольник", "Рассольник московский"]},
+    "рассольник ленинградский": {"name": "Рассольник ленинградский", "name_en": ["ленинградский рассольник"], "category": "soup", "default_weight": 350, "nutrition_per_100": {"calories": 65, "protein": 4.5, "fat": 3.5, "carbs": 8.0}, "ingredients": [{"name": "солёные огурцы", "type": "vegetable", "percent": 25}, {"name": "картофель", "type": "vegetable", "percent": 20}, {"name": "перловка", "type": "carb", "percent": 20}, {"name": "свинина", "type": "protein", "percent": 20}, {"name": "сметана", "type": "fat", "percent": 10}, {"name": "зелень", "type": "vegetable", "percent": 5}], "keywords": ["ленинградский рассольник", "Рассольник ленинградский"]},
+    "харчо по-грузински": {"name": "Харчо по-грузински", "name_en": ["харчо", "грузинский суп"], "category": "soup", "default_weight": 350, "nutrition_per_100": {"calories": 90, "protein": 7.0, "fat": 5.0, "carbs": 8.0}, "ingredients": [{"name": "говядина", "type": "protein", "percent": 35}, {"name": "рис", "type": "carb", "percent": 20}, {"name": "ткемали", "type": "other", "percent": 15}, {"name": "грецкие орехи", "type": "fat", "percent": 10}, {"name": "чеснок", "type": "vegetable", "percent": 10}, {"name": "зелень", "type": "vegetable", "percent": 10}], "keywords": ["харчо", "грузинский суп", "Харчо по-грузински"]},
+    "хаш": {"name": "Хаш", "name_en": ["хаш", "армянский суп"], "category": "soup", "default_weight": 400, "nutrition_per_100": {"calories": 70, "protein": 8.0, "fat": 3.5, "carbs": 2.0}, "ingredients": [{"name": "говяжьи ноги", "type": "protein", "percent": 60}, {"name": "чеснок", "type": "vegetable", "percent": 15}, {"name": "зелень", "type": "vegetable", "percent": 15}, {"name": "лаваш", "type": "carb", "percent": 10}], "keywords": ["хаш", "армянский суп", "Хаш"]},
+    "кюфта бозбаш": {"name": "Кюфта бозбаш", "name_en": ["бозбаш", "азербайджанский суп"], "category": "soup", "default_weight": 350, "nutrition_per_100": {"calories": 95, "protein": 8.0, "fat": 6.0, "carbs": 6.0}, "ingredients": [{"name": "баранина", "type": "protein", "percent": 35}, {"name": "нут", "type": "carb", "percent": 20}, {"name": "картофель", "type": "vegetable", "percent": 20}, {"name": "лук", "type": "vegetable", "percent": 10}, {"name": "томатный соус", "type": "vegetable", "percent": 10}, {"name": "зелень", "type": "vegetable", "percent": 5}], "keywords": ["бозбаш", "азербайджанский суп", "Кюфта бозбаш"]},
+    "пити": {"name": "Пити", "name_en": ["пити", "азербайджанский суп"], "category": "soup", "default_weight": 400, "nutrition_per_100": {"calories": 110, "protein": 9.0, "fat": 7.0, "carbs": 6.0}, "ingredients": [{"name": "баранина", "type": "protein", "percent": 40}, {"name": "нут", "type": "carb", "percent": 25}, {"name": "картофель", "type": "vegetable", "percent": 15}, {"name": "лук", "type": "vegetable", "percent": 10}, {"name": "шафран", "type": "other", "percent": 5}, {"name": "зелень", "type": "vegetable", "percent": 5}], "keywords": ["пити", "азербайджанский суп", "Пити"]},
+    "чанахи": {"name": "Чанахи", "name_en": ["чанахи", "грузинское рагу"], "category": "soup", "default_weight": 350, "nutrition_per_100": {"calories": 100, "protein": 8.0, "fat": 6.0, "carbs": 7.0}, "ingredients": [{"name": "баранина", "type": "protein", "percent": 35}, {"name": "баклажан", "type": "vegetable", "percent": 20}, {"name": "помидоры", "type": "vegetable", "percent": 15}, {"name": "картофель", "type": "vegetable", "percent": 15}, {"name": "лук", "type": "vegetable", "percent": 10}, {"name": "зелень", "type": "vegetable", "percent": 5}], "keywords": ["чанахи", "грузинское рагу", "Чанахи"]},
+    "чакапули": {"name": "Чакапули", "name_en": ["чакапули", "грузинское рагу"], "category": "main", "default_weight": 300, "nutrition_per_100": {"calories": 120, "protein": 12.0, "fat": 7.0, "carbs": 4.0}, "ingredients": [{"name": "баранина", "type": "protein", "percent": 50}, {"name": "ткемали", "type": "other", "percent": 20}, {"name": "зелень", "type": "vegetable", "percent": 20}, {"name": "чеснок", "type": "vegetable", "percent": 5}, {"name": "вино", "type": "other", "percent": 5}], "keywords": ["чакапули", "грузинское рагу", "Чакапули"]},
+    "сациви": {"name": "Сациви", "name_en": ["сациви", "курица в ореховом соусе"], "category": "main", "default_weight": 300, "nutrition_per_100": {"calories": 180, "protein": 14.0, "fat": 12.0, "carbs": 5.0}, "ingredients": [{"name": "курица", "type": "protein", "percent": 50}, {"name": "грецкие орехи", "type": "fat", "percent": 25}, {"name": "чеснок", "type": "vegetable", "percent": 10}, {"name": "зелень", "type": "vegetable", "percent": 10}, {"name": "специи", "type": "other", "percent": 5}], "keywords": ["сациви", "курица в ореховом соусе", "Сациви"]},
+    "аджапсандал": {"name": "Аджапсандал", "name_en": ["аджапсандал", "грузинское овощное рагу"], "category": "main", "default_weight": 300, "nutrition_per_100": {"calories": 80, "protein": 2.5, "fat": 5.0, "carbs": 8.0}, "ingredients": [{"name": "баклажан", "type": "vegetable", "percent": 30}, {"name": "помидоры", "type": "vegetable", "percent": 25}, {"name": "болгарский перец", "type": "vegetable", "percent": 20}, {"name": "картофель", "type": "vegetable", "percent": 15}, {"name": "чеснок", "type": "vegetable", "percent": 5}, {"name": "зелень", "type": "vegetable", "percent": 5}], "keywords": ["аджапсандал", "грузинское овощное рагу", "Аджапсандал"]},
+    "лобио": {"name": "Лобио", "name_en": ["лобио", "грузинская фасоль"], "category": "main", "default_weight": 280, "nutrition_per_100": {"calories": 110, "protein": 7.0, "fat": 4.0, "carbs": 14.0}, "ingredients": [{"name": "фасоль", "type": "carb", "percent": 50}, {"name": "лук", "type": "vegetable", "percent": 15}, {"name": "чеснок", "type": "vegetable", "percent": 10}, {"name": "грецкие орехи", "type": "fat", "percent": 15}, {"name": "зелень", "type": "vegetable", "percent": 10}], "keywords": ["лобио", "грузинская фасоль", "Лобио"]},
+    "пхали": {"name": "Пхали", "name_en": ["пхали", "грузинская закуска"], "category": "snack", "default_weight": 150, "nutrition_per_100": {"calories": 90, "protein": 4.0, "fat": 6.0, "carbs": 6.0}, "ingredients": [{"name": "шпинат", "type": "vegetable", "percent": 50}, {"name": "грецкие орехи", "type": "fat", "percent": 25}, {"name": "чеснок", "type": "vegetable", "percent": 10}, {"name": "уксус", "type": "other", "percent": 5}, {"name": "зелень", "type": "vegetable", "percent": 10}], "keywords": ["пхали", "грузинская закуска", "Пхали"]},
+    "хачапури по-аджарски": {"name": "Хачапури по-аджарски", "name_en": ["аджарский хачапури", "лодочка"], "category": "main", "default_weight": 350, "nutrition_per_100": {"calories": 260, "protein": 12.0, "fat": 14.0, "carbs": 24.0}, "ingredients": [{"name": "тесто", "type": "carb", "percent": 45}, {"name": "сулугуни", "type": "protein", "percent": 35}, {"name": "яйца", "type": "protein", "percent": 15}, {"name": "сливочное масло", "type": "fat", "percent": 5}], "keywords": ["аджарский хачапури", "лодочка", "Хачапури по-аджарски"]},
+    "хачапури по-имеретински": {"name": "Хачапури по-имеретински", "name_en": ["имеретинский хачапури"], "category": "main", "default_weight": 300, "nutrition_per_100": {"calories": 250, "protein": 11.0, "fat": 12.0, "carbs": 26.0}, "ingredients": [{"name": "тесто", "type": "carb", "percent": 50}, {"name": "имеретинский сыр", "type": "protein", "percent": 40}, {"name": "яйца", "type": "protein", "percent": 5}, {"name": "сливочное масло", "type": "fat", "percent": 5}], "keywords": ["имеретинский хачапури", "Хачапури по-имеретински"]},
+    "хачапури по-мегрельски": {"name": "Хачапури по-мегрельски", "name_en": ["мегрельский хачапури"], "category": "main", "default_weight": 320, "nutrition_per_100": {"calories": 270, "protein": 13.0, "fat": 15.0, "carbs": 24.0}, "ingredients": [{"name": "тесто", "type": "carb", "percent": 45}, {"name": "сулугуни", "type": "protein", "percent": 45}, {"name": "яйца", "type": "protein", "percent": 5}, {"name": "сливочное масло", "type": "fat", "percent": 5}], "keywords": ["мегрельский хачапури", "Хачапури по-мегрельски"]},
+    "хачапури по-гурийски": {"name": "Хачапури по-гурийски", "name_en": ["гурийский хачапури", "полумесяц"], "category": "main", "default_weight": 280, "nutrition_per_100": {"calories": 240, "protein": 11.0, "fat": 11.0, "carbs": 26.0}, "ingredients": [{"name": "тесто", "type": "carb", "percent": 50}, {"name": "сулугуни", "type": "protein", "percent": 35}, {"name": "яйца", "type": "protein", "percent": 10}, {"name": "сливочное масло", "type": "fat", "percent": 5}], "keywords": ["гурийский хачапури", "полумесяц", "Хачапури по-гурийски"]},
+    "кумпи": {"name": "Кумпи", "name_en": ["кумпи", "осетинский пирог"], "category": "main", "default_weight": 350, "nutrition_per_100": {"calories": 220, "protein": 10.0, "fat": 10.0, "carbs": 26.0}, "ingredients": [{"name": "тесто", "type": "carb", "percent": 50}, {"name": "свекольная ботва", "type": "vegetable", "percent": 30}, {"name": "осетинский сыр", "type": "protein", "percent": 15}, {"name": "сливочное масло", "type": "fat", "percent": 5}], "keywords": ["кумпи", "осетинский пирог", "Кумпи"]},
+    "цыд": {"name": "Цыд", "name_en": ["цыд", "осетинский пирог с сыром"], "category": "main", "default_weight": 350, "nutrition_per_100": {"calories": 250, "protein": 12.0, "fat": 12.0, "carbs": 26.0}, "ingredients": [{"name": "тесто", "type": "carb", "percent": 45}, {"name": "осетинский сыр", "type": "protein", "percent": 45}, {"name": "сливочное масло", "type": "fat", "percent": 10}], "keywords": ["цыд", "осетинский пирог с сыром", "Цыд"]},
+    "фидджин": {"name": "Фидджин", "name_en": ["фидджин", "осетинский пирог с мясом"], "category": "main", "default_weight": 350, "nutrition_per_100": {"calories": 240, "protein": 13.0, "fat": 11.0, "carbs": 24.0}, "ingredients": [{"name": "тесто", "type": "carb", "percent": 45}, {"name": "фарш", "type": "protein", "percent": 35}, {"name": "лук", "type": "vegetable", "percent": 10}, {"name": "бульон", "type": "protein", "percent": 5}, {"name": "сливочное масло", "type": "fat", "percent": 5}], "keywords": ["фидджин", "осетинский пирог с мясом", "Фидджин"]},
+    "капустин": {"name": "Капустин", "name_en": ["капустин", "осетинский пирог с капустой"], "category": "main", "default_weight": 350, "nutrition_per_100": {"calories": 200, "protein": 8.0, "fat": 8.0, "carbs": 26.0}, "ingredients": [{"name": "тесто", "type": "carb", "percent": 50}, {"name": "капуста", "type": "vegetable", "percent": 40}, {"name": "сливочное масло", "type": "fat", "percent": 10}], "keywords": ["капустин", "осетинский пирог с капустой", "Капустин"]},
+    "каша из тыквы": {"name": "Каша из тыквы", "name_en": ["тыквенная каша"], "category": "breakfast", "default_weight": 250, "nutrition_per_100": {"calories": 90, "protein": 3.0, "fat": 3.0, "carbs": 14.0}, "ingredients": [{"name": "тыква", "type": "vegetable", "percent": 50}, {"name": "рис", "type": "carb", "percent": 30}, {"name": "молоко", "type": "protein", "percent": 15}, {"name": "сливочное масло", "type": "fat", "percent": 5}], "keywords": ["тыквенная каша", "Каша из тыквы"]},
+    "манная каша": {"name": "Манная каша", "name_en": ["манка"], "category": "breakfast", "default_weight": 250, "nutrition_per_100": {"calories": 100, "protein": 3.5, "fat": 2.5, "carbs": 18.0}, "ingredients": [{"name": "манка", "type": "carb", "percent": 80}, {"name": "молоко", "type": "protein", "percent": 15}, {"name": "сливочное масло", "type": "fat", "percent": 5}], "keywords": ["манка", "Манная каша"]},
+    
+    # Блюда русской кухни (25)
+    "блины с икрой": {"name": "Блины с икрой", "name_en": ["блины с красной икрой"], "category": "main", "default_weight": 200, "nutrition_per_100": {"calories": 220, "protein": 12.0, "fat": 12.0, "carbs": 20.0}, "ingredients": [{"name": "блины", "type": "carb", "percent": 60}, {"name": "икра красная", "type": "protein", "percent": 25}, {"name": "сливочное масло", "type": "fat", "percent": 10}, {"name": "сметана", "type": "fat", "percent": 5}], "keywords": ["блины с красной икрой", "Блины с икрой"]},
+    "блины с творогом": {"name": "Блины с творогом", "name_en": ["блины с творогом"], "category": "main", "default_weight": 220, "nutrition_per_100": {"calories": 200, "protein": 10.0, "fat": 8.0, "carbs": 24.0}, "ingredients": [{"name": "блины", "type": "carb", "percent": 65}, {"name": "творог", "type": "protein", "percent": 25}, {"name": "сметана", "type": "fat", "percent": 10}], "keywords": ["блины с творогом", "Блины с творогом"]},
+    "блины с мясом": {"name": "Блины с мясом", "name_en": ["блины с мясом"], "category": "main", "default_weight": 230, "nutrition_per_100": {"calories": 210, "protein": 11.0, "fat": 9.0, "carbs": 22.0}, "ingredients": [{"name": "блины", "type": "carb", "percent": 60}, {"name": "фарш", "type": "protein", "percent": 30}, {"name": "лук", "type": "vegetable", "percent": 10}], "keywords": ["блины с мясом", "Блины с мясом"]},
+    "оладьи": {"name": "Оладьи", "name_en": ["оладьи", "русские оладьи"], "category": "breakfast", "default_weight": 180, "nutrition_per_100": {"calories": 220, "protein": 6.0, "fat": 10.0, "carbs": 28.0}, "ingredients": [{"name": "мука", "type": "carb", "percent": 50}, {"name": "кефир", "type": "protein", "percent": 30}, {"name": "яйца", "type": "protein", "percent": 10}, {"name": "растительное масло", "type": "fat", "percent": 10}], "keywords": ["оладьи", "русские оладьи", "Оладьи"]},
+    "оладьи из кабачков": {"name": "Оладьи из кабачков", "name_en": ["кабачковые оладьи"], "category": "main", "default_weight": 200, "nutrition_per_100": {"calories": 140, "protein": 5.0, "fat": 8.0, "carbs": 14.0}, "ingredients": [{"name": "кабачок", "type": "vegetable", "percent": 50}, {"name": "мука", "type": "carb", "percent": 25}, {"name": "яйца", "type": "protein", "percent": 15}, {"name": "растительное масло", "type": "fat", "percent": 10}], "keywords": ["кабачковые оладьи", "Оладьи из кабачков"]},
+    "драники": {"name": "Драники", "name_en": ["драники", "картофельные оладьи"], "category": "main", "default_weight": 220, "nutrition_per_100": {"calories": 160, "protein": 4.0, "fat": 8.0, "carbs": 20.0}, "ingredients": [{"name": "картофель", "type": "carb", "percent": 60}, {"name": "лук", "type": "vegetable", "percent": 15}, {"name": "яйца", "type": "protein", "percent": 10}, {"name": "растительное масло", "type": "fat", "percent": 15}], "keywords": ["драники", "картофельные оладьи", "Драники"]},
+    "вареники с картошкой": {"name": "Вареники с картошкой", "name_en": ["вареники с картофелем"], "category": "main", "default_weight": 280, "nutrition_per_100": {"calories": 160, "protein": 5.0, "fat": 4.0, "carbs": 28.0}, "ingredients": [{"name": "тесто", "type": "carb", "percent": 50}, {"name": "картофель", "type": "carb", "percent": 40}, {"name": "лук", "type": "vegetable", "percent": 10}], "keywords": ["вареники с картофелем", "Вареники с картошкой"]},
+    "вареники с творогом": {"name": "Вареники с творогом", "name_en": ["сладкие вареники"], "category": "main", "default_weight": 260, "nutrition_per_100": {"calories": 170, "protein": 8.0, "fat": 5.0, "carbs": 26.0}, "ingredients": [{"name": "тесто", "type": "carb", "percent": 50}, {"name": "творог", "type": "protein", "percent": 40}, {"name": "сахар", "type": "carb", "percent": 10}], "keywords": ["сладкие вареники", "Вареники с творогом"]},
+    "вареники с вишней": {"name": "Вареники с вишней", "name_en": ["вишнёвые вареники"], "category": "main", "default_weight": 260, "nutrition_per_100": {"calories": 160, "protein": 5.0, "fat": 3.0, "carbs": 30.0}, "ingredients": [{"name": "тесто", "type": "carb", "percent": 55}, {"name": "вишня", "type": "carb", "percent": 40}, {"name": "сахар", "type": "carb", "percent": 5}], "keywords": ["вишнёвые вареники", "Вареники с вишней"]},
+    "пельмени сибирские": {"name": "Пельмени сибирские", "name_en": ["сибирские пельмени"], "category": "main", "default_weight": 300, "nutrition_per_100": {"calories": 230, "protein": 13.0, "fat": 11.0, "carbs": 24.0}, "ingredients": [{"name": "тесто", "type": "carb", "percent": 45}, {"name": "фарш", "type": "protein", "percent": 50}, {"name": "лук", "type": "vegetable", "percent": 5}], "keywords": ["сибирские пельмени", "Пельмени сибирские"]},
+    "пельмени с грибами": {"name": "Пельмени с грибами", "name_en": ["грибные пельмени"], "category": "main", "default_weight": 280, "nutrition_per_100": {"calories": 200, "protein": 8.0, "fat": 8.0, "carbs": 26.0}, "ingredients": [{"name": "тесто", "type": "carb", "percent": 50}, {"name": "грибы", "type": "vegetable", "percent": 40}, {"name": "лук", "type": "vegetable", "percent": 10}], "keywords": ["грибные пельмени", "Пельмени с грибами"]},
+    "похлёбка": {"name": "Похлёбка", "name_en": ["похлёбка", "простой суп"], "category": "soup", "default_weight": 350, "nutrition_per_100": {"calories": 55, "protein": 3.0, "fat": 2.0, "carbs": 8.0}, "ingredients": [{"name": "картофель", "type": "vegetable", "percent": 35}, {"name": "крупа", "type": "carb", "percent": 20}, {"name": "лук", "type": "vegetable", "percent": 15}, {"name": "морковь", "type": "vegetable", "percent": 15}, {"name": "сало", "type": "fat", "percent": 15}], "keywords": ["похлёбка", "простой суп", "Похлёбка"]},
+    "тюря": {"name": "Тюря", "name_en": ["тюря", "хлебный суп"], "category": "soup", "default_weight": 300, "nutrition_per_100": {"calories": 70, "protein": 3.0, "fat": 2.5, "carbs": 12.0}, "ingredients": [{"name": "хлеб", "type": "carb", "percent": 40}, {"name": "картофель", "type": "vegetable", "percent": 25}, {"name": "лук", "type": "vegetable", "percent": 20}, {"name": "растительное масло", "type": "fat", "percent": 15}], "keywords": ["тюря", "хлебный суп", "Тюря"]},
+    "сбитень": {"name": "Сбитень", "name_en": ["сбитень", "русский напиток"], "category": "dessert", "default_weight": 250, "nutrition_per_100": {"calories": 80, "protein": 0.5, "fat": 0.0, "carbs": 20.0}, "ingredients": [{"name": "мёд", "type": "carb", "percent": 30}, {"name": "вода", "type": "other", "percent": 60}, {"name": "специи", "type": "other", "percent": 10}], "keywords": ["сбитень", "русский напиток", "Сбитень"]},
+    "кисель": {"name": "Кисель", "name_en": ["кисель", "ягодный кисель"], "category": "dessert", "default_weight": 250, "nutrition_per_100": {"calories": 70, "protein": 0.5, "fat": 0.0, "carbs": 18.0}, "ingredients": [{"name": "ягоды", "type": "carb", "percent": 40}, {"name": "крахмал", "type": "carb", "percent": 10}, {"name": "сахар", "type": "carb", "percent": 10}, {"name": "вода", "type": "other", "percent": 40}], "keywords": ["кисель", "ягодный кисель", "Кисель"]},
+    "компот": {"name": "Компот", "name_en": ["компот", "фруктовый компот"], "category": "dessert", "default_weight": 250, "nutrition_per_100": {"calories": 60, "protein": 0.5, "fat": 0.0, "carbs": 16.0}, "ingredients": [{"name": "фрукты", "type": "carb", "percent": 40}, {"name": "сахар", "type": "carb", "percent": 10}, {"name": "вода", "type": "other", "percent": 50}], "keywords": ["компот", "фруктовый компот", "Компот"]},
+    "морс": {"name": "Морс", "name_en": ["морс", "клюквенный морс"], "category": "dessert", "default_weight": 250, "nutrition_per_100": {"calories": 50, "protein": 0.5, "fat": 0.0, "carbs": 14.0}, "ingredients": [{"name": "клюква", "type": "carb", "percent": 30}, {"name": "сахар", "type": "carb", "percent": 10}, {"name": "вода", "type": "other", "percent": 60}], "keywords": ["морс", "клюквенный морс", "Морс"]},
+    "холодец": {"name": "Холодец", "name_en": ["холодец", "студень"], "category": "main", "default_weight": 200, "nutrition_per_100": {"calories": 120, "protein": 15.0, "fat": 6.0, "carbs": 2.0}, "ingredients": [{"name": "свинина", "type": "protein", "percent": 40}, {"name": "говядина", "type": "protein", "percent": 30}, {"name": "курица", "type": "protein", "percent": 20}, {"name": "чеснок", "type": "vegetable", "percent": 5}, {"name": "зелень", "type": "vegetable", "percent": 5}], "keywords": ["холодец", "студень", "Холодец"]},
+    "заливное": {"name": "Заливное", "name_en": ["заливное", "рыбное заливное"], "category": "main", "default_weight": 200, "nutrition_per_100": {"calories": 90, "protein": 12.0, "fat": 3.0, "carbs": 3.0}, "ingredients": [{"name": "рыба", "type": "protein", "percent": 50}, {"name": "желатин", "type": "other", "percent": 10}, {"name": "овощи", "type": "vegetable", "percent": 20}, {"name": "зелень", "type": "vegetable", "percent": 10}, {"name": "лимон", "type": "vegetable", "percent": 10}], "keywords": ["заливное", "рыбное заливное", "Заливное"]},
+    "салат столичный": {"name": "Салат Столичный", "name_en": ["столичный салат"], "category": "salad", "default_weight": 200, "nutrition_per_100": {"calories": 170, "protein": 8.0, "fat": 11.0, "carbs": 10.0}, "ingredients": [{"name": "курица", "type": "protein", "percent": 30}, {"name": "картофель", "type": "carb", "percent": 20}, {"name": "морковь", "type": "vegetable", "percent": 15}, {"name": "солёные огурцы", "type": "vegetable", "percent": 15}, {"name": "горох", "type": "carb", "percent": 10}, {"name": "майонез", "type": "fat", "percent": 10}], "keywords": ["столичный салат", "Салат Столичный"]},
+    "салат с крабовыми палочками": {"name": "Салат с крабовыми палочками", "name_en": ["крабовый салат"], "category": "salad", "default_weight": 200, "nutrition_per_100": {"calories": 120, "protein": 8.0, "fat": 6.0, "carbs": 10.0}, "ingredients": [{"name": "крабовые палочки", "type": "protein", "percent": 35}, {"name": "кукуруза", "type": "vegetable", "percent": 20}, {"name": "яйца", "type": "protein", "percent": 20}, {"name": "рис", "type": "carb", "percent": 15}, {"name": "майонез", "type": "fat", "percent": 10}], "keywords": ["крабовый салат", "Салат с крабовыми палочками"]},
+    "салат с кальмарами": {"name": "Салат с кальмарами", "name_en": ["кальмары салат"], "category": "salad", "default_weight": 200, "nutrition_per_100": {"calories": 110, "protein": 12.0, "fat": 5.0, "carbs": 6.0}, "ingredients": [{"name": "кальмары", "type": "protein", "percent": 40}, {"name": "яйца", "type": "protein", "percent": 20}, {"name": "лук", "type": "vegetable", "percent": 15}, {"name": "майонез", "type": "fat", "percent": 15}, {"name": "зелень", "type": "vegetable", "percent": 10}], "keywords": ["кальмары салат", "Салат с кальмарами"]},
+    "салат с печенью трески": {"name": "Салат с печенью трески", "name_en": ["печень трески салат"], "category": "salad", "default_weight": 180, "nutrition_per_100": {"calories": 200, "protein": 10.0, "fat": 16.0, "carbs": 5.0}, "ingredients": [{"name": "печень трески", "type": "protein", "percent": 35}, {"name": "яйца", "type": "protein", "percent": 25}, {"name": "картофель", "type": "carb", "percent": 25}, {"name": "лук", "type": "vegetable", "percent": 10}, {"name": "майонез", "type": "fat", "percent": 5}], "keywords": ["печень трески салат", "Салат с печенью трески"]},
+    "запеканка творожная": {"name": "Запеканка творожная", "name_en": ["творожная запеканка"], "category": "dessert", "default_weight": 200, "nutrition_per_100": {"calories": 180, "protein": 12.0, "fat": 8.0, "carbs": 18.0}, "ingredients": [{"name": "творог", "type": "protein", "percent": 50}, {"name": "яйца", "type": "protein", "percent": 15}, {"name": "манка", "type": "carb", "percent": 15}, {"name": "сахар", "type": "carb", "percent": 10}, {"name": "сметана", "type": "fat", "percent": 10}], "keywords": ["творожная запеканка", "Запеканка творожная"]},
+    "пудинг манный": {"name": "Пудинг манный", "name_en": ["манный пудинг"], "category": "dessert", "default_weight": 180, "nutrition_per_100": {"calories": 150, "protein": 5.0, "fat": 5.0, "carbs": 24.0}, "ingredients": [{"name": "манка", "type": "carb", "percent": 50}, {"name": "молоко", "type": "protein", "percent": 30}, {"name": "яйца", "type": "protein", "percent": 10}, {"name": "сахар", "type": "carb", "percent": 10}], "keywords": ["манный пудинг", "Пудинг манный"]},
+    
+    # Индийская кухня (20)
+    "курица карри": {"name": "Курица карри", "name_en": ["куриное карри", "chicken curry"], "category": "main", "default_weight": 300, "nutrition_per_100": {"calories": 160, "protein": 14.0, "fat": 9.0, "carbs": 8.0}, "ingredients": [{"name": "курица", "type": "protein", "percent": 50}, {"name": "кокосовое молоко", "type": "fat", "percent": 20}, {"name": "лук", "type": "vegetable", "percent": 15}, {"name": "томатный соус", "type": "vegetable", "percent": 10}, {"name": "специи", "type": "other", "percent": 5}], "keywords": ["куриное карри", "chicken curry", "Курица карри"]},
+    "панир тикка": {"name": "Панир тикка", "name_en": ["панир", "сырные шашлычки"], "category": "main", "default_weight": 250, "nutrition_per_100": {"calories": 180, "protein": 12.0, "fat": 12.0, "carbs": 8.0}, "ingredients": [{"name": "панир", "type": "protein", "percent": 60}, {"name": "йогурт", "type": "protein", "percent": 20}, {"name": "болгарский перец", "type": "vegetable", "percent": 10}, {"name": "специи", "type": "other", "percent": 10}], "keywords": ["панир", "сырные шашлычки", "Панир тикка"]},
+    "бирьяни": {"name": "Бирьяни", "name_en": ["бирьяни", "индийский плов"], "category": "main", "default_weight": 350, "nutrition_per_100": {"calories": 170, "protein": 8.0, "fat": 6.0, "carbs": 24.0}, "ingredients": [{"name": "рис басмати", "type": "carb", "percent": 45}, {"name": "курица", "type": "protein", "percent": 25}, {"name": "йогурт", "type": "protein", "percent": 15}, {"name": "лук", "type": "vegetable", "percent": 10}, {"name": "специи", "type": "other", "percent": 5}], "keywords": ["бирьяни", "индийский плов", "Бирьяни"]},
+    "дал тадка": {"name": "Дал тадка", "name_en": ["дал", "чечевичный суп"], "category": "main", "default_weight": 300, "nutrition_per_100": {"calories": 110, "protein": 7.0, "fat": 4.0, "carbs": 14.0}, "ingredients": [{"name": "чечевица", "type": "carb", "percent": 40}, {"name": "томатный соус", "type": "vegetable", "percent": 20}, {"name": "лук", "type": "vegetable", "percent": 15}, {"name": "чеснок", "type": "vegetable", "percent": 10}, {"name": "специи", "type": "other", "percent": 15}], "keywords": ["дал", "чечевичный суп", "Дал тадка"]},
+    "сааг панир": {"name": "Сааг панир", "name_en": ["шпинат с сыром", "saag paneer"], "category": "main", "default_weight": 280, "nutrition_per_100": {"calories": 140, "protein": 9.0, "fat": 9.0, "carbs": 8.0}, "ingredients": [{"name": "шпинат", "type": "vegetable", "percent": 50}, {"name": "панир", "type": "protein", "percent": 30}, {"name": "сливки", "type": "fat", "percent": 15}, {"name": "специи", "type": "other", "percent": 5}], "keywords": ["шпинат с сыром", "saag paneer", "Сааг панир"]},
+    "тандури чикен": {"name": "Тандури чикен", "name_en": ["курица тандури", "tandoori chicken"], "category": "main", "default_weight": 300, "nutrition_per_100": {"calories": 170, "protein": 22.0, "fat": 7.0, "carbs": 4.0}, "ingredients": [{"name": "курица", "type": "protein", "percent": 75}, {"name": "йогурт", "type": "protein", "percent": 15}, {"name": "специи", "type": "other", "percent": 10}], "keywords": ["курица тандури", "tandoori chicken", "Тандури чикен"]},
+    "наан": {"name": "Наан", "name_en": ["наан", "индийская лепёшка"], "category": "side", "default_weight": 120, "nutrition_per_100": {"calories": 280, "protein": 8.0, "fat": 6.0, "carbs": 50.0}, "ingredients": [{"name": "мука", "type": "carb", "percent": 70}, {"name": "йогурт", "type": "protein", "percent": 15}, {"name": "сливочное масло", "type": "fat", "percent": 10}, {"name": "дрожжи", "type": "other", "percent": 5}], "keywords": ["наан", "индийская лепёшка", "Наан"]},
+    "роти": {"name": "Роти", "name_en": ["роти", "чапати"], "category": "side", "default_weight": 80, "nutrition_per_100": {"calories": 260, "protein": 9.0, "fat": 3.0, "carbs": 52.0}, "ingredients": [{"name": "мука", "type": "carb", "percent": 90}, {"name": "вода", "type": "other", "percent": 10}], "keywords": ["роти", "чапати", "Роти"]},
+    "самоса": {"name": "Самоса", "name_en": ["самоса", "индийский пирожок"], "category": "snack", "default_weight": 120, "nutrition_per_100": {"calories": 250, "protein": 5.0, "fat": 12.0, "carbs": 32.0}, "ingredients": [{"name": "тесто", "type": "carb", "percent": 50}, {"name": "картофель", "type": "carb", "percent": 30}, {"name": "горох", "type": "carb", "percent": 15}, {"name": "специи", "type": "other", "percent": 5}], "keywords": ["самоса", "индийский пирожок", "Самоса"]},
+    "пакора": {"name": "Пакора", "name_en": ["пакора", "овощные оладьи"], "category": "snack", "default_weight": 150, "nutrition_per_100": {"calories": 220, "protein": 5.0, "fat": 12.0, "carbs": 26.0}, "ingredients": [{"name": "овощи", "type": "vegetable", "percent": 50}, {"name": "мука", "type": "carb", "percent": 30}, {"name": "специи", "type": "other", "percent": 10}, {"name": "растительное масло", "type": "fat", "percent": 10}], "keywords": ["пакора", "овощные оладьи", "Пакора"]},
+    "масала доса": {"name": "Масала доса", "name_en": ["доса", "индийская блин"], "category": "main", "default_weight": 280, "nutrition_per_100": {"calories": 160, "protein": 5.0, "fat": 6.0, "carbs": 24.0}, "ingredients": [{"name": "рис", "type": "carb", "percent": 40}, {"name": "чечевица", "type": "carb", "percent": 25}, {"name": "картофель", "type": "carb", "percent": 25}, {"name": "специи", "type": "other", "percent": 10}], "keywords": ["доса", "индийская блин", "Масала доса"]},
+    "уттапам": {"name": "Уттапам", "name_en": ["уттапам", "индийская пицца"], "category": "main", "default_weight": 250, "nutrition_per_100": {"calories": 150, "protein": 5.0, "fat": 5.0, "carbs": 24.0}, "ingredients": [{"name": "рис", "type": "carb", "percent": 40}, {"name": "чечевица", "type": "carb", "percent": 25}, {"name": "помидоры", "type": "vegetable", "percent": 15}, {"name": "лук", "type": "vegetable", "percent": 10}, {"name": "специи", "type": "other", "percent": 10}], "keywords": ["уттапам", "индийская пицца", "Уттапам"]},
+    "корма": {"name": "Корма", "name_en": ["корма", "сливочное карри"], "category": "main", "default_weight": 320, "nutrition_per_100": {"calories": 180, "protein": 12.0, "fat": 12.0, "carbs": 8.0}, "ingredients": [{"name": "курица", "type": "protein", "percent": 45}, {"name": "сливки", "type": "fat", "percent": 20}, {"name": "йогурт", "type": "protein", "percent": 15}, {"name": "лук", "type": "vegetable", "percent": 10}, {"name": "специи", "type": "other", "percent": 10}], "keywords": ["корма", "сливочное карри", "Корма"]},
+    "виндалу": {"name": "Виндалу", "name_en": ["виндалу", "острое карри"], "category": "main", "default_weight": 300, "nutrition_per_100": {"calories": 170, "protein": 14.0, "fat": 9.0, "carbs": 10.0}, "ingredients": [{"name": "свинина", "type": "protein", "percent": 50}, {"name": "уксус", "type": "other", "percent": 15}, {"name": "перец чили", "type": "vegetable", "percent": 15}, {"name": "чеснок", "type": "vegetable", "percent": 10}, {"name": "специи", "type": "other", "percent": 10}], "keywords": ["виндалу", "острое карри", "Виндалу"]},
+    "тикка масала": {"name": "Тикка масала", "name_en": ["чикен тикка масала", "chicken tikka masala"], "category": "main", "default_weight": 320, "nutrition_per_100": {"calories": 175, "protein": 15.0, "fat": 10.0, "carbs": 8.0}, "ingredients": [{"name": "курица", "type": "protein", "percent": 45}, {"name": "томатный соус", "type": "vegetable", "percent": 20}, {"name": "сливки", "type": "fat", "percent": 15}, {"name": "йогурт", "type": "protein", "percent": 10}, {"name": "специи", "type": "other", "percent": 10}], "keywords": ["чикен тикка масала", "chicken tikka masala", "Тикка масала"]},
+    "палак панир": {"name": "Палак панир", "name_en": ["палак панир", "шпинат с сыром"], "category": "main", "default_weight": 280, "nutrition_per_100": {"calories": 145, "protein": 9.0, "fat": 10.0, "carbs": 7.0}, "ingredients": [{"name": "шпинат", "type": "vegetable", "percent": 50}, {"name": "панир", "type": "protein", "percent": 30}, {"name": "сливки", "type": "fat", "percent": 15}, {"name": "специи", "type": "other", "percent": 5}], "keywords": ["палак панир", "шпинат с сыром", "Палак панир"]},
+    "аллу гоби": {"name": "Аллу гоби", "name_en": ["аллу гоби", "картофель с цветной капустой"], "category": "main", "default_weight": 280, "nutrition_per_100": {"calories": 120, "protein": 3.5, "fat": 5.0, "carbs": 18.0}, "ingredients": [{"name": "картофель", "type": "carb", "percent": 45}, {"name": "цветная капуста", "type": "vegetable", "percent": 35}, {"name": "лук", "type": "vegetable", "percent": 10}, {"name": "томатный соус", "type": "vegetable", "percent": 5}, {"name": "специи", "type": "other", "percent": 5}], "keywords": ["аллу гоби", "картофель с цветной капустой", "Аллу гоби"]},
+    "чана масала": {"name": "Чана масала", "name_en": ["нут масала", "chana masala"], "category": "main", "default_weight": 280, "nutrition_per_100": {"calories": 140, "protein": 8.0, "fat": 5.0, "carbs": 18.0}, "ingredients": [{"name": "нут", "type": "carb", "percent": 50}, {"name": "томатный соус", "type": "vegetable", "percent": 20}, {"name": "лук", "type": "vegetable", "percent": 15}, {"name": "специи", "type": "other", "percent": 15}], "keywords": ["нут масала", "chana masala", "Чана масала"]},
+    "райта": {"name": "Райта", "name_en": ["райта", "йогуртовый соус"], "category": "side", "default_weight": 150, "nutrition_per_100": {"calories": 60, "protein": 4.0, "fat": 3.0, "carbs": 6.0}, "ingredients": [{"name": "йогурт", "type": "protein", "percent": 70}, {"name": "огурец", "type": "vegetable", "percent": 20}, {"name": "специи", "type": "other", "percent": 10}], "keywords": ["райта", "йогуртовый соус", "Райта"]},
+    "ласси": {"name": "Ласси", "name_en": ["ласси", "йогуртовый напиток"], "category": "dessert", "default_weight": 250, "nutrition_per_100": {"calories": 90, "protein": 4.0, "fat": 2.0, "carbs": 16.0}, "ingredients": [{"name": "йогурт", "type": "protein", "percent": 60}, {"name": "вода", "type": "other", "percent": 25}, {"name": "сахар", "type": "carb", "percent": 10}, {"name": "специи", "type": "other", "percent": 5}], "keywords": ["ласси", "йогуртовый напиток", "Ласси"]},
+    
+    # Мексиканская кухня (20)
+    "такос": {"name": "Такос", "name_en": ["такос", "мексиканские такос"], "category": "main", "default_weight": 200, "nutrition_per_100": {"calories": 190, "protein": 11.0, "fat": 10.0, "carbs": 16.0}, "ingredients": [{"name": "тортилья", "type": "carb", "percent": 40}, {"name": "фарш", "type": "protein", "percent": 30}, {"name": "помидоры", "type": "vegetable", "percent": 15}, {"name": "лук", "type": "vegetable", "percent": 10}, {"name": "сыр", "type": "protein", "percent": 5}], "keywords": ["такос", "мексиканские такос", "Такос"]},
+    "буррито": {"name": "Буррито", "name_en": ["буррито", "мексиканский буррито"], "category": "main", "default_weight": 350, "nutrition_per_100": {"calories": 200, "protein": 12.0, "fat": 8.0, "carbs": 22.0}, "ingredients": [{"name": "тортилья", "type": "carb", "percent": 35}, {"name": "фасоль", "type": "carb", "percent": 25}, {"name": "рис", "type": "carb", "percent": 20}, {"name": "фарш", "type": "protein", "percent": 15}, {"name": "сыр", "type": "protein", "percent": 5}], "keywords": ["буррито", "мексиканский буррито", "Буррито"]},
+    "энчилада": {"name": "Энчилада", "name_en": ["энчилада", "мексиканская энчилада"], "category": "main", "default_weight": 300, "nutrition_per_100": {"calories": 190, "protein": 12.0, "fat": 9.0, "carbs": 18.0}, "ingredients": [{"name": "тортилья", "type": "carb", "percent": 40}, {"name": "курица", "type": "protein", "percent": 25}, {"name": "сыр", "type": "protein", "percent": 20}, {"name": "томатный соус", "type": "vegetable", "percent": 15}], "keywords": ["энчилада", "мексиканская энчилада", "Энчилада"]},
+    "кесадилья": {"name": "Кесадилья", "name_en": ["кесадилья", "мексиканская кесадилья"], "category": "main", "default_weight": 250, "nutrition_per_100": {"calories": 240, "protein": 12.0, "fat": 14.0, "carbs": 20.0}, "ingredients": [{"name": "тортилья", "type": "carb", "percent": 45}, {"name": "сыр", "type": "protein", "percent": 40}, {"name": "курица", "type": "protein", "percent": 15}], "keywords": ["кесадилья", "мексиканская кесадилья", "Кесадилья"]},
+    "начос": {"name": "Начос", "name_en": ["начос", "мексиканские начос"], "category": "snack", "default_weight": 200, "nutrition_per_100": {"calories": 280, "protein": 8.0, "fat": 16.0, "carbs": 28.0}, "ingredients": [{"name": "чипсы", "type": "carb", "percent": 50}, {"name": "сыр", "type": "protein", "percent": 25}, {"name": "халапеньо", "type": "vegetable", "percent": 10}, {"name": "сметана", "type": "fat", "percent": 10}, {"name": "гуакамоле", "type": "fat", "percent": 5}], "keywords": ["начос", "мексиканские начос", "Начос"]},
+    "гуакамоле": {"name": "Гуакамоле", "name_en": ["гуакамоле", "соус из авокадо"], "category": "snack", "default_weight": 150, "nutrition_per_100": {"calories": 160, "protein": 2.0, "fat": 15.0, "carbs": 9.0}, "ingredients": [{"name": "авокадо", "type": "fat", "percent": 70}, {"name": "помидоры", "type": "vegetable", "percent": 15}, {"name": "лук", "type": "vegetable", "percent": 10}, {"name": "лайм", "type": "vegetable", "percent": 5}], "keywords": ["гуакамоле", "соус из авокадо", "Гуакамоле"]},
+    "фахитас": {"name": "Фахитас", "name_en": ["фахитас", "мексиканские фахитас"], "category": "main", "default_weight": 300, "nutrition_per_100": {"calories": 170, "protein": 16.0, "fat": 8.0, "carbs": 12.0}, "ingredients": [{"name": "курица", "type": "protein", "percent": 40}, {"name": "болгарский перец", "type": "vegetable", "percent": 25}, {"name": "лук", "type": "vegetable", "percent": 15}, {"name": "тортилья", "type": "carb", "percent": 20}], "keywords": ["фахитас", "мексиканские фахитас", "Фахитас"]},
+    "эльоте": {"name": "Эльоте", "name_en": ["эльоте", "мексиканская кукуруза"], "category": "side", "default_weight": 200, "nutrition_per_100": {"calories": 140, "protein": 4.0, "fat": 7.0, "carbs": 18.0}, "ingredients": [{"name": "кукуруза", "type": "carb", "percent": 70}, {"name": "майонез", "type": "fat", "percent": 15}, {"name": "сыр", "type": "protein", "percent": 10}, {"name": "перец чили", "type": "vegetable", "percent": 5}], "keywords": ["эльоте", "мексиканская кукуруза", "Эльоте"]},
+    "тамале": {"name": "Тамале", "name_en": ["тамале", "мексиканские тамале"], "category": "main", "default_weight": 250, "nutrition_per_100": {"calories": 200, "protein": 10.0, "fat": 9.0, "carbs": 24.0}, "ingredients": [{"name": "кукурузная мука", "type": "carb", "percent": 45}, {"name": "фарш", "type": "protein", "percent": 30}, {"name": "томатный соус", "type": "vegetable", "percent": 15}, {"name": "специи", "type": "other", "percent": 10}], "keywords": ["тамале", "мексиканские тамале", "Тамале"]},
+    "позоле": {"name": "Позоле", "name_en": ["позоле", "мексиканский суп"], "category": "soup", "default_weight": 350, "nutrition_per_100": {"calories": 120, "protein": 10.0, "fat": 5.0, "carbs": 12.0}, "ingredients": [{"name": "свинина", "type": "protein", "percent": 35}, {"name": "кукуруза", "type": "carb", "percent": 30}, {"name": "капуста", "type": "vegetable", "percent": 15}, {"name": "редис", "type": "vegetable", "percent": 10}, {"name": "специи", "type": "other", "percent": 10}], "keywords": ["позоле", "мексиканский суп", "Позоле"]},
+    "менудо": {"name": "Менудо", "name_en": ["менудо", "мексиканский суп из рубца"], "category": "soup", "default_weight": 350, "nutrition_per_100": {"calories": 110, "protein": 12.0, "fat": 5.0, "carbs": 8.0}, "ingredients": [{"name": "рубец", "type": "protein", "percent": 40}, {"name": "кукуруза", "type": "carb", "percent": 25}, {"name": "перец чили", "type": "vegetable", "percent": 15}, {"name": "лук", "type": "vegetable", "percent": 10}, {"name": "специи", "type": "other", "percent": 10}], "keywords": ["менудо", "мексиканский суп из рубца", "Менудо"]},
+    "карне асада": {"name": "Карне асада", "name_en": ["карне асада", "мексиканский стейк"], "category": "main", "default_weight": 300, "nutrition_per_100": {"calories": 210, "protein": 22.0, "fat": 12.0, "carbs": 4.0}, "ingredients": [{"name": "говядина", "type": "protein", "percent": 80}, {"name": "лайм", "type": "vegetable", "percent": 10}, {"name": "специи", "type": "other", "percent": 10}], "keywords": ["карне асада", "мексиканский стейк", "Карне асада"]},
+    "карнитас": {"name": "Карнитас", "name_en": ["карнитас", "мексиканская свинина"], "category": "main", "default_weight": 300, "nutrition_per_100": {"calories": 240, "protein": 20.0, "fat": 16.0, "carbs": 4.0}, "ingredients": [{"name": "свинина", "type": "protein", "percent": 85}, {"name": "апельсиновый сок", "type": "carb", "percent": 10}, {"name": "специи", "type": "other", "percent": 5}], "keywords": ["карнитас", "мексиканская свинина", "Карнитас"]},
+    "аль пастор": {"name": "Аль пастор", "name_en": ["аль пастор", "мексиканская шаурма"], "category": "main", "default_weight": 280, "nutrition_per_100": {"calories": 200, "protein": 18.0, "fat": 10.0, "carbs": 12.0}, "ingredients": [{"name": "свинина", "type": "protein", "percent": 60}, {"name": "ананас", "type": "carb", "percent": 15}, {"name": "тортилья", "type": "carb", "percent": 15}, {"name": "лук", "type": "vegetable", "percent": 5}, {"name": "кинза", "type": "vegetable", "percent": 5}], "keywords": ["аль пастор", "мексиканская шаурма", "Аль пастор"]},
+    "чуррос": {"name": "Чуррос", "name_en": ["чуррос", "мексиканские пончики"], "category": "dessert", "default_weight": 150, "nutrition_per_100": {"calories": 320, "protein": 5.0, "fat": 14.0, "carbs": 45.0}, "ingredients": [{"name": "мука", "type": "carb", "percent": 50}, {"name": "сахар", "type": "carb", "percent": 25}, {"name": "растительное масло", "type": "fat", "percent": 20}, {"name": "корица", "type": "other", "percent": 5}], "keywords": ["чуррос", "мексиканские пончики", "Чуррос"]},
+    "флан мексиканский": {"name": "Флан мексиканский", "name_en": ["флан", "мексиканский крем"], "category": "dessert", "default_weight": 150, "nutrition_per_100": {"calories": 200, "protein": 5.0, "fat": 12.0, "carbs": 20.0}, "ingredients": [{"name": "яйца", "type": "protein", "percent": 35}, {"name": "молоко", "type": "protein", "percent": 40}, {"name": "сахар", "type": "carb", "percent": 20}, {"name": "ваниль", "type": "other", "percent": 5}], "keywords": ["флан", "мексиканский крем", "Флан мексиканский"]},
+    "tres leches": {"name": "Трес лечес", "name_en": ["tres leches", "три молока"], "category": "dessert", "default_weight": 180, "nutrition_per_100": {"calories": 220, "protein": 6.0, "fat": 10.0, "carbs": 28.0}, "ingredients": [{"name": "бисквит", "type": "carb", "percent": 40}, {"name": "молоко", "type": "protein", "percent": 30}, {"name": "сгущёнка", "type": "carb", "percent": 20}, {"name": "сливки", "type": "fat", "percent": 10}], "keywords": ["tres leches", "три молока", "Трес лечес"]},
+    "эспамол": {"name": "Эспамол", "name_en": ["эспамол", "мексиканский салат"], "category": "salad", "default_weight": 200, "nutrition_per_100": {"calories": 100, "protein": 4.0, "fat": 6.0, "carbs": 10.0}, "ingredients": [{"name": "кукуруза", "type": "carb", "percent": 35}, {"name": "фасоль", "type": "carb", "percent": 25}, {"name": "помидоры", "type": "vegetable", "percent": 20}, {"name": "авокадо", "type": "fat", "percent": 15}, {"name": "лайм", "type": "vegetable", "percent": 5}], "keywords": ["эспамол", "мексиканский салат", "Эспамол"]},
+    "пико де гальо": {"name": "Пико де гальо", "name_en": ["пико де гальо", "мексиканская сальса"], "category": "snack", "default_weight": 150, "nutrition_per_100": {"calories": 40, "protein": 1.5, "fat": 0.5, "carbs": 9.0}, "ingredients": [{"name": "помидоры", "type": "vegetable", "percent": 50}, {"name": "лук", "type": "vegetable", "percent": 25}, {"name": "перец чили", "type": "vegetable", "percent": 15}, {"name": "кинза", "type": "vegetable", "percent": 10}], "keywords": ["пико де гальо", "мексиканская сальса", "Пико де гальо"]},
+    "сальса верде": {"name": "Сальса верде", "name_en": ["сальса верде", "зелёная сальса"], "category": "snack", "default_weight": 150, "nutrition_per_100": {"calories": 35, "protein": 1.0, "fat": 0.5, "carbs": 8.0}, "ingredients": [{"name": "томатильо", "type": "vegetable", "percent": 60}, {"name": "перец чили", "type": "vegetable", "percent": 20}, {"name": "лук", "type": "vegetable", "percent": 10}, {"name": "кинза", "type": "vegetable", "percent": 10}], "keywords": ["сальса верде", "зелёная сальса", "Сальса верде"]},
+    
+    # Французская кухня (20)
+    "луковый суп": {"name": "Луковый суп", "name_en": ["французский луковый суп", "french onion soup"], "category": "soup", "default_weight": 300, "nutrition_per_100": {"calories": 80, "protein": 4.0, "fat": 4.0, "carbs": 8.0}, "ingredients": [{"name": "лук", "type": "vegetable", "percent": 50}, {"name": "бульон", "type": "protein", "percent": 25}, {"name": "сыр", "type": "protein", "percent": 15}, {"name": "хлеб", "type": "carb", "percent": 10}], "keywords": ["французский луковый суп", "french onion soup", "Луковый суп"]},
+    "рататуй": {"name": "Рататуй", "name_en": ["рататуй", "французское рагу"], "category": "main", "default_weight": 280, "nutrition_per_100": {"calories": 70, "protein": 2.0, "fat": 4.0, "carbs": 8.0}, "ingredients": [{"name": "баклажан", "type": "vegetable", "percent": 25}, {"name": "кабачок", "type": "vegetable", "percent": 25}, {"name": "помидоры", "type": "vegetable", "percent": 25}, {"name": "болгарский перец", "type": "vegetable", "percent": 15}, {"name": "оливковое масло", "type": "fat", "percent": 10}], "keywords": ["рататуй", "французское рагу", "Рататуй"]},
+    "буайабес": {"name": "Буайабес", "name_en": ["буайабес", "марсельский суп"], "category": "soup", "default_weight": 350, "nutrition_per_100": {"calories": 90, "protein": 12.0, "fat": 3.0, "carbs": 6.0}, "ingredients": [{"name": "рыба", "type": "protein", "percent": 40}, {"name": "мидии", "type": "protein", "percent": 20}, {"name": "креветки", "type": "protein", "percent": 15}, {"name": "помидоры", "type": "vegetable", "percent": 15}, {"name": "специи", "type": "other", "percent": 10}], "keywords": ["буайабес", "марсельский суп", "Буайабес"]},
+    "кок-о-ван": {"name": "Кок-о-ван", "name_en": ["кок-о-ван", "курица в вине"], "category": "main", "default_weight": 320, "nutrition_per_100": {"calories": 170, "protein": 18.0, "fat": 8.0, "carbs": 6.0}, "ingredients": [{"name": "курица", "type": "protein", "percent": 50}, {"name": "вино", "type": "other", "percent": 20}, {"name": "грибы", "type": "vegetable", "percent": 15}, {"name": "лук", "type": "vegetable", "percent": 10}, {"name": "бекон", "type": "protein", "percent": 5}], "keywords": ["кок-о-ван", "курица в вине", "Кок-о-ван"]},
+    "бёф бургиньон": {"name": "Бёф бургиньон", "name_en": ["бёф бургиньон", "говядина по-бургундски"], "category": "main", "default_weight": 350, "nutrition_per_100": {"calories": 180, "protein": 20.0, "fat": 9.0, "carbs": 6.0}, "ingredients": [{"name": "говядина", "type": "protein", "percent": 50}, {"name": "вино", "type": "other", "percent": 20}, {"name": "грибы", "type": "vegetable", "percent": 15}, {"name": "лук", "type": "vegetable", "percent": 10}, {"name": "морковь", "type": "vegetable", "percent": 5}], "keywords": ["бёф бургиньон", "говядина по-бургундски", "Бёф бургиньон"]},
+    "кассале": {"name": "Кассале", "name_en": ["кассале", "французское рагу"], "category": "main", "default_weight": 350, "nutrition_per_100": {"calories": 190, "protein": 15.0, "fat": 10.0, "carbs": 12.0}, "ingredients": [{"name": "утка", "type": "protein", "percent": 30}, {"name": "фасоль", "type": "carb", "percent": 30}, {"name": "колбаса", "type": "protein", "percent": 20}, {"name": "лук", "type": "vegetable", "percent": 10}, {"name": "томатный соус", "type": "vegetable", "percent": 10}], "keywords": ["кассале", "французское рагу", "Кассале"]},
+    "киш лорен": {"name": "Киш лорен", "name_en": ["киш лорен", "лотарингский пирог"], "category": "main", "default_weight": 250, "nutrition_per_100": {"calories": 220, "protein": 10.0, "fat": 16.0, "carbs": 12.0}, "ingredients": [{"name": "тесто", "type": "carb", "percent": 40}, {"name": "яйца", "type": "protein", "percent": 25}, {"name": "сливки", "type": "fat", "percent": 20}, {"name": "бекон", "type": "protein", "percent": 15}], "keywords": ["киш лорен", "лотарингский пирог", "Киш лорен"]},
+    "киш со шпинатом": {"name": "Киш со шпинатом", "name_en": ["киш со шпинатом"], "category": "main", "default_weight": 250, "nutrition_per_100": {"calories": 200, "protein": 9.0, "fat": 14.0, "carbs": 12.0}, "ingredients": [{"name": "тесто", "type": "carb", "percent": 40}, {"name": "яйца", "type": "protein", "percent": 25}, {"name": "сливки", "type": "fat", "percent": 15}, {"name": "шпинат", "type": "vegetable", "percent": 15}, {"name": "сыр", "type": "protein", "percent": 5}], "keywords": ["киш со шпинатом", "Киш со шпинатом"]},
+    "крок-месье": {"name": "Крок-месье", "name_en": ["крок-месье", "французский сэндвич"], "category": "main", "default_weight": 250, "nutrition_per_100": {"calories": 240, "protein": 14.0, "fat": 16.0, "carbs": 14.0}, "ingredients": [{"name": "хлеб", "type": "carb", "percent": 40}, {"name": "ветчина", "type": "protein", "percent": 30}, {"name": "сыр", "type": "protein", "percent": 20}, {"name": "бешамель", "type": "fat", "percent": 10}], "keywords": ["крок-месье", "французский сэндвич", "Крок-месье"]},
+    "крок-мадам": {"name": "Крок-мадам", "name_en": ["крок-мадам", "сэндвич с яйцом"], "category": "main", "default_weight": 270, "nutrition_per_100": {"calories": 250, "protein": 15.0, "fat": 17.0, "carbs": 14.0}, "ingredients": [{"name": "хлеб", "type": "carb", "percent": 35}, {"name": "ветчина", "type": "protein", "percent": 25}, {"name": "сыр", "type": "protein", "percent": 20}, {"name": "яйца", "type": "protein", "percent": 15}, {"name": "бешамель", "type": "fat", "percent": 5}], "keywords": ["крок-мадам", "сэндвич с яйцом", "Крок-мадам"]},
+    "тарт татен": {"name": "Тарт татен", "name_en": ["тарт татен", "перевёрнутый пирог"], "category": "dessert", "default_weight": 180, "nutrition_per_100": {"calories": 240, "protein": 3.0, "fat": 12.0, "carbs": 32.0}, "ingredients": [{"name": "яблоки", "type": "carb", "percent": 50}, {"name": "тесто", "type": "carb", "percent": 35}, {"name": "сливочное масло", "type": "fat", "percent": 10}, {"name": "сахар", "type": "carb", "percent": 5}], "keywords": ["тарт татен", "перевёрнутый пирог", "Тарт татен"]},
+    "крем-брюле": {"name": "Крем-брюле", "name_en": ["крем-брюле", "жжёный крем"], "category": "dessert", "default_weight": 150, "nutrition_per_100": {"calories": 240, "protein": 4.0, "fat": 18.0, "carbs": 14.0}, "ingredients": [{"name": "сливки", "type": "fat", "percent": 60}, {"name": "яйца", "type": "protein", "percent": 20}, {"name": "сахар", "type": "carb", "percent": 20}], "keywords": ["крем-брюле", "жжёный крем", "Крем-брюле"]},
+    "мусс шоколадный": {"name": "Мусс шоколадный", "name_en": ["шоколадный мусс", "chocolate mousse"], "category": "dessert", "default_weight": 150, "nutrition_per_100": {"calories": 250, "protein": 5.0, "fat": 18.0, "carbs": 18.0}, "ingredients": [{"name": "шоколад", "type": "fat", "percent": 40}, {"name": "яйца", "type": "protein", "percent": 25}, {"name": "сливки", "type": "fat", "percent": 25}, {"name": "сахар", "type": "carb", "percent": 10}], "keywords": ["шоколадный мусс", "chocolate mousse", "Мусс шоколадный"]},
+    "профитроли": {"name": "Профитроли", "name_en": ["профитроли", "заварные пирожные"], "category": "dessert", "default_weight": 150, "nutrition_per_100": {"calories": 270, "protein": 6.0, "fat": 18.0, "carbs": 22.0}, "ingredients": [{"name": "тесто", "type": "carb", "percent": 45}, {"name": "крем", "type": "fat", "percent": 35}, {"name": "шоколад", "type": "fat", "percent": 20}], "keywords": ["профитроли", "заварные пирожные", "Профитроли"]},
+    "эклеры": {"name": "Эклеры", "name_en": ["эклеры", "заварные пирожные"], "category": "dessert", "default_weight": 120, "nutrition_per_100": {"calories": 280, "protein": 6.0, "fat": 16.0, "carbs": 28.0}, "ingredients": [{"name": "тесто", "type": "carb", "percent": 45}, {"name": "крем", "type": "fat", "percent": 40}, {"name": "шоколад", "type": "fat", "percent": 15}], "keywords": ["эклеры", "заварные пирожные", "Эклеры"]},
+    "макароны": {"name": "Макароны", "name_en": ["макароны", "французские макароны"], "category": "dessert", "default_weight": 100, "nutrition_per_100": {"calories": 350, "protein": 5.0, "fat": 15.0, "carbs": 50.0}, "ingredients": [{"name": "миндаль", "type": "fat", "percent": 40}, {"name": "сахар", "type": "carb", "percent": 40}, {"name": "яйца", "type": "protein", "percent": 15}, {"name": "крем", "type": "fat", "percent": 5}], "keywords": ["макароны", "французские макароны", "Макароны"]},
+    "круассан": {"name": "Круассан", "name_en": ["круассан", "французский круассан"], "category": "breakfast", "default_weight": 80, "nutrition_per_100": {"calories": 350, "protein": 7.0, "fat": 20.0, "carbs": 38.0}, "ingredients": [{"name": "мука", "type": "carb", "percent": 50}, {"name": "сливочное масло", "type": "fat", "percent": 30}, {"name": "дрожжи", "type": "other", "percent": 10}, {"name": "сахар", "type": "carb", "percent": 10}], "keywords": ["круассан", "французский круассан", "Круассан"]},
+    "багет": {"name": "Багет", "name_en": ["багет", "французский хлеб"], "category": "side", "default_weight": 100, "nutrition_per_100": {"calories": 270, "protein": 9.0, "fat": 2.0, "carbs": 55.0}, "ingredients": [{"name": "мука", "type": "carb", "percent": 85}, {"name": "вода", "type": "other", "percent": 10}, {"name": "дрожжи", "type": "other", "percent": 3}, {"name": "соль", "type": "other", "percent": 2}], "keywords": ["багет", "французский хлеб", "Багет"]},
+    "утиная грудка": {"name": "Утиная грудка", "name_en": ["утиная грудка", "confit de canard"], "category": "main", "default_weight": 280, "nutrition_per_100": {"calories": 280, "protein": 20.0, "fat": 22.0, "carbs": 1.0}, "ingredients": [{"name": "утка", "type": "protein", "percent": 90}, {"name": "специи", "type": "other", "percent": 5}, {"name": "чеснок", "type": "vegetable", "percent": 5}], "keywords": ["утиная грудка", "confit de canard", "Утиная грудка"]},
+    "фуа-гра": {"name": "Фуа-гра", "name_en": ["фуа-гра", "печень гуся"], "category": "main", "default_weight": 150, "nutrition_per_100": {"calories": 450, "protein": 12.0, "fat": 44.0, "carbs": 4.0}, "ingredients": [{"name": "гусиная печень", "type": "protein", "percent": 90}, {"name": "специи", "type": "other", "percent": 5}, {"name": "коньяк", "type": "other", "percent": 5}], "keywords": ["фуа-гра", "печень гуся", "Фуа-гра"]},
+    
+    # Немецкая кухня (15)
+    "шницель по-венски": {"name": "Шницель по-венски", "name_en": ["венский шницель", "wiener schnitzel"], "category": "main", "default_weight": 250, "nutrition_per_100": {"calories": 260, "protein": 20.0, "fat": 16.0, "carbs": 12.0}, "ingredients": [{"name": "телятина", "type": "protein", "percent": 75}, {"name": "панировочные сухари", "type": "carb", "percent": 15}, {"name": "яйца", "type": "protein", "percent": 5}, {"name": "сливочное масло", "type": "fat", "percent": 5}], "keywords": ["венский шницель", "wiener schnitzel", "Шницель по-венски"]},
+    "свиная рулька": {"name": "Свиная рулька", "name_en": ["свиная рулька", "eisbein"], "category": "main", "default_weight": 400, "nutrition_per_100": {"calories": 280, "protein": 22.0, "fat": 20.0, "carbs": 4.0}, "ingredients": [{"name": "свинина", "type": "protein", "percent": 85}, {"name": "капуста", "type": "vegetable", "percent": 10}, {"name": "специи", "type": "other", "percent": 5}], "keywords": ["свиная рулька", "eisbein", "Свиная рулька"]},
+    "колбаски баварские": {"name": "Колбаски баварские", "name_en": ["баварские колбаски", "weisswurst"], "category": "main", "default_weight": 250, "nutrition_per_100": {"calories": 270, "protein": 16.0, "fat": 22.0, "carbs": 4.0}, "ingredients": [{"name": "свинина", "type": "protein", "percent": 70}, {"name": "телятина", "type": "protein", "percent": 20}, {"name": "специи", "type": "other", "percent": 10}], "keywords": ["баварские колбаски", "weisswurst", "Колбаски баварские"]},
+    "карри wurst": {"name": "Карривурст", "name_en": ["карривурст", "currywurst"], "category": "main", "default_weight": 280, "nutrition_per_100": {"calories": 250, "protein": 14.0, "fat": 18.0, "carbs": 12.0}, "ingredients": [{"name": "колбаса", "type": "protein", "percent": 50}, {"name": "кетчуп", "type": "other", "percent": 25}, {"name": "карри", "type": "other", "percent": 5}, {"name": "картофель фри", "type": "carb", "percent": 20}], "keywords": ["карривурст", "currywurst", "Карривурст"]},
+    "квашеная капуста": {"name": "Квашеная капуста", "name_en": ["квашеная капуста", "sauerkraut"], "category": "side", "default_weight": 150, "nutrition_per_100": {"calories": 25, "protein": 1.0, "fat": 0.5, "carbs": 5.0}, "ingredients": [{"name": "капуста", "type": "vegetable", "percent": 90}, {"name": "соль", "type": "other", "percent": 5}, {"name": "тмин", "type": "other", "percent": 5}], "keywords": ["квашеная капуста", "sauerkraut", "Квашеная капуста"]},
+    "картофельный салат": {"name": "Картофельный салат", "name_en": ["картофельный салат", "kartoffelsalat"], "category": "salad", "default_weight": 200, "nutrition_per_100": {"calories": 140, "protein": 3.0, "fat": 8.0, "carbs": 16.0}, "ingredients": [{"name": "картофель", "type": "carb", "percent": 70}, {"name": "лук", "type": "vegetable", "percent": 15}, {"name": "уксус", "type": "other", "percent": 10}, {"name": "растительное масло", "type": "fat", "percent": 5}], "keywords": ["картофельный салат", "kartoffelsalat", "Картофельный салат"]},
+    "шпецле": {"name": "Шпецле", "name_en": ["шпецле", "немецкие клёцки"], "category": "side", "default_weight": 200, "nutrition_per_100": {"calories": 160, "protein": 6.0, "fat": 4.0, "carbs": 26.0}, "ingredients": [{"name": "мука", "type": "carb", "percent": 60}, {"name": "яйца", "type": "protein", "percent": 25}, {"name": "молоко", "type": "protein", "percent": 10}, {"name": "сливочное масло", "type": "fat", "percent": 5}], "keywords": ["шпецле", "немецкие клёцки", "Шпецле"]},
+    "зауэрбратен": {"name": "Зауэрбратен", "name_en": ["зауэрбратен", "маринованная говядина"], "category": "main", "default_weight": 300, "nutrition_per_100": {"calories": 200, "protein": 22.0, "fat": 10.0, "carbs": 8.0}, "ingredients": [{"name": "говядина", "type": "protein", "percent": 70}, {"name": "уксус", "type": "other", "percent": 15}, {"name": "лук", "type": "vegetable", "percent": 10}, {"name": "специи", "type": "other", "percent": 5}], "keywords": ["зауэрбратен", "маринованная говядина", "Зауэрбратен"]},
+    "лабскаус": {"name": "Лабскаус", "name_en": ["лабскаус", "гамбургское рагу"], "category": "main", "default_weight": 320, "nutrition_per_100": {"calories": 180, "protein": 14.0, "fat": 9.0, "carbs": 14.0}, "ingredients": [{"name": "говядина", "type": "protein", "percent": 30}, {"name": "картофель", "type": "carb", "percent": 35}, {"name": "свёкла", "type": "vegetable", "percent": 15}, {"name": "лук", "type": "vegetable", "percent": 10}, {"name": "сельдь", "type": "protein", "percent": 10}], "keywords": ["лабскаус", "гамбургское рагу", "Лабскаус"]},
+    "ростбратен": {"name": "Ростбратен", "name_en": ["ростбратен", "жареная говядина"], "category": "main", "default_weight": 300, "nutrition_per_100": {"calories": 220, "protein": 24.0, "fat": 12.0, "carbs": 6.0}, "ingredients": [{"name": "говядина", "type": "protein", "percent": 80}, {"name": "лук", "type": "vegetable", "percent": 15}, {"name": "специи", "type": "other", "percent": 5}], "keywords": ["ростбратен", "жареная говядина", "Ростбратен"]},
+    "бретцель": {"name": "Бретцель", "name_en": ["бретцель", "немецкий крендель"], "category": "snack", "default_weight": 100, "nutrition_per_100": {"calories": 280, "protein": 8.0, "fat": 4.0, "carbs": 54.0}, "ingredients": [{"name": "мука", "type": "carb", "percent": 80}, {"name": "вода", "type": "other", "percent": 15}, {"name": "соль", "type": "other", "percent": 3}, {"name": "дрожжи", "type": "other", "percent": 2}], "keywords": ["бретцель", "немецкий крендель", "Бретцель"]},
+    "шварцвальдский торт": {"name": "Шварцвальдский торт", "name_en": ["шварцвальдский торт", "black forest cake"], "category": "dessert", "default_weight": 180, "nutrition_per_100": {"calories": 320, "protein": 5.0, "fat": 16.0, "carbs": 40.0}, "ingredients": [{"name": "бисквит", "type": "carb", "percent": 40}, {"name": "вишня", "type": "carb", "percent": 25}, {"name": "сливки", "type": "fat", "percent": 25}, {"name": "шоколад", "type": "fat", "percent": 10}], "keywords": ["шварцвальдский торт", "black forest cake", "Шварцвальдский торт"]},
+    "яблочный штрудель": {"name": "Яблочный штрудель", "name_en": ["яблочный штрудель", "apfelstrudel"], "category": "dessert", "default_weight": 180, "nutrition_per_100": {"calories": 240, "protein": 4.0, "fat": 10.0, "carbs": 36.0}, "ingredients": [{"name": "тесто", "type": "carb", "percent": 45}, {"name": "яблоки", "type": "carb", "percent": 40}, {"name": "изюм", "type": "carb", "percent": 10}, {"name": "корица", "type": "other", "percent": 5}], "keywords": ["яблочный штрудель", "apfelstrudel", "Яблочный штрудель"]},
+    "пфальцский салат": {"name": "Пфальцский салат", "name_en": ["пфальцский салат", "пфальц"], "category": "salad", "default_weight": 200, "nutrition_per_100": {"calories": 120, "protein": 6.0, "fat": 7.0, "carbs": 10.0}, "ingredients": [{"name": "картофель", "type": "carb", "percent": 40}, {"name": "колбаса", "type": "protein", "percent": 30}, {"name": "лук", "type": "vegetable", "percent": 15}, {"name": "уксус", "type": "other", "percent": 10}, {"name": "растительное масло", "type": "fat", "percent": 5}], "keywords": ["пфальцский салат", "пфальц", "Пфальцский салат"]},
+    "айнтопф": {"name": "Айнтопф", "name_en": ["айнтопф", "немецкий густой суп"], "category": "soup", "default_weight": 350, "nutrition_per_100": {"calories": 100, "protein": 6.0, "fat": 4.0, "carbs": 12.0}, "ingredients": [{"name": "колбаса", "type": "protein", "percent": 25}, {"name": "картофель", "type": "carb", "percent": 25}, {"name": "морковь", "type": "vegetable", "percent": 20}, {"name": "капуста", "type": "vegetable", "percent": 15}, {"name": "бульон", "type": "protein", "percent": 15}], "keywords": ["айнтопф", "немецкий густой суп", "Айнтопф"]},
+    
+    # Испанская кухня (20)
+    "паэлья валенсийская": {"name": "Паэлья валенсийская", "name_en": ["паэлья", "valencian paella"], "category": "main", "default_weight": 350, "nutrition_per_100": {"calories": 170, "protein": 12.0, "fat": 6.0, "carbs": 20.0}, "ingredients": [{"name": "рис", "type": "carb", "percent": 45}, {"name": "курица", "type": "protein", "percent": 25}, {"name": "кролик", "type": "protein", "percent": 15}, {"name": "фасоль", "type": "carb", "percent": 10}, {"name": "шафран", "type": "other", "percent": 5}], "keywords": ["паэлья", "valencian paella", "Паэлья валенсийская"]},
+    "паэлья с морепродуктами": {"name": "Паэлья с морепродуктами", "name_en": ["паэлья с морепродуктами", "seafood paella"], "category": "main", "default_weight": 350, "nutrition_per_100": {"calories": 160, "protein": 14.0, "fat": 5.0, "carbs": 18.0}, "ingredients": [{"name": "рис", "type": "carb", "percent": 45}, {"name": "креветки", "type": "protein", "percent": 20}, {"name": "мидии", "type": "protein", "percent": 15}, {"name": "кальмары", "type": "protein", "percent": 10}, {"name": "шафран", "type": "other", "percent": 5}, {"name": "горох", "type": "vegetable", "percent": 5}], "keywords": ["паэлья с морепродуктами", "seafood paella", "Паэлья с морепродуктами"]},
+    "паэлья смешанная": {"name": "Паэлья смешанная", "name_en": ["смешанная паэлья", "mixed paella"], "category": "main", "default_weight": 350, "nutrition_per_100": {"calories": 175, "protein": 13.0, "fat": 6.0, "carbs": 20.0}, "ingredients": [{"name": "рис", "type": "carb", "percent": 45}, {"name": "курица", "type": "protein", "percent": 20}, {"name": "креветки", "type": "protein", "percent": 15}, {"name": "колбаса", "type": "protein", "percent": 10}, {"name": "шафран", "type": "other", "percent": 5}, {"name": "овощи", "type": "vegetable", "percent": 5}], "keywords": ["смешанная паэлья", "mixed paella", "Паэлья смешанная"]},
+    "тортилья испанская": {"name": "Тортилья испанская", "name_en": ["тортилья", "spanish omelette"], "category": "main", "default_weight": 250, "nutrition_per_100": {"calories": 150, "protein": 8.0, "fat": 9.0, "carbs": 10.0}, "ingredients": [{"name": "яйца", "type": "protein", "percent": 40}, {"name": "картофель", "type": "carb", "percent": 35}, {"name": "лук", "type": "vegetable", "percent": 15}, {"name": "оливковое масло", "type": "fat", "percent": 10}], "keywords": ["тортилья", "spanish omelette", "Тортилья испанская"]},
+    "хамон": {"name": "Хамон", "name_en": ["хамон", "испанская ветчина"], "category": "main", "default_weight": 100, "nutrition_per_100": {"calories": 250, "protein": 26.0, "fat": 16.0, "carbs": 1.0}, "ingredients": [{"name": "свинина", "type": "protein", "percent": 95}, {"name": "соль", "type": "other", "percent": 5}], "keywords": ["хамон", "испанская ветчина", "Хамон"]},
+    "чоризо": {"name": "Чоризо", "name_en": ["чоризо", "испанская колбаса"], "category": "main", "default_weight": 150, "nutrition_per_100": {"calories": 320, "protein": 18.0, "fat": 27.0, "carbs": 3.0}, "ingredients": [{"name": "свинина", "type": "protein", "percent": 80}, {"name": "паприка", "type": "other", "percent": 10}, {"name": "чеснок", "type": "vegetable", "percent": 5}, {"name": "специи", "type": "other", "percent": 5}], "keywords": ["чоризо", "испанская колбаса", "Чоризо"]},
+    "гаспачо": {"name": "Гаспачо", "name_en": ["гаспачо", "холодный томатный суп"], "category": "soup", "default_weight": 300, "nutrition_per_100": {"calories": 45, "protein": 1.5, "fat": 2.5, "carbs": 6.0}, "ingredients": [{"name": "помидоры", "type": "vegetable", "percent": 40}, {"name": "огурец", "type": "vegetable", "percent": 20}, {"name": "болгарский перец", "type": "vegetable", "percent": 15}, {"name": "лук", "type": "vegetable", "percent": 10}, {"name": "оливковое масло", "type": "fat", "percent": 10}, {"name": "чеснок", "type": "vegetable", "percent": 5}], "keywords": ["гаспачо", "холодный томатный суп", "Гаспачо"]},
+    "сальморехо": {"name": "Сальморехо", "name_en": ["сальморехо", "кордовский гаспачо"], "category": "soup", "default_weight": 300, "nutrition_per_100": {"calories": 80, "protein": 3.0, "fat": 5.0, "carbs": 7.0}, "ingredients": [{"name": "помидоры", "type": "vegetable", "percent": 50}, {"name": "хлеб", "type": "carb", "percent": 20}, {"name": "оливковое масло", "type": "fat", "percent": 15}, {"name": "чеснок", "type": "vegetable", "percent": 5}, {"name": "ветчина", "type": "protein", "percent": 10}], "keywords": ["сальморехо", "кордовский гаспачо", "Сальморехо"]},
+    "альбондигас": {"name": "Альбондигас", "name_en": ["альбондигас", "испанские фрикадельки"], "category": "main", "default_weight": 280, "nutrition_per_100": {"calories": 190, "protein": 15.0, "fat": 11.0, "carbs": 8.0}, "ingredients": [{"name": "фарш", "type": "protein", "percent": 60}, {"name": "хлеб", "type": "carb", "percent": 15}, {"name": "яйца", "type": "protein", "percent": 10}, {"name": "томатный соус", "type": "vegetable", "percent": 15}], "keywords": ["альбондигас", "испанские фрикадельки", "Альбондигас"]},
+    "фабада": {"name": "Фабада", "name_en": ["фабада", "астурийская фабада"], "category": "main", "default_weight": 350, "nutrition_per_100": {"calories": 180, "protein": 10.0, "fat": 9.0, "carbs": 16.0}, "ingredients": [{"name": "фасоль", "type": "carb", "percent": 40}, {"name": "колбаса", "type": "protein", "percent": 25}, {"name": "бекон", "type": "protein", "percent": 20}, {"name": "шафран", "type": "other", "percent": 5}, {"name": "паприка", "type": "other", "percent": 10}], "keywords": ["фабада", "астурийская фабада", "Фабада"]},
+    "кокиль": {"name": "Кокиль", "name_en": ["кокиль", "cocido madrileño"], "category": "main", "default_weight": 400, "nutrition_per_100": {"calories": 200, "protein": 14.0, "fat": 10.0, "carbs": 16.0}, "ingredients": [{"name": "нут", "type": "carb", "percent": 30}, {"name": "свинина", "type": "protein", "percent": 25}, {"name": "колбаса", "type": "protein", "percent": 15}, {"name": "картофель", "type": "carb", "percent": 20}, {"name": "овощи", "type": "vegetable", "percent": 10}], "keywords": ["кокиль", "cocido madrileño", "Кокиль"]},
+    "пататас бравас": {"name": "Пататас бравас", "name_en": ["пататас бравас", "острый картофель"], "category": "snack", "default_weight": 200, "nutrition_per_100": {"calories": 180, "protein": 3.0, "fat": 9.0, "carbs": 24.0}, "ingredients": [{"name": "картофель", "type": "carb", "percent": 80}, {"name": "томатный соус", "type": "vegetable", "percent": 15}, {"name": "перец чили", "type": "vegetable", "percent": 5}], "keywords": ["пататас бравас", "острый картофель", "Пататас бравас"]},
+    "гамбас аль ахильо": {"name": "Гамбас аль ахильо", "name_en": ["гамбас", "креветки с чесноком"], "category": "snack", "default_weight": 200, "nutrition_per_100": {"calories": 140, "protein": 18.0, "fat": 6.0, "carbs": 3.0}, "ingredients": [{"name": "креветки", "type": "protein", "percent": 80}, {"name": "чеснок", "type": "vegetable", "percent": 10}, {"name": "оливковое масло", "type": "fat", "percent": 10}], "keywords": ["гамбас", "креветки с чесноком", "Гамбас аль ахильо"]},
+    "пульпо а ла гальега": {"name": "Пульпо а ла гальега", "name_en": ["пульпо", "галисийский осьминог"], "category": "main", "default_weight": 250, "nutrition_per_100": {"calories": 130, "protein": 20.0, "fat": 4.0, "carbs": 5.0}, "ingredients": [{"name": "осьминог", "type": "protein", "percent": 85}, {"name": "паприка", "type": "other", "percent": 5}, {"name": "оливковое масло", "type": "fat", "percent": 5}, {"name": "соль", "type": "other", "percent": 5}], "keywords": ["пульпо", "галисийский осьминог", "Пульпо а ла гальега"]},
+    "мерлуза": {"name": "Мерлуза", "name_en": ["мерлуза", "хек по-испански"], "category": "main", "default_weight": 280, "nutrition_per_100": {"calories": 120, "protein": 18.0, "fat": 4.0, "carbs": 4.0}, "ingredients": [{"name": "хек", "type": "protein", "percent": 80}, {"name": "белое вино", "type": "other", "percent": 10}, {"name": "лук", "type": "vegetable", "percent": 5}, {"name": "оливковое масло", "type": "fat", "percent": 5}], "keywords": ["мерлуза", "хек по-испански", "Мерлуза"]},
+    "бакалао": {"name": "Бакалао", "name_en": ["бакалао", "треска по-испански"], "category": "main", "default_weight": 280, "nutrition_per_100": {"calories": 140, "protein": 20.0, "fat": 5.0, "carbs": 4.0}, "ingredients": [{"name": "треска", "type": "protein", "percent": 75}, {"name": "помидоры", "type": "vegetable", "percent": 15}, {"name": "оливковое масло", "type": "fat", "percent": 10}], "keywords": ["бакалао", "треска по-испански", "Бакалао"]},
+    "крокеты": {"name": "Крокеты", "name_en": ["крокеты", "испанские крокеты"], "category": "snack", "default_weight": 150, "nutrition_per_100": {"calories": 220, "protein": 8.0, "fat": 14.0, "carbs": 18.0}, "ingredients": [{"name": "ветчина", "type": "protein", "percent": 30}, {"name": "молоко", "type": "protein", "percent": 25}, {"name": "мука", "type": "carb", "percent": 25}, {"name": "панировочные сухари", "type": "carb", "percent": 15}, {"name": "растительное масло", "type": "fat", "percent": 5}], "keywords": ["крокеты", "испанские крокеты", "Крокеты"]},
+    "эмпанада": {"name": "Эмпанада", "name_en": ["эмпанада", "галльский пирог"], "category": "main", "default_weight": 280, "nutrition_per_100": {"calories": 230, "protein": 10.0, "fat": 12.0, "carbs": 24.0}, "ingredients": [{"name": "тесто", "type": "carb", "percent": 45}, {"name": "тунец", "type": "protein", "percent": 25}, {"name": "помидоры", "type": "vegetable", "percent": 15}, {"name": "лук", "type": "vegetable", "percent": 10}, {"name": "оливковое масло", "type": "fat", "percent": 5}], "keywords": ["эмпанада", "галльский пирог", "Эмпанада"]},
+    "флан": {"name": "Флан", "name_en": ["флан", "испанский крем"], "category": "dessert", "default_weight": 150, "nutrition_per_100": {"calories": 200, "protein": 5.0, "fat": 12.0, "carbs": 20.0}, "ingredients": [{"name": "яйца", "type": "protein", "percent": 35}, {"name": "молоко", "type": "protein", "percent": 40}, {"name": "сахар", "type": "carb", "percent": 20}, {"name": "ваниль", "type": "other", "percent": 5}], "keywords": ["флан", "испанский крем", "Флан"]},
+    "чуррос с шоколадом": {"name": "Чуррос с шоколадом", "name_en": ["чуррос", "испанские пончики"], "category": "dessert", "default_weight": 180, "nutrition_per_100": {"calories": 350, "protein": 5.0, "fat": 16.0, "carbs": 50.0}, "ingredients": [{"name": "мука", "type": "carb", "percent": 45}, {"name": "сахар", "type": "carb", "percent": 25}, {"name": "шоколад", "type": "fat", "percent": 20}, {"name": "растительное масло", "type": "fat", "percent": 10}], "keywords": ["чуррос", "испанские пончики", "Чуррос с шоколадом"]},
+    
+    # Китайская кухня (20)
+    "утка по-пекински": {"name": "Утка по-пекински", "name_en": ["пекинская утка", "peking duck"], "category": "main", "default_weight": 350, "nutrition_per_100": {"calories": 280, "protein": 20.0, "fat": 20.0, "carbs": 5.0}, "ingredients": [{"name": "утка", "type": "protein", "percent": 80}, {"name": "мёд", "type": "carb", "percent": 10}, {"name": "соевый соус", "type": "other", "percent": 5}, {"name": "специи", "type": "other", "percent": 5}], "keywords": ["пекинская утка", "peking duck", "Утка по-пекински"]},
+    "свинина в кисло-сладком соусе": {"name": "Свинина в кисло-сладком соусе", "name_en": ["кисло-сладкая свинина", "sweet sour pork"], "category": "main", "default_weight": 300, "nutrition_per_100": {"calories": 210, "protein": 16.0, "fat": 11.0, "carbs": 15.0}, "ingredients": [{"name": "свинина", "type": "protein", "percent": 50}, {"name": "болгарский перец", "type": "vegetable", "percent": 20}, {"name": "ананас", "type": "carb", "percent": 15}, {"name": "уксус", "type": "other", "percent": 10}, {"name": "сахар", "type": "carb", "percent": 5}], "keywords": ["кисло-сладкая свинина", "sweet sour pork", "Свинина в кисло-сладком соусе"]},
+    "курица кунг-пао": {"name": "Курица кунг-пао", "name_en": ["кунг-пао", "kung pao chicken"], "category": "main", "default_weight": 300, "nutrition_per_100": {"calories": 180, "protein": 18.0, "fat": 9.0, "carbs": 10.0}, "ingredients": [{"name": "курица", "type": "protein", "percent": 50}, {"name": "арахис", "type": "fat", "percent": 20}, {"name": "перец чили", "type": "vegetable", "percent": 15}, {"name": "соевый соус", "type": "other", "percent": 10}, {"name": "лук", "type": "vegetable", "percent": 5}], "keywords": ["кунг-пао", "kung pao chicken", "Курица кунг-пао"]},
+    "говядина с брокколи": {"name": "Говядина с брокколи", "name_en": ["говядина с брокколи", "beef broccoli"], "category": "main", "default_weight": 300, "nutrition_per_100": {"calories": 160, "protein": 18.0, "fat": 7.0, "carbs": 8.0}, "ingredients": [{"name": "говядина", "type": "protein", "percent": 50}, {"name": "брокколи", "type": "vegetable", "percent": 35}, {"name": "соевый соус", "type": "other", "percent": 10}, {"name": "чеснок", "type": "vegetable", "percent": 5}], "keywords": ["говядина с брокколи", "beef broccoli", "Говядина с брокколи"]},
+    "курица с кешью": {"name": "Курица с кешью", "name_en": ["курица с кешью", "cashew chicken"], "category": "main", "default_weight": 300, "nutrition_per_100": {"calories": 190, "protein": 18.0, "fat": 10.0, "carbs": 10.0}, "ingredients": [{"name": "курица", "type": "protein", "percent": 50}, {"name": "кешью", "type": "fat", "percent": 25}, {"name": "овощи", "type": "vegetable", "percent": 15}, {"name": "соевый соус", "type": "other", "percent": 10}], "keywords": ["курица с кешью", "cashew chicken", "Курица с кешью"]},
+    "креветки с лобстером": {"name": "Креветки с лобстером", "name_en": ["креветки с лобстером", "lobster shrimp"], "category": "main", "default_weight": 300, "nutrition_per_100": {"calories": 150, "protein": 22.0, "fat": 5.0, "carbs": 6.0}, "ingredients": [{"name": "креветки", "type": "protein", "percent": 50}, {"name": "омар", "type": "protein", "percent": 30}, {"name": "овощи", "type": "vegetable", "percent": 15}, {"name": "соевый соус", "type": "other", "percent": 5}], "keywords": ["креветки с лобстером", "lobster shrimp", "Креветки с лобстером"]},
+    "тофу мапо": {"name": "Тофу мапо", "name_en": ["мапо тофу", "mapo tofu"], "category": "main", "default_weight": 280, "nutrition_per_100": {"calories": 140, "protein": 10.0, "fat": 8.0, "carbs": 8.0}, "ingredients": [{"name": "тофу", "type": "protein", "percent": 50}, {"name": "фарш", "type": "protein", "percent": 20}, {"name": "перец чили", "type": "vegetable", "percent": 15}, {"name": "соевый соус", "type": "other", "percent": 10}, {"name": "специи", "type": "other", "percent": 5}], "keywords": ["мапо тофу", "mapo tofu", "Тофу мапо"]},
+    "жареный рис": {"name": "Жареный рис", "name_en": ["жареный рис", "fried rice"], "category": "main", "default_weight": 280, "nutrition_per_100": {"calories": 150, "protein": 5.0, "fat": 5.0, "carbs": 24.0}, "ingredients": [{"name": "рис", "type": "carb", "percent": 60}, {"name": "яйца", "type": "protein", "percent": 15}, {"name": "овощи", "type": "vegetable", "percent": 15}, {"name": "соевый соус", "type": "other", "percent": 10}], "keywords": ["жареный рис", "fried rice", "Жареный рис"]},
+    "ло мейн": {"name": "Ло мейн", "name_en": ["ло мейн", "lo mein"], "category": "main", "default_weight": 300, "nutrition_per_100": {"calories": 170, "protein": 7.0, "fat": 6.0, "carbs": 24.0}, "ingredients": [{"name": "лапша", "type": "carb", "percent": 50}, {"name": "овощи", "type": "vegetable", "percent": 25}, {"name": "соевый соус", "type": "other", "percent": 15}, {"name": "кунжутное масло", "type": "fat", "percent": 10}], "keywords": ["ло мейн", "lo mein", "Ло мейн"]},
+    "чау мейн": {"name": "Чау мейн", "name_en": ["чау мейн", "chow mein"], "category": "main", "default_weight": 300, "nutrition_per_100": {"calories": 180, "protein": 8.0, "fat": 7.0, "carbs": 24.0}, "ingredients": [{"name": "лапша", "type": "carb", "percent": 50}, {"name": "курица", "type": "protein", "percent": 20}, {"name": "овощи", "type": "vegetable", "percent": 20}, {"name": "соевый соус", "type": "other", "percent": 10}], "keywords": ["чау мейн", "chow mein", "Чау мейн"]},
+    "димсам": {"name": "Димсам", "name_en": ["димсам", "китайские пельмени"], "category": "main", "default_weight": 250, "nutrition_per_100": {"calories": 170, "protein": 9.0, "fat": 7.0, "carbs": 18.0}, "ingredients": [{"name": "тесто", "type": "carb", "percent": 40}, {"name": "креветки", "type": "protein", "percent": 30}, {"name": "свинина", "type": "protein", "percent": 20}, {"name": "овощи", "type": "vegetable", "percent": 10}], "keywords": ["димсам", "китайские пельмени", "Димсам"]},
+    "сяо лун бао": {"name": "Сяо лун бао", "name_en": ["сяо лун бао", "шанхайские пельмени"], "category": "main", "default_weight": 250, "nutrition_per_100": {"calories": 180, "protein": 10.0, "fat": 8.0, "carbs": 20.0}, "ingredients": [{"name": "тесто", "type": "carb", "percent": 40}, {"name": "свинина", "type": "protein", "percent": 40}, {"name": "бульон", "type": "protein", "percent": 15}, {"name": "имбирь", "type": "vegetable", "percent": 5}], "keywords": ["сяо лун бао", "шанхайские пельмени", "Сяо лун бао"]},
+    "хот пот": {"name": "Хот пот", "name_en": ["хот пот", "китайский фондю"], "category": "main", "default_weight": 400, "nutrition_per_100": {"calories": 150, "protein": 14.0, "fat": 7.0, "carbs": 10.0}, "ingredients": [{"name": "говядина", "type": "protein", "percent": 30}, {"name": "овощи", "type": "vegetable", "percent": 30}, {"name": "тофу", "type": "protein", "percent": 20}, {"name": "лапша", "type": "carb", "percent": 15}, {"name": "бульон", "type": "protein", "percent": 5}], "keywords": ["хот пот", "китайский фондю", "Хот пот"]},
+    "спринг роллы": {"name": "Спринг роллы", "name_en": ["спринг роллы", "весенние роллы"], "category": "snack", "default_weight": 200, "nutrition_per_100": {"calories": 150, "protein": 5.0, "fat": 6.0, "carbs": 20.0}, "ingredients": [{"name": "тесто", "type": "carb", "percent": 40}, {"name": "овощи", "type": "vegetable", "percent": 40}, {"name": "креветки", "type": "protein", "percent": 15}, {"name": "растительное масло", "type": "fat", "percent": 5}], "keywords": ["спринг роллы", "весенние роллы", "Спринг роллы"]},
+    "краб рангун": {"name": "Краб рангун", "name_en": ["краб рангун", "crab rangoon"], "category": "snack", "default_weight": 180, "nutrition_per_100": {"calories": 200, "protein": 8.0, "fat": 12.0, "carbs": 16.0}, "ingredients": [{"name": "краб", "type": "protein", "percent": 30}, {"name": "сливочный сыр", "type": "protein", "percent": 30}, {"name": "тесто", "type": "carb", "percent": 35}, {"name": "растительное масло", "type": "fat", "percent": 5}], "keywords": ["краб рангун", "crab rangoon", "Краб рангун"]},
+    "генерал цо": {"name": "Генерал Цо", "name_en": ["генерал цо", "general tso chicken"], "category": "main", "default_weight": 300, "nutrition_per_100": {"calories": 200, "protein": 16.0, "fat": 9.0, "carbs": 16.0}, "ingredients": [{"name": "курица", "type": "protein", "percent": 50}, {"name": "перец чили", "type": "vegetable", "percent": 15}, {"name": "соевый соус", "type": "other", "percent": 15}, {"name": "сахар", "type": "carb", "percent": 10}, {"name": "крахмал", "type": "carb", "percent": 10}], "keywords": ["генерал цо", "general tso chicken", "Генерал Цо"]},
+    "апельсиновая курица": {"name": "Апельсиновая курица", "name_en": ["апельсиновая курица", "orange chicken"], "category": "main", "default_weight": 300, "nutrition_per_100": {"calories": 210, "protein": 16.0, "fat": 9.0, "carbs": 18.0}, "ingredients": [{"name": "курица", "type": "protein", "percent": 50}, {"name": "апельсиновый сок", "type": "carb", "percent": 20}, {"name": "соевый соус", "type": "other", "percent": 15}, {"name": "сахар", "type": "carb", "percent": 10}, {"name": "крахмал", "type": "carb", "percent": 5}], "keywords": ["апельсиновая курица", "orange chicken", "Апельсиновая курица"]},
+    "монгольская говядина": {"name": "Монгольская говядина", "name_en": ["монгольская говядина", "mongolian beef"], "category": "main", "default_weight": 300, "nutrition_per_100": {"calories": 200, "protein": 20.0, "fat": 9.0, "carbs": 12.0}, "ingredients": [{"name": "говядина", "type": "protein", "percent": 55}, {"name": "лук", "type": "vegetable", "percent": 20}, {"name": "соевый соус", "type": "other", "percent": 15}, {"name": "сахар", "type": "carb", "percent": 10}], "keywords": ["монгольская говядина", "mongolian beef", "Монгольская говядина"]},
+    "баклажаны сычуань": {"name": "Баклажаны сычуань", "name_en": ["сычуаньские баклажаны", "sichuan eggplant"], "category": "main", "default_weight": 280, "nutrition_per_100": {"calories": 120, "protein": 3.0, "fat": 6.0, "carbs": 16.0}, "ingredients": [{"name": "баклажан", "type": "vegetable", "percent": 60}, {"name": "перец чили", "type": "vegetable", "percent": 15}, {"name": "соевый соус", "type": "other", "percent": 15}, {"name": "чеснок", "type": "vegetable", "percent": 10}], "keywords": ["сычуаньские баклажаны", "sichuan eggplant", "Баклажаны сычуань"]},
+    "грибной суп": {"name": "Грибной суп", "name_en": ["китайский грибной суп", "chinese mushroom soup"], "category": "soup", "default_weight": 300, "nutrition_per_100": {"calories": 60, "protein": 4.0, "fat": 2.0, "carbs": 8.0}, "ingredients": [{"name": "грибы", "type": "vegetable", "percent": 50}, {"name": "тофу", "type": "protein", "percent": 20}, {"name": "бульон", "type": "protein", "percent": 25}, {"name": "зелёный лук", "type": "vegetable", "percent": 5}], "keywords": ["китайский грибной суп", "chinese mushroom soup", "Грибной суп"]},
+    
+    # Корейская кухня (15)
+    "кимчи": {"name": "Кимчи", "name_en": ["кимчи", "корейская капуста"], "category": "side", "default_weight": 150, "nutrition_per_100": {"calories": 30, "protein": 1.5, "fat": 0.5, "carbs": 6.0}, "ingredients": [{"name": "капуста", "type": "vegetable", "percent": 80}, {"name": "перец чили", "type": "vegetable", "percent": 10}, {"name": "чеснок", "type": "vegetable", "percent": 5}, {"name": "имбирь", "type": "vegetable", "percent": 5}], "keywords": ["кимчи", "корейская капуста", "Кимчи"]},
+    "пибимпап": {"name": "Пибимпап", "name_en": ["пибимпап", "корейская рисовая чаша"], "category": "main", "default_weight": 350, "nutrition_per_100": {"calories": 160, "protein": 8.0, "fat": 6.0, "carbs": 22.0}, "ingredients": [{"name": "рис", "type": "carb", "percent": 45}, {"name": "говядина", "type": "protein", "percent": 20}, {"name": "овощи", "type": "vegetable", "percent": 25}, {"name": "яйца", "type": "protein", "percent": 5}, {"name": "кунжутное масло", "type": "fat", "percent": 5}], "keywords": ["пибимпап", "корейская рисовая чаша", "Пибимпап"]},
+    "пулькоги": {"name": "Пулькоги", "name_en": ["пулькоги", "корейская говядина"], "category": "main", "default_weight": 300, "nutrition_per_100": {"calories": 200, "protein": 18.0, "fat": 10.0, "carbs": 10.0}, "ingredients": [{"name": "говядина", "type": "protein", "percent": 60}, {"name": "соевый соус", "type": "other", "percent": 15}, {"name": "груша", "type": "carb", "percent": 10}, {"name": "лук", "type": "vegetable", "percent": 10}, {"name": "чеснок", "type": "vegetable", "percent": 5}], "keywords": ["пулькоги", "корейская говядина", "Пулькоги"]},
+    "кальби": {"name": "Кальби", "name_en": ["кальби", "корейские рёбра"], "category": "main", "default_weight": 350, "nutrition_per_100": {"calories": 240, "protein": 20.0, "fat": 15.0, "carbs": 8.0}, "ingredients": [{"name": "свиные рёбра", "type": "protein", "percent": 70}, {"name": "соевый соус", "type": "other", "percent": 15}, {"name": "сахар", "type": "carb", "percent": 10}, {"name": "чеснок", "type": "vegetable", "percent": 5}], "keywords": ["кальби", "корейские рёбра", "Кальби"]},
+    "чапче": {"name": "Чапче", "name_en": ["чапче", "корейская стеклянная лапша"], "category": "main", "default_weight": 280, "nutrition_per_100": {"calories": 150, "protein": 5.0, "fat": 5.0, "carbs": 24.0}, "ingredients": [{"name": "стеклянная лапша", "type": "carb", "percent": 50}, {"name": "говядина", "type": "protein", "percent": 20}, {"name": "овощи", "type": "vegetable", "percent": 20}, {"name": "соевый соус", "type": "other", "percent": 5}, {"name": "кунжутное масло", "type": "fat", "percent": 5}], "keywords": ["чапче", "корейская стеклянная лапша", "Чапче"]},
+    "токпокки": {"name": "Токпокки", "name_en": ["токпокки", "корейские рисовые клёцки"], "category": "main", "default_weight": 300, "nutrition_per_100": {"calories": 170, "protein": 5.0, "fat": 4.0, "carbs": 32.0}, "ingredients": [{"name": "рисовые клёцки", "type": "carb", "percent": 60}, {"name": "перец чили", "type": "vegetable", "percent": 15}, {"name": "рыбный соус", "type": "other", "percent": 10}, {"name": "яйца", "type": "protein", "percent": 10}, {"name": "зелёный лук", "type": "vegetable", "percent": 5}], "keywords": ["токпокки", "корейские рисовые клёцки", "Токпокки"]},
+    "сундубу": {"name": "Сундубу", "name_en": ["сундубу", "корейский тофу суп"], "category": "soup", "default_weight": 350, "nutrition_per_100": {"calories": 90, "protein": 8.0, "fat": 5.0, "carbs": 6.0}, "ingredients": [{"name": "тофу", "type": "protein", "percent": 40}, {"name": "морепродукты", "type": "protein", "percent": 25}, {"name": "перец чили", "type": "vegetable", "percent": 15}, {"name": "яйца", "type": "protein", "percent": 10}, {"name": "зелёный лук", "type": "vegetable", "percent": 10}], "keywords": ["сундубу", "корейский тофу суп", "Сундубу"]},
+    "куксу": {"name": "Куксу", "name_en": ["куксу", "корейская лапша"], "category": "main", "default_weight": 320, "nutrition_per_100": {"calories": 140, "protein": 7.0, "fat": 4.0, "carbs": 22.0}, "ingredients": [{"name": "гречневая лапша", "type": "carb", "percent": 50}, {"name": "бульон", "type": "protein", "percent": 30}, {"name": "овощи", "type": "vegetable", "percent": 15}, {"name": "яйца", "type": "protein", "percent": 5}], "keywords": ["куксу", "корейская лапша", "Куксу"]},
+    "наэнгмён": {"name": "Наэнгмён", "name_en": ["наэнгмён", "холодная лапша"], "category": "main", "default_weight": 350, "nutrition_per_100": {"calories": 130, "protein": 7.0, "fat": 3.0, "carbs": 24.0}, "ingredients": [{"name": "гречневая лапша", "type": "carb", "percent": 50}, {"name": "бульон", "type": "protein", "percent": 30}, {"name": "огурец", "type": "vegetable", "percent": 10}, {"name": "яйца", "type": "protein", "percent": 5}, {"name": "груша", "type": "carb", "percent": 5}], "keywords": ["наэнгмён", "холодная лапша", "Наэнгмён"]},
+    "самгёпсаль": {"name": "Самгёпсаль", "name_en": ["самгёпсаль", "корейский бекон"], "category": "main", "default_weight": 300, "nutrition_per_100": {"calories": 300, "protein": 18.0, "fat": 24.0, "carbs": 4.0}, "ingredients": [{"name": "свинина", "type": "protein", "percent": 80}, {"name": "салат", "type": "vegetable", "percent": 10}, {"name": "чеснок", "type": "vegetable", "percent": 5}, {"name": "соус", "type": "other", "percent": 5}], "keywords": ["самгёпсаль", "корейский бекон", "Самгёпсаль"]},
+    "кimbap": {"name": "Кимпап", "name_en": ["кимпап", "корейские роллы"], "category": "main", "default_weight": 250, "nutrition_per_100": {"calories": 160, "protein": 6.0, "fat": 4.0, "carbs": 28.0}, "ingredients": [{"name": "рис", "type": "carb", "percent": 50}, {"name": "морская капуста", "type": "vegetable", "percent": 15}, {"name": "овощи", "type": "vegetable", "percent": 20}, {"name": "яйца", "type": "protein", "percent": 10}, {"name": "кунжутное масло", "type": "fat", "percent": 5}], "keywords": ["кимпап", "корейские роллы", "Кимпап"]},
+    "ттеокбокки": {"name": "Ттеокбокки", "name_en": ["ттеокбокки", "острые клёцки"], "category": "main", "default_weight": 300, "nutrition_per_100": {"calories": 175, "protein": 5.5, "fat": 4.5, "carbs": 32.0}, "ingredients": [{"name": "рисовые клёцки", "type": "carb", "percent": 60}, {"name": "перец чили", "type": "vegetable", "percent": 15}, {"name": "рыбный соус", "type": "other", "percent": 10}, {"name": "яйца", "type": "protein", "percent": 10}, {"name": "зелёный лук", "type": "vegetable", "percent": 5}], "keywords": ["ттеокбокки", "острые клёцки", "Ттеокбокки"]},
+    "хэмуль пхаджон": {"name": "Хэмуль пхаджон", "name_en": ["пхаджон", "корейские оладьи с морепродуктами"], "category": "main", "default_weight": 280, "nutrition_per_100": {"calories": 160, "protein": 10.0, "fat": 6.0, "carbs": 18.0}, "ingredients": [{"name": "мука", "type": "carb", "percent": 40}, {"name": "морепродукты", "type": "protein", "percent": 30}, {"name": "зелёный лук", "type": "vegetable", "percent": 20}, {"name": "яйца", "type": "protein", "percent": 10}], "keywords": ["пхаджон", "корейские оладьи с морепродуктами", "Хэмуль пхаджон"]},
+    "самгетан": {"name": "Самгетан", "name_en": ["самгетан", "корейский куриный суп"], "category": "soup", "default_weight": 400, "nutrition_per_100": {"calories": 120, "protein": 14.0, "fat": 4.0, "carbs": 8.0}, "ingredients": [{"name": "курица", "type": "protein", "percent": 50}, {"name": "рис", "type": "carb", "percent": 20}, {"name": "женьшень", "type": "other", "percent": 10}, {"name": "чеснок", "type": "vegetable", "percent": 10}, {"name": "бульон", "type": "protein", "percent": 10}], "keywords": ["самгетан", "корейский куриный суп", "Самгетан"]},
+    "корейский хот пот": {"name": "Корейский хот пот", "name_en": ["корейский хот пот", "korean hot pot"], "category": "main", "default_weight": 400, "nutrition_per_100": {"calories": 140, "protein": 12.0, "fat": 6.0, "carbs": 12.0}, "ingredients": [{"name": "свинина", "type": "protein", "percent": 30}, {"name": "тофу", "type": "protein", "percent": 20}, {"name": "овощи", "type": "vegetable", "percent": 25}, {"name": "лапша", "type": "carb", "percent": 15}, {"name": "перец чили", "type": "vegetable", "percent": 10}], "keywords": ["корейский хот пот", "korean hot pot", "Корейский хот пот"]},
+    
+    # Вьетнамская кухня (15)
+    "фо бо": {"name": "Фо бо", "name_en": ["фо бо", "вьетнамский суп с говядиной"], "category": "soup", "default_weight": 400, "nutrition_per_100": {"calories": 80, "protein": 7.0, "fat": 2.0, "carbs": 10.0}, "ingredients": [{"name": "говядина", "type": "protein", "percent": 25}, {"name": "рисовая лапша", "type": "carb", "percent": 30}, {"name": "бульон", "type": "protein", "percent": 30}, {"name": "зелень", "type": "vegetable", "percent": 10}, {"name": "специи", "type": "other", "percent": 5}], "keywords": ["фо бо", "вьетнамский суп с говядиной", "Фо бо"]},
+    "фо га": {"name": "Фо га", "name_en": ["фо га", "вьетнамский суп с курицей"], "category": "soup", "default_weight": 400, "nutrition_per_100": {"calories": 75, "protein": 8.0, "fat": 1.5, "carbs": 10.0}, "ingredients": [{"name": "курица", "type": "protein", "percent": 25}, {"name": "рисовая лапша", "type": "carb", "percent": 30}, {"name": "бульон", "type": "protein", "percent": 35}, {"name": "зелень", "type": "vegetable", "percent": 10}], "keywords": ["фо га", "вьетнамский суп с курицей", "Фо га"]},
+    "бан ми": {"name": "Бан ми", "name_en": ["бан ми", "вьетнамский сэндвич"], "category": "main", "default_weight": 280, "nutrition_per_100": {"calories": 200, "protein": 12.0, "fat": 6.0, "carbs": 28.0}, "ingredients": [{"name": "багет", "type": "carb", "percent": 35}, {"name": "свинина", "type": "protein", "percent": 30}, {"name": "овощи", "type": "vegetable", "percent": 25}, {"name": "соус", "type": "other", "percent": 10}], "keywords": ["бан ми", "вьетнамский сэндвич", "Бан ми"]},
+    "спринг роллы вьетнамские": {"name": "Спринг роллы вьетнамские", "name_en": ["вьетнамские спринг роллы", "fresh spring rolls"], "category": "main", "default_weight": 200, "nutrition_per_100": {"calories": 110, "protein": 6.0, "fat": 2.0, "carbs": 18.0}, "ingredients": [{"name": "рисовая бумага", "type": "carb", "percent": 30}, {"name": "креветки", "type": "protein", "percent": 25}, {"name": "свинина", "type": "protein", "percent": 15}, {"name": "овощи", "type": "vegetable", "percent": 25}, {"name": "зелень", "type": "vegetable", "percent": 5}], "keywords": ["вьетнамские спринг роллы", "fresh spring rolls", "Спринг роллы вьетнамские"]},
+    "ком там": {"name": "Ком там", "name_en": ["ком там", "вьетнамский рис с свининой"], "category": "main", "default_weight": 350, "nutrition_per_100": {"calories": 180, "protein": 12.0, "fat": 6.0, "carbs": 24.0}, "ingredients": [{"name": "рис", "type": "carb", "percent": 50}, {"name": "свинина", "type": "protein", "percent": 30}, {"name": "яйца", "type": "protein", "percent": 10}, {"name": "овощи", "type": "vegetable", "percent": 10}], "keywords": ["ком там", "вьетнамский рис с свининой", "Ком там"]},
+    "бун ча": {"name": "Бун ча", "name_en": ["бун ча", "вьетнамская лапша с свининой"], "category": "main", "default_weight": 350, "nutrition_per_100": {"calories": 160, "protein": 10.0, "fat": 5.0, "carbs": 22.0}, "ingredients": [{"name": "рисовая лапша", "type": "carb", "percent": 45}, {"name": "свинина", "type": "protein", "percent": 30}, {"name": "овощи", "type": "vegetable", "percent": 20}, {"name": "рыбный соус", "type": "other", "percent": 5}], "keywords": ["бун ча", "вьетнамская лапша с свининой", "Бун ча"]},
+    "као лао": {"name": "Као лао", "name_en": ["као лао", "хойанская лапша"], "category": "main", "default_weight": 320, "nutrition_per_100": {"calories": 170, "protein": 9.0, "fat": 6.0, "carbs": 24.0}, "ingredients": [{"name": "лапша", "type": "carb", "percent": 50}, {"name": "свинина", "type": "protein", "percent": 25}, {"name": "зелень", "type": "vegetable", "percent": 15}, {"name": "сухарики", "type": "carb", "percent": 10}], "keywords": ["као лао", "хойанская лапша", "Као лао"]},
+    "ми куанг": {"name": "Ми куанг", "name_en": ["ми куанг", "куангнамская лапша"], "category": "main", "default_weight": 350, "nutrition_per_100": {"calories": 165, "protein": 8.0, "fat": 5.0, "carbs": 26.0}, "ingredients": [{"name": "лапша", "type": "carb", "percent": 50}, {"name": "курица", "type": "protein", "percent": 20}, {"name": "креветки", "type": "protein", "percent": 15}, {"name": "овощи", "type": "vegetable", "percent": 10}, {"name": "арахис", "type": "fat", "percent": 5}], "keywords": ["ми куанг", "куангнамская лапша", "Ми куанг"]},
+    "бань ксео": {"name": "Бань ксео", "name_en": ["бань ксео", "вьетнамские блинчики"], "category": "main", "default_weight": 280, "nutrition_per_100": {"calories": 150, "protein": 8.0, "fat": 6.0, "carbs": 18.0}, "ingredients": [{"name": "рисовая мука", "type": "carb", "percent": 40}, {"name": "свинина", "type": "protein", "percent": 25}, {"name": "креветки", "type": "protein", "percent": 15}, {"name": "овощи", "type": "vegetable", "percent": 20}], "keywords": ["бань ксео", "вьетнамские блинчики", "Бань ксео"]},
+    "ча ка": {"name": "Ча ка", "name_en": ["ча ка", "вьетнамская рыбная лепёшка"], "category": "main", "default_weight": 300, "nutrition_per_100": {"calories": 140, "protein": 16.0, "fat": 5.0, "carbs": 10.0}, "ingredients": [{"name": "рыба", "type": "protein", "percent": 60}, {"name": "укроп", "type": "vegetable", "percent": 20}, {"name": "лапша", "type": "carb", "percent": 15}, {"name": "арахис", "type": "fat", "percent": 5}], "keywords": ["ча ка", "вьетнамская рыбная лепёшка", "Ча ка"]},
+    "бу нэм нуонг": {"name": "Бу нэм нуонг", "name_en": ["бу нэм нуонг", "вермишель с свининой"], "category": "main", "default_weight": 320, "nutrition_per_100": {"calories": 155, "protein": 10.0, "fat": 4.0, "carbs": 24.0}, "ingredients": [{"name": "рисовая вермишель", "type": "carb", "percent": 50}, {"name": "свинина", "type": "protein", "percent": 30}, {"name": "овощи", "type": "vegetable", "percent": 15}, {"name": "арахис", "type": "fat", "percent": 5}], "keywords": ["бу нэм нуонг", "вермишель с свининой", "Бу нэм нуонг"]},
+    "бань ми тхит": {"name": "Бань ми тхит", "name_en": ["бань ми тхит", "сэндвич со свининой"], "category": "main", "default_weight": 280, "nutrition_per_100": {"calories": 210, "protein": 13.0, "fat": 7.0, "carbs": 26.0}, "ingredients": [{"name": "багет", "type": "carb", "percent": 35}, {"name": "свинина", "type": "protein", "percent": 35}, {"name": "овощи", "type": "vegetable", "percent": 20}, {"name": "соус", "type": "other", "percent": 10}], "keywords": ["бань ми тхит", "сэндвич со свининой", "Бань ми тхит"]},
+    "суп из акульих плавников": {"name": "Суп из акульих плавников", "name_en": ["суп из акульих плавников", "shark fin soup"], "category": "soup", "default_weight": 300, "nutrition_per_100": {"calories": 70, "protein": 8.0, "fat": 2.0, "carbs": 6.0}, "ingredients": [{"name": "акульи плавники", "type": "protein", "percent": 30}, {"name": "бульон", "type": "protein", "percent": 50}, {"name": "яйца", "type": "protein", "percent": 10}, {"name": "грибы", "type": "vegetable", "percent": 10}], "keywords": ["суп из акульих плавников", "shark fin soup", "Суп из акульих плавников"]},
+    "лау де": {"name": "Лау де", "name_en": ["лау де", "вьетнамский хот пот"], "category": "main", "default_weight": 400, "nutrition_per_100": {"calories": 130, "protein": 12.0, "fat": 5.0, "carbs": 12.0}, "ingredients": [{"name": "говядина", "type": "protein", "percent": 30}, {"name": "овощи", "type": "vegetable", "percent": 30}, {"name": "лапша", "type": "carb", "percent": 20}, {"name": "бульон", "type": "protein", "percent": 20}], "keywords": ["лау де", "вьетнамский хот пот", "Лау де"]},
+    "бань бао": {"name": "Бань бао", "name_en": ["бань бао", "вьетнамские паровые булочки"], "category": "main", "default_weight": 200, "nutrition_per_100": {"calories": 180, "protein": 8.0, "fat": 5.0, "carbs": 28.0}, "ingredients": [{"name": "тесто", "type": "carb", "percent": 60}, {"name": "свинина", "type": "protein", "percent": 25}, {"name": "яйца", "type": "protein", "percent": 10}, {"name": "грибы", "type": "vegetable", "percent": 5}], "keywords": ["бань бао", "вьетнамские паровые булочки", "Бань бао"]},
 }
 
 # =============================================================================
-# 🥗 INGREDIENT DATABASE WITH NUTRITION DATA
+# 🥗 БАЗА ДАННЫХ ИНГРЕДИЕНТОВ (200+)
 # =============================================================================
 INGREDIENT_DATABASE = {
-    # Proteins
-    "chicken": {"calories": 165, "protein": 24.0, "fat": 9.5, "carbs": 0.0, "type": "protein"},
-    "beef": {"calories": 200, "protein": 25.0, "fat": 12.0, "carbs": 0.0, "type": "protein"},
-    "pork": {"calories": 220, "protein": 20.0, "fat": 15.0, "carbs": 0.0, "type": "protein"},
-    "lamb": {"calories": 240, "protein": 20.0, "fat": 17.0, "carbs": 0.0, "type": "protein"},
-    "fish": {"calories": 140, "protein": 20.0, "fat": 6.0, "carbs": 0.0, "type": "protein"},
-    "eggs": {"calories": 155, "protein": 13.0, "fat": 11.0, "carbs": 1.0, "type": "protein"},
-    "cheese": {"calories": 320, "protein": 20.0, "fat": 25.0, "carbs": 2.0, "type": "protein"},
-    "feta cheese": {"calories": 280, "protein": 14.0, "fat": 22.0, "carbs": 4.0, "type": "protein"},
-    "bacon": {"calories": 450, "protein": 15.0, "fat": 42.0, "carbs": 1.0, "type": "protein"},
+    # ===== БЕЛКИ - МЯСО И ПТИЦА (35) =====
+    "курица": {"calories": 165, "protein": 24.0, "fat": 9.5, "carbs": 0.0, "type": "protein"},
+    "куриная грудка": {"calories": 113, "protein": 23.0, "fat": 1.3, "carbs": 0.0, "type": "protein"},
+    "куриное бедро": {"calories": 209, "protein": 26.0, "fat": 10.9, "carbs": 0.0, "type": "protein"},
+    "куриные крылышки": {"calories": 203, "protein": 30.0, "fat": 8.1, "carbs": 0.0, "type": "protein"},
+    "куриная печень": {"calories": 172, "protein": 25.0, "fat": 6.3, "carbs": 0.7, "type": "protein"},
+    "куриное сердце": {"calories": 156, "protein": 16.0, "fat": 9.3, "carbs": 0.7, "type": "protein"},
+    "индейка": {"calories": 135, "protein": 29.0, "fat": 1.7, "carbs": 0.0, "type": "protein"},
+    "грудка индейки": {"calories": 135, "protein": 30.0, "fat": 1.0, "carbs": 0.0, "type": "protein"},
+    "утка": {"calories": 337, "protein": 19.0, "fat": 28.0, "carbs": 0.0, "type": "protein"},
+    "гусь": {"calories": 371, "protein": 23.0, "fat": 30.0, "carbs": 0.0, "type": "protein"},
+    "говядина": {"calories": 250, "protein": 26.0, "fat": 15.0, "carbs": 0.0, "type": "protein"},
+    "говяжья печень": {"calories": 175, "protein": 26.0, "fat": 5.0, "carbs": 5.0, "type": "protein"},
+    "говяжий язык": {"calories": 224, "protein": 16.0, "fat": 17.0, "carbs": 0.0, "type": "protein"},
+    "говяжье сердце": {"calories": 150, "protein": 17.0, "fat": 8.0, "carbs": 0.0, "type": "protein"},
+    "телятина": {"calories": 144, "protein": 24.0, "fat": 5.0, "carbs": 0.0, "type": "protein"},
+    "свинина": {"calories": 265, "protein": 27.0, "fat": 17.0, "carbs": 0.0, "type": "protein"},
+    "свиная печень": {"calories": 134, "protein": 22.0, "fat": 3.4, "carbs": 2.6, "type": "protein"},
+    "свиные рёбрышки": {"calories": 277, "protein": 17.0, "fat": 23.0, "carbs": 0.0, "type": "protein"},
+    "бекон": {"calories": 541, "protein": 37.0, "fat": 42.0, "carbs": 1.4, "type": "protein"},
+    "ветчина": {"calories": 145, "protein": 21.0, "fat": 5.0, "carbs": 1.5, "type": "protein"},
+    "колбаски": {"calories": 301, "protein": 12.0, "fat": 27.0, "carbs": 2.0, "type": "protein"},
+    "сосиски": {"calories": 260, "protein": 11.0, "fat": 23.0, "carbs": 2.0, "type": "protein"},
+    "баранина": {"calories": 294, "protein": 25.0, "fat": 21.0, "carbs": 0.0, "type": "protein"},
+    "ягнёнок": {"calories": 234, "protein": 25.0, "fat": 14.0, "carbs": 0.0, "type": "protein"},
+    "кролик": {"calories": 173, "protein": 33.0, "fat": 3.5, "carbs": 0.0, "type": "protein"},
+    "мясо": {"calories": 250, "protein": 26.0, "fat": 15.0, "carbs": 0.0, "type": "protein"},
+    "фарш": {"calories": 254, "protein": 17.0, "fat": 20.0, "carbs": 0.0, "type": "protein"},
+    "фарш говяжий": {"calories": 250, "protein": 17.0, "fat": 20.0, "carbs": 0.0, "type": "protein"},
+    "фарш свиной": {"calories": 280, "protein": 15.0, "fat": 24.0, "carbs": 0.0, "type": "protein"},
+    "фарш куриный": {"calories": 170, "protein": 20.0, "fat": 9.0, "carbs": 0.0, "type": "protein"},
+    "пепперони": {"calories": 494, "protein": 22.0, "fat": 44.0, "carbs": 3.0, "type": "protein"},
+    "салями": {"calories": 378, "protein": 23.0, "fat": 31.0, "carbs": 1.6, "type": "protein"},
+    "прошутто": {"calories": 250, "protein": 26.0, "fat": 16.0, "carbs": 0.0, "type": "protein"},
+    "хамон": {"calories": 250, "protein": 26.0, "fat": 16.0, "carbs": 0.0, "type": "protein"},
+    "печень трески": {"calories": 613, "protein": 4.0, "fat": 66.0, "carbs": 0.0, "type": "protein"},
     
-    # Vegetables
-    "potatoes": {"calories": 77, "protein": 2.0, "fat": 0.1, "carbs": 17.0, "type": "vegetable"},
-    "carrots": {"calories": 41, "protein": 0.9, "fat": 0.2, "carbs": 9.6, "type": "vegetable"},
-    "onion": {"calories": 40, "protein": 1.1, "fat": 0.1, "carbs": 9.3, "type": "vegetable"},
-    "bell pepper": {"calories": 31, "protein": 1.0, "fat": 0.3, "carbs": 7.4, "type": "vegetable"},
-    "tomatoes": {"calories": 18, "protein": 0.9, "fat": 0.2, "carbs": 3.9, "type": "vegetable"},
-    "cucumber": {"calories": 16, "protein": 0.7, "fat": 0.1, "carbs": 3.6, "type": "vegetable"},
-    "lettuce": {"calories": 15, "protein": 1.4, "fat": 0.2, "carbs": 2.9, "type": "vegetable"},
-    "beets": {"calories": 43, "protein": 1.6, "fat": 0.2, "carbs": 9.6, "type": "vegetable"},
-    "cabbage": {"calories": 25, "protein": 1.3, "fat": 0.1, "carbs": 5.8, "type": "vegetable"},
-    "pickles": {"calories": 12, "protein": 0.5, "fat": 0.2, "carbs": 2.4, "type": "vegetable"},
-    "olives": {"calories": 115, "protein": 0.8, "fat": 10.7, "carbs": 6.3, "type": "vegetable"},
-    "mixed vegetables": {"calories": 35, "protein": 2.0, "fat": 0.5, "carbs": 7.0, "type": "vegetable"},
+    # ===== БЕЛКИ - РЫБА (25) =====
+    "рыба": {"calories": 206, "protein": 22.0, "fat": 12.0, "carbs": 0.0, "type": "protein"},
+    "лосось": {"calories": 208, "protein": 20.0, "fat": 13.0, "carbs": 0.0, "type": "protein"},
+    "сёмга": {"calories": 208, "protein": 20.0, "fat": 13.0, "carbs": 0.0, "type": "protein"},
+    "форель": {"calories": 148, "protein": 20.0, "fat": 6.6, "carbs": 0.0, "type": "protein"},
+    "тунец": {"calories": 144, "protein": 23.0, "fat": 5.0, "carbs": 0.0, "type": "protein"},
+    "треска": {"calories": 82, "protein": 18.0, "fat": 0.7, "carbs": 0.0, "type": "protein"},
+    "минтай": {"calories": 92, "protein": 19.0, "fat": 1.0, "carbs": 0.0, "type": "protein"},
+    "скумбрия": {"calories": 205, "protein": 19.0, "fat": 14.0, "carbs": 0.0, "type": "protein"},
+    "сардины": {"calories": 208, "protein": 25.0, "fat": 11.0, "carbs": 0.0, "type": "protein"},
+    "сельдь": {"calories": 158, "protein": 18.0, "fat": 9.0, "carbs": 0.0, "type": "protein"},
+    "анчоусы": {"calories": 131, "protein": 29.0, "fat": 1.4, "carbs": 0.0, "type": "protein"},
+    "сибас": {"calories": 97, "protein": 18.0, "fat": 2.0, "carbs": 0.0, "type": "protein"},
+    "лещ": {"calories": 105, "protein": 17.0, "fat": 3.5, "carbs": 0.0, "type": "protein"},
+    "щука": {"calories": 84, "protein": 18.0, "fat": 1.0, "carbs": 0.0, "type": "protein"},
+    "карп": {"calories": 127, "protein": 18.0, "fat": 5.6, "carbs": 0.0, "type": "protein"},
+    "камбала": {"calories": 86, "protein": 17.0, "fat": 1.2, "carbs": 0.0, "type": "protein"},
+    "палтус": {"calories": 111, "protein": 21.0, "fat": 2.3, "carbs": 0.0, "type": "protein"},
+    "тилапия": {"calories": 96, "protein": 20.0, "fat": 1.7, "carbs": 0.0, "type": "protein"},
+    "сом": {"calories": 105, "protein": 19.0, "fat": 2.8, "carbs": 0.0, "type": "protein"},
+    "окунь": {"calories": 91, "protein": 19.0, "fat": 0.9, "carbs": 0.0, "type": "protein"},
+    "хек": {"calories": 95, "protein": 19.0, "fat": 1.5, "carbs": 0.0, "type": "protein"},
+    "пикша": {"calories": 87, "protein": 19.0, "fat": 0.6, "carbs": 0.0, "type": "protein"},
+    "кета": {"calories": 184, "protein": 22.0, "fat": 9.0, "carbs": 0.0, "type": "protein"},
+    "горбуша": {"calories": 142, "protein": 21.0, "fat": 6.0, "carbs": 0.0, "type": "protein"},
+    "нерка": {"calories": 168, "protein": 21.0, "fat": 8.0, "carbs": 0.0, "type": "protein"},
     
-    # Carbs
-    "rice": {"calories": 130, "protein": 2.5, "fat": 0.5, "carbs": 28.0, "type": "carb"},
-    "pasta": {"calories": 140, "protein": 5.0, "fat": 1.0, "carbs": 28.0, "type": "carb"},
-    "bread": {"calories": 265, "protein": 9.0, "fat": 3.2, "carbs": 49.0, "type": "carb"},
-    "buckwheat": {"calories": 130, "protein": 4.5, "fat": 1.5, "carbs": 25.0, "type": "carb"},
-    "flour": {"calories": 364, "protein": 10.0, "fat": 1.0, "carbs": 76.0, "type": "carb"},
-    "peas": {"calories": 81, "protein": 5.4, "fat": 0.4, "carbs": 14.0, "type": "carb"},
-    "croutons": {"calories": 200, "protein": 8.0, "fat": 8.0, "carbs": 25.0, "type": "carb"},
-    "dough": {"calories": 280, "protein": 8.0, "fat": 6.0, "carbs": 50.0, "type": "carb"},
-    "noodles": {"calories": 138, "protein": 5.0, "fat": 2.0, "carbs": 25.0, "type": "carb"},
-    "pasta sheets": {"calories": 140, "protein": 5.0, "fat": 1.0, "carbs": 28.0, "type": "carb"},
-    "bun": {"calories": 280, "protein": 9.0, "fat": 4.0, "carbs": 50.0, "type": "carb"},
+    # ===== БЕЛКИ - МОРЕПРОДУКТЫ (15) =====
+    "креветки": {"calories": 99, "protein": 24.0, "fat": 0.3, "carbs": 0.2, "type": "protein"},
+    "краб": {"calories": 83, "protein": 18.0, "fat": 0.6, "carbs": 0.0, "type": "protein"},
+    "омар": {"calories": 89, "protein": 19.0, "fat": 0.9, "carbs": 0.0, "type": "protein"},
+    "лангуст": {"calories": 89, "protein": 19.0, "fat": 0.9, "carbs": 0.0, "type": "protein"},
+    "мидии": {"calories": 86, "protein": 12.0, "fat": 2.2, "carbs": 3.7, "type": "protein"},
+    "устрицы": {"calories": 68, "protein": 7.0, "fat": 2.5, "carbs": 3.9, "type": "protein"},
+    "гребешки": {"calories": 88, "protein": 17.0, "fat": 0.8, "carbs": 2.4, "type": "protein"},
+    "кальмары": {"calories": 92, "protein": 16.0, "fat": 1.4, "carbs": 3.1, "type": "protein"},
+    "осьминог": {"calories": 82, "protein": 15.0, "fat": 1.0, "carbs": 2.2, "type": "protein"},
+    "раки": {"calories": 87, "protein": 17.0, "fat": 1.4, "carbs": 0.3, "type": "protein"},
+    "моллюски": {"calories": 74, "protein": 13.0, "fat": 1.0, "carbs": 2.6, "type": "protein"},
+    "каракатица": {"calories": 79, "protein": 16.0, "fat": 0.7, "carbs": 3.0, "type": "protein"},
+    "морская капуста": {"calories": 45, "protein": 3.0, "fat": 1.0, "carbs": 9.0, "type": "protein"},
+    "трепанг": {"calories": 34, "protein": 7.0, "fat": 0.5, "carbs": 0.0, "type": "protein"},
+    "морской ёж": {"calories": 86, "protein": 8.0, "fat": 3.0, "carbs": 6.0, "type": "protein"},
     
-    # Fats
-    "oil": {"calories": 884, "protein": 0.0, "fat": 100.0, "carbs": 0.0, "type": "fat"},
-    "vegetable oil": {"calories": 884, "protein": 0.0, "fat": 100.0, "carbs": 0.0, "type": "fat"},
-    "olive oil": {"calories": 884, "protein": 0.0, "fat": 100.0, "carbs": 0.0, "type": "fat"},
-    "butter": {"calories": 717, "protein": 0.9, "fat": 81.0, "carbs": 0.1, "type": "fat"},
-    "mayonnaise": {"calories": 680, "protein": 1.0, "fat": 75.0, "carbs": 1.0, "type": "fat"},
-    "caesar dressing": {"calories": 450, "protein": 2.0, "fat": 45.0, "carbs": 5.0, "type": "fat"},
+    # ===== БЕЛКИ - ЯЙЦА И МОЛОЧНЫЕ (15) =====
+    "яйца": {"calories": 155, "protein": 13.0, "fat": 11.0, "carbs": 1.1, "type": "protein"},
+    "яичный желток": {"calories": 322, "protein": 16.0, "fat": 27.0, "carbs": 3.6, "type": "protein"},
+    "яичный белок": {"calories": 52, "protein": 11.0, "fat": 0.2, "carbs": 0.7, "type": "protein"},
+    "сыр": {"calories": 402, "protein": 25.0, "fat": 33.0, "carbs": 1.3, "type": "protein"},
+    "моцарелла": {"calories": 280, "protein": 22.0, "fat": 22.0, "carbs": 2.2, "type": "protein"},
+    "пармезан": {"calories": 431, "protein": 38.0, "fat": 29.0, "carbs": 4.1, "type": "protein"},
+    "чеддер": {"calories": 403, "protein": 25.0, "fat": 33.0, "carbs": 1.3, "type": "protein"},
+    "гауда": {"calories": 356, "protein": 25.0, "fat": 27.0, "carbs": 2.2, "type": "protein"},
+    "фета": {"calories": 264, "protein": 14.0, "fat": 21.0, "carbs": 4.1, "type": "protein"},
+    "рикотта": {"calories": 174, "protein": 11.0, "fat": 13.0, "carbs": 3.0, "type": "protein"},
+    "горгонзола": {"calories": 353, "protein": 21.0, "fat": 30.0, "carbs": 2.3, "type": "protein"},
+    "творог": {"calories": 98, "protein": 11.0, "fat": 4.3, "carbs": 3.4, "type": "protein"},
+    "маскарпоне": {"calories": 429, "protein": 4.8, "fat": 44.0, "carbs": 3.6, "type": "protein"},
+    "сливочный сыр": {"calories": 342, "protein": 5.9, "fat": 34.0, "carbs": 4.1, "type": "protein"},
+    "творожный сыр": {"calories": 170, "protein": 12.0, "fat": 12.0, "carbs": 4.0, "type": "protein"},
     
-    # Other
-    "milk": {"calories": 42, "protein": 3.4, "fat": 1.0, "carbs": 5.0, "type": "protein"},
-    "spices": {"calories": 30, "protein": 1.0, "fat": 1.0, "carbs": 5.0, "type": "other"},
-    "soy sauce": {"calories": 60, "protein": 10.0, "fat": 0.0, "carbs": 5.0, "type": "other"},
-    "tomato sauce": {"calories": 70, "protein": 2.0, "fat": 0.5, "carbs": 15.0, "type": "vegetable"},
-    "meat broth": {"calories": 15, "protein": 2.0, "fat": 0.5, "carbs": 1.0, "type": "protein"},
-    "broth": {"calories": 15, "protein": 2.0, "fat": 0.5, "carbs": 1.0, "type": "protein"},
-    "water": {"calories": 0, "protein": 0.0, "fat": 0.0, "carbs": 0.0, "type": "other"},
-    "seaweed": {"calories": 45, "protein": 3.0, "fat": 1.0, "carbs": 9.0, "type": "vegetable"},
-    "toppings": {"calories": 200, "protein": 10.0, "fat": 12.0, "carbs": 15.0, "type": "protein"},
-    "meat": {"calories": 200, "protein": 20.0, "fat": 12.0, "carbs": 0.0, "type": "protein"},
-    "meat sauce": {"calories": 120, "protein": 8.0, "fat": 6.0, "carbs": 10.0, "type": "protein"},
-    "beef patty": {"calories": 200, "protein": 20.0, "fat": 12.0, "carbs": 0.0, "type": "protein"}
+    # ===== ОВОЩИ (35) =====
+    "картофель": {"calories": 77, "protein": 2.0, "fat": 0.1, "carbs": 17.0, "type": "vegetable"},
+    "морковь": {"calories": 41, "protein": 0.9, "fat": 0.2, "carbs": 10.0, "type": "vegetable"},
+    "лук": {"calories": 40, "protein": 1.1, "fat": 0.1, "carbs": 9.3, "type": "vegetable"},
+    "лук репчатый": {"calories": 40, "protein": 1.1, "fat": 0.1, "carbs": 9.3, "type": "vegetable"},
+    "болгарский перец": {"calories": 31, "protein": 1.0, "fat": 0.3, "carbs": 6.0, "type": "vegetable"},
+    "перец": {"calories": 31, "protein": 1.0, "fat": 0.3, "carbs": 6.0, "type": "vegetable"},
+    "помидоры": {"calories": 18, "protein": 0.9, "fat": 0.2, "carbs": 3.9, "type": "vegetable"},
+    "томаты": {"calories": 18, "protein": 0.9, "fat": 0.2, "carbs": 3.9, "type": "vegetable"},
+    "огурец": {"calories": 16, "protein": 0.7, "fat": 0.1, "carbs": 3.6, "type": "vegetable"},
+    "салат": {"calories": 15, "protein": 1.4, "fat": 0.2, "carbs": 2.9, "type": "vegetable"},
+    "шпинат": {"calories": 23, "protein": 2.9, "fat": 0.4, "carbs": 3.6, "type": "vegetable"},
+    "брокколи": {"calories": 34, "protein": 2.8, "fat": 0.4, "carbs": 7.0, "type": "vegetable"},
+    "цветная капуста": {"calories": 25, "protein": 1.9, "fat": 0.3, "carbs": 5.0, "type": "vegetable"},
+    "капуста": {"calories": 25, "protein": 1.3, "fat": 0.1, "carbs": 6.0, "type": "vegetable"},
+    "капуста белокочанная": {"calories": 25, "protein": 1.3, "fat": 0.1, "carbs": 6.0, "type": "vegetable"},
+    "кабачок": {"calories": 17, "protein": 1.2, "fat": 0.3, "carbs": 3.1, "type": "vegetable"},
+    "баклажан": {"calories": 25, "protein": 1.0, "fat": 0.2, "carbs": 6.0, "type": "vegetable"},
+    "грибы": {"calories": 22, "protein": 3.1, "fat": 0.3, "carbs": 3.3, "type": "vegetable"},
+    "шампиньоны": {"calories": 22, "protein": 3.1, "fat": 0.3, "carbs": 3.3, "type": "vegetable"},
+    "свёкла": {"calories": 43, "protein": 1.6, "fat": 0.2, "carbs": 10.0, "type": "vegetable"},
+    "редис": {"calories": 16, "protein": 0.7, "fat": 0.1, "carbs": 3.4, "type": "vegetable"},
+    "сельдерей": {"calories": 16, "protein": 0.7, "fat": 0.2, "carbs": 3.0, "type": "vegetable"},
+    "спаржа": {"calories": 20, "protein": 2.2, "fat": 0.1, "carbs": 3.9, "type": "vegetable"},
+    "стручковая фасоль": {"calories": 31, "protein": 1.8, "fat": 0.1, "carbs": 7.0, "type": "vegetable"},
+    "кукуруза": {"calories": 86, "protein": 3.2, "fat": 1.2, "carbs": 19.0, "type": "vegetable"},
+    "тыква": {"calories": 26, "protein": 1.0, "fat": 0.1, "carbs": 6.5, "type": "vegetable"},
+    "солёные огурцы": {"calories": 12, "protein": 0.5, "fat": 0.2, "carbs": 2.4, "type": "vegetable"},
+    "оливки": {"calories": 115, "protein": 0.8, "fat": 11.0, "carbs": 6.0, "type": "vegetable"},
+    "маслины": {"calories": 115, "protein": 0.8, "fat": 11.0, "carbs": 6.0, "type": "vegetable"},
+    "каперсы": {"calories": 23, "protein": 2.2, "fat": 0.9, "carbs": 4.9, "type": "vegetable"},
+    "лук-порей": {"calories": 61, "protein": 1.5, "fat": 0.3, "carbs": 14.0, "type": "vegetable"},
+    "чеснок": {"calories": 149, "protein": 6.4, "fat": 0.5, "carbs": 33.0, "type": "vegetable"},
+    "имбирь": {"calories": 80, "protein": 1.8, "fat": 0.8, "carbs": 18.0, "type": "vegetable"},
+    "руккола": {"calories": 25, "protein": 2.6, "fat": 0.7, "carbs": 3.7, "type": "vegetable"},
+    "пекинская капуста": {"calories": 13, "protein": 1.5, "fat": 0.2, "carbs": 2.2, "type": "vegetable"},
+    "зелень": {"calories": 36, "protein": 3.0, "fat": 0.8, "carbs": 6.0, "type": "vegetable"},
+    "петрушка": {"calories": 36, "protein": 3.0, "fat": 0.8, "carbs": 6.0, "type": "vegetable"},
+    "укроп": {"calories": 43, "protein": 3.5, "fat": 1.1, "carbs": 7.0, "type": "vegetable"},
+    "зелёный лук": {"calories": 32, "protein": 1.8, "fat": 0.2, "carbs": 7.0, "type": "vegetable"},
+    "кинза": {"calories": 23, "protein": 2.1, "fat": 0.5, "carbs": 3.7, "type": "vegetable"},
+    "базилик": {"calories": 23, "protein": 3.2, "fat": 0.6, "carbs": 2.7, "type": "vegetable"},
+    "редька": {"calories": 36, "protein": 1.4, "fat": 0.1, "carbs": 8.0, "type": "vegetable"},
+    "репа": {"calories": 28, "protein": 0.9, "fat": 0.1, "carbs": 6.0, "type": "vegetable"},
+    "пастернак": {"calories": 75, "protein": 1.2, "fat": 0.3, "carbs": 18.0, "type": "vegetable"},
+    "топинамбур": {"calories": 73, "protein": 2.0, "fat": 0.1, "carbs": 17.0, "type": "vegetable"},
+    
+    # ===== УГЛЕВОДЫ (20) =====
+    "рис": {"calories": 130, "protein": 2.7, "fat": 0.3, "carbs": 28.0, "type": "carb"},
+    "белый рис": {"calories": 130, "protein": 2.7, "fat": 0.3, "carbs": 28.0, "type": "carb"},
+    "бурый рис": {"calories": 112, "protein": 2.6, "fat": 0.9, "carbs": 24.0, "type": "carb"},
+    "гречка": {"calories": 130, "protein": 4.5, "fat": 1.5, "carbs": 25.0, "type": "carb"},
+    "овсянка": {"calories": 102, "protein": 3.5, "fat": 2.0, "carbs": 18.0, "type": "carb"},
+    "паста": {"calories": 131, "protein": 5.0, "fat": 1.1, "carbs": 25.0, "type": "carb"},
+    "макароны": {"calories": 131, "protein": 5.0, "fat": 1.1, "carbs": 25.0, "type": "carb"},
+    "спагетти": {"calories": 131, "protein": 5.0, "fat": 1.1, "carbs": 25.0, "type": "carb"},
+    "лапша": {"calories": 138, "protein": 5.0, "fat": 2.1, "carbs": 25.0, "type": "carb"},
+    "рисовая лапша": {"calories": 109, "protein": 1.4, "fat": 0.2, "carbs": 25.0, "type": "carb"},
+    "хлеб": {"calories": 265, "protein": 9.0, "fat": 3.2, "carbs": 49.0, "type": "carb"},
+    "белый хлеб": {"calories": 265, "protein": 9.0, "fat": 3.2, "carbs": 49.0, "type": "carb"},
+    "панировочные сухари": {"calories": 395, "protein": 13.0, "fat": 5.4, "carbs": 73.0, "type": "carb"},
+    "сухарики": {"calories": 407, "protein": 12.0, "fat": 16.0, "carbs": 56.0, "type": "carb"},
+    "мука": {"calories": 364, "protein": 10.0, "fat": 1.0, "carbs": 76.0, "type": "carb"},
+    "тесто": {"calories": 280, "protein": 8.0, "fat": 6.0, "carbs": 50.0, "type": "carb"},
+    "булка": {"calories": 280, "protein": 9.0, "fat": 4.0, "carbs": 50.0, "type": "carb"},
+    "булгур": {"calories": 135, "protein": 4.5, "fat": 1.0, "carbs": 27.0, "type": "carb"},
+    "кускус": {"calories": 140, "protein": 5.0, "fat": 1.0, "carbs": 28.0, "type": "carb"},
+    "киноа": {"calories": 140, "protein": 5.0, "fat": 2.5, "carbs": 24.0, "type": "carb"},
+    "печенье": {"calories": 450, "protein": 7.0, "fat": 20.0, "carbs": 60.0, "type": "carb"},
+    "сахар": {"calories": 387, "protein": 0.0, "fat": 0.0, "carbs": 100.0, "type": "carb"},
+    "мёд": {"calories": 304, "protein": 0.3, "fat": 0.0, "carbs": 82.0, "type": "carb"},
+    "ананас": {"calories": 50, "protein": 0.5, "fat": 0.1, "carbs": 13.0, "type": "carb"},
+    "яблоки": {"calories": 52, "protein": 0.3, "fat": 0.2, "carbs": 14.0, "type": "carb"},
+    "вишня": {"calories": 63, "protein": 1.0, "fat": 0.2, "carbs": 16.0, "type": "carb"},
+    "лимон": {"calories": 29, "protein": 1.1, "fat": 0.3, "carbs": 9.0, "type": "carb"},
+    "фрукты": {"calories": 60, "protein": 0.8, "fat": 0.3, "carbs": 15.0, "type": "carb"},
+    "сухофрукты": {"calories": 280, "protein": 3.0, "fat": 0.5, "carbs": 70.0, "type": "carb"},
+    "авокадо": {"calories": 160, "protein": 2.0, "fat": 15.0, "carbs": 9.0, "type": "fat"},
+    
+    # ===== ЖИРЫ (12) =====
+    "масло": {"calories": 884, "protein": 0.0, "fat": 100.0, "carbs": 0.0, "type": "fat"},
+    "растительное масло": {"calories": 884, "protein": 0.0, "fat": 100.0, "carbs": 0.0, "type": "fat"},
+    "оливковое масло": {"calories": 884, "protein": 0.0, "fat": 100.0, "carbs": 0.0, "type": "fat"},
+    "подсолнечное масло": {"calories": 884, "protein": 0.0, "fat": 100.0, "carbs": 0.0, "type": "fat"},
+    "сливочное масло": {"calories": 717, "protein": 0.9, "fat": 81.0, "carbs": 0.1, "type": "fat"},
+    "топлёное масло": {"calories": 897, "protein": 0.3, "fat": 100.0, "carbs": 0.0, "type": "fat"},
+    "майонез": {"calories": 680, "protein": 1.0, "fat": 75.0, "carbs": 1.0, "type": "fat"},
+    "сметана": {"calories": 198, "protein": 2.4, "fat": 20.0, "carbs": 4.6, "type": "fat"},
+    "сливки": {"calories": 340, "protein": 2.0, "fat": 36.0, "carbs": 3.0, "type": "fat"},
+    "кокосовое молоко": {"calories": 230, "protein": 2.3, "fat": 24.0, "carbs": 6.0, "type": "fat"},
+    "шоколад": {"calories": 546, "protein": 5.0, "fat": 32.0, "carbs": 59.0, "type": "fat"},
+    "орехи": {"calories": 600, "protein": 18.0, "fat": 55.0, "carbs": 15.0, "type": "fat"},
+    "арахис": {"calories": 567, "protein": 26.0, "fat": 49.0, "carbs": 16.0, "type": "fat"},
+    "грецкие орехи": {"calories": 654, "protein": 15.0, "fat": 65.0, "carbs": 14.0, "type": "fat"},
+    "миндаль": {"calories": 579, "protein": 21.0, "fat": 50.0, "carbs": 22.0, "type": "fat"},
+    "кедровые орехи": {"calories": 673, "protein": 14.0, "fat": 68.0, "carbs": 13.0, "type": "fat"},
+    
+    # ===== СОУСЫ И ПРИПРАВЫ (15) =====
+    "специи": {"calories": 30, "protein": 1.0, "fat": 1.0, "carbs": 5.0, "type": "other"},
+    "соль": {"calories": 0, "protein": 0.0, "fat": 0.0, "carbs": 0.0, "type": "other"},
+    "перец чили": {"calories": 40, "protein": 2.0, "fat": 0.4, "carbs": 9.0, "type": "other"},
+    "паприка": {"calories": 282, "protein": 14.0, "fat": 13.0, "carbs": 54.0, "type": "other"},
+    "томатный соус": {"calories": 70, "protein": 2.0, "fat": 0.5, "carbs": 15.0, "type": "vegetable"},
+    "соевый соус": {"calories": 53, "protein": 8.0, "fat": 0.0, "carbs": 5.0, "type": "other"},
+    "соус барбекю": {"calories": 172, "protein": 0.6, "fat": 0.6, "carbs": 41.0, "type": "other"},
+    "соус песто": {"calories": 418, "protein": 6.0, "fat": 40.0, "carbs": 9.0, "type": "fat"},
+    "кетчуп": {"calories": 112, "protein": 1.0, "fat": 0.1, "carbs": 28.0, "type": "other"},
+    "горчица": {"calories": 66, "protein": 4.0, "fat": 3.3, "carbs": 5.8, "type": "other"},
+    "соус хойсин": {"calories": 220, "protein": 4.0, "fat": 3.0, "carbs": 45.0, "type": "other"},
+    "рыбный соус": {"calories": 35, "protein": 5.0, "fat": 0.0, "carbs": 3.0, "type": "other"},
+    "мисо паста": {"calories": 199, "protein": 12.0, "fat": 6.0, "carbs": 26.0, "type": "other"},
+    "соус": {"calories": 100, "protein": 2.0, "fat": 5.0, "carbs": 12.0, "type": "other"},
+    "начинка": {"calories": 200, "protein": 10.0, "fat": 12.0, "carbs": 15.0, "type": "protein"},
+    "крем": {"calories": 250, "protein": 4.0, "fat": 18.0, "carbs": 20.0, "type": "fat"},
+    
+    # ===== БОБОВЫЕ (8) =====
+    "чечевица": {"calories": 116, "protein": 9.0, "fat": 0.4, "carbs": 20.0, "type": "carb"},
+    "нут": {"calories": 164, "protein": 8.9, "fat": 2.6, "carbs": 27.0, "type": "carb"},
+    "фасоль": {"calories": 127, "protein": 8.7, "fat": 0.5, "carbs": 23.0, "type": "carb"},
+    "красная фасоль": {"calories": 127, "protein": 8.7, "fat": 0.5, "carbs": 23.0, "type": "carb"},
+    "белая фасоль": {"calories": 139, "protein": 9.7, "fat": 0.4, "carbs": 25.0, "type": "carb"},
+    "горох": {"calories": 81, "protein": 5.4, "fat": 0.4, "carbs": 14.0, "type": "carb"},
+    "зелёный горошек": {"calories": 81, "protein": 5.4, "fat": 0.4, "carbs": 14.0, "type": "carb"},
+    "тофу": {"calories": 76, "protein": 8.0, "fat": 4.8, "carbs": 1.9, "type": "protein"},
+    
+    # ===== БУЛЬОНЫ И ЖИДКОСТИ (8) =====
+    "бульон": {"calories": 15, "protein": 2.0, "fat": 0.5, "carbs": 1.0, "type": "protein"},
+    "мясной бульон": {"calories": 15, "protein": 2.0, "fat": 0.5, "carbs": 1.0, "type": "protein"},
+    "куриный бульон": {"calories": 15, "protein": 2.0, "fat": 0.5, "carbs": 1.0, "type": "protein"},
+    "овощной бульон": {"calories": 12, "protein": 0.5, "fat": 0.2, "carbs": 2.0, "type": "other"},
+    "рыбный бульон": {"calories": 14, "protein": 2.5, "fat": 0.3, "carbs": 1.0, "type": "protein"},
+    "вода": {"calories": 0, "protein": 0.0, "fat": 0.0, "carbs": 0.0, "type": "other"},
+    "молоко": {"calories": 42, "protein": 3.4, "fat": 1.0, "carbs": 5.0, "type": "protein"},
+    "йогурт": {"calories": 59, "protein": 10.0, "fat": 0.4, "carbs": 3.6, "type": "protein"},
+    "квас": {"calories": 27, "protein": 0.2, "fat": 0.0, "carbs": 6.0, "type": "other"},
+    
+    # ===== ЕЩЁ ИНГРЕДИЕНТЫ (100+) =====
+    # Дополнительные овощи
+    "картофель молодой": {"calories": 68, "protein": 1.8, "fat": 0.1, "carbs": 15.0, "type": "vegetable"},
+    "батат": {"calories": 86, "protein": 1.6, "fat": 0.1, "carbs": 20.0, "type": "vegetable"},
+    "топинамбур": {"calories": 73, "protein": 2.0, "fat": 0.1, "carbs": 17.0, "type": "vegetable"},
+    "пастернак": {"calories": 75, "protein": 1.2, "fat": 0.3, "carbs": 18.0, "type": "vegetable"},
+    "брюква": {"calories": 37, "protein": 1.2, "fat": 0.1, "carbs": 9.0, "type": "vegetable"},
+    "турнепс": {"calories": 28, "protein": 0.9, "fat": 0.1, "carbs": 6.0, "type": "vegetable"},
+    "дайкон": {"calories": 21, "protein": 1.2, "fat": 0.1, "carbs": 4.0, "type": "vegetable"},
+    "хрен": {"calories": 59, "protein": 1.2, "fat": 0.7, "carbs": 13.0, "type": "vegetable"},
+    "ревень": {"calories": 21, "protein": 0.9, "fat": 0.1, "carbs": 4.0, "type": "vegetable"},
+    "артишок": {"calories": 47, "protein": 3.3, "fat": 0.2, "carbs": 11.0, "type": "vegetable"},
+    "фенхель": {"calories": 31, "protein": 1.2, "fat": 0.2, "carbs": 7.0, "type": "vegetable"},
+    "мангольд": {"calories": 19, "protein": 1.8, "fat": 0.2, "carbs": 3.7, "type": "vegetable"},
+    "щавель": {"calories": 22, "protein": 2.0, "fat": 0.5, "carbs": 2.9, "type": "vegetable"},
+    "крапива": {"calories": 42, "protein": 3.7, "fat": 0.5, "carbs": 7.0, "type": "vegetable"},
+    "лебеда": {"calories": 43, "protein": 4.0, "fat": 0.9, "carbs": 8.0, "type": "vegetable"},
+    "портулак": {"calories": 20, "protein": 1.3, "fat": 0.4, "carbs": 3.4, "type": "vegetable"},
+    "цикорий": {"calories": 23, "protein": 1.7, "fat": 0.2, "carbs": 4.7, "type": "vegetable"},
+    "эндивий": {"calories": 17, "protein": 1.3, "fat": 0.2, "carbs": 3.4, "type": "vegetable"},
+    "романо": {"calories": 17, "protein": 1.2, "fat": 0.3, "carbs": 3.3, "type": "vegetable"},
+    "айсберг": {"calories": 14, "protein": 0.9, "fat": 0.1, "carbs": 3.0, "type": "vegetable"},
+    "корн": {"calories": 23, "protein": 2.0, "fat": 0.4, "carbs": 3.4, "type": "vegetable"},
+    "мизуна": {"calories": 22, "protein": 2.7, "fat": 0.5, "carbs": 3.0, "type": "vegetable"},
+    "тацой": {"calories": 15, "protein": 1.5, "fat": 0.2, "carbs": 2.2, "type": "vegetable"},
+    "пак-чой": {"calories": 13, "protein": 1.5, "fat": 0.2, "carbs": 2.2, "type": "vegetable"},
+    "гайлан": {"calories": 22, "protein": 2.8, "fat": 0.3, "carbs": 3.5, "type": "vegetable"},
+    "бамия": {"calories": 33, "protein": 1.9, "fat": 0.2, "carbs": 7.0, "type": "vegetable"},
+    "патиссон": {"calories": 19, "protein": 0.8, "fat": 0.1, "carbs": 4.0, "type": "vegetable"},
+    "кабачок цукини": {"calories": 16, "protein": 1.2, "fat": 0.2, "carbs": 3.0, "type": "vegetable"},
+    "огурец японский": {"calories": 15, "protein": 0.6, "fat": 0.1, "carbs": 3.0, "type": "vegetable"},
+    "помидор черри": {"calories": 18, "protein": 0.9, "fat": 0.2, "carbs": 3.9, "type": "vegetable"},
+    "помидор сливовидный": {"calories": 20, "protein": 1.1, "fat": 0.2, "carbs": 4.0, "type": "vegetable"},
+    "перец халапеньо": {"calories": 30, "protein": 1.2, "fat": 0.4, "carbs": 6.0, "type": "vegetable"},
+    "перец хабанеро": {"calories": 35, "protein": 1.4, "fat": 0.5, "carbs": 7.0, "type": "vegetable"},
+    "перец поблано": {"calories": 28, "protein": 1.1, "fat": 0.3, "carbs": 6.0, "type": "vegetable"},
+    "перец серрано": {"calories": 32, "protein": 1.3, "fat": 0.4, "carbs": 6.5, "type": "vegetable"},
+    "лук шалот": {"calories": 72, "protein": 2.5, "fat": 0.1, "carbs": 16.8, "type": "vegetable"},
+    "лук зелёный": {"calories": 32, "protein": 1.8, "fat": 0.2, "carbs": 7.0, "type": "vegetable"},
+    "лук батун": {"calories": 34, "protein": 1.9, "fat": 0.3, "carbs": 7.3, "type": "vegetable"},
+    "лук порей": {"calories": 61, "protein": 1.5, "fat": 0.3, "carbs": 14.2, "type": "vegetable"},
+    "чеснок молодой": {"calories": 120, "protein": 5.5, "fat": 0.4, "carbs": 28.0, "type": "vegetable"},
+    "черемша": {"calories": 35, "protein": 2.4, "fat": 0.5, "carbs": 6.5, "type": "vegetable"},
+    "гриб белый": {"calories": 34, "protein": 3.7, "fat": 1.7, "carbs": 1.1, "type": "vegetable"},
+    "гриб подберёзовик": {"calories": 31, "protein": 3.3, "fat": 1.5, "carbs": 0.9, "type": "vegetable"},
+    "гриб подосиновик": {"calories": 33, "protein": 3.5, "fat": 1.6, "carbs": 1.0, "type": "vegetable"},
+    "гриб лисичка": {"calories": 38, "protein": 2.2, "fat": 1.3, "carbs": 3.9, "type": "vegetable"},
+    "гриб опёнок": {"calories": 22, "protein": 2.2, "fat": 1.2, "carbs": 0.8, "type": "vegetable"},
+    "гриб маслёнок": {"calories": 29, "protein": 2.4, "fat": 0.7, "carbs": 3.5, "type": "vegetable"},
+    "гриб моховик": {"calories": 27, "protein": 2.5, "fat": 0.6, "carbs": 3.0, "type": "vegetable"},
+    "гриб рыжик": {"calories": 24, "protein": 1.9, "fat": 0.8, "carbs": 2.0, "type": "vegetable"},
+    "гриб груздь": {"calories": 18, "protein": 1.8, "fat": 0.5, "carbs": 1.5, "type": "vegetable"},
+    "гриб волнушка": {"calories": 22, "protein": 2.2, "fat": 0.6, "carbs": 2.0, "type": "vegetable"},
+    "гриб сыроежка": {"calories": 19, "protein": 1.7, "fat": 0.7, "carbs": 1.3, "type": "vegetable"},
+    "гриб вешенка": {"calories": 33, "protein": 3.3, "fat": 0.4, "carbs": 6.0, "type": "vegetable"},
+    "гриб шиитаке": {"calories": 34, "protein": 2.2, "fat": 0.5, "carbs": 6.8, "type": "vegetable"},
+    "гриб эноки": {"calories": 37, "protein": 2.7, "fat": 0.3, "carbs": 7.8, "type": "vegetable"},
+    "гриб майтаке": {"calories": 31, "protein": 1.9, "fat": 0.6, "carbs": 6.0, "type": "vegetable"},
+    "водоросли нори": {"calories": 35, "protein": 5.8, "fat": 0.3, "carbs": 5.0, "type": "vegetable"},
+    "водоросли комбу": {"calories": 43, "protein": 1.7, "fat": 0.6, "carbs": 9.0, "type": "vegetable"},
+    "водоросли вакаме": {"calories": 45, "protein": 3.0, "fat": 1.0, "carbs": 9.0, "type": "vegetable"},
+    "спирулина": {"calories": 290, "protein": 57.0, "fat": 8.0, "carbs": 24.0, "type": "protein"},
+    "хлорелла": {"calories": 350, "protein": 55.0, "fat": 10.0, "carbs": 20.0, "type": "protein"},
 }
 
 # =============================================================================
-# 🔍 DISH RECOGNITION AND MATCHING FUNCTIONS
+# 🔍 ФУНКЦИИ ПОИСКА И ОПРЕДЕЛЕНИЯ БЛЮД
 # =============================================================================
 def find_best_match(ingredients: List[str], threshold: float = 0.3) -> Optional[Dict]:
-    """
-    Find best matching dish based on ingredients
-    
-    Args:
-        ingredients: List of ingredients from AI
-        threshold: Minimum similarity threshold
-        
-    Returns:
-        Best matching dish data or None
-    """
+    """Найти лучшее подходящее блюдо по ингредиентам"""
     best_match = None
     best_score = 0
-    
     for dish_key, dish_data in COMPOSITE_DISHES.items():
         score = calculate_dish_similarity(ingredients, dish_data)
-        
         if score > best_score and score >= threshold:
             best_score = score
-            best_match = dish_data
+            best_match = dish_data.copy()
             best_match["match_score"] = score
             best_match["dish_key"] = dish_key
-    
     return best_match
 
 def calculate_dish_similarity(ingredients: List[str], dish_data: Dict) -> float:
-    """
-    Calculate similarity between ingredients and dish
-    
-    Args:
-        ingredients: List of ingredients from AI
-        dish_data: Dish data from COMPOSITE_DISHES
-        
-    Returns:
-        Similarity score (0-1)
-    """
+    """Вычислить схожесть ингредиентов с блюдом"""
     if not ingredients:
         return 0.0
-    
     score = 0.0
-    total_ingredients = len(ingredients)
-    
-    # Check main ingredients
     dish_ingredients = [ing["name"] for ing in dish_data.get("ingredients", [])]
     keywords = dish_data.get("keywords", [])
-    name_en = dish_data.get("name_en", [])
-    
-    # Check for ingredient matches
+    name_ru = dish_data.get("name", "")
     for ingredient in ingredients:
         ingredient_lower = ingredient.lower()
-        
-        # Direct ingredient match
         for dish_ing in dish_ingredients:
             if dish_ing.lower() in ingredient_lower or ingredient_lower in dish_ing.lower():
                 score += 0.4
                 break
-        
-        # Keyword match
         for keyword in keywords:
             if keyword.lower() in ingredient_lower or ingredient_lower in keyword.lower():
                 score += 0.3
                 break
-        
-        # English name match
-        for name in name_en:
-            if name.lower() in ingredient_lower or ingredient_lower in name.lower():
-                score += 0.5
-                break
-    
-    # Normalize score
-    normalized_score = min(score / total_ingredients, 1.0)
-    
-    # Bonus for signature ingredients
-    for ingredient in ingredients:
-        ingredient_lower = ingredient.lower()
-        if "beet" in ingredient_lower and "borscht" in keywords:
-            normalized_score += 0.2
-        elif "cabbage" in ingredient_lower and ("shchi" in keywords or "borscht" in keywords):
-            normalized_score += 0.15
-        elif "fish" in ingredient_lower and "ukha" in keywords:
-            normalized_score += 0.2
-        elif "pickle" in ingredient_lower and "solyanka" in keywords:
-            normalized_score += 0.2
-    
-    return min(normalized_score, 1.0)
+        if name_ru.lower() in ingredient_lower or ingredient_lower in name_ru.lower():
+            score += 0.5
+    return min(score / len(ingredients), 1.0) if ingredients else 0.0
 
 def get_dish_nutrition(dish_key: str, custom_weight: float = None) -> Dict:
-    """
-    Get nutrition data for a dish
-    
-    Args:
-        dish_key: Key from COMPOSITE_DISHES
-        custom_weight: Custom weight in grams
-        
-    Returns:
-        Nutrition data
-    """
+    """Получить данные о КБЖУ блюда"""
     if dish_key not in COMPOSITE_DISHES:
         return None
-    
     dish = COMPOSITE_DISHES[dish_key]
     weight = custom_weight or dish["default_weight"]
     nutrition_per_100 = dish["nutrition_per_100"]
-    
-    # Calculate nutrition for actual weight
     factor = weight / 100.0
-    
     return {
         "calories": nutrition_per_100["calories"] * factor,
         "protein": nutrition_per_100["protein"] * factor,
@@ -669,19 +910,8 @@ def get_dish_nutrition(dish_key: str, custom_weight: float = None) -> Dict:
     }
 
 def get_ingredient_nutrition(ingredient_name: str, amount: float = 100) -> Dict:
-    """
-    Get nutrition data for an ingredient
-    
-    Args:
-        ingredient_name: Name of ingredient
-        amount: Amount in grams
-        
-    Returns:
-        Nutrition data or None if not found
-    """
+    """Получить данные о КБЖУ ингредиента"""
     ingredient_name_lower = ingredient_name.lower()
-    
-    # Find exact match
     if ingredient_name_lower in INGREDIENT_DATABASE:
         nutrition = INGREDIENT_DATABASE[ingredient_name_lower].copy()
         factor = amount / 100.0
@@ -693,8 +923,6 @@ def get_ingredient_nutrition(ingredient_name: str, amount: float = 100) -> Dict:
             "weight": amount,
             "type": nutrition["type"]
         }
-    
-    # Find partial match
     for key, nutrition in INGREDIENT_DATABASE.items():
         if ingredient_name_lower in key or key in ingredient_name_lower:
             factor = amount / 100.0
@@ -706,323 +934,66 @@ def get_ingredient_nutrition(ingredient_name: str, amount: float = 100) -> Dict:
                 "weight": amount,
                 "type": nutrition["type"]
             }
-    
     return None
 
 def search_dishes_by_name(query: str) -> List[Dict]:
-    """
-    Search dishes by name (Russian or English)
-    
-    Args:
-        query: Search query
-        
-    Returns:
-        List of matching dishes
-    """
+    """Поиск блюд по названию"""
     query_lower = query.lower()
     results = []
-    
     for dish_key, dish_data in COMPOSITE_DISHES.items():
-        # Check Russian name
-        if query_lower in dish_data["name"].lower() or dish_data["name"].lower() in query_lower:
+        if query_lower in dish_data["name"].lower():
             results.append(dish_data)
             continue
-        
-        # Check English names
-        for name_en in dish_data["name_en"]:
-            if query_lower in name_en.lower() or name_en.lower() in query_lower:
-                results.append(dish_data)
-                break
-        
-        # Check keywords
         for keyword in dish_data["keywords"]:
-            if query_lower in keyword.lower() or keyword.lower() in query_lower:
+            if query_lower in keyword.lower():
                 results.append(dish_data)
                 break
-    
     return results
 
 def get_dishes_by_category(category: str) -> List[Dict]:
-    """
-    Get all dishes by category
-    
-    Args:
-        category: Category name
-        
-    Returns:
-        List of dishes in category
-    """
-    return [
-        dish_data for dish_data in COMPOSITE_DISHES.values()
-        if dish_data["category"] == category
-    ]
+    """Получить все блюда по категории"""
+    return [d for d in COMPOSITE_DISHES.values() if d["category"] == category]
 
 def get_all_categories() -> List[str]:
-    """Get all available categories"""
-    categories = set()
-    for dish_data in COMPOSITE_DISHES.values():
-        categories.add(dish_data["category"])
-    return sorted(list(categories))
+    """Получить все доступные категории"""
+    return sorted(list(set(d["category"] for d in COMPOSITE_DISHES.values())))
 
-# =============================================================================
-# 🎯 SMART DISH IDENTIFICATION SYSTEM
-# =============================================================================
 class DishIdentifier:
-    """Smart dish identification system"""
-    
+    """Система умного определения блюд"""
     def __init__(self):
         self.composite_dishes = COMPOSITE_DISHES
         self.ingredient_db = INGREDIENT_DATABASE
-    
+
     def identify_dish(self, ai_ingredients: List[str], confidence_threshold: float = 0.4) -> Dict:
-        """
-        Identify dish from AI ingredients
-        
-        Args:
-            ai_ingredients: Ingredients from AI
-            confidence_threshold: Minimum confidence to accept
-            
-        Returns:
-            Identification result
-        """
-        # Try to find exact match first
+        """Определить блюдо по ингредиентам от AI"""
         best_match = find_best_match(ai_ingredients, confidence_threshold)
-        
         if best_match:
-            return {
-                "success": True,
-                "dish": best_match,
-                "confidence": best_match["match_score"],
-                "method": "composite_match"
-            }
-        
-        # If no composite match, try individual ingredients
+            return {"success": True, "dish": best_match, "confidence": best_match["match_score"], "method": "composite_match"}
         return self._identify_from_individual_ingredients(ai_ingredients)
-    
+
     def _identify_from_individual_ingredients(self, ingredients: List[str]) -> Dict:
-        """Identify dish from individual ingredients"""
-        total_nutrition = {
-            "calories": 0,
-            "protein": 0,
-            "fat": 0,
-            "carbs": 0
-        }
-        
-        identified_ingredients = []
-        
-        for ingredient in ingredients:
-            nutrition = get_ingredient_nutrition(ingredient, 100)
+        """Определить блюдо по отдельным ингредиентам"""
+        total_nutrition = {"calories": 0, "protein": 0, "fat": 0, "carbs": 0}
+        identified = []
+        for ing in ingredients:
+            nutrition = get_ingredient_nutrition(ing, 100)
             if nutrition:
-                identified_ingredients.append({
-                    "name": ingredient,
-                    "nutrition": nutrition
-                })
+                identified.append({"name": ing, "nutrition": nutrition})
                 total_nutrition["calories"] += nutrition["calories"]
                 total_nutrition["protein"] += nutrition["protein"]
                 total_nutrition["fat"] += nutrition["fat"]
                 total_nutrition["carbs"] += nutrition["carbs"]
-        
-        if identified_ingredients:
-            return {
-                "success": True,
-                "dish": {
-                    "name": "Mixed ingredients",
-                    "category": "mixed",
-                    "nutrition_per_100": total_nutrition,
-                    "ingredients": identified_ingredients
-                },
-                "confidence": 0.3,
-                "method": "individual_match"
-            }
-        
-        return {
-            "success": False,
-            "error": "No recognizable ingredients found",
-            "method": "no_match"
-        }
+        if identified:
+            return {"success": True, "dish": {"name": "Смешанные ингредиенты", "category": "mixed", "nutrition_per_100": total_nutrition, "ingredients": identified}, "confidence": 0.3, "method": "individual_match"}
+        return {"success": False, "error": "Не найдено узнаваемых ингредиентов", "method": "no_match"}
 
-# Global instance
 dish_identifier = DishIdentifier()
 
-# =============================================================================
-# 📊 UTILITY FUNCTIONS
-# =============================================================================
-def calculate_total_nutrition(ingredients_data: List[Dict]) -> Dict:
-    """
-    Calculate total nutrition from ingredients list
-    
-    Args:
-        ingredients_data: List of ingredient data
-        
-    Returns:
-        Total nutrition
-    """
-    total = {
-        "calories": 0,
-        "protein": 0,
-        "fat": 0,
-        "carbs": 0,
-        "weight": 0
-    }
-    
-    for ingredient in ingredients_data:
-        if "nutrition" in ingredient:
-            nutrition = ingredient["nutrition"]
-            total["calories"] += nutrition.get("calories", 0)
-            total["protein"] += nutrition.get("protein", 0)
-            total["fat"] += nutrition.get("fat", 0)
-            total["carbs"] += nutrition.get("carbs", 0)
-            total["weight"] += nutrition.get("weight", 0)
-    
-    return total
-
-def format_nutrition_label(nutrition: Dict, weight: float = None) -> str:
-    """
-    Format nutrition data into readable label
-    
-    Args:
-        nutrition: Nutrition data
-        weight: Portion weight
-        
-    Returns:
-        Formatted label
-    """
-    if weight:
-        factor = weight / 100.0
-        calories = nutrition["calories"] * factor
-        protein = nutrition["protein"] * factor
-        fat = nutrition["fat"] * factor
-        carbs = nutrition["carbs"] * factor
-    else:
-        calories = nutrition["calories"]
-        protein = nutrition["protein"]
-        fat = nutrition["fat"]
-        carbs = nutrition["carbs"]
-    
-    return f"📊 {calories:.0f} kcal | 🥩 {protein:.1f}g | 🧈 {fat:.1f}g | 🍞 {carbs:.1f}g"
-
-def get_dish_suggestions(partial_name: str, limit: int = 5) -> List[str]:
-    """
-    Get dish suggestions based on partial name
-    
-    Args:
-        partial_name: Partial dish name
-        limit: Maximum suggestions
-        
-    Returns:
-        List of suggestions
-    """
-    partial_lower = partial_name.lower()
-    suggestions = []
-    
-    for dish_key, dish_data in COMPOSITE_DISHES.items():
-        # Check Russian name
-        if partial_lower in dish_data["name"].lower():
-            suggestions.append(dish_data["name"])
-            continue
-        
-        # Check English names
-        for name_en in dish_data["name_en"]:
-            if partial_lower in name_en.lower():
-                suggestions.append(name_en)
-                break
-        
-        if len(suggestions) >= limit:
-            break
-    
-    return suggestions[:limit]
-
-# =============================================================================
-# 🎯 MAIN API FUNCTIONS
-# =============================================================================
-def process_food_identification(ai_response: str) -> Dict:
-    """
-    Process AI food identification response
-    
-    Args:
-        ai_response: Raw response from AI
-        
-    Returns:
-        Processed food data
-    """
-    try:
-        # Parse AI response to extract ingredients
-        ingredients = []
-        
-        # Split by common separators
-        parts = ai_response.replace(', ', ',').replace('; ', ';').split(',')
-        for part in parts:
-            # Clean and add ingredient
-            ingredient = part.strip().lower()
-            if ingredient and len(ingredient) > 2:
-                ingredients.append(ingredient)
-        
-        if not ingredients:
-            return {
-                "success": False,
-                "error": "No ingredients found in AI response"
-            }
-        
-        # Identify dish
-        identification = dish_identifier.identify_dish(ingredients)
-        
-        if identification["success"]:
-            dish = identification["dish"]
-            
-            # Get nutrition data
-            if "dish_key" in dish:
-                nutrition = get_dish_nutrition(dish["dish_key"])
-            else:
-                nutrition = dish.get("nutrition_per_100", {})
-            
-            return {
-                "success": True,
-                "dish_name": dish["name"],
-                "category": dish["category"],
-                "confidence": identification["confidence"],
-                "ingredients": ingredients,
-                "nutrition": nutrition,
-                "method": identification["method"]
-            }
-        else:
-            return {
-                "success": False,
-                "error": identification["error"],
-                "ingredients": ingredients
-            }
-    
-    except Exception as e:
-        logger.error(f"Error processing food identification: {e}")
-        return {
-            "success": False,
-            "error": f"Processing error: {str(e)}"
-        }
-
-# =============================================================================
-# 📝 LOGGING AND DEBUGGING
-# =============================================================================
-def log_dish_identification(ingredients: List[str], result: Dict):
-    """Log dish identification for debugging"""
-    logger.info(f"🍽️ Dish Identification:")
-    logger.info(f"   Input ingredients: {ingredients}")
-    
-    if result["success"]:
-        logger.info(f"   ✅ Identified: {result['dish_name']}")
-        logger.info(f"   📊 Confidence: {result['confidence']:.2f}")
-        logger.info(f"   🏷️ Category: {result['category']}")
-        logger.info(f"   🔧 Method: {result['method']}")
-    else:
-        logger.info(f"   ❌ Failed: {result['error']}")
-
-# =============================================================================
-# 🎯 INITIALIZATION
-# =============================================================================
 def initialize_dish_database():
-    """Initialize dish database"""
-    logger.info(f"🍽️ Dish database initialized:")
-    logger.info(f"   📚 Composite dishes: {len(COMPOSITE_DISHES)}")
-    logger.info(f"   🥗 Ingredients: {len(INGREDIENT_DATABASE)}")
-    logger.info(f"   🏷️ Categories: {', '.join(get_all_categories())}")
+    """Инициализация базы данных блюд"""
+    logger.info(f"🍽️ База данных блюд инициализирована:")
+    logger.info(f"   📚 Готовые блюда: {len(COMPOSITE_DISHES)}")
+    logger.info(f"   🥗 Ингредиенты: {len(INGREDIENT_DATABASE)}")
+    logger.info(f"   🏷️ Категории: {', '.join(get_all_categories())}")
 
-# Initialize on import
 initialize_dish_database()

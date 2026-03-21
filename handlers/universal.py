@@ -20,7 +20,7 @@ router = Router()
 class UniversalStates:
     waiting_for_confirmation = "waiting_for_confirmation"
 
-@router.message(~F.command)
+@router.message(~F.command & ~F.photo & ~F.document)
 async def universal_message_handler(message: Message, state: FSMContext):
     """
     Универсальный обработчик всех текстовых сообщений
@@ -28,28 +28,28 @@ async def universal_message_handler(message: Message, state: FSMContext):
     """
     user_id = message.from_user.id
     user_text = message.text
-    
+
     # Проверяем, не находится ли пользователь в другом диалоге (AI Ассистент)
     current_state = await state.get_state()
     if current_state == "ai_conversation":
         return  # Пропускаем, это обрабатывает AI Ассистент
-    
+
     try:
         # Показываем индикатор загрузки
         loading_msg = await message.answer("🤖 Анализирую...")
-        
+
         # Получаем агента для пользователя
         agent = await get_agent(user_id, state)
-        
+
         # Обрабатываем сообщение через агента
         result = await agent.process_message(user_text)
-        
+
         # Удаляем сообщение о загрузке
         await loading_msg.delete()
-        
+
         # Выводим результат
         await message.answer(result, reply_markup=get_main_menu(), parse_mode="HTML")
-        
+
     except Exception as e:
         logger.error(f"Error in universal handler: {e}", exc_info=True)
         await message.answer(

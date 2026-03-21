@@ -12,7 +12,7 @@ from database.db import get_session
 from database.models import User, FoodEntry
 from services.ai_processor import AIProcessor
 from handlers.food_clarification import handle_food_text
-from keyboards.reply_v2 import get_main_keyboard_v2
+from keyboards.main_menu import get_main_menu
 
 logger = logging.getLogger(__name__)
 router = Router()
@@ -61,5 +61,5 @@ async def handle_food_message(message: Message, state: FSMContext):
         logger.error(f"Error in handle_food_message: {e}")
         await message.answer(
             "❌ Ошибка при обработке. Попробуйте еще раз.",
-            reply_markup=get_main_keyboard_v2()
+            reply_markup=get_main_menu()
         )

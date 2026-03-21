@@ -12,7 +12,8 @@ from sqlalchemy import select, func
 
 from database.db import get_session
 from database.models import User, FoodEntry, ActivityEntry, DrinkEntry, WeightEntry
-from keyboards.reply_v2 import get_main_keyboard_v2, get_progress_keyboard, get_water_keyboard, get_activity_keyboard, get_cancel_keyboard
+from keyboards.main_menu import get_main_menu
+from keyboards.reply_v2 import get_progress_keyboard, get_water_keyboard, get_activity_keyboard
 from utils.daily_stats import get_period_stats
 from utils.timezone_utils import get_user_local_date
 from utils.premium_templates import daily_summary, weekly_summary
@@ -171,7 +172,7 @@ async def show_today_progress(message: Message):
         logger.error(f"Error in show_today_progress: {e}", exc_info=True)
         await message.answer(
             "⚠️ Временная проблема с базой данных. Попробуйте позже или обратитесь к разработчику.",
-            reply_markup=get_main_keyboard_v2()
+            reply_markup=get_main_menu()
         )
 
 async def show_week_progress(message: Message):

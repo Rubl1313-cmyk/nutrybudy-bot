@@ -13,7 +13,7 @@ from sqlalchemy import select, func
 
 from database.db import get_session
 from database.models import User, DrinkEntry
-from keyboards.reply_v2 import get_main_keyboard_v2
+from keyboards.main_menu import get_main_menu
 from utils.states import DrinkStates, WaterStates
 from utils.drink_parser import parse_drink
 from utils.daily_stats import get_daily_water
@@ -42,7 +42,7 @@ async def cmd_water(message: Message, state: FSMContext):
         if not user or not user.daily_water_goal:
             await message.answer(
                 "❌ Сначала настройте профиль с помощью /set_profile",
-                reply_markup=get_main_keyboard_v2()
+                reply_markup=get_main_menu()
             )
             return
     
@@ -102,7 +102,7 @@ async def process_water_amount(message: Message, state: FSMContext):
             if not user:
                 await message.answer(
                     "❌ Сначала настройте профиль с помощью /set_profile",
-                    reply_markup=get_main_keyboard_v2()
+                    reply_markup=get_main_menu()
                 )
                 await state.clear()
                 return
@@ -161,7 +161,7 @@ async def process_drink_amount(message: Message, state: FSMContext):
             if not user:
                 await message.answer(
                     "❌ Сначала настройте профиль с помощью /set_profile",
-                    reply_markup=get_main_keyboard_v2()
+                    reply_markup=get_main_menu()
                 )
                 await state.clear()
                 return
@@ -234,7 +234,7 @@ async def process_drink(message: Message, state: FSMContext):
                 if not user:
                     await message.answer(
                         "❌ Сначала настройте профиль с помощью /set_profile",
-                        reply_markup=get_main_keyboard_v2()
+                        reply_markup=get_main_menu()
                     )
                     await state.clear()
                     return

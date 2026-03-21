@@ -8,7 +8,7 @@ from aiogram.filters import Command
 
 from utils.gamification import gamification
 from utils.ui_templates import ProgressBar
-from keyboards.reply_v2 import get_main_keyboard_v2
+from keyboards.main_menu import get_main_menu
 
 logger = logging.getLogger(__name__)
 router = Router()
@@ -69,6 +69,6 @@ async def cmd_achievements(message: Message):
 
     await message.answer(
         text,
-        reply_markup=get_main_keyboard_v2(),
+        reply_markup=get_main_menu(),
         parse_mode="HTML"
     )

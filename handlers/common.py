@@ -109,7 +109,7 @@ async def cmd_help(message: Message, state: FSMContext):
     
     await message.answer(
         help_text,
-        reply_markup=get_main_keyboard_v2(),
+        reply_markup=get_main_menu(),
         parse_mode="HTML"
     )
 
@@ -126,7 +126,7 @@ async def cmd_cancel(message: Message, state: FSMContext):
     
     await message.answer(
         cancel_text,
-        reply_markup=get_main_keyboard_v2(),
+        reply_markup=get_main_menu(),
         parse_mode="HTML"
     )
 
@@ -175,7 +175,7 @@ async def cancel_profile_setup(callback: CallbackQuery, state: FSMContext):
     
     await callback.message.edit_text(
         text,
-        reply_markup=get_main_keyboard_v2(),
+        reply_markup=get_main_menu(),
         parse_mode="HTML"
     )
     await callback.answer()
@@ -285,7 +285,7 @@ async def back_to_main_callback(callback: CallbackQuery, state: FSMContext):
 
     await callback.message.edit_text(
         main_text,
-        reply_markup=get_main_keyboard_v2(),
+        reply_markup=get_main_menu(),
         parse_mode="HTML"
     )
     await callback.answer()
@@ -301,7 +301,7 @@ async def back_button_handler(message: Message, state: FSMContext):
     
     await message.answer(
         text,
-        reply_markup=get_main_keyboard_v2(),
+        reply_markup=get_main_menu(),
         parse_mode="HTML"
     )
 
@@ -335,6 +335,6 @@ async def handle_unknown_command(message: Message):
     
     await message.answer(
         text,
-        reply_markup=get_main_keyboard_v2(),
+        reply_markup=get_main_menu(),
         parse_mode="HTML"
     )

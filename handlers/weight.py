@@ -13,7 +13,7 @@ from sqlalchemy import select, func
 
 from database.db import get_session
 from database.models import User, WeightEntry
-from keyboards.reply_v2 import get_main_keyboard_v2
+from keyboards.main_menu import get_main_menu
 from utils.premium_templates import weight_card, weight_trend_card
 from utils.ui_templates import ProgressBar
 

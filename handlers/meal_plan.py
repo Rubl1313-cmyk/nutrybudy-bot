@@ -14,7 +14,7 @@ from sqlalchemy import select
 from database.db import get_session
 from database.models import User, MealPlan
 from services.cloudflare_manager import cf_manager
-from keyboards.reply_v2 import get_main_keyboard_v2
+from keyboards.main_menu import get_main_menu
 from utils.premium_templates import loading_card, error_card
 from utils.ui_templates import ProgressBar
 
@@ -42,7 +42,7 @@ async def cmd_meal_plan(message: Message, state: FSMContext):
         if not user:
             await message.answer(
                 "❌ Сначала настройте профиль с помощью /set_profile",
-                reply_markup=get_main_keyboard_v2()
+                reply_markup=get_main_menu()
             )
             return
     

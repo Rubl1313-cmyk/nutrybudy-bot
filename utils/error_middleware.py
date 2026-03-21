@@ -4,7 +4,7 @@ Middleware для перехвата необработанных ошибок
 import logging
 from aiogram import BaseMiddleware
 from aiogram.types import Message, CallbackQuery
-from keyboards.reply_v2 import get_main_keyboard_v2
+from keyboards.main_menu import get_main_menu
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +21,7 @@ class ErrorHandlingMiddleware(BaseMiddleware):
             if isinstance(event, Message):
                 await event.answer(
                     "⚠️ Произошла непредвиденная ошибка. Попробуйте позже или обратитесь к разработчику.",
-                    reply_markup=get_main_keyboard_v2()
+                    reply_markup=get_main_menu()
                 )
             elif isinstance(event, CallbackQuery):
                 await event.answer(

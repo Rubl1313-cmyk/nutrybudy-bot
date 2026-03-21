@@ -174,32 +174,15 @@ async def activity_stats_handler(message: Message):
 
 @router.message(F.text.lower().in_(["📈 графики", "графики"]))
 async def charts_handler(message: Message):
-    """Обработчик кнопки Графики"""
-    await message.answer(
-        "📈 <b>Графики прогресса</b>\n\n"
-        "Функция в разработке. Скоро вы сможете увидеть:\n"
-        "• График изменения веса\n"
-        "• График потребления калорий\n"
-        "• График потребления воды\n"
-        "• График активности\n\n"
-        "Продолжайте записывать данные для построения графиков!",
-        reply_markup=get_main_keyboard_v2(),
-        parse_mode="HTML"
-    )
+    """Обработчик кнопки Графики - перенаправляет в прогресс"""
+    from handlers.progress import cmd_progress
+    await cmd_progress(message, None)
 
 @router.message(F.text.lower().in_(["📉 тренды", "тренды"]))
 async def trends_handler(message: Message):
-    """Обработчик кнопки Тренды"""
-    await message.answer(
-        "📉 <b>Тренды и аналитика</b>\n\n"
-        "Функция в разработке. Скоро вы сможете увидеть:\n"
-        "• Тренд изменения веса\n"
-        "• Среднее потребление калорий\n"
-        "• Прогноз достижения цели\n\n"
-        "Продолжайте вести дневник для анализа трендов!",
-        reply_markup=get_main_keyboard_v2(),
-        parse_mode="HTML"
-    )
+    """Обработчик кнопки Тренды - перенаправляет в прогресс"""
+    from handlers.progress import cmd_progress
+    await cmd_progress(message, None)
 
 @router.message(F.text.lower().in_(["💧 свой объем", "свой объем"]))
 async def custom_water_volume_handler(message: Message, state: FSMContext):
@@ -323,31 +306,141 @@ async def quick_activity_handler(message: Message, state: FSMContext):
     await state.clear()
     await cmd_fitness(message, state)
 
+# === Обработчики ввода погоды и рецептов ===
+
 @router.message(F.text.lower().in_(["🌤️ погода", "погода"]))
-async def weather_handler(message: Message):
-    """Обработчик кнопки Погода"""
+async def weather_handler(message: Message, state: FSMContext):
+    """Обработчик кнопки Погода - запрашивает город и показывает погоду"""
+    await state.set_state("waiting_for_weather_city")
     await message.answer(
         "🌤️ <b>Погода</b>\n\n"
-        "Функция в разработке. Скоро вы сможете:\n"
-        "• Узнавать погоду в вашем городе\n"
-        "• Получать рекомендации по активности\n"
-        "• Планировать тренировки на улице",
+        "Напишите название вашего города (например: Москва, Киев, Минск):\n\n"
+        "Или нажмите «🏠 Главное меню» для отмены.",
         reply_markup=get_main_keyboard_v2(),
         parse_mode="HTML"
     )
 
 @router.message(F.text.lower().in_(["🍳 рецепт", "рецепт"]))
-async def recipe_handler(message: Message):
-    """Обработчик кнопки Рецепт"""
+async def recipe_handler(message: Message, state: FSMContext):
+    """Обработчик кнопки Рецепт - запрашивает блюдо и показывает рецепт"""
+    await state.set_state("waiting_for_recipe_dish")
     await message.answer(
         "🍳 <b>Рецепты</b>\n\n"
-        "Функция в разработке. Скоро вы сможете:\n"
-        "• Получать рецепты по ингредиентам\n"
-        "• Искать рецепты по КБЖУ\n"
-        "• Сохранять любимые рецепты",
+        "Напишите название блюда, которое хотите приготовить (например: борщ, паста, салат):\n\n"
+        "Или нажмите «🏠 Главное меню» для отмены.",
         reply_markup=get_main_keyboard_v2(),
         parse_mode="HTML"
     )
+
+@router.message(lambda message: message.text and message.text.strip() not in ["🍽️ Записать еду", "💧 Вода", "🤖 AI Ассистент", "📊 Прогресс", "🏆 Достижения", "👤 Профиль", "❓ Помощь", "🏠 Главное меню", "Главное меню"])
+async def weather_and_recipe_input_handler(message: Message, state: FSMContext):
+    """Обработка ввода города для погоды или блюда для рецепта"""
+    current_state = await state.get_state()
+    text = message.text.strip()
+    
+    if current_state == "waiting_for_weather_city":
+        try:
+            from services.weather import get_weather
+            
+            # Показываем загрузку
+            loading_msg = await message.answer("🌤️ Загружаю данные о погоде...")
+            
+            weather_data = await get_weather(text)
+            
+            if weather_data and 'temp' in weather_data:
+                temp = weather_data.get('temp', 'N/A')
+                condition = weather_data.get('condition', 'N/A')
+                humidity = weather_data.get('humidity', 'N/A')
+                wind = weather_data.get('wind', 'N/A')
+                feels_like = weather_data.get('feels_like', 'N/A')
+                
+                # Формируем ответ
+                weather_text = f"🌤️ <b>Погода в городе {text}</b>\n\n"
+                weather_text += f"🌡️ <b>Температура:</b> {temp}°C\n"
+                weather_text += f"🤔 <b>Ощущается как:</b> {feels_like}°C\n"
+                weather_text += f"☁️ <b>Условия:</b> {condition}\n"
+                weather_text += f"💧 <b>Влажность:</b> {humidity}%\n"
+                weather_text += f"💨 <b>Ветер:</b> {wind} м/с\n\n"
+                
+                # Добавляем рекомендации
+                if temp < 10:
+                    weather_text += "🧥 <b>Рекомендация:</b> Оденьтесь тепло, на улице холодно!\n"
+                elif temp < 20:
+                    weather_text += "👕 <b>Рекомендация:</b> Прохладно, возьмите лёгкую куртку.\n"
+                else:
+                    weather_text += "☀️ <b>Рекомендация:</b> Тёплая погода, можно надеть футболку!\n"
+                
+                if condition.lower() in ['дождь', 'ливень', 'гроза']:
+                    weather_text += "☔ <b>Совет:</b> Не забудьте зонт!\n"
+                
+                await message.answer(weather_text, reply_markup=get_main_keyboard_v2(), parse_mode="HTML")
+            else:
+                await message.answer(
+                    f"❌ Не удалось получить погоду для города \"{text}\".\n\n"
+                    "Проверьте правильность названия города и попробуйте снова.",
+                    reply_markup=get_main_keyboard_v2(),
+                    parse_mode="HTML"
+                )
+            
+            await loading_msg.delete()
+            await state.clear()
+            
+        except Exception as e:
+            logger.error(f"Error getting weather for {text}: {e}")
+            await message.answer(
+                f"❌ Произошла ошибка при получении погоды для \"{text}\".\n"
+                "Попробуйте позже или проверьте название города.",
+                reply_markup=get_main_keyboard_v2(),
+                parse_mode="HTML"
+            )
+            await state.clear()
+    
+    elif current_state == "waiting_for_recipe_dish":
+        try:
+            from services.cloudflare_manager import cf_manager
+            
+            # Показываем загрузку
+            loading_msg = await message.answer("🍳 Ищу рецепт...")
+            
+            # Используем AI для получения рецепта
+            prompt = f"""Пользователь хочет рецепт блюда: {text}
+
+Пожалуйста, предоставьте:
+1. Название блюда
+2. Список ингредиентов с количествами
+3. Пошаговую инструкцию приготовления
+4. Время приготовления
+5. Калорийность и БЖУ (примерно)
+
+Форматируй ответ красиво с эмодзи."""
+
+            result = await cf_manager.get_assistant_response(prompt)
+            
+            if result and 'response' in result:
+                recipe_text = f"🍳 <b>Рецепт: {text}</b>\n\n"
+                recipe_text += result['response']
+                
+                await message.answer(recipe_text, reply_markup=get_main_keyboard_v2(), parse_mode="HTML")
+            else:
+                await message.answer(
+                    f"❌ Не удалось найти рецепт для \"{text}\".\n\n"
+                    "Попробуйте другое блюдо или проверьте правильность названия.",
+                    reply_markup=get_main_keyboard_v2(),
+                    parse_mode="HTML"
+                )
+            
+            await loading_msg.delete()
+            await state.clear()
+            
+        except Exception as e:
+            logger.error(f"Error getting recipe for {text}: {e}")
+            await message.answer(
+                f"❌ Произошла ошибка при поиске рецепта для \"{text}\".\n"
+                "Попробуйте позже или другое блюдо.",
+                reply_markup=get_main_keyboard_v2(),
+                parse_mode="HTML"
+            )
+            await state.clear()
 
 @router.message(F.text.lower().in_(["🔢 рассчитать кбжу", "рассчитать кбжу"]))
 async def calculate_handler(message: Message, state: FSMContext):

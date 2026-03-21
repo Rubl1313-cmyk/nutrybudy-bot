@@ -36,7 +36,7 @@ async def get_daily_water(user_id: int, user_timezone: str = 'UTC') -> int:
             today_local = get_user_local_date(user_tz)
             
             result = await session.execute(
-                select(func.sum(DrinkEntry.volume_ml)).where(
+                select(func.sum(DrinkEntry.amount)).where(
                     DrinkEntry.user_id == user_id,
                     func.date(DrinkEntry.created_at) == today_local
                 )

@@ -186,8 +186,9 @@ async def universal_photo_handler(message: Message, state: FSMContext):
             if save_result.get("success"):
                 # Получаем статистику и пользователя
                 daily_stats = await get_daily_stats(user_id)
-                with get_session() as session:
-                    user = session.query(User).filter(User.telegram_id == user_id).first()
+                async with get_session() as session:
+                    user = await session.execute(select(User).where(User.telegram_id == user_id))
+                    user = user.scalar_one_or_none()
 
                 food_data = {
                     'description': data.get("dish_name", "Неизвестное блюдо"),
@@ -369,8 +370,9 @@ async def universal_document_handler(message: Message, state: FSMContext):
             if save_result.get("success"):
                 # Получаем статистику и пользователя
                 daily_stats = await get_daily_stats(user_id)
-                with get_session() as session:
-                    user = session.query(User).filter(User.telegram_id == user_id).first()
+                async with get_session() as session:
+                    user = await session.execute(select(User).where(User.telegram_id == user_id))
+                    user = user.scalar_one_or_none()
 
                 food_data = {
                     'description': data.get("dish_name", "Неизвестное блюдо"),

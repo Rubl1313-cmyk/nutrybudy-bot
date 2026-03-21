@@ -287,9 +287,11 @@ Respond in JSON format:
         )
         
         if result.get("success"):
+            analysis = result.get("data", {})
+            logger.info(f"[VISION] Analysis result: {json.dumps(analysis, ensure_ascii=False, indent=2)}")
             return {
                 "success": True,
-                "analysis": result.get("data", {}),
+                "analysis": analysis,
                 "model": self.models["vision"]
             }
         else:

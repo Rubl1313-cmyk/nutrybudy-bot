@@ -168,7 +168,6 @@ def register_handlers():
     from handlers.ai_assistant import router as ai_assistant_router
     from handlers.food_clarification import router as food_clarification_router
     from handlers.universal import router as universal_router
-    from handlers.reminder_callbacks import router as reminder_callbacks_router
 
     # Регистрация роутеров - важен порядок!
 

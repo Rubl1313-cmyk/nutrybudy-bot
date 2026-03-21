@@ -169,3 +169,260 @@ async def activity_stats_handler(message: Message):
     """Статистика активности"""
     from handlers.activity import cmd_activity_stats
     await cmd_activity_stats(message)
+
+# === Недостающие обработчики кнопок ===
+
+@router.message(F.text.lower().in_(["📈 графики", "графики"]))
+async def charts_handler(message: Message):
+    """Обработчик кнопки Графики"""
+    await message.answer(
+        "📈 <b>Графики прогресса</b>\n\n"
+        "Функция в разработке. Скоро вы сможете увидеть:\n"
+        "• График изменения веса\n"
+        "• График потребления калорий\n"
+        "• График потребления воды\n"
+        "• График активности\n\n"
+        "Продолжайте записывать данные для построения графиков!",
+        reply_markup=get_main_keyboard_v2(),
+        parse_mode="HTML"
+    )
+
+@router.message(F.text.lower().in_(["📉 тренды", "тренды"]))
+async def trends_handler(message: Message):
+    """Обработчик кнопки Тренды"""
+    await message.answer(
+        "📉 <b>Тренды и аналитика</b>\n\n"
+        "Функция в разработке. Скоро вы сможете увидеть:\n"
+        "• Тренд изменения веса\n"
+        "• Среднее потребление калорий\n"
+        "• Прогноз достижения цели\n\n"
+        "Продолжайте вести дневник для анализа трендов!",
+        reply_markup=get_main_keyboard_v2(),
+        parse_mode="HTML"
+    )
+
+@router.message(F.text.lower().in_(["💧 свой объем", "свой объем"]))
+async def custom_water_volume_handler(message: Message, state: FSMContext):
+    """Обработчик кнопки Свой объем для воды"""
+    from handlers.drinks import cmd_water
+    await cmd_water(message, state)
+
+@router.message(F.text.lower() == "🎾 другое")
+async def other_activity_handler(message: Message, state: FSMContext):
+    """Обработчик кнопки Другое для активности"""
+    from handlers.activity import ActivityStates
+    await state.update_data(activity_type="other", activity_name="другое")
+    await message.answer(
+        "🎾 <b>Другая активность</b>\n\n"
+        "Введите длительность в минутах (например: 30):",
+        parse_mode="HTML"
+    )
+    await state.set_state(ActivityStates.waiting_for_duration)
+
+@router.message(F.text.lower().in_(["🍳 завтрак", "завтрак"]))
+async def breakfast_handler(message: Message, state: FSMContext):
+    """Обработчик кнопки Завтрак"""
+    await state.update_data(meal_type="breakfast")
+    await message.answer(
+        "🍳 <b>Завтрак</b>\n\n"
+        "Отправьте фото или опишите что вы съели на завтрак:",
+        reply_markup=get_main_keyboard_v2(),
+        parse_mode="HTML"
+    )
+
+@router.message(F.text.lower().in_(["🍽️ обед", "обед"]))
+async def lunch_handler(message: Message, state: FSMContext):
+    """Обработчик кнопки Обед"""
+    await state.update_data(meal_type="lunch")
+    await message.answer(
+        "🍽️ <b>Обед</b>\n\n"
+        "Отправьте фото или опишите что вы съели на обед:",
+        reply_markup=get_main_keyboard_v2(),
+        parse_mode="HTML"
+    )
+
+@router.message(F.text.lower().in_(["🌙 ужин", "ужин"]))
+async def dinner_handler(message: Message, state: FSMContext):
+    """Обработчик кнопки Ужин"""
+    await state.update_data(meal_type="dinner")
+    await message.answer(
+        "🌙 <b>Ужин</b>\n\n"
+        "Отправьте фото или опишите что вы съели на ужин:",
+        reply_markup=get_main_keyboard_v2(),
+        parse_mode="HTML"
+    )
+
+@router.message(F.text.lower().in_(["🥨 перекус", "перекус"]))
+async def snack_handler(message: Message, state: FSMContext):
+    """Обработчик кнопки Перекус"""
+    await state.update_data(meal_type="snack")
+    await message.answer(
+        "🥨 <b>Перекус</b>\n\n"
+        "Отправьте фото или опишите что вы съели на перекус:",
+        reply_markup=get_main_keyboard_v2(),
+        parse_mode="HTML"
+    )
+
+# === Обработчики кнопок с префиксами [...] ===
+
+@router.message(F.text.lower().in_(["👤 профиль", "профиль"]))
+async def profile_settings_handler(message: Message):
+    """Обработчик кнопки Профиль в настройках"""
+    from handlers.profile import cmd_profile
+    await cmd_profile(message, None)
+
+@router.message(F.text.lower().in_(["🔔 уведомления", "уведомления"]))
+async def notifications_settings_handler(message: Message):
+    """Обработчик кнопки Уведомления в настройках"""
+    await message.answer(
+        "🔔 <b>Настройки уведомлений</b>\n\n"
+        "Функция в разработке. Скоро вы сможете настроить:\n"
+        "• Напоминания о приёмах пищи\n"
+        "• Напоминания о воде\n"
+        "• Напоминания о взвешивании\n\n"
+        "Пока доступны только напоминания о воде!",
+        reply_markup=get_main_keyboard_v2(),
+        parse_mode="HTML"
+    )
+
+@router.message(F.text.lower().in_(["📏 единицы", "единицы"]))
+async def units_settings_handler(message: Message):
+    """Обработчик кнопки Единицы в настройках"""
+    await message.answer(
+        "📏 <b>Система единиц</b>\n\n"
+        "В данный момент поддерживается только метрическая система:\n"
+        "• Вес: килограммы (кг)\n"
+        "• Рост: сантиметры (см)\n"
+        "• Объем: миллилитры (мл)\n\n"
+        "Имперская система (фунты, дюймы) в разработке!",
+        reply_markup=get_main_keyboard_v2(),
+        parse_mode="HTML"
+    )
+
+@router.message(F.text.lower().in_(["❌ отмена", "отмена"]))
+async def cancel_handler(message: Message, state: FSMContext):
+    """Обработчик кнопки Отмена"""
+    await state.clear()
+    await message.answer(
+        "❌ Отменено. Выберите действие:",
+        reply_markup=get_main_keyboard_v2(),
+        parse_mode="HTML"
+    )
+
+@router.message(F.text.lower().in_(["⚖️ записать вес", "записать вес"]))
+async def quick_weight_handler(message: Message, state: FSMContext):
+    """Обработчик кнопки Записать вес"""
+    from handlers.weight import cmd_weight
+    await state.clear()
+    await cmd_weight(message, state)
+
+@router.message(F.text.lower().in_(["🏃 активность", "активность"]))
+async def quick_activity_handler(message: Message, state: FSMContext):
+    """Обработчик кнопки Активность"""
+    from handlers.activity import cmd_fitness
+    await state.clear()
+    await cmd_fitness(message, state)
+
+@router.message(F.text.lower().in_(["🌤️ погода", "погода"]))
+async def weather_handler(message: Message):
+    """Обработчик кнопки Погода"""
+    await message.answer(
+        "🌤️ <b>Погода</b>\n\n"
+        "Функция в разработке. Скоро вы сможете:\n"
+        "• Узнавать погоду в вашем городе\n"
+        "• Получать рекомендации по активности\n"
+        "• Планировать тренировки на улице",
+        reply_markup=get_main_keyboard_v2(),
+        parse_mode="HTML"
+    )
+
+@router.message(F.text.lower().in_(["🍳 рецепт", "рецепт"]))
+async def recipe_handler(message: Message):
+    """Обработчик кнопки Рецепт"""
+    await message.answer(
+        "🍳 <b>Рецепты</b>\n\n"
+        "Функция в разработке. Скоро вы сможете:\n"
+        "• Получать рецепты по ингредиентам\n"
+        "• Искать рецепты по КБЖУ\n"
+        "• Сохранять любимые рецепты",
+        reply_markup=get_main_keyboard_v2(),
+        parse_mode="HTML"
+    )
+
+@router.message(F.text.lower().in_(["🔢 рассчитать кбжу", "рассчитать кбжу"]))
+async def calculate_handler(message: Message, state: FSMContext):
+    """Обработчик кнопки Рассчитать КБЖУ"""
+    await message.answer(
+        "🔢 <b>Расчет КБЖУ</b>\n\n"
+        "Напишите продукты и их количество, например:\n"
+        "• гречка 200г\n"
+        "• курица 150г\n"
+        "• салат 100г\n\n"
+        "Я рассчитаю калории и БЖУ!",
+        reply_markup=get_main_keyboard_v2(),
+        parse_mode="HTML"
+    )
+
+@router.message(F.text.lower().in_(["💬 общий вопрос", "общий вопрос"]))
+async def advice_handler(message: Message, state: FSMContext):
+    """Обработчик кнопки Общий вопрос"""
+    from handlers.ai_assistant import cmd_ask
+    await state.clear()
+    await cmd_ask(message, state)
+
+# === Обработчики кнопок статистики ===
+
+@router.message(F.text.lower().in_(["🔥 калории", "калории"]))
+async def calories_stats_handler(message: Message):
+    """Обработчик кнопки Калории"""
+    await message.answer(
+        "🔥 <b>Статистика калорий</b>\n\n"
+        "Выберите период для просмотра статистики:\n"
+        "• Сегодня\n"
+        "• Неделя\n"
+        "• Месяц\n\n"
+        "Используйте команду /progress для детальной статистики!",
+        reply_markup=get_main_keyboard_v2(),
+        parse_mode="HTML"
+    )
+
+@router.message(F.text.lower().in_(["⚖️ вес", "вес"]))
+async def weight_stats_handler(message: Message):
+    """Обработчик кнопки Вес"""
+    await message.answer(
+        "⚖️ <b>Статистика веса</b>\n\n"
+        "Для просмотра динамики веса используйте:\n"
+        "• /progress - выберите период\n"
+        "• /weight - записать текущий вес\n\n"
+        "Продолжайте записывать вес для отслеживания трендов!",
+        reply_markup=get_main_keyboard_v2(),
+        parse_mode="HTML"
+    )
+
+@router.message(F.text.lower().in_(["💧 вода", "вода"]))
+async def water_stats_handler(message: Message):
+    """Обработчик кнопки Вода"""
+    from handlers.drinks import cmd_water_stats
+    try:
+        await cmd_water_stats(message)
+    except:
+        await message.answer(
+            "💧 <b>Статистика воды</b>\n\n"
+            "Используйте /water для записи воды и просмотра статистики!",
+            reply_markup=get_main_keyboard_v2(),
+            parse_mode="HTML"
+        )
+
+@router.message(F.text.lower().in_(["🏃 активность", "активность"]))
+async def activity_stats_handler(message: Message):
+    """Обработчик кнопки Активность"""
+    from handlers.activity import cmd_activity_stats
+    try:
+        await cmd_activity_stats(message)
+    except:
+        await message.answer(
+            "🏃 <b>Статистика активности</b>\n\n"
+            "Используйте /fitness для записи активности!",
+            reply_markup=get_main_keyboard_v2(),
+            parse_mode="HTML"
+        )

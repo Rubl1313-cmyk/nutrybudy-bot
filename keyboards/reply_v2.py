@@ -58,13 +58,13 @@ def get_quick_actions_keyboard() -> ReplyKeyboardMarkup:
     Клавиатура быстрых действий (показывается дополнительно)
     """
     builder = ReplyKeyboardBuilder()
-    
-    builder.add(KeyboardButton(text="[WEIGHT] Записать вес"))
-    builder.add(KeyboardButton(text="[ACTIVITY] Активность"))
-    builder.add(KeyboardButton(text="[WEATHER] Погода"))
-    
+
+    builder.add(KeyboardButton(text="⚖️ Записать вес"))
+    builder.add(KeyboardButton(text="🏃 Активность"))
+    builder.add(KeyboardButton(text="🌤️ Погода"))
+
     builder.adjust(3)
-    
+
     return builder.as_markup(
         resize_keyboard=True,
         one_time_keyboard=False,
@@ -76,11 +76,11 @@ def get_cancel_keyboard() -> ReplyKeyboardMarkup:
     Клавиатура для отмены действий
     """
     builder = ReplyKeyboardBuilder()
-    builder.add(KeyboardButton(text="[CANCEL] Отмена"))
-    builder.add(KeyboardButton(text="[MENU] Главное меню"))
-    
+    builder.add(KeyboardButton(text="❌ Отмена"))
+    builder.add(KeyboardButton(text="🏠 Главное меню"))
+
     builder.adjust(2)
-    
+
     return builder.as_markup(
         resize_keyboard=True,
         one_time_keyboard=False,
@@ -92,14 +92,14 @@ def get_settings_keyboard() -> ReplyKeyboardMarkup:
     Клавиатура настроек
     """
     builder = ReplyKeyboardBuilder()
-    
-    builder.add(KeyboardButton(text="[PROFILE] Профиль"))
-    builder.add(KeyboardButton(text="[NOTIFICATIONS] Уведомления"))
-    builder.add(KeyboardButton(text="[UNITS] Единицы"))
-    builder.add(KeyboardButton(text="[MENU] Главное меню"))
-    
+
+    builder.add(KeyboardButton(text="👤 Профиль"))
+    builder.add(KeyboardButton(text="🔔 Уведомления"))
+    builder.add(KeyboardButton(text="📏 Единицы"))
+    builder.add(KeyboardButton(text="🏠 Главное меню"))
+
     builder.adjust(2, 2)
-    
+
     return builder.as_markup(
         resize_keyboard=True,
         one_time_keyboard=False,
@@ -160,15 +160,15 @@ def get_ai_keyboard() -> ReplyKeyboardMarkup:
     Клавиатура для быстрых AI-запросов
     """
     builder = ReplyKeyboardBuilder()
-    
-    builder.add(KeyboardButton(text="[WEATHER] Погода"))
-    builder.add(KeyboardButton(text="[RECIPE] Рецепт"))
-    builder.add(KeyboardButton(text="[CALCULATE] Рассчитать КБЖУ"))
-    builder.add(KeyboardButton(text="[ADVICE] Общий вопрос"))
-    builder.add(KeyboardButton(text="[MENU] Главное меню"))
-    
+
+    builder.add(KeyboardButton(text="🌤️ Погода"))
+    builder.add(KeyboardButton(text="🍳 Рецепт"))
+    builder.add(KeyboardButton(text="🔢 Рассчитать КБЖУ"))
+    builder.add(KeyboardButton(text="💬 Общий вопрос"))
+    builder.add(KeyboardButton(text="🏠 Главное меню"))
+
     builder.adjust(3, 2)
-    
+
     return builder.as_markup(
         resize_keyboard=True,
         one_time_keyboard=False,
@@ -266,33 +266,16 @@ def get_units_keyboard() -> ReplyKeyboardMarkup:
     Клавиатура системы единиц (только метрическая)
     """
     builder = ReplyKeyboardBuilder()
-    
+
     builder.add(KeyboardButton(text="📏 Метрическая система"))
     builder.add(KeyboardButton(text="🏠 Главное меню"))
-    
+
     builder.adjust(1, 1)
-    
+
     return builder.as_markup(
         resize_keyboard=True,
         one_time_keyboard=False,
         input_field_placeholder="Система единиц..."
-    )
-
-def get_notifications_keyboard() -> ReplyKeyboardMarkup:
-    """
-    Клавиатура настроек уведомлений (только вода)
-    """
-    builder = ReplyKeyboardBuilder()
-    
-    builder.add(KeyboardButton(text="💧 Напоминания о воде"))
-    builder.add(KeyboardButton(text=" Главное меню"))
-    
-    builder.adjust(1, 1)
-    
-    return builder.as_markup(
-        resize_keyboard=True,
-        one_time_keyboard=False,
-        input_field_placeholder="Настройки напоминаний..."
     )
 
 def get_statistics_keyboard() -> ReplyKeyboardMarkup:

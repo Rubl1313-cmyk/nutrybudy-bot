@@ -63,7 +63,7 @@ async def cmd_water(message: Message, state: FSMContext):
 async def cmd_drink(message: Message, state: FSMContext):
     """Записать любой напиток"""
     await state.clear()
-    
+
     text = "🥤 <b>Записать напиток</b>\n\n"
     text += "Введите напиток и количество:\n\n"
     text += "💡 <b>Примеры:</b>\n"
@@ -73,24 +73,24 @@ async def cmd_drink(message: Message, state: FSMContext):
     text += "• Кола 500\n"
     text += "• Молоко 200\n\n"
     text += "Формат: <напиток> <объем в мл>"
-    
+
     await message.answer(text)
     await state.set_state(DrinkStates.waiting_for_drink)
 
-@router.message(DrinkStates.waiting_for_drink, lambda message: message.text and message.text.isdigit())
+@router.message(WaterStates.entering_amount, lambda message: message.text and message.text.isdigit())
 async def process_water_amount(message: Message, state: FSMContext):
     """Обработка количества воды"""
     try:
         amount = int(message.text)
-        
+
         if amount <= 0:
             await message.answer("❌ Количество должно быть положительным числом. Попробуйте еще раз:")
             return
-        
+
         if amount > 2000:
             await message.answer("❌ Слишком большой объем. Максимум 2000 мл за раз. Попробуйте еще раз:")
             return
-        
+
         # Сохраняем в базу данных
         async with get_session() as session:
             # Получаем пользователя
@@ -98,7 +98,7 @@ async def process_water_amount(message: Message, state: FSMContext):
                 select(User).where(User.telegram_id == message.from_user.id)
             )
             user = result.scalar_one_or_none()
-            
+
             if not user:
                 await message.answer(
                     "❌ Сначала настройте профиль с помощью /set_profile",
@@ -106,7 +106,7 @@ async def process_water_amount(message: Message, state: FSMContext):
                 )
                 await state.clear()
                 return
-            
+
             # Создаем запись о напитке (вода)
             drink_entry = DrinkEntry(
                 user_id=user.telegram_id,
@@ -115,24 +115,83 @@ async def process_water_amount(message: Message, state: FSMContext):
                 calories=0,
                 created_at=datetime.now(timezone.utc)
             )
-            
+
             session.add(drink_entry)
             await session.commit()
-            
+
             # Получаем статистику за день
             total_today = await get_daily_water(user.telegram_id)
-            
+
             # Создаем красивую карточку
             card = water_card(amount, total_today, user.daily_water_goal)
-            
+
             await message.answer(card, reply_markup=get_main_keyboard_v2())
-            
+
             # Проверяем достижения
             from handlers.achievements import check_achievements
             await check_achievements(user.telegram_id, 'water', amount)
-            
+
             await state.clear()
-            
+
+    except ValueError:
+        await message.answer("❌ Неверный формат. Введите число (например: 200):")
+
+@router.message(DrinkStates.waiting_for_drink, lambda message: message.text and message.text.isdigit())
+async def process_drink_amount(message: Message, state: FSMContext):
+    """Обработка количества напитка (когда введено только число)"""
+    try:
+        amount = int(message.text)
+
+        if amount <= 0:
+            await message.answer("❌ Количество должно быть положительным числом. Попробуйте еще раз:")
+            return
+
+        if amount > 2000:
+            await message.answer("❌ Слишком большой объем. Максимум 2000 мл за раз. Попробуйте еще раз:")
+            return
+
+        # Сохраняем в базу данных
+        async with get_session() as session:
+            # Получаем пользователя
+            result = await session.execute(
+                select(User).where(User.telegram_id == message.from_user.id)
+            )
+            user = result.scalar_one_or_none()
+
+            if not user:
+                await message.answer(
+                    "❌ Сначала настройте профиль с помощью /set_profile",
+                    reply_markup=get_main_keyboard_v2()
+                )
+                await state.clear()
+                return
+
+            # Создаем запись о напитке (вода по умолчанию)
+            drink_entry = DrinkEntry(
+                user_id=user.telegram_id,
+                drink_name="вода",
+                amount=amount,
+                calories=0,
+                created_at=datetime.now(timezone.utc)
+            )
+
+            session.add(drink_entry)
+            await session.commit()
+
+            # Получаем статистику за день
+            total_today = await get_daily_water(user.telegram_id)
+
+            # Создаем красивую карточку
+            card = water_card(amount, total_today, user.daily_water_goal)
+
+            await message.answer(card, reply_markup=get_main_keyboard_v2())
+
+            # Проверяем достижения
+            from handlers.achievements import check_achievements
+            await check_achievements(user.telegram_id, 'water', amount)
+
+            await state.clear()
+
     except ValueError:
         await message.answer("❌ Неверный формат. Введите число (например: 200):")
 

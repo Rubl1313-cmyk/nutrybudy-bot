@@ -42,7 +42,7 @@ async def cmd_progress(message: Message, state: FSMContext):
     
     await message.answer(text, reply_markup=get_progress_keyboard())
 
-@router.message(F.text.lower().regexp(r'(📅 сегодня|сегодня|today|📅 неделя|неделя|week|📅 месяц|месяц|month|📊 всё время|всё время|все время|all time)'))
+@router.message(F.text.lower().regexp(r'(📅 сегодня|сегодня|today|📆 неделя|неделя|week|🗓️ месяц|месяц|month|📊 всё время|всё время|все время|all time)'))
 async def handle_period_selection(message: Message):
     """Обработка выбора периода"""
     text = message.text.lower()

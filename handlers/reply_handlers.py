@@ -20,14 +20,14 @@ router = Router()
 
 # === Основные кнопки ===
 
-@router.message(F.text.lower().in_(["🍽️ записать приём пищи", "записать приём пищи", "записать прием пищи"]))
+@router.message(F.text.lower().in_(["🍽️ записать еду", "записать еду"]))
 async def food_button_handler(message: Message, state: FSMContext):
     logger.info(f"🔍 REPLY HANDLER: Food button pressed by user {message.from_user.id}")
     await state.clear()
     from handlers.common import cmd_food
     await cmd_food(message, state)
 
-@router.message(F.text.lower().in_(["💧 записать воду", "записать воду"]))
+@router.message(F.text.lower().in_(["💧 вода", "вода"]))
 async def water_button_handler(message: Message, state: FSMContext):
     logger.info(f"🔍 REPLY HANDLER: Water button pressed by user {message.from_user.id}")
     await state.clear()
@@ -41,7 +41,7 @@ async def progress_button_handler(message: Message, state: FSMContext):
     from handlers.progress import cmd_progress
     await cmd_progress(message, state)
 
-@router.message(F.text.lower().in_(["🤖 спросить ai", "спросить ai"]))
+@router.message(F.text.lower().in_(["🤖 ai ассистент", "ai ассистент"]))
 async def ai_button_handler(message: Message, state: FSMContext):
     logger.info(f"🔍 REPLY HANDLER: AI button pressed by user {message.from_user.id}")
     await state.clear()
@@ -143,18 +143,18 @@ async def quick_food_handler(message: Message, state: FSMContext):
 async def water_quick_callback(callback: CallbackQuery, state: FSMContext):
     """Обработка быстрых кнопок воды"""
     logger.info(f"🔍 REPLY HANDLER: Water quick callback: {callback.data}")
-    
+
     try:
         # Извлекаем объем из callback_data
         amount = int(callback.data.split("_")[1])
         user_id = callback.from_user.id
-        
+
         # Сохраняем воду
         from handlers.drinks import process_quick_water
         await process_quick_water(callback.message, amount)
-        
+
         await callback.answer(f"💧 Записано {amount} мл воды")
-        
+
     except Exception as e:
         logger.error(f"Error in water quick callback: {e}")
         await callback.answer("❌ Ошибка записи воды", show_alert=True)
@@ -163,28 +163,28 @@ async def water_quick_callback(callback: CallbackQuery, state: FSMContext):
 async def meal_type_callback(callback: CallbackQuery, state: FSMContext):
     """Обработка выбора типа приема пищи"""
     logger.info(f"🔍 REPLY HANDLER: Meal type callback: {callback.data}")
-    
+
     try:
         meal_type = callback.data.split("_")[1]
         meal_type_names = {
             "breakfast": "🥐 Завтрак",
-            "lunch": "🍽️ Обед", 
+            "lunch": "🍽️ Обед",
             "dinner": "🍽️ Ужин",
             "snack": "🥨 Перекус"
         }
-        
+
         meal_name = meal_type_names.get(meal_type, "🍽️ Прием пищи")
-        
+
         # Сохраняем тип приема пищи в state для последующего использования
         await state.set_data({"meal_type": meal_type})
-        
+
         await callback.message.edit_text(
             f"{meal_name} выбран!\n\n"
             f"Теперь отправьте фото или опишите что вы съели.",
             parse_mode="HTML"
         )
         await callback.answer()
-        
+
     except Exception as e:
         logger.error(f"Error in meal type callback: {e}")
         await callback.answer("❌ Ошибка выбора типа", show_alert=True)

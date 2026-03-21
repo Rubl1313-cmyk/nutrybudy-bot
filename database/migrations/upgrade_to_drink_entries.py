@@ -74,12 +74,14 @@ async def upgrade():
                 await conn.execute(text("""
                     CREATE TABLE IF NOT EXISTS drink_entries (
                         id SERIAL PRIMARY KEY,
-                        user_id INTEGER NOT NULL,
-                        name VARCHAR(100) NOT NULL DEFAULT 'вода',
-                        volume_ml FLOAT NOT NULL,
-                        calories FLOAT DEFAULT 0.0,
-                        datetime TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-                        FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+                        user_id BIGINT NOT NULL,
+                        drink_name VARCHAR(255) NOT NULL,
+                        amount FLOAT NOT NULL,
+                        calories FLOAT NOT NULL,
+                        sugar FLOAT DEFAULT 0,
+                        caffeine FLOAT DEFAULT 0,
+                        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY (user_id) REFERENCES users (telegram_id) ON DELETE CASCADE
                     )
                 """))
             else:
@@ -88,12 +90,14 @@ async def upgrade():
                 await conn.execute(text("""
                     CREATE TABLE IF NOT EXISTS drink_entries (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        user_id INTEGER NOT NULL,
-                        name VARCHAR(100) NOT NULL DEFAULT 'вода',
-                        volume_ml FLOAT NOT NULL,
-                        calories FLOAT DEFAULT 0.0,
-                        datetime DATETIME DEFAULT CURRENT_TIMESTAMP,
-                        FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+                        user_id BIGINT NOT NULL,
+                        drink_name VARCHAR(255) NOT NULL,
+                        amount FLOAT NOT NULL,
+                        calories FLOAT NOT NULL,
+                        sugar FLOAT DEFAULT 0,
+                        caffeine FLOAT DEFAULT 0,
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY (user_id) REFERENCES users (telegram_id) ON DELETE CASCADE
                     )
                 """))
                 
@@ -102,14 +106,14 @@ async def upgrade():
                 # Копируем данные из water_entries в drink_entries с учетом наличия колонки datetime
                 if has_datetime:
                     await conn.execute(text("""
-                        INSERT INTO drink_entries (user_id, name, volume_ml, calories, datetime)
+                        INSERT INTO drink_entries (user_id, drink_name, amount, calories, created_at)
                         SELECT user_id, 'вода', amount, 0.0, datetime 
                         FROM water_entries
                     """))
                 else:
                     # Если колонки datetime нет, используем CURRENT_TIMESTAMP
                     await conn.execute(text("""
-                        INSERT INTO drink_entries (user_id, name, volume_ml, calories)
+                        INSERT INTO drink_entries (user_id, drink_name, amount, calories)
                         SELECT user_id, 'вода', amount, 0.0
                         FROM water_entries
                     """))
@@ -127,24 +131,26 @@ async def upgrade():
                     await conn.execute(text("""
                         CREATE TABLE drink_entries (
                             id SERIAL PRIMARY KEY,
-                            user_id INTEGER NOT NULL,
-                            name VARCHAR(100) NOT NULL DEFAULT 'вода',
-                            volume_ml FLOAT NOT NULL,
-                            calories FLOAT DEFAULT 0.0,
-                            datetime TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-                            FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+                            user_id BIGINT NOT NULL,
+                            drink_name VARCHAR(255) NOT NULL,
+                            amount FLOAT NOT NULL,
+                            calories FLOAT NOT NULL,
+                            sugar FLOAT DEFAULT 0,
+                            caffeine FLOAT DEFAULT 0,
+                            created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                            FOREIGN KEY (user_id) REFERENCES users (telegram_id) ON DELETE CASCADE
                         )
                     """))
                     # Повторяем копирование данных с учетом структуры
                     if has_datetime:
                         await conn.execute(text("""
-                            INSERT INTO drink_entries (user_id, name, volume_ml, calories, datetime)
+                            INSERT INTO drink_entries (user_id, drink_name, amount, calories, created_at)
                             SELECT user_id, 'вода', amount, 0.0, datetime 
                             FROM water_entries
                         """))
                     else:
                         await conn.execute(text("""
-                            INSERT INTO drink_entries (user_id, name, volume_ml, calories)
+                            INSERT INTO drink_entries (user_id, drink_name, amount, calories)
                             SELECT user_id, 'вода', amount, 0.0
                             FROM water_entries
                         """))

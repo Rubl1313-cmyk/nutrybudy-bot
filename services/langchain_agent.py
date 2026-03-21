@@ -47,6 +47,7 @@ class LangChainAgent:
         self.llm = cloudflare_llm
         
         # Создаем кастомный промпт для REACT агента на русском языке
+        # create_react_agent требует переменные: input, agent_scratchpad, tool_names
         prompt = ChatPromptTemplate.from_messages([
             ("system", """Ты — премиальный AI-ассистент по питанию NutriBuddy.
 Твоя задача — понимать, что хочет пользователь, и вызывать подходящий инструмент.
@@ -55,8 +56,7 @@ class LangChainAgent:
 Информация о пользователе:
 {user_info}
 
-Доступные инструменты:
-{tools}
+Доступные инструменты: {tool_names}
 
 Отвечай ТОЛЬКО на русском языке. Используй инструменты когда пользователь хочет:
 - Записать еду → log_food
@@ -393,14 +393,14 @@ class LangChainAgent:
             else:
                 user_info = "Пользователь не найден. Попросите создать профиль командой /set_profile"
 
-            # Формируем список инструментов для промпта
-            tools_info = "\n".join([f"- {tool.name}: {tool.description}" for tool in self.tools])
+            # Формируем список имен инструментов для промпта (требуется для create_react_agent)
+            tool_names = ", ".join([tool.name for tool in self.tools])
 
             # Выполняем агент с правильным API AgentExecutor
             result = await self.agent.ainvoke({
                 "input": message,
                 "user_info": user_info,
-                "tools": tools_info,
+                "tool_names": tool_names,
             })
 
             # AgentExecutor возвращает dict с ключом "output"

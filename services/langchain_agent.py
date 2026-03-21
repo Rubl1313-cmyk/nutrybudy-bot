@@ -49,31 +49,34 @@ class LangChainAgent:
 
         # Создаем промпт в формате ReAct для create_react_agent
         # create_react_agent автоматически заполняет {tools} и {tool_names}
-        # Промпт должен содержать только {input} и {agent_scratchpad} как переменные
-        prompt = PromptTemplate.from_template("""Ты — премиальный AI-ассистент по питанию NutriBuddy.
-Твоя задача — понимать, что хочет пользователь, и вызывать подходящий инструмент.
-Всегда отвечай кратко, по делу и на РУССКОМ языке.
+        # Промпт должен быть на английском для правильного формата ReAct
+        prompt = PromptTemplate.from_template("""You are a premium AI nutrition assistant NutriBuddy.
+You speak and respond ONLY in Russian.
 
-Доступные инструменты:
+Available tools:
 {tools}
 
-Используй следующий формат:
+Use the following format exactly:
 
-Question: входной вопрос, который ты должен решить
-Thought: ты всегда должен думать о том, что делать
-Action: действие, которое нужно предпринять, должно быть одним из [{tool_names}]
-Action Input: входные данные для действия
-Observation: результат действия
-... (этот Thought/Action/Action Input/Observation может повторяться N раз)
-Thought: Я теперь знаю окончательный ответ
-Final Answer: окончательный ответ на исходный входной вопрос
+Question: the input question you must answer
+Thought: you should always think about what to do
+Action: the action to take, should be one of [{tool_names}]
+Action Input: the input to the action
+Observation: the result of the action
+... (this Thought/Action/Action Input/Observation can repeat N times)
+Thought: I now know the final answer
+Final Answer: the final answer to the original input question in Russian
 
-Начни!
+Begin!
 
 Question: {input}
 Thought:{agent_scratchpad}
 
-ВАЖНО: Отвечай ТОЛЬКО на русском языке. Названия инструментов пиши на английском (log_food, log_water, etc.)""")
+IMPORTANT: 
+- Always follow the exact format above
+- Action must be one of: [{tool_names}]
+- Final Answer must be in Russian
+- Never use "None" as action - use actual tool names""")
 
         # Создаем REACT агент с правильным промптом (LangChain API)
         react_agent = create_react_agent(
@@ -483,23 +486,86 @@ def add_processing_methods(cls):
             result = await cf_manager.parse_food_image(photo_data)
             if not result.get("success"):
                 return {"success": False, "error": result.get("error", "Неизвестная ошибка")}
-            
+
             analysis = result.get("analysis", {})
-            dish_name = analysis.get("dish_name", "блюдо")
-            calories = analysis.get("estimated_total_calories", 0)
-            protein = analysis.get("estimated_total_protein", 0)
-            fat = analysis.get("estimated_total_fat", 0)
-            carbs = analysis.get("estimated_total_carbs", 0)
+            ingredients = analysis.get("ingredients", [])
             
+            # База калорийности для расчёта КБЖУ
+            nutrition_db = {
+                "chicken": {"calories": 165, "protein": 31, "fat": 3.6, "carbs": 0},
+                "chicken breast": {"calories": 165, "protein": 31, "fat": 3.6, "carbs": 0},
+                "beef": {"calories": 250, "protein": 26, "fat": 15, "carbs": 0},
+                "fish": {"calories": 206, "protein": 22, "fat": 12, "carbs": 0},
+                "salmon": {"calories": 208, "protein": 20, "fat": 13, "carbs": 0},
+                "tuna": {"calories": 144, "protein": 23, "fat": 5, "carbs": 0},
+                "egg": {"calories": 155, "protein": 13, "fat": 11, "carbs": 1.1},
+                "eggs": {"calories": 155, "protein": 13, "fat": 11, "carbs": 1.1},
+                "rice": {"calories": 130, "protein": 2.7, "fat": 0.3, "carbs": 28},
+                "pasta": {"calories": 131, "protein": 5, "fat": 1.1, "carbs": 25},
+                "potato": {"calories": 77, "protein": 2, "fat": 0.1, "carbs": 17},
+                "potatoes": {"calories": 77, "protein": 2, "fat": 0.1, "carbs": 17},
+                "bread": {"calories": 265, "protein": 9, "fat": 3.2, "carbs": 49},
+                "vegetable": {"calories": 25, "protein": 1, "fat": 0.3, "carbs": 5},
+                "vegetables": {"calories": 25, "protein": 1, "fat": 0.3, "carbs": 5},
+                "tomato": {"calories": 18, "protein": 0.9, "fat": 0.2, "carbs": 3.9},
+                "cucumber": {"calories": 15, "protein": 0.7, "fat": 0.1, "carbs": 3.6},
+                "lettuce": {"calories": 15, "protein": 1.4, "fat": 0.2, "carbs": 2.9},
+                "cabbage": {"calories": 25, "protein": 1.3, "fat": 0.1, "carbs": 6},
+                "carrot": {"calories": 41, "protein": 0.9, "fat": 0.2, "carbs": 10},
+                "broccoli": {"calories": 34, "protein": 2.8, "fat": 0.4, "carbs": 7},
+                "oil": {"calories": 884, "protein": 0, "fat": 100, "carbs": 0},
+                "butter": {"calories": 717, "protein": 0.9, "fat": 81, "carbs": 0.1},
+                "cheese": {"calories": 402, "protein": 25, "fat": 33, "carbs": 1.3},
+                "fruit": {"calories": 52, "protein": 0.3, "fat": 0.2, "carbs": 14},
+                "apple": {"calories": 52, "protein": 0.3, "fat": 0.2, "carbs": 14},
+                "banana": {"calories": 89, "protein": 1.1, "fat": 0.3, "carbs": 23},
+            }
+            
+            # Рассчитываем КБЖУ
+            total_calories = 0
+            total_protein = 0
+            total_fat = 0
+            total_carbs = 0
+            
+            for ingredient in ingredients:
+                name = ingredient.get("name", "").lower()
+                weight = ingredient.get("weight_grams", 0)
+                
+                nutrition = None
+                for key, value in nutrition_db.items():
+                    if key in name:
+                        nutrition = value
+                        break
+                
+                if not nutrition:
+                    ing_type = ingredient.get("type", "")
+                    if "protein" in ing_type:
+                        nutrition = {"calories": 150, "protein": 25, "fat": 5, "carbs": 0}
+                    elif "carb" in ing_type:
+                        nutrition = {"calories": 120, "protein": 3, "fat": 0.5, "carbs": 25}
+                    elif "vegetable" in ing_type:
+                        nutrition = {"calories": 25, "protein": 1, "fat": 0.3, "carbs": 5}
+                    elif "fat" in ing_type:
+                        nutrition = {"calories": 800, "protein": 0, "fat": 90, "carbs": 0}
+                    else:
+                        nutrition = {"calories": 100, "protein": 5, "fat": 3, "carbs": 15}
+                
+                total_calories += (nutrition["calories"] * weight) / 100
+                total_protein += (nutrition["protein"] * weight) / 100
+                total_fat += (nutrition["fat"] * weight) / 100
+                total_carbs += (nutrition["carbs"] * weight) / 100
+
+            dish_name = analysis.get("dish_name", "блюдо")
+
             message = (
                 f"🍽️ <b>{dish_name}</b>\n\n"
-                f"📊 Калории: {calories:.0f} ккал\n"
-                f"🥩 Белки: {protein:.1f} г\n"
-                f"🧈 Жиры: {fat:.1f} г\n"
-                f"🍞 Углеводы: {carbs:.1f} г\n\n"
+                f"📊 Калории: {total_calories:.0f} ккал\n"
+                f"🥩 Белки: {total_protein:.1f} г\n"
+                f"🧈 Жиры: {total_fat:.1f} г\n"
+                f"🍞 Углеводы: {total_carbs:.1f} г\n\n"
                 f"✅ Распознано. Хотите сохранить?"
             )
-            
+
             return {"success": True, "message": message, "data": analysis}
         except Exception as e:
             logger.error(f"process_photo error: {e}", exc_info=True)

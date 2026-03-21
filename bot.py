@@ -158,7 +158,7 @@ def register_handlers():
     # Импорты обработчиков
     from handlers.common import router as common_router
     from handlers.reply_handlers import router as reply_handlers_router
-    from handlers.profile_new import router as profile_router
+    from handlers.profile import router as profile_router
     from handlers.progress import router as progress_router
     from handlers.achievements import router as achievements_router
     from handlers.ai_assistant import router as ai_assistant_router

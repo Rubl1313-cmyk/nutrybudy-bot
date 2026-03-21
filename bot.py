@@ -158,49 +158,36 @@ def register_handlers():
     # Импорты обработчиков
     from handlers.common import router as common_router
     from handlers.reply_handlers import router as reply_handlers_router
-    from handlers.profile import router as profile_router
-    from handlers.weight import router as weight_router
-    from handlers.drinks import router as drinks_router
-    from handlers.activity import router as activity_router
+    from handlers.profile_new import router as profile_router
     from handlers.progress import router as progress_router
-    from handlers.meal_plan import router as meal_plan_router
     from handlers.achievements import router as achievements_router
     from handlers.ai_assistant import router as ai_assistant_router
-    from handlers.food_clarification import router as food_clarification_router
+    from handlers.help import router as help_router
     from handlers.universal import router as universal_router
 
     # Регистрация роутеров - важен порядок!
-
+    
     # Сначала команды и специализированные обработчики
     dp.include_router(common_router)
-    dp.include_router(reply_handlers_router)  # Перемещаем раньше для обработки кнопок
-    dp.include_router(progress_router)
-    dp.include_router(profile_router)
-    dp.include_router(weight_router)
-    dp.include_router(ai_assistant_router)
-    dp.include_router(drinks_router)
-    dp.include_router(activity_router)
-    dp.include_router(meal_plan_router)
-    dp.include_router(achievements_router)
-    dp.include_router(food_clarification_router)
+    dp.include_router(reply_handlers_router)  # Обработка кнопок главного меню
+    dp.include_router(profile_router)  # Профиль
+    dp.include_router(progress_router)  # Прогресс
+    dp.include_router(achievements_router)  # Достижения
+    dp.include_router(ai_assistant_router)  # AI Ассистент
+    dp.include_router(help_router)  # Помощь
 
-    # Потом дополнительные клавиатуры (быстрые кнопки)
-    from handlers import keyboard_buttons  # Добавлен обработчик кнопок клавиатур
-    dp.include_router(keyboard_buttons.router)
-
-    # Самый последний – универсальный (обрабатывает всё, что не попало выше)
+    # Универсальный обработчик - самый последний (обрабатывает всё, что не попало выше)
     dp.include_router(universal_router)
-    
+
     # Установка middleware (исправлено для aiogram 3.x)
     from utils.middleware import SmartRateLimitMiddleware
-    
+
     dp.message.middleware(SmartRateLimitMiddleware(user_rate_limiter, is_global=False))
     dp.callback_query.middleware(SmartRateLimitMiddleware(user_rate_limiter, is_global=False))
     dp.message.middleware(SmartRateLimitMiddleware(global_rate_limiter, is_global=True))
     dp.callback_query.middleware(SmartRateLimitMiddleware(global_rate_limiter, is_global=True))
-    
+
     logger.info("Rate limiting middleware enabled")
-    
     logger.info("All handlers registered")
     
 async def schedule_reminders(reminder_service):

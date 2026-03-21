@@ -177,11 +177,10 @@ async def universal_photo_handler(message: Message, state: FSMContext):
             from database.db import get_session
             from database.models import User
 
-            save_result = await food_save_service.save_food_entry(
+            save_result = await food_save_service.save_food_to_db(
                 user_id=user_id,
                 food_items=ingredients,
-                meal_type=meal_type,
-                description=data.get("dish_name", "Неизвестное блюдо")
+                meal_type=meal_type
             )
 
             if save_result.get("success"):
@@ -361,11 +360,10 @@ async def universal_document_handler(message: Message, state: FSMContext):
             from database.db import get_session
             from database.models import User
 
-            save_result = await food_save_service.save_food_entry(
+            save_result = await food_save_service.save_food_to_db(
                 user_id=user_id,
                 food_items=ingredients,
-                meal_type=meal_type,
-                description=data.get("dish_name", "Неизвестное блюдо")
+                meal_type=meal_type
             )
 
             if save_result.get("success"):

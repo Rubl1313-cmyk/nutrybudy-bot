@@ -11,10 +11,12 @@ from . import (
     ai_assistant,          # AI ассистент
     timezone_handlers,      # Обработчики часовых поясов
     food,                 # Запись еды (объединена с food_clarification)
+    help,                 # Помощь
+    achievements,         # Достижения
 )
 
 __all__ = [
     'universal', 'common', 'reply_handlers', 'profile', 'drinks',
     'progress', 'activity', 'weight', 'meal_plan', 'ai_assistant',
-    'timezone_handlers', 'food'
+    'timezone_handlers', 'food', 'help', 'achievements'
 ]

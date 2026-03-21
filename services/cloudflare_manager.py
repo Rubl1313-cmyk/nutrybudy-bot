@@ -117,10 +117,17 @@ class CloudflareAIManager:
         from PIL import Image
         import io
         
+        # Логгируем размер и первые байты для отладки
+        logger.info(f"[VISION] Image data size: {len(image_data)} bytes")
+        logger.info(f"[VISION] First 20 bytes: {image_data[:20].hex()}")
+        
         # Конвертируем изображение в JPEG для совместимости
         try:
             # Открываем изображение через PIL
             img = Image.open(io.BytesIO(image_data))
+            
+            # Логгируем формат
+            logger.info(f"[VISION] Image format: {img.format}, mode: {img.mode}, size: {img.size}")
             
             # Конвертируем в RGB (если есть альфа-канал)
             if img.mode in ('RGBA', 'LA', 'P'):
@@ -133,11 +140,29 @@ class CloudflareAIManager:
             
             # Кодируем в base64
             image_b64 = base64.b64encode(output.read()).decode('utf-8')
+            logger.info(f"[VISION] Converted to JPEG, base64 size: {len(image_b64)} bytes")
             
         except Exception as e:
             logger.error(f"❌ Image conversion error: {e}")
+            logger.error(f"❌ Image data type: {type(image_data)}, size: {len(image_data) if image_data else 0}")
+            
+            # Проверяем, это вообще изображение?
+            if len(image_data) < 10:
+                return {"success": False, "error": "Файл слишком маленький для изображения"}
+            
+            # Проверяем магические байты
+            if image_data[:2] == b'\xFF\xD8':
+                logger.info("[VISION] Detected JPEG")
+            elif image_data[:8] == b'\x89PNG\r\n\x1a\n':
+                logger.info("[VISION] Detected PNG")
+            elif image_data[:6] in (b'RIFF', b'WEBP'):
+                logger.info("[VISION] Detected WebP")
+            else:
+                logger.warning(f"[VISION] Unknown image format: {image_data[:10].hex()}")
+            
             # Если не удалось конвертировать, пробуем оригинал
             image_b64 = base64.b64encode(image_data).decode('utf-8')
+            logger.info(f"[VISION] Using original file, base64 size: {len(image_b64)} bytes")
 
         messages = [
             {

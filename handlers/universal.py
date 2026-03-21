@@ -175,20 +175,31 @@ async def universal_document_handler(message: Message, state: FSMContext):
 
         # Получаем файл
         file_info = await message.bot.get_file(document.file_id)
+        
+        # Логгируем информацию о файле
+        logger.info(f"[DOCUMENT] File ID: {document.file_id}")
+        logger.info(f"[DOCUMENT] File name: {document.file_name}")
+        logger.info(f"[DOCUMENT] MIME type: {document.mime_type}")
+        logger.info(f"[DOCUMENT] File size: {file_info.file_size}")
+        
         photo_data = await message.bot.download_file(file_info.file_path)
+        
+        # Логгируем размер загруженных данных
+        photo_bytes = photo_data.read()
+        logger.info(f"[DOCUMENT] Downloaded data size: {len(photo_bytes)} bytes")
 
         # Распознаём еду через Vision модель
         from services.cloudflare_manager import cf_manager
         from services.ai_processor import ai_processor
         
-        result = await cf_manager.parse_food_image(photo_data.read())
+        result = await cf_manager.parse_food_image(photo_bytes)
         
         await loading_msg.delete()
 
         if result.get("success"):
             # Обрабатываем результат через ai_processor (расчёт КБЖУ)
             photo_result = await ai_processor.process_photo_input(
-                photo_data.read(), 
+                photo_bytes, 
                 user_id
             )
             

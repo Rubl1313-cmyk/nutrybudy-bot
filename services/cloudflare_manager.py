@@ -170,69 +170,71 @@ class CloudflareAIManager:
                 "content": [
                     {
                         "type": "text",
-                        "text": """You are an expert chef and food scientist with 20+ years of international cuisine experience.
+                        "text": """Ты эксперт-повар и ученый-диетолог с 20+ летним опытом международной кухни.
 
-CARBOHYDRATE IDENTIFICATION:
-🍝 PASTA/NOODLES: Long strands, various shapes, Italian/Asian
-🍚 RICE: Grains, sticky or separate
-🥔 POTATOES: White/yellow flesh, various preparations
-🍞 BREAD: Soft/crisp texture, baked
+ВАЖНО: Отвечай ТОЛЬКО на русском языке!
 
-VEGETABLE IDENTIFICATION:
-🥬 LEAFY: Lettuce, spinach, cabbage - soft leaves
-🥦 FLORETS: Broccoli, cauliflower - tree-like
-🥕 ROOT: Carrots, beets, radishes - grow underground
-🌱 PODS: Peas, beans - in pods
+ОПРЕДЕЛЕНИЕ УГЛЕВОДОВ:
+🍝 ПАСТА/ЛАПША: Длинные нити, разные формы, итальянская/азиатская
+🍚 РИС: Зерна, клейкие или рассыпчатые
+🥔 КАРТОФЕЛЬ: Белая/желтая мякоть, разные способы приготовления
+🍞 ХЛЕБ: Мягкая/хрустящая текстура, выпечка
 
-PROTEIN IDENTIFICATION - PAY EXTREME ATTENTION:
-🐟 FISH IDENTIFICATION:
-- SALMON: Pink/orange flesh, distinct texture, visible fat lines
-- TUNA: Dark red/purple flesh, dense texture
-- COD: White flaky flesh, mild appearance
-- TROUT: Pink flesh with white stripes
-- ANY FISH: Has fish-like texture, no mammal muscle structure
+ОПРЕДЕЛЕНИЕ ОВОЩЕЙ:
+🥬 ЛИСТОВЫЕ: Салат, шпинат, капуста - мягкие листья
+🥦 СОЦВЕТИЯ: Брокколи, цветная капуста - деревообразные
+🥕 КОРНЕПЛОДЫ: Морковь, свекла, редис - растут под землей
+🌱 БОБОВЫЕ: Горох, фасоль - в стручках
 
-🐔 CHICKEN IDENTIFICATION:
-- Chicken breast: White/light pink, smooth fibrous texture
-- Chicken thigh: Darker pink, more fat
-- Whole chicken: Bird shape, wings, legs
+ОПРЕДЕЛЕНИЕ БЕЛКОВ - ОБРАТИТЬ МАКСИМАЛЬНОЕ ВНИМАНИЕ:
+🐟 ОПРЕДЕЛЕНИЕ РЫБЫ:
+- ЛОСОСЬ: Розовая/оранжевая мякоть, характерная текстура, видимые жировые прослойки
+- ТУНЕЦ: Темно-красная/фиолетовая мякоть, плотная текстура
+- ТРЕСКА: Белая рассыпчатая мякоть, мягкий вид
+- ФОРЕЛЬ: Розовая мякоть с белыми полосками
+- ЛЮБАЯ РЫБА: Имеет рыбную текстуру, нет структуры мышц млекопитающих
 
-KEY DIFFERENCES:
-- FISH: Softer texture, no muscle fibers like meat, often has skin
-- CHICKEN: Distinctive fibrous muscle structure, bird anatomy
+🐔 ОПРЕДЕЛЕНИЕ КУРИЦЫ:
+- Куриная грудка: Белая/светло-розовая, гладкая волокнистая текстура
+- Куриное бедро: Более темно-розовое, больше жира
+- Целая курица: Форма птицы, крылья, ноги
 
-IMPORTANT CULINARY RULES:
-1. "Pasta salad" is NOT a real dish - use "pasta with sauce" or specific pasta dish
-2. "Salad" requires leafy greens + dressing + vegetables
-3. "Soup" is liquid-based with vegetables/meat
-4. "Stew" is thick, slow-cooked with meat/vegetables
-5. "Risotto" is creamy rice with specific texture
-6. "Curry" has Indian/Asian spices, coconut base
-7. "Stir-fry" is Asian style with high heat cooking
+КЛЮЧЕВЫЕ РАЗЛИЧИЯ:
+- РЫБА: Более мягкая текстура, нет мышечных волокон как у мяса, часто с кожей
+- КУРИЦА: Характерная волокнистая структура мышц, птичья анатомия
 
-REAL DISH EXAMPLES:
-- Italian: spaghetti carbonara, lasagna, risotto, pizza margherita
-- Russian: borscht, pelmeni, golubtsy, solyanka
-- Asian: stir-fry noodles, fried rice, curry, sushi
-- American: hamburger, BBQ ribs, mac and cheese
-- Mediterranean: Greek salad, hummus, falafel
+ВАЖНЫЕ КУЛИНАРНЫЕ ПРАВИЛА:
+1. "Салат из пасты" - НЕ реальное блюдо, используй "паста с соусом" или конкретное блюдо пасты
+2. "Салат" требует листовой зелени + заправка + овощи
+3. "Суп" - жидкая основа с овощами/мясом
+4. "Рагу" - густое, медленно томленое с мясом/овощами
+5. "Ризотто" - кремовый рис с характерной текстурой
+6. "Карри" - индийские/азиатские специи, кокосовая основа
+7. "Жаркое" - азиатский стиль с высокотемпературной обработкой
 
-WRONG EXAMPLES (DO NOT USE):
-❌ "pasta salad with grilled chicken" - NOT A REAL DISH
-❌ "meat with vegetables" - TOO VAGUE
-❌ "food dish" - MEANINGLESS
+ПРИМЕРЫ РЕАЛЬНЫХ БЛЮД:
+- Итальянские: спагетти карбонара, лазанья, ризотто, пицца маргарита
+- Русские: борщ, пельмени, голубцы, солянка
+- Азиатские: лапша жареная, рис жареный, карри, суши
+- Американские: гамбургер, BBQ ребра, мак энд чиз
+- Средиземноморские: греческий салат, хумус, фалафель
 
-TASK: Analyze this food image and provide:
-1. Main dish name (use REAL dish names)
-2. All ingredients with estimated weights
-3. Category (soup, main, salad, side, dessert, drink)
-4. Preparation style (grilled, boiled, fried, baked, raw)
+НЕПРАВИЛЬНЫЕ ПРИМЕРЫ (НЕ ИСПОЛЬЗОВАТЬ):
+❌ "салат из пасты с курицей гриль" - НЕ РЕАЛЬНОЕ БЛЮДО
+❌ "мяс с овощами" - СЛИШКОМ ОБЩО
+❌ "блюдо из еды" - БЕССМЫСЛЕННО
 
-Respond in JSON format:
+ЗАДАЧА: Проанализируй это изображение еды и предоставь:
+1. Название основного блюда (используй РЕАЛЬНЫЕ названия блюд)
+2. Все ингредиенты с расчетным весом
+3. Категорию (суп, основное, салат, гарнир, десерт, напиток)
+4. Способ приготовления (гриль, варка, жарка, запекание, сырой)
+
+Отвечай в JSON формате:
 {
-  "dish_name": "specific dish name",
+  "dish_name": "конкретное название блюда",
   "ingredients": [
-    {"name": "ingredient", "weight_grams": 100, "type": "protein/carb/vegetable/fat"}
+    {"name": "ингредиент", "weight_grams": 100, "type": "protein/carb/vegetable/fat"}
   ],
   "category": "soup/main/salad/side/dessert/drink",
   "preparation_style": "grilled/boiled/fried/baked/raw",

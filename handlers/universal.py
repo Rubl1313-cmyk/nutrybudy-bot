@@ -176,10 +176,44 @@ async def universal_photo_handler(message: Message, state: FSMContext):
             from utils.daily_stats import get_daily_stats
             from database.db import get_session
             from database.models import User
+            from services.dish_db import dish_identifier
 
+            # Определяем блюдо по ингредиентам через базу данных
+            dish_result = dish_identifier.identify_dish(ingredients)
+            
+            if dish_result.get("success"):
+                dish_data = dish_result.get("dish", {})
+                dish_name = dish_data.get("name", data.get("dish_name", "Неизвестное блюдо"))
+                nutrition_per_100 = dish_data.get("nutrition_per_100", {})
+                
+                # Рассчитываем КБЖУ на основе веса
+                total_weight = sum(ing.get("weight_grams", 100) for ing in ingredients)
+                factor = total_weight / 100.0
+                
+                total_calories = nutrition_per_100.get("calories", 0) * factor
+                total_protein = nutrition_per_100.get("protein", 0) * factor
+                total_fat = nutrition_per_100.get("fat", 0) * factor
+                total_carbs = nutrition_per_100.get("carbs", 0) * factor
+            else:
+                # Если не нашли в базе, используем данные от Vision модели
+                dish_name = data.get("dish_name", "Неизвестное блюдо")
+                total_calories = data.get("calories", 0)
+                total_protein = data.get("protein", 0)
+                total_fat = data.get("fat", 0)
+                total_carbs = data.get("carbs", 0)
+
+            # Сохраняем в БД с рассчитанными КБЖУ
             save_result = await food_save_service.save_food_to_db(
                 user_id=user_id,
-                food_items=ingredients,
+                food_items=[{
+                    "name": dish_name,
+                    "calories": total_calories,
+                    "protein": total_protein,
+                    "fat": total_fat,
+                    "carbs": total_carbs,
+                    "quantity": total_weight if dish_result.get("success") else 100,
+                    "unit": "г"
+                }],
                 meal_type=meal_type
             )
 
@@ -360,10 +394,44 @@ async def universal_document_handler(message: Message, state: FSMContext):
             from utils.daily_stats import get_daily_stats
             from database.db import get_session
             from database.models import User
+            from services.dish_db import dish_identifier
 
+            # Определяем блюдо по ингредиентам через базу данных
+            dish_result = dish_identifier.identify_dish(ingredients)
+            
+            if dish_result.get("success"):
+                dish_data = dish_result.get("dish", {})
+                dish_name = dish_data.get("name", data.get("dish_name", "Неизвестное блюдо"))
+                nutrition_per_100 = dish_data.get("nutrition_per_100", {})
+                
+                # Рассчитываем КБЖУ на основе веса
+                total_weight = sum(ing.get("weight_grams", 100) for ing in ingredients)
+                factor = total_weight / 100.0
+                
+                total_calories = nutrition_per_100.get("calories", 0) * factor
+                total_protein = nutrition_per_100.get("protein", 0) * factor
+                total_fat = nutrition_per_100.get("fat", 0) * factor
+                total_carbs = nutrition_per_100.get("carbs", 0) * factor
+            else:
+                # Если не нашли в базе, используем данные от Vision модели
+                dish_name = data.get("dish_name", "Неизвестное блюдо")
+                total_calories = data.get("calories", 0)
+                total_protein = data.get("protein", 0)
+                total_fat = data.get("fat", 0)
+                total_carbs = data.get("carbs", 0)
+
+            # Сохраняем в БД с рассчитанными КБЖУ
             save_result = await food_save_service.save_food_to_db(
                 user_id=user_id,
-                food_items=ingredients,
+                food_items=[{
+                    "name": dish_name,
+                    "calories": total_calories,
+                    "protein": total_protein,
+                    "fat": total_fat,
+                    "carbs": total_carbs,
+                    "quantity": total_weight if dish_result.get("success") else 100,
+                    "unit": "г"
+                }],
                 meal_type=meal_type
             )
 

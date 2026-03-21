@@ -6,6 +6,7 @@ import logging
 from aiogram import Router, F
 from aiogram.types import Message
 from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import State, StatesGroup
 from aiogram.filters import Command
 from sqlalchemy import select
 
@@ -19,8 +20,8 @@ logger = logging.getLogger(__name__)
 router = Router()
 
 # Состояния для AI ассистента
-class AIStates:
-    in_conversation = "ai_conversation"
+class AIStates(StatesGroup):
+    in_conversation = State()
 
 # Команды для выхода из диалога
 EXIT_COMMANDS = ["выход", "выйти", "стоп", "хватит", "закончить", "завершить", "отмена", "главное меню"]

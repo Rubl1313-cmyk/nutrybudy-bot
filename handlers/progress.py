@@ -374,10 +374,10 @@ def get_motivation_message(stats: dict, user: User) -> str:
 # Функции для получения статистики
 async def get_today_stats(user_id: int) -> dict:
     """Получить статистику за сегодня"""
-    
+
     async with get_session() as session:
         result = await session.execute(
-            select(User.timezone).where(User.telegram_id == user_id)
+            select(User).where(User.telegram_id == user_id)
         )
         user = result.scalar_one_or_none()
         user_timezone = user.timezone if user else 'UTC'

@@ -5,6 +5,7 @@ import logging
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
 from enum import Enum
+from sqlalchemy import select, func
 
 logger = logging.getLogger(__name__)
 
@@ -228,38 +229,59 @@ class GamificationSystem:
         """Получает серию дней использования бота"""
         try:
             from database.models import FoodEntry, DrinkEntry, ActivityEntry
+            from database.db import get_session
             from datetime import date
+
+            # Получаем пользователя
+            from sqlalchemy import select
+            result = await session.execute(
+                select(User).where(User.telegram_id == user_id)
+            )
+            user = result.scalar_one_or_none()
             
+            if not user:
+                return 0
+            
+            user_id = user.id  # Используем внутренний ID пользователя
             today = date.today()
             streak = 0
-            
+
             # Проверяем каждый день назад
             for i in range(365):  # Максимум год назад
                 check_date = today - timedelta(days=i)
-                
+
                 # Проверяем, была ли активность в этот день
-                has_activity = (
-                    session.query(FoodEntry).filter(
+                food_result = await session.execute(
+                    select(FoodEntry).where(
                         FoodEntry.user_id == user_id,
-                        FoodEntry.date == check_date
-                    ).first() or
-                    session.query(DrinkEntry).filter(
-                        DrinkEntry.user_id == user_id,
-                        DrinkEntry.date == check_date
-                    ).first() or
-                    session.query(ActivityEntry).filter(
-                        ActivityEntry.user_id == user_id,
-                        ActivityEntry.date == check_date
-                    ).first()
+                        func.cast(FoodEntry.created_at, func.date()) == check_date
+                    ).limit(1)
                 )
+                food_entry = food_result.scalar_one_or_none()
                 
-                if has_activity:
+                drink_result = await session.execute(
+                    select(DrinkEntry).where(
+                        DrinkEntry.user_id == user_id,
+                        func.cast(DrinkEntry.created_at, func.date()) == check_date
+                    ).limit(1)
+                )
+                drink_entry = drink_result.scalar_one_or_none()
+                
+                activity_result = await session.execute(
+                    select(ActivityEntry).where(
+                        ActivityEntry.user_id == user_id,
+                        func.cast(ActivityEntry.created_at, func.date()) == check_date
+                    ).limit(1)
+                )
+                activity_entry = activity_result.scalar_one_or_none()
+
+                if food_entry or drink_entry or activity_entry:
                     streak += 1
                 else:
                     break
-            
+
             return streak
-            
+
         except Exception as e:
             logger.error(f"Error calculating streak for user {user_id}: {e}")
             return 0
@@ -268,33 +290,70 @@ class GamificationSystem:
         """Проверяет серию выполнения целей"""
         try:
             from database.models import User
-            from utils.daily_stats import get_daily_stats
-            from datetime import date
+            from datetime import date, timedelta
+            from sqlalchemy import select, func
+
+            # Получаем пользователя
+            result = await session.execute(
+                select(User).where(User.telegram_id == user_id)
+            )
+            user = result.scalar_one_or_none()
             
-            user = session.query(User).filter(User.id == user_id).first()
             if not user:
                 return False
-            
+
             today = date.today()
-            
+
             for i in range(days):
                 check_date = today - timedelta(days=i)
-                stats = await get_daily_stats(user_id, check_date)
                 
+                # Получаем статистику за день напрямую
+                food_result = await session.execute(
+                    select(
+                        func.sum(FoodEntry.calories),
+                        func.sum(FoodEntry.protein)
+                    ).where(
+                        FoodEntry.user_id == user.id,
+                        func.cast(FoodEntry.created_at, func.date()) == check_date
+                    )
+                )
+                food_stats = food_result.first()
+                calories = food_stats[0] or 0
+                
+                water_result = await session.execute(
+                    select(func.sum(DrinkEntry.amount)).where(
+                        DrinkEntry.user_id == user.id,
+                        func.cast(DrinkEntry.created_at, func.date()) == check_date
+                    )
+                )
+                water = water_result.scalar() or 0
+                
+                activity_result = await session.execute(
+                    select(
+                        func.sum(ActivityEntry.duration),
+                        func.count(ActivityEntry.id)
+                    ).where(
+                        ActivityEntry.user_id == user.id,
+                        func.cast(ActivityEntry.created_at, func.date()) == check_date
+                    )
+                )
+                activity_stats = activity_result.first()
+                activity_minutes = activity_stats[0] or 0
+
                 if goal_type == "calories":
-                    goal_met = stats.get('calories_consumed', 0) >= user.daily_calorie_goal * 0.9  # 90% от цели
+                    goal_met = calories >= user.daily_calorie_goal * 0.9  # 90% от цели
                 elif goal_type == "water":
-                    goal_met = stats.get('water_consumed', 0) >= user.daily_water_goal * 0.9
+                    goal_met = water >= user.daily_water_goal * 0.9
                 elif goal_type == "activity":
-                    goal_met = stats.get('activity_minutes', 0) >= 30  # Минимум 30 минут
+                    goal_met = activity_minutes >= 30  # Минимум 30 минут
                 else:
                     goal_met = False
-                
+
                 if not goal_met:
                     return False
-            
+
             return True
-            
+
         except Exception as e:
             logger.error(f"Error checking goal streak for user {user_id}: {e}")
             return False
@@ -302,25 +361,59 @@ class GamificationSystem:
     async def _check_perfect_day(self, user_id: int, session) -> bool:
         """Проверяет идеальный день"""
         try:
-            from database.models import User
-            from utils.daily_stats import get_daily_stats
+            from database.models import User, FoodEntry, DrinkEntry, ActivityEntry
             from datetime import date
+            from sqlalchemy import select, func
+
+            # Получаем пользователя
+            result = await session.execute(
+                select(User).where(User.telegram_id == user_id)
+            )
+            user = result.scalar_one_or_none()
             
-            user = session.query(User).filter(User.id == user_id).first()
             if not user:
                 return False
-            
+
             today = date.today()
-            stats = await get_daily_stats(user_id, today)
             
+            # Получаем статистику за сегодня
+            food_result = await session.execute(
+                select(
+                    func.sum(FoodEntry.calories),
+                    func.count(FoodEntry.id)
+                ).where(
+                    FoodEntry.user_id == user.id,
+                    func.cast(FoodEntry.created_at, func.date()) == today
+                )
+            )
+            food_stats = food_result.first()
+            calories = food_stats[0] or 0
+            meals_count = food_stats[1] or 0
+            
+            water_result = await session.execute(
+                select(func.sum(DrinkEntry.amount)).where(
+                    DrinkEntry.user_id == user.id,
+                    func.cast(DrinkEntry.created_at, func.date()) == today
+                )
+            )
+            water = water_result.scalar() or 0
+            
+            activity_result = await session.execute(
+                select(func.sum(ActivityEntry.duration)).where(
+                    ActivityEntry.user_id == user.id,
+                    func.cast(ActivityEntry.created_at, func.date()) == today
+                )
+            )
+            activity_minutes = activity_result.scalar() or 0
+
             # Проверяем все цели
-            calorie_goal_met = stats.get('calories_consumed', 0) >= user.daily_calorie_goal * 0.9
-            water_goal_met = stats.get('water_consumed', 0) >= user.daily_water_goal * 0.9
-            activity_goal_met = stats.get('activity_minutes', 0) >= 30
-            has_meals = stats.get('meals_count', 0) >= 3  # Минимум 3 приема пищи
-            
+            calorie_goal_met = calories >= user.daily_calorie_goal * 0.9
+            water_goal_met = water >= user.daily_water_goal * 0.9
+            activity_goal_met = activity_minutes >= 30
+            has_meals = meals_count >= 3  # Минимум 3 приема пищи
+
             return calorie_goal_met and water_goal_met and activity_goal_met and has_meals
-            
+
         except Exception as e:
             logger.error(f"Error checking perfect day for user {user_id}: {e}")
             return False
@@ -460,21 +553,74 @@ class GamificationSystem:
     async def get_user_stats(self, user_id: int) -> dict:
         """Возвращает статистику пользователя для достижений"""
         try:
-            achievements = await self.get_user_achievements(user_id)
-            points = await self.get_user_points(user_id)
-            level_info = await self.get_user_level(user_id)
-            
-            return {
-                'level': level_info['level'],
-                'total_points': points,
-                'streak_days': 0,  # нужно реализовать отдельно
-                'meals_logged': len([a for a in achievements if 'meal' in a.get('achievement_id', '')]),
-                'activities_completed': len([a for a in achievements if 'activity' in a.get('achievement_id', '')]),
-                'weight_logged': len([a for a in achievements if 'weight' in a.get('achievement_id', '')]),
-                'today_actions': 0,  # нужно реализовать отдельно
-                'week_actions': 0,  # нужно реализовать отдельно
-                'month_actions': 0,  # нужно реализовать отдельно
-            }
+            from database.db import get_session
+            from database.models import User, FoodEntry, ActivityEntry, WeightEntry, DrinkEntry
+            from sqlalchemy import func
+            from datetime import datetime, timedelta, date
+
+            async with get_session() as session:
+                # Получаем пользователя
+                result = await session.execute(
+                    select(User).where(User.telegram_id == user_id)
+                )
+                user = result.scalar_one_or_none()
+                
+                if not user:
+                    return {
+                        'level': 1,
+                        'total_points': 0,
+                        'streak_days': 0,
+                        'meals_logged': 0,
+                        'activities_completed': 0,
+                        'weight_logged': 0,
+                        'today_actions': 0,
+                        'week_actions': 0,
+                        'month_actions': 0,
+                    }
+
+                # Получаем достижения
+                achievements = await self.get_user_achievements(user_id)
+                points = await self.get_user_points(user_id)
+                level_info = await self.get_user_level(user_id)
+
+                # Считаем количество записей
+                today = date.today()
+                week_start = today - timedelta(days=7)
+                month_start = today - timedelta(days=30)
+
+                # Количество записей еды
+                food_result = await session.execute(
+                    select(func.count(FoodEntry.id)).where(FoodEntry.user_id == user.id)
+                )
+                meals_count = food_result.scalar() or 0
+
+                # Количество записей активности
+                activity_result = await session.execute(
+                    select(func.count(ActivityEntry.id)).where(ActivityEntry.user_id == user.id)
+                )
+                activities_count = activity_result.scalar() or 0
+
+                # Количество записей веса
+                weight_result = await session.execute(
+                    select(func.count(WeightEntry.id)).where(WeightEntry.user_id == user.id)
+                )
+                weight_count = weight_result.scalar() or 0
+
+                # Считаем серию дней
+                streak_days = await self._get_user_streak(user.id, session)
+
+                return {
+                    'level': level_info['level'],
+                    'total_points': points,
+                    'streak_days': streak_days,
+                    'meals_logged': meals_count,
+                    'activities_completed': activities_count,
+                    'weight_logged': weight_count,
+                    'today_actions': 0,  # Можно реализовать отдельно
+                    'week_actions': 0,  # Можно реализовать отдельно
+                    'month_actions': 0,  # Можно реализовать отдельно
+                }
+
         except Exception as e:
             logger.error(f"Error getting user stats for {user_id}: {e}")
             return {
@@ -488,6 +634,20 @@ class GamificationSystem:
                 'week_actions': 0,
                 'month_actions': 0,
             }
+
+    async def _get_user_progress(self, user_id: int):
+        """Возвращает объект прогресса пользователя (для совместимости)"""
+        class UserProgress:
+            def __init__(self):
+                self.earned_achievements = []
+        
+        user_progress = UserProgress()
+        
+        # Получаем достижения
+        achievements = await self.get_user_achievements(user_id)
+        user_progress.earned_achievements = [a['id'] for a in achievements]
+        
+        return user_progress
 
 # Глобальная экземпляр системы геймификации
 gamification_system = GamificationSystem()

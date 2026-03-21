@@ -18,7 +18,7 @@ router = Router()
 async def cmd_achievements(message: Message):
     """Показать достижения пользователя"""
     user_id = message.from_user.id
-    stats = gamification.get_user_stats(user_id)
+    stats = await gamification.get_user_stats(user_id)
 
     # Формируем текст со статистикой
     text = f"🏆 <b>Ваши достижения</b>\n\n"
@@ -38,7 +38,7 @@ async def cmd_achievements(message: Message):
     text += f"🎯 <b>До следующего уровня:</b>\n{progress_bar}\n\n"
 
     # Получаем полученные достижения
-    user_progress = gamification._get_user_progress(user_id)
+    user_progress = await gamification._get_user_progress(user_id)
     earned_ids = user_progress.earned_achievements
 
     # Формируем список достижений

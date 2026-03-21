@@ -183,6 +183,58 @@ class UITemplates:
 {food_entry.calories:.0f} ккал | Б:{food_entry.protein:.0f}г Ж:{food_entry.fat:.0f}г У:{food_entry.carbs:.0f}г
 <i>{food_entry.created_at.strftime('%H:%M')}</i>
         """.strip()
+
+
+def food_entry_card(food_data: Dict, user=None, daily_stats: Dict = None) -> str:
+    """
+    Функция для создания карточки записи питания
+    Используется в handlers/universal.py
+    """
+    description = food_data.get('description', 'Неизвестное блюдо')
+    calories = food_data.get('total_calories', 0)
+    protein = food_data.get('total_protein', 0)
+    fat = food_data.get('total_fat', 0)
+    carbs = food_data.get('total_carbs', 0)
+    meal_type = food_data.get('meal_type', 'main')
+    
+    # Эмодзи для типа приема пищи
+    meal_emojis = {
+        'breakfast': '🌅',
+        'main': '🍽',
+        'snack': '🍎',
+        'dessert': '🍰',
+        'side': '🥗',
+        'drink': '🥤'
+    }
+    meal_emoji = meal_emojis.get(meal_type, '🍽')
+    
+    # Формируем основную карточку
+    lines = [
+        f"{meal_emoji} <b>{description}</b>",
+        f"📊 <code>{calories:.0f}</code> ккал | Б:<code>{protein:.1f}</code>г Ж:<code>{fat:.1f}</code>г У:<code>{carbs:.1f}</code>г"
+    ]
+    
+    # Добавляем информацию о прогрессе, если есть статистика
+    if daily_stats and user:
+        calorie_goal = getattr(user, 'daily_calorie_goal', 2000) or 2000
+        consumed = daily_stats.get('calories_consumed', 0)
+        progress = min((consumed / calorie_goal) * 100, 100) if calorie_goal > 0 else 0
+        
+        lines.append("")
+        lines.append(f"📈 <b>Прогресс за день:</b>")
+        lines.append(f"   {consumed:.0f} / {calorie_goal:.0f} ккал ({progress:.0f}%)")
+        
+        # Мотивация
+        if progress >= 90:
+            lines.append("🏆 <i>Отличная работа! Цель почти достигнута!</i>")
+        elif progress >= 70:
+            lines.append("💪 <i>Хороший прогресс! Продолжайте!</i>")
+        elif progress >= 50:
+            lines.append("👍 <i>Вы на правильном пути!</i>")
+        else:
+            lines.append("🚀 <i>Продолжайте в том же духе!</i>")
+    
+    return "\n".join(lines)
     
     @staticmethod
     def water_card(amount: float, goal: float) -> str:

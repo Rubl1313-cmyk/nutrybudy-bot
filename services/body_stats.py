@@ -4,7 +4,7 @@ services/body_stats.py
 """
 import math
 import logging
-from typing import Dict, Tuple, Optional
+from typing import Dict, Tuple, Optional, Any
 
 logger = logging.getLogger(__name__)
 
@@ -355,6 +355,15 @@ def calculate_ideal_body_measurements(height_cm: float, gender: str, wrist_cm: O
         thighs = hips * 0.65
         neck = chest * 0.35
     
+    measurements = {
+        'chest': round(chest, 1),
+        'waist': round(waist, 1),
+        'hips': round(hips, 1),
+        'biceps': round(biceps, 1),
+        'thighs': round(thighs, 1),
+        'neck': round(neck, 1)
+    }
+    
     # Корректировка на основе запястья (если доступно)
     if wrist_cm and gender == 'male':
         # Формула для мужчин на основе запястья
@@ -368,15 +377,6 @@ def calculate_ideal_body_measurements(height_cm: float, gender: str, wrist_cm: O
         
         for key in measurements:
             measurements[key] *= multiplier
-    
-    measurements = {
-        'chest': round(chest, 1),
-        'waist': round(waist, 1),
-        'hips': round(hips, 1),
-        'biceps': round(biceps, 1),
-        'thighs': round(thighs, 1),
-        'neck': round(neck, 1)
-    }
     
     return measurements
 

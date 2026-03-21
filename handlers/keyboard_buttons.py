@@ -172,18 +172,6 @@ async def activity_stats_handler(message: Message):
 
 # === Недостающие обработчики кнопок ===
 
-@router.message(F.text.lower().in_(["📈 графики", "графики"]))
-async def charts_handler(message: Message):
-    """Обработчик кнопки Графики - перенаправляет в прогресс"""
-    from handlers.progress import cmd_progress
-    await cmd_progress(message, None)
-
-@router.message(F.text.lower().in_(["📉 тренды", "тренды"]))
-async def trends_handler(message: Message):
-    """Обработчик кнопки Тренды - перенаправляет в прогресс"""
-    from handlers.progress import cmd_progress
-    await cmd_progress(message, None)
-
 @router.message(F.text.lower().in_(["💧 свой объем", "свой объем"]))
 async def custom_water_volume_handler(message: Message, state: FSMContext):
     """Обработчик кнопки Свой объем для воды"""

@@ -89,16 +89,14 @@ def get_cancel_keyboard() -> ReplyKeyboardMarkup:
 
 def get_settings_keyboard() -> ReplyKeyboardMarkup:
     """
-    Клавиатура настроек
+    Клавиатура настроек - только профиль
     """
     builder = ReplyKeyboardBuilder()
 
     builder.add(KeyboardButton(text="👤 Профиль"))
-    builder.add(KeyboardButton(text="🔔 Уведомления"))
-    builder.add(KeyboardButton(text="📏 Единицы"))
     builder.add(KeyboardButton(text="🏠 Главное меню"))
 
-    builder.adjust(2, 2)
+    builder.adjust(1, 1)
 
     return builder.as_markup(
         resize_keyboard=True,
@@ -184,14 +182,11 @@ def get_progress_keyboard() -> ReplyKeyboardMarkup:
     builder.add(KeyboardButton(text="📅 Сегодня"))
     builder.add(KeyboardButton(text="📆 Неделя"))
     builder.add(KeyboardButton(text="🗓️ Месяц"))
-    
+
     builder.add(KeyboardButton(text="📊 Всё время"))
-    builder.add(KeyboardButton(text="📈 Графики"))
-    builder.add(KeyboardButton(text="📉 Тренды"))
-    
     builder.add(KeyboardButton(text="🔙 Назад"))
 
-    builder.adjust(3, 3, 1)
+    builder.adjust(3, 2)
 
     return builder.as_markup(
         resize_keyboard=True,
@@ -261,50 +256,13 @@ def get_confirm_keyboard() -> ReplyKeyboardMarkup:
         input_field_placeholder="Выберите действие..."
     )
 
-def get_units_keyboard() -> ReplyKeyboardMarkup:
-    """
-    Клавиатура системы единиц (только метрическая)
-    """
-    builder = ReplyKeyboardBuilder()
-
-    builder.add(KeyboardButton(text="📏 Метрическая система"))
-    builder.add(KeyboardButton(text="🏠 Главное меню"))
-
-    builder.adjust(1, 1)
-
-    return builder.as_markup(
-        resize_keyboard=True,
-        one_time_keyboard=False,
-        input_field_placeholder="Система единиц..."
-    )
-
-def get_statistics_keyboard() -> ReplyKeyboardMarkup:
-    """
-    Клавиатура статистики
-    """
-    builder = ReplyKeyboardBuilder()
-    
-    builder.add(KeyboardButton(text="🔥 Калории"))
-    builder.add(KeyboardButton(text="⚖️ Вес"))
-    builder.add(KeyboardButton(text="💧 Вода"))
-    builder.add(KeyboardButton(text="🏃 Активность"))
-    builder.add(KeyboardButton(text="🏠 Главное меню"))
-    
-    builder.adjust(3, 2)
-    
-    return builder.as_markup(
-        resize_keyboard=True,
-        one_time_keyboard=False,
-        input_field_placeholder="Выберите статистику..."
-    )
-
 def get_back_keyboard() -> ReplyKeyboardMarkup:
     """
     Простая клавиатура с кнопкой "Назад"
     """
     builder = ReplyKeyboardBuilder()
     builder.add(KeyboardButton(text="🔙 Назад"))
-    
+
     return builder.as_markup(
         resize_keyboard=True,
         one_time_keyboard=False,

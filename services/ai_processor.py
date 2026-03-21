@@ -20,47 +20,54 @@ class AIProcessor:
     async def process_text_input(self, text: str, user_id: int) -> Dict[str, Any]:
         """
         Обработка текстового ввода пользователя
-        
+
         Args:
             text: Текст от пользователя
             user_id: ID пользователя
-            
+
         Returns:
             Dict с результатом обработки
         """
         try:
             # Получаем профиль пользователя для контекста
             user_profile = await self._get_user_profile(user_id)
-            
+
             # Сначала пробуем распарсить еду
             food_result = await self.ai_manager.parse_food_text(text)
             if food_result.get("success") and food_result.get("data"):
                 data = food_result["data"]
+                
+                # parse_food_text возвращает: ingredients, estimated_calories, confidence
+                ingredients = data.get("ingredients", [])
+                confidence = data.get("confidence", 0)
+                
                 # Проверяем уверенность распознавания
-                confidence = data.get("total_confidence", 0)
-                if confidence >= 70:
+                if confidence >= 0.5 or len(ingredients) > 0:  # confidence 0-1 или есть ингредиенты
+                    # Конвертируем ingredients в food_items формат
+                    food_items = []
+                    for ing in ingredients:
+                        food_items.append({
+                            "name": ing.get("name", ""),
+                            "quantity": ing.get("weight_grams", 0),
+                            "unit": "г",
+                            "calories": 0,  # Будет рассчитано позже
+                            "protein": 0,
+                            "fat": 0,
+                            "carbs": 0
+                        })
+                    
                     return {
                         "intent": "log_food",
                         "parameters": {
-                            "food_items": data.get("food_items", []),
-                            "meal_type": data.get("meal_type", "unknown"),
+                            "food_items": food_items,
+                            "meal_type": "main",  # По умолчанию
                             "confidence": confidence,
-                            "model_used": food_result["model_used"],
-                            "tokens_used": food_result["tokens_used"]
+                            "model_used": food_result.get("model", "food_parser"),
+                            "tokens_used": 0
                         },
                         "success": True
                     }
-                elif data.get("needs_clarification"):
-                    return {
-                        "intent": "clarify",
-                        "parameters": {
-                            "question": data.get("clarification", "Уточните, пожалуйста."),
-                            "model_used": food_result["model_used"],
-                            "tokens_used": food_result["tokens_used"]
-                        },
-                        "success": True
-                    }
-            
+
             # Если не еда, обрабатываем как общий запрос к ассистенту
             assistant_result = await self.ai_manager.get_assistant_response(
                 text, context=user_profile
@@ -76,7 +83,7 @@ class AIProcessor:
                     },
                     "success": True
                 }
-            
+
             # Fallback - если не удалось определить интент
             return {
                 "intent": "unknown",
@@ -87,7 +94,7 @@ class AIProcessor:
                 "success": False,
                 "error": "Could not determine intent"
             }
-            
+
         except Exception as e:
             logger.error(f"❌ Error processing text input: {e}")
             return {

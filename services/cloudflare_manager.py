@@ -107,11 +107,38 @@ class CloudflareAIManager:
     @with_retry(max_attempts=3, delay_seconds=1)
     @ai_circuit_breaker(failure_threshold=5, recovery_timeout=60)
     async def parse_food_image(self, image_data: bytes) -> Dict[str, Any]:
-        """Parse food from image using vision model"""
+        """Parse food from image using vision model
         
-        # Convert image to base64
-        image_b64 = base64.b64encode(image_data).decode('utf-8')
+        Cloudflare Llama-3.2-11b-vision-instruct поддерживает:
+        - Форматы: JPEG, PNG, WebP, GIF
+        - Максимальный размер: 20MB
+        - Кодируем в base64 с data URI scheme
+        """
+        from PIL import Image
+        import io
         
+        # Конвертируем изображение в JPEG для совместимости
+        try:
+            # Открываем изображение через PIL
+            img = Image.open(io.BytesIO(image_data))
+            
+            # Конвертируем в RGB (если есть альфа-канал)
+            if img.mode in ('RGBA', 'LA', 'P'):
+                img = img.convert('RGB')
+            
+            # Сохраняем как JPEG в память
+            output = io.BytesIO()
+            img.save(output, format='JPEG', quality=85, optimize=True)
+            output.seek(0)
+            
+            # Кодируем в base64
+            image_b64 = base64.b64encode(output.read()).decode('utf-8')
+            
+        except Exception as e:
+            logger.error(f"❌ Image conversion error: {e}")
+            # Если не удалось конвертировать, пробуем оригинал
+            image_b64 = base64.b64encode(image_data).decode('utf-8')
+
         messages = [
             {
                 "role": "user",

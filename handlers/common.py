@@ -9,7 +9,8 @@ from aiogram.fsm.context import FSMContext
 
 logger = logging.getLogger(__name__)
 
-from keyboards.reply_v2 import get_main_keyboard_v2, get_confirm_keyboard, get_food_keyboard, get_help_keyboard
+from keyboards.main_menu import get_main_menu
+from keyboards.reply_v2 import get_confirm_keyboard, get_food_keyboard, get_help_keyboard
 from keyboards.inline import get_progress_menu
 from utils.states import ProfileStates
 from utils.premium_messages import PremiumCards
@@ -47,7 +48,7 @@ async def cmd_start(message: Message, state: FSMContext):
     
     await message.answer(
         welcome_text,
-        reply_markup=get_main_keyboard_v2(),
+        reply_markup=get_main_menu(),
         parse_mode="HTML"
     )
 

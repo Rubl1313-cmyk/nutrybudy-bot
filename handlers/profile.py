@@ -919,3 +919,32 @@ async def main_menu_from_profile(message: Message, state: FSMContext):
     await state.clear()
     from handlers.common import cmd_start
     await cmd_start(message)
+
+@router.message(F.text.lower() == "👤 мои данные")
+async def handle_my_data(message: Message, state: FSMContext):
+    """Показать мои данные"""
+    logger.info(f"🔍 PROFILE HANDLER: My data button pressed by user {message.from_user.id}")
+    await cmd_profile(message, state)
+
+@router.message(F.text.lower() == "✏️ редактировать профиль")
+async def handle_edit_profile(message: Message, state: FSMContext):
+    """Редактировать профиль"""
+    logger.info(f"🔍 PROFILE HANDLER: Edit profile button pressed by user {message.from_user.id}")
+    await state.clear()
+    
+    text = """✏️ <b>Редактирование профиля</b>
+
+Выберите что хотите изменить:
+
+• Возраст
+• Пол  
+• Рост
+• Вес
+• Уровень активности
+• Цель
+• Город
+
+Напишите что хотите изменить (например: "возраст" или "вес"):"""
+
+    await state.set_state(ProfileStates.waiting_for_edit_choice)
+    await message.answer(text, parse_mode="HTML")

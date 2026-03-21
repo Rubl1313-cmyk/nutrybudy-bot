@@ -325,7 +325,7 @@ Respond in JSON format:
             messages=messages,
             response_format=response_format,
             temperature=0.1,
-            max_tokens=1000
+            max_tokens=500  # Уменьшено до 500 (лимит Cloudflare 1024)
         )
         
         if result.get("success"):
@@ -377,7 +377,7 @@ RESPONSE STYLE:
             model_key="assistant",
             messages=messages,
             temperature=0.7,
-            max_tokens=1500
+            max_tokens=500  # Уменьшено до 500 (лимит Cloudflare 1024)
         )
         
         if result.get("success"):

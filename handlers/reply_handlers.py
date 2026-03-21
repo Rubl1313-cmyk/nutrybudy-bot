@@ -59,7 +59,16 @@ async def profile_button_handler(message: Message, state: FSMContext):
 async def help_button_handler(message: Message, state: FSMContext):
     logger.info(f"🔍 REPLY HANDLER: Help button pressed by user {message.from_user.id}")
     await state.clear()
-    await cmd_help(message, state)  # Вызываем реальную команду помощи с state
+    await cmd_help(message, state)
+
+# === Новые кнопки премиум меню ===
+
+@router.message(F.text.lower().in_(["🏆 достижения", "достижения"]))
+async def achievements_button_handler(message: Message, state: FSMContext):
+    logger.info(f"🔍 REPLY HANDLER: Achievements button pressed by user {message.from_user.id}")
+    await state.clear()
+    from handlers.achievements import cmd_achievements
+    await cmd_achievements(message)
 
 # === Дополнительные кнопки (опционально) ===
 

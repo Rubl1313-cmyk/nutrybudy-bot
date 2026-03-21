@@ -12,22 +12,20 @@ def get_main_keyboard_v2() -> ReplyKeyboardMarkup:
     """
     builder = ReplyKeyboardBuilder()
 
-    # 🔥 Основные действия (3 в ряд)
+    # 🔥 Основные действия
     builder.add(KeyboardButton(text="🍽️ Записать еду"))
     builder.add(KeyboardButton(text="💧 Вода"))
     builder.add(KeyboardButton(text="🤖 AI Ассистент"))
     
-    # 📊 Прогресс и статистика
+    # 📊 Прогресс и достижения
     builder.add(KeyboardButton(text="📊 Прогресс"))
-    builder.add(KeyboardButton(text="📈 Статистика"))
     builder.add(KeyboardButton(text="🏆 Достижения"))
-    
-    # 👤 Профиль и настройки
     builder.add(KeyboardButton(text="👤 Профиль"))
-    builder.add(KeyboardButton(text="⚙️ Настройки"))
+    
+    # 👤 Помощь
     builder.add(KeyboardButton(text="❓ Помощь"))
 
-    builder.adjust(3, 3, 3)
+    builder.adjust(3, 3, 1)
 
     return builder.as_markup(
         resize_keyboard=True,
@@ -37,21 +35,17 @@ def get_main_keyboard_v2() -> ReplyKeyboardMarkup:
 
 def get_profile_keyboard() -> ReplyKeyboardMarkup:
     """
-    Премиум клавиатура для профиля
+    Клавиатура для профиля
     """
     builder = ReplyKeyboardBuilder()
 
-    builder.add(KeyboardButton(text="📊 Мои данные"))
-    builder.add(KeyboardButton(text="🎯 Цели"))
-    builder.add(KeyboardButton(text="🏆 Достижения"))
-    
+    builder.add(KeyboardButton(text="👤 Мои данные"))
+    builder.add(KeyboardButton(text="✏️ Редактировать профиль"))
     builder.add(KeyboardButton(text="⚖️ Записать вес"))
-    builder.add(KeyboardButton(text="📏 Замеры тела"))
-    builder.add(KeyboardButton(text="📈 Анализ"))
-    
+    builder.add(KeyboardButton(text="📊 Полный анализ"))
     builder.add(KeyboardButton(text="🔙 Назад"))
 
-    builder.adjust(3, 3, 1)
+    builder.adjust(2, 2, 1)
 
     return builder.as_markup(
         resize_keyboard=True,

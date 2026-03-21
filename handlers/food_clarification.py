@@ -24,7 +24,7 @@ class FoodClarificationStates(StatesGroup):
     waiting_for_weight = State()           # ожидание ввода веса
     waiting_for_manual_name = State()      # ручной ввод названия
 
-@router.message(F.text, ~F.text.startswith(("🍽️", "💧", "🤖", "📊", "👤", "❓")), flags={"rate_limit": "food"})
+@router.message(F.text, ~F.text.startswith(("🍽️", "💧", "🤖", "📊", "👤", "❓", "⚖️", "📅", "🏠", "✏️", "📸", "⚡", "📋", "🚀", "💬", "✅", "❌", "📏", "🔥", "🏃", "🔙")) & ~F.text.lower().contains("назад"), flags={"rate_limit": "food"})
 async def handle_food_text(message: Message, state: FSMContext):
     """Начало обработки текста как еды (вызывается из ai_handler, если AI вернул food_items)."""
     user_id = message.from_user.id

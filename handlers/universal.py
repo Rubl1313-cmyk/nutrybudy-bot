@@ -35,18 +35,18 @@ router = Router()
 from weakref import WeakValueDictionary
 user_photo_semaphores = WeakValueDictionary()
 
-@router.message(~F.command & ~F.text.contains("🍽️") & ~F.text.contains("💧") & ~F.text.contains("🤖") & ~F.text.contains("📊") & ~F.text.contains("👤") & ~F.text.contains("❓") & ~F.text.contains("⚖️") & ~F.text.contains("📅") & ~F.text.contains("🏠") & ~F.text.contains("✏️") & ~F.text.contains("📸") & ~F.text.contains("⚡") & ~F.text.contains("📋") & ~F.text.contains("🚀") & ~F.text.contains("💬") & ~F.text.contains("✅") & ~F.text.contains("❌") & ~F.text.contains("📏") & ~F.text.contains("🔥") & ~F.text.contains("🏃") & ~F.text.contains("🔙"))
+@router.message(~F.command & ~F.text.contains("🍽️") & ~F.text.contains("💧") & ~F.text.contains("🤖") & ~F.text.contains("📊") & ~F.text.contains("👤") & ~F.text.contains("❓") & ~F.text.contains("⚖️") & ~F.text.contains("📅") & ~F.text.contains("🏠") & ~F.text.contains("✏️") & ~F.text.contains("📸") & ~F.text.contains("⚡") & ~F.text.contains("📋") & ~F.text.contains("🚀") & ~F.text.contains("💬") & ~F.text.contains("✅") & ~F.text.contains("❌") & ~F.text.contains("📏") & ~F.text.contains("🔥") & ~F.text.contains("🏃") & ~F.text.contains("🔙") & ~F.text.lower().contains("назад"))
 async def universal_handler(message: Message, state: FSMContext):
     """
-    Универсальный обработчик всех сообщений (кроме команд)
+    Универсальный обработчик всех сообщений (кроме команд и кнопки Назад)
     """
     user_id = message.from_user.id
     logger.info(f"🔍 UNIVERSAL HANDLER: Processing message from user {user_id}: {message.text[:50]}...")
-    
+
     try:
         # Проверяем FSM-состояние перед обработкой
         current_state = await state.get_state()
-        
+
         # Если пользователь в состоянии, не обрабатываем здесь
         if current_state and not current_state.startswith("AIStates:"):
             # Пользователь в процессе другого действия

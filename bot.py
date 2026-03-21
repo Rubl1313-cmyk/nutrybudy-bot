@@ -184,7 +184,6 @@ def register_handlers():
     dp.include_router(meal_plan_router)
     dp.include_router(achievements_router)
     dp.include_router(food_clarification_router)
-    dp.include_router(reminder_callbacks_router)
 
     # Потом дополнительные клавиатуры (быстрые кнопки)
     from handlers import keyboard_buttons  # Добавлен обработчик кнопок клавиатур

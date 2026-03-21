@@ -277,36 +277,32 @@ async def help_menu_callback(callback: CallbackQuery):
 async def back_to_main_callback(callback: CallbackQuery, state: FSMContext):
     """Возврат в главное меню"""
     await state.clear()
-    
+
     main_text = """🏠 <b>Главное меню</b>
 
-Выберите действие:
+Выберите действие:"""
 
-🍽️ <b>Питание:</b>
-• Записать прием пищи
-• План питания
-• AI ассистент
-
-💧 <b>Здоровье:</b>
-• Выпить воды
-• Записать активность
-• Записать вес
-
-📊 <b>Прогресс:</b>
-• Мой прогресс
-• Статистика
-• Достижения
-
-⚙️ <b>Настройки:</b>
-• Мой профиль
-• Настройки бота"""
-    
     await callback.message.edit_text(
         main_text,
         reply_markup=get_main_keyboard_v2(),
         parse_mode="HTML"
     )
     await callback.answer()
+
+@router.message(F.text == "🔙 Назад")
+async def back_button_handler(message: Message, state: FSMContext):
+    """Обработка кнопки Назад"""
+    await state.clear()
+    
+    text = """🏠 <b>Главное меню</b>
+
+Выберите действие:"""
+    
+    await message.answer(
+        text,
+        reply_markup=get_main_keyboard_v2(),
+        parse_mode="HTML"
+    )
 
 # Вспомогательные функции
 

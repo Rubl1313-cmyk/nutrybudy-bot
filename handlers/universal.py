@@ -57,10 +57,10 @@ async def universal_message_handler(message: Message, state: FSMContext):
             reply_markup=get_main_menu()
         )
 
-@router.message(F.photo)
+@router.message(F.photo & ~F.document)
 async def universal_photo_handler(message: Message, state: FSMContext):
     """
-    Обработчик фотографий еды (когда отправляют как фото)
+    Обработчик фотографий еды (когда отправляют как фото, НЕ как файл)
     Распознаёт еду через Vision модель и сохраняет в БД
     """
     user_id = message.from_user.id
@@ -73,68 +73,141 @@ async def universal_photo_handler(message: Message, state: FSMContext):
         photo = message.photo[-1]
         file_info = await message.bot.get_file(photo.file_id)
         photo_data = await message.bot.download_file(file_info.file_path)
+        
+        # Читаем байты ОДИН раз и сохраняем
+        photo_bytes = photo_data.read()
 
         # Распознаём еду через Vision модель (напрямую, без агента)
         from services.cloudflare_manager import cf_manager
         from services.ai_processor import ai_processor
-        
-        result = await cf_manager.parse_food_image(photo_data.read())
-        
+
+        result = await cf_manager.parse_food_image(photo_bytes)
+
         await loading_msg.delete()
 
         if result.get("success"):
-            # Обрабатываем результат через ai_processor (расчёт КБЖУ)
-            photo_result = await ai_processor.process_photo_input(
-                photo_data.read(), 
-                user_id
+            # Используем результат напрямую (без повторного вызова parse_food_image)
+            data = result.get("analysis", {})
+            ingredients = data.get("ingredients", [])
+
+            # Рассчитываем КБЖУ на основе ингредиентов
+            nutrition_db = {
+                "chicken": {"calories": 165, "protein": 31, "fat": 3.6, "carbs": 0},
+                "chicken breast": {"calories": 165, "protein": 31, "fat": 3.6, "carbs": 0},
+                "beef": {"calories": 250, "protein": 26, "fat": 15, "carbs": 0},
+                "fish": {"calories": 206, "protein": 22, "fat": 12, "carbs": 0},
+                "salmon": {"calories": 208, "protein": 20, "fat": 13, "carbs": 0},
+                "tuna": {"calories": 144, "protein": 23, "fat": 5, "carbs": 0},
+                "egg": {"calories": 155, "protein": 13, "fat": 11, "carbs": 1.1},
+                "eggs": {"calories": 155, "protein": 13, "fat": 11, "carbs": 1.1},
+                "rice": {"calories": 130, "protein": 2.7, "fat": 0.3, "carbs": 28},
+                "pasta": {"calories": 131, "protein": 5, "fat": 1.1, "carbs": 25},
+                "potato": {"calories": 77, "protein": 2, "fat": 0.1, "carbs": 17},
+                "potatoes": {"calories": 77, "protein": 2, "fat": 0.1, "carbs": 17},
+                "bread": {"calories": 265, "protein": 9, "fat": 3.2, "carbs": 49},
+                "vegetable": {"calories": 25, "protein": 1, "fat": 0.3, "carbs": 5},
+                "vegetables": {"calories": 25, "protein": 1, "fat": 0.3, "carbs": 5},
+                "tomato": {"calories": 18, "protein": 0.9, "fat": 0.2, "carbs": 3.9},
+                "cucumber": {"calories": 15, "protein": 0.7, "fat": 0.1, "carbs": 3.6},
+                "lettuce": {"calories": 15, "protein": 1.4, "fat": 0.2, "carbs": 2.9},
+                "cabbage": {"calories": 25, "protein": 1.3, "fat": 0.1, "carbs": 6},
+                "carrot": {"calories": 41, "protein": 0.9, "fat": 0.2, "carbs": 10},
+                "broccoli": {"calories": 34, "protein": 2.8, "fat": 0.4, "carbs": 7},
+                "oil": {"calories": 884, "protein": 0, "fat": 100, "carbs": 0},
+                "butter": {"calories": 717, "protein": 0.9, "fat": 81, "carbs": 0.1},
+                "cheese": {"calories": 402, "protein": 25, "fat": 33, "carbs": 1.3},
+                "fruit": {"calories": 52, "protein": 0.3, "fat": 0.2, "carbs": 14},
+                "apple": {"calories": 52, "protein": 0.3, "fat": 0.2, "carbs": 14},
+                "banana": {"calories": 89, "protein": 1.1, "fat": 0.3, "carbs": 23},
+            }
+
+            total_calories = 0
+            total_protein = 0
+            total_fat = 0
+            total_carbs = 0
+
+            for ingredient in ingredients:
+                name = ingredient.get("name", "").lower()
+                weight = ingredient.get("weight_grams", 0)
+
+                nutrition = None
+                for key, value in nutrition_db.items():
+                    if key in name:
+                        nutrition = value
+                        break
+
+                if not nutrition:
+                    ing_type = ingredient.get("type", "")
+                    if "protein" in ing_type:
+                        nutrition = {"calories": 150, "protein": 25, "fat": 5, "carbs": 0}
+                    elif "carb" in ing_type:
+                        nutrition = {"calories": 120, "protein": 3, "fat": 0.5, "carbs": 25}
+                    elif "vegetable" in ing_type:
+                        nutrition = {"calories": 25, "protein": 1, "fat": 0.3, "carbs": 5}
+                    elif "fat" in ing_type:
+                        nutrition = {"calories": 800, "protein": 0, "fat": 90, "carbs": 0}
+                    else:
+                        nutrition = {"calories": 100, "protein": 5, "fat": 3, "carbs": 15}
+
+                total_calories += (nutrition["calories"] * weight) / 100
+                total_protein += (nutrition["protein"] * weight) / 100
+                total_fat += (nutrition["fat"] * weight) / 100
+                total_carbs += (nutrition["carbs"] * weight) / 100
+
+            # Определяем meal_type из category
+            category = data.get("category", "main")
+            meal_type_map = {
+                "breakfast": "breakfast",
+                "lunch": "main",
+                "dinner": "main",
+                "main": "main",
+                "salad": "snack",
+                "side": "side",
+                "snack": "snack",
+                "dessert": "dessert",
+                "soup": "main",
+                "drink": "drink"
+            }
+            meal_type = meal_type_map.get(category, "main")
+
+            # Сохраняем в БД
+            from services.food_save_service import food_save_service
+            from utils.ui_templates import food_entry_card
+            from utils.daily_stats import get_daily_stats
+            from database.db import get_session
+            from database.models import User
+
+            save_result = await food_save_service.save_food_entry(
+                user_id=user_id,
+                food_items=ingredients,
+                meal_type=meal_type,
+                description=data.get("dish_name", "Неизвестное блюдо")
             )
-            
-            if photo_result.get("success"):
-                # Сохраняем в БД
-                from services.food_save_service import food_save_service
-                from utils.ui_templates import food_entry_card
-                from utils.daily_stats import get_daily_stats
-                from database.db import get_session
-                from database.models import User
-                
-                params = photo_result["parameters"]
-                
-                save_result = await food_save_service.save_food_entry(
-                    user_id=user_id,
-                    food_items=params["ingredients"],
-                    meal_type=params["meal_type"],
-                    description=params["dish_name"]
+
+            if save_result.get("success"):
+                # Получаем статистику и пользователя
+                daily_stats = await get_daily_stats(user_id)
+                with get_session() as session:
+                    user = session.query(User).filter(User.telegram_id == user_id).first()
+
+                food_data = {
+                    'description': data.get("dish_name", "Неизвестное блюдо"),
+                    'total_calories': save_result.get('total_calories', 0),
+                    'total_protein': save_result.get('total_protein', 0),
+                    'total_fat': save_result.get('total_fat', 0),
+                    'total_carbs': save_result.get('total_carbs', 0),
+                    'meal_type': meal_type
+                }
+
+                card_text = food_entry_card(food_data, user, daily_stats)
+                await message.answer(
+                    f"✅ <b>Еда сохранена!</b>\n\n{card_text}",
+                    reply_markup=get_main_menu(),
+                    parse_mode="HTML"
                 )
-                
-                if save_result.get("success"):
-                    # Получаем статистику и пользователя
-                    daily_stats = await get_daily_stats(user_id)
-                    with get_session() as session:
-                        user = session.query(User).filter(User.telegram_id == user_id).first()
-                    
-                    food_data = {
-                        'description': params["dish_name"],
-                        'total_calories': save_result.get('total_calories', 0),
-                        'total_protein': save_result.get('total_protein', 0),
-                        'total_fat': save_result.get('total_fat', 0),
-                        'total_carbs': save_result.get('total_carbs', 0),
-                        'meal_type': params["meal_type"]
-                    }
-                    
-                    card_text = food_entry_card(food_data, user, daily_stats)
-                    await message.answer(
-                        f"✅ <b>Еда сохранена!</b>\n\n{card_text}",
-                        reply_markup=get_main_menu(),
-                        parse_mode="HTML"
-                    )
-                else:
-                    await message.answer(
-                        f"❌ Ошибка сохранения: {save_result.get('error')}",
-                        reply_markup=get_main_menu()
-                    )
             else:
                 await message.answer(
-                    "❌ Не удалось распознать еду на фото. Попробуйте отправить другое фото.",
+                    f"❌ Ошибка сохранения: {save_result.get('error')}",
                     reply_markup=get_main_menu()
                 )
         else:
@@ -197,58 +270,128 @@ async def universal_document_handler(message: Message, state: FSMContext):
         await loading_msg.delete()
 
         if result.get("success"):
-            # Обрабатываем результат через ai_processor (расчёт КБЖУ)
-            photo_result = await ai_processor.process_photo_input(
-                photo_bytes, 
-                user_id
+            # Используем результат напрямую (без повторного вызова parse_food_image)
+            data = result.get("analysis", {})
+            ingredients = data.get("ingredients", [])
+
+            # Рассчитываем КБЖУ на основе ингредиентов
+            nutrition_db = {
+                "chicken": {"calories": 165, "protein": 31, "fat": 3.6, "carbs": 0},
+                "chicken breast": {"calories": 165, "protein": 31, "fat": 3.6, "carbs": 0},
+                "beef": {"calories": 250, "protein": 26, "fat": 15, "carbs": 0},
+                "fish": {"calories": 206, "protein": 22, "fat": 12, "carbs": 0},
+                "salmon": {"calories": 208, "protein": 20, "fat": 13, "carbs": 0},
+                "tuna": {"calories": 144, "protein": 23, "fat": 5, "carbs": 0},
+                "egg": {"calories": 155, "protein": 13, "fat": 11, "carbs": 1.1},
+                "eggs": {"calories": 155, "protein": 13, "fat": 11, "carbs": 1.1},
+                "rice": {"calories": 130, "protein": 2.7, "fat": 0.3, "carbs": 28},
+                "pasta": {"calories": 131, "protein": 5, "fat": 1.1, "carbs": 25},
+                "potato": {"calories": 77, "protein": 2, "fat": 0.1, "carbs": 17},
+                "potatoes": {"calories": 77, "protein": 2, "fat": 0.1, "carbs": 17},
+                "bread": {"calories": 265, "protein": 9, "fat": 3.2, "carbs": 49},
+                "vegetable": {"calories": 25, "protein": 1, "fat": 0.3, "carbs": 5},
+                "vegetables": {"calories": 25, "protein": 1, "fat": 0.3, "carbs": 5},
+                "tomato": {"calories": 18, "protein": 0.9, "fat": 0.2, "carbs": 3.9},
+                "cucumber": {"calories": 15, "protein": 0.7, "fat": 0.1, "carbs": 3.6},
+                "lettuce": {"calories": 15, "protein": 1.4, "fat": 0.2, "carbs": 2.9},
+                "cabbage": {"calories": 25, "protein": 1.3, "fat": 0.1, "carbs": 6},
+                "carrot": {"calories": 41, "protein": 0.9, "fat": 0.2, "carbs": 10},
+                "broccoli": {"calories": 34, "protein": 2.8, "fat": 0.4, "carbs": 7},
+                "oil": {"calories": 884, "protein": 0, "fat": 100, "carbs": 0},
+                "butter": {"calories": 717, "protein": 0.9, "fat": 81, "carbs": 0.1},
+                "cheese": {"calories": 402, "protein": 25, "fat": 33, "carbs": 1.3},
+                "fruit": {"calories": 52, "protein": 0.3, "fat": 0.2, "carbs": 14},
+                "apple": {"calories": 52, "protein": 0.3, "fat": 0.2, "carbs": 14},
+                "banana": {"calories": 89, "protein": 1.1, "fat": 0.3, "carbs": 23},
+            }
+
+            total_calories = 0
+            total_protein = 0
+            total_fat = 0
+            total_carbs = 0
+
+            for ingredient in ingredients:
+                name = ingredient.get("name", "").lower()
+                weight = ingredient.get("weight_grams", 0)
+
+                nutrition = None
+                for key, value in nutrition_db.items():
+                    if key in name:
+                        nutrition = value
+                        break
+
+                if not nutrition:
+                    ing_type = ingredient.get("type", "")
+                    if "protein" in ing_type:
+                        nutrition = {"calories": 150, "protein": 25, "fat": 5, "carbs": 0}
+                    elif "carb" in ing_type:
+                        nutrition = {"calories": 120, "protein": 3, "fat": 0.5, "carbs": 25}
+                    elif "vegetable" in ing_type:
+                        nutrition = {"calories": 25, "protein": 1, "fat": 0.3, "carbs": 5}
+                    elif "fat" in ing_type:
+                        nutrition = {"calories": 800, "protein": 0, "fat": 90, "carbs": 0}
+                    else:
+                        nutrition = {"calories": 100, "protein": 5, "fat": 3, "carbs": 15}
+
+                total_calories += (nutrition["calories"] * weight) / 100
+                total_protein += (nutrition["protein"] * weight) / 100
+                total_fat += (nutrition["fat"] * weight) / 100
+                total_carbs += (nutrition["carbs"] * weight) / 100
+
+            # Определяем meal_type из category
+            category = data.get("category", "main")
+            meal_type_map = {
+                "breakfast": "breakfast",
+                "lunch": "main",
+                "dinner": "main",
+                "main": "main",
+                "salad": "snack",
+                "side": "side",
+                "snack": "snack",
+                "dessert": "dessert",
+                "soup": "main",
+                "drink": "drink"
+            }
+            meal_type = meal_type_map.get(category, "main")
+
+            # Сохраняем в БД
+            from services.food_save_service import food_save_service
+            from utils.ui_templates import food_entry_card
+            from utils.daily_stats import get_daily_stats
+            from database.db import get_session
+            from database.models import User
+
+            save_result = await food_save_service.save_food_entry(
+                user_id=user_id,
+                food_items=ingredients,
+                meal_type=meal_type,
+                description=data.get("dish_name", "Неизвестное блюдо")
             )
-            
-            if photo_result.get("success"):
-                # Сохраняем в БД
-                from services.food_save_service import food_save_service
-                from utils.ui_templates import food_entry_card
-                from utils.daily_stats import get_daily_stats
-                from database.db import get_session
-                from database.models import User
-                
-                params = photo_result["parameters"]
-                
-                save_result = await food_save_service.save_food_entry(
-                    user_id=user_id,
-                    food_items=params["ingredients"],
-                    meal_type=params["meal_type"],
-                    description=params["dish_name"]
+
+            if save_result.get("success"):
+                # Получаем статистику и пользователя
+                daily_stats = await get_daily_stats(user_id)
+                with get_session() as session:
+                    user = session.query(User).filter(User.telegram_id == user_id).first()
+
+                food_data = {
+                    'description': data.get("dish_name", "Неизвестное блюдо"),
+                    'total_calories': save_result.get('total_calories', 0),
+                    'total_protein': save_result.get('total_protein', 0),
+                    'total_fat': save_result.get('total_fat', 0),
+                    'total_carbs': save_result.get('total_carbs', 0),
+                    'meal_type': meal_type
+                }
+
+                card_text = food_entry_card(food_data, user, daily_stats)
+                await message.answer(
+                    f"✅ <b>Еда сохранена!</b>\n\n{card_text}",
+                    reply_markup=get_main_menu(),
+                    parse_mode="HTML"
                 )
-                
-                if save_result.get("success"):
-                    # Получаем статистику и пользователя
-                    daily_stats = await get_daily_stats(user_id)
-                    with get_session() as session:
-                        user = session.query(User).filter(User.telegram_id == user_id).first()
-                    
-                    food_data = {
-                        'description': params["dish_name"],
-                        'total_calories': save_result.get('total_calories', 0),
-                        'total_protein': save_result.get('total_protein', 0),
-                        'total_fat': save_result.get('total_fat', 0),
-                        'total_carbs': save_result.get('total_carbs', 0),
-                        'meal_type': params["meal_type"]
-                    }
-                    
-                    card_text = food_entry_card(food_data, user, daily_stats)
-                    await message.answer(
-                        f"✅ <b>Еда сохранена!</b>\n\n{card_text}",
-                        reply_markup=get_main_menu(),
-                        parse_mode="HTML"
-                    )
-                else:
-                    await message.answer(
-                        f"❌ Ошибка сохранения: {save_result.get('error')}",
-                        reply_markup=get_main_menu()
-                    )
             else:
                 await message.answer(
-                    "❌ Не удалось распознать еду на фото. Попробуйте отправить другое фото.",
+                    f"❌ Ошибка сохранения: {save_result.get('error')}",
                     reply_markup=get_main_menu()
                 )
         else:

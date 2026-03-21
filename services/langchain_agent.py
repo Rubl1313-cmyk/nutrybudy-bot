@@ -14,7 +14,7 @@ from langchain.agents import create_react_agent, AgentExecutor
 from langchain.tools import StructuredTool
 from langchain.schema import BaseMessage, HumanMessage, AIMessage
 from langchain.memory import ConversationBufferMemory
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder, PromptTemplate
 
 from database.db import get_session
 from database.models import User
@@ -45,39 +45,44 @@ class LangChainAgent:
 
         # LLM встроенный
         self.llm = cloudflare_llm
-        
-        # Создаем кастомный промпт для REACT агента на русском языке
-        # create_react_agent требует переменные: input, agent_scratchpad, tool_names
-        prompt = ChatPromptTemplate.from_messages([
-            ("system", """Ты — премиальный AI-ассистент по питанию NutriBuddy.
+
+        # Создаем промпт в формате ReAct для create_react_agent
+        # Обязательные переменные: {tools}, {tool_names}, {input}, {agent_scratchpad}
+        prompt = PromptTemplate.from_template("""Ты — премиальный AI-ассистент по питанию NutriBuddy.
 Твоя задача — понимать, что хочет пользователь, и вызывать подходящий инструмент.
 Всегда отвечай кратко, по делу и на РУССКОМ языке.
 
 Информация о пользователе:
 {user_info}
 
-Доступные инструменты: {tool_names}
+Доступные инструменты:
+{tools}
 
-Отвечай ТОЛЬКО на русском языке. Используй инструменты когда пользователь хочет:
-- Записать еду → log_food
-- Записать воду → log_water  
-- Узнать погоду → get_weather
-- Получить статистику → get_today_stats
-- Узнать свой профиль → get_user_profile
-- Рассчитать КБЖУ → calculate_nutrition
-- Получить рецепт → get_recipe"""),
-            MessagesPlaceholder(variable_name="chat_history", optional=True),
-            ("human", "{input}"),
-            MessagesPlaceholder(variable_name="agent_scratchpad", optional=True),
-        ])
-        
-        # Создаем REACT агент с кастомным промптом (LangChain 0.3.x API)
+Используй следующий формат:
+
+Question: входной вопрос, который ты должен решить
+Thought: ты всегда должен думать о том, что делать
+Action: действие, которое нужно предпринять, должно быть одним из [{tool_names}]
+Action Input: входные данные для действия
+Observation: результат действия
+... (этот Thought/Action/Action Input/Observation может повторяться N раз)
+Thought: Я теперь знаю окончательный ответ
+Final Answer: окончательный ответ на исходный входной вопрос
+
+Начни!
+
+Question: {input}
+Thought:{agent_scratchpad}
+
+ВАЖНО: Отвечай ТОЛЬКО на русском языке. Названия инструментов пиши на английском (log_food, log_water, etc.)""")
+
+        # Создаем REACT агент с правильным промптом (LangChain API)
         react_agent = create_react_agent(
             llm=self.llm.llm,
             tools=self.tools,
             prompt=prompt
         )
-        
+
         # Оборачиваем в AgentExecutor с памятью
         self.agent = AgentExecutor(
             agent=react_agent,

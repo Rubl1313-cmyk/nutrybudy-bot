@@ -102,12 +102,12 @@ class AIProcessor:
     async def process_photo_input(self, image_bytes: bytes, user_id: int, caption: Optional[str] = None) -> Dict[str, Any]:
         """
         Обработка изображения
-        
+
         Args:
             image_bytes: Байты изображения
             user_id: ID пользователя
             caption: Подпись к фото
-            
+
         Returns:
             Dict с результатом анализа изображения
         """
@@ -117,25 +117,115 @@ class AIProcessor:
 
             if result.get("success"):
                 data = result.get("analysis", {})
-                
-                # Форматируем результат для удобства использования
+                ingredients = data.get("ingredients", [])
+
+                # Рассчитываем КБЖУ на основе ингредиентов
+                total_calories = 0
+                total_protein = 0
+                total_fat = 0
+                total_carbs = 0
+
+                # Базовая таблица калорийности для распространённых продуктов
+                nutrition_db = {
+                    # Белки
+                    "chicken": {"calories": 165, "protein": 31, "fat": 3.6, "carbs": 0},
+                    "chicken breast": {"calories": 165, "protein": 31, "fat": 3.6, "carbs": 0},
+                    "beef": {"calories": 250, "protein": 26, "fat": 15, "carbs": 0},
+                    "fish": {"calories": 206, "protein": 22, "fat": 12, "carbs": 0},
+                    "salmon": {"calories": 208, "protein": 20, "fat": 13, "carbs": 0},
+                    "tuna": {"calories": 144, "protein": 23, "fat": 5, "carbs": 0},
+                    "egg": {"calories": 155, "protein": 13, "fat": 11, "carbs": 1.1},
+                    "eggs": {"calories": 155, "protein": 13, "fat": 11, "carbs": 1.1},
+                    # Углеводы
+                    "rice": {"calories": 130, "protein": 2.7, "fat": 0.3, "carbs": 28},
+                    "pasta": {"calories": 131, "protein": 5, "fat": 1.1, "carbs": 25},
+                    "potato": {"calories": 77, "protein": 2, "fat": 0.1, "carbs": 17},
+                    "potatoes": {"calories": 77, "protein": 2, "fat": 0.1, "carbs": 17},
+                    "bread": {"calories": 265, "protein": 9, "fat": 3.2, "carbs": 49},
+                    # Овощи
+                    "vegetable": {"calories": 25, "protein": 1, "fat": 0.3, "carbs": 5},
+                    "vegetables": {"calories": 25, "protein": 1, "fat": 0.3, "carbs": 5},
+                    "tomato": {"calories": 18, "protein": 0.9, "fat": 0.2, "carbs": 3.9},
+                    "cucumber": {"calories": 15, "protein": 0.7, "fat": 0.1, "carbs": 3.6},
+                    "lettuce": {"calories": 15, "protein": 1.4, "fat": 0.2, "carbs": 2.9},
+                    "cabbage": {"calories": 25, "protein": 1.3, "fat": 0.1, "carbs": 6},
+                    "carrot": {"calories": 41, "protein": 0.9, "fat": 0.2, "carbs": 10},
+                    "broccoli": {"calories": 34, "protein": 2.8, "fat": 0.4, "carbs": 7},
+                    # Жиры
+                    "oil": {"calories": 884, "protein": 0, "fat": 100, "carbs": 0},
+                    "butter": {"calories": 717, "protein": 0.9, "fat": 81, "carbs": 0.1},
+                    "cheese": {"calories": 402, "protein": 25, "fat": 33, "carbs": 1.3},
+                    # Фрукты
+                    "fruit": {"calories": 52, "protein": 0.3, "fat": 0.2, "carbs": 14},
+                    "apple": {"calories": 52, "protein": 0.3, "fat": 0.2, "carbs": 14},
+                    "banana": {"calories": 89, "protein": 1.1, "fat": 0.3, "carbs": 23},
+                }
+
+                for ingredient in ingredients:
+                    name = ingredient.get("name", "").lower()
+                    weight = ingredient.get("weight_grams", 0)
+
+                    # Ищем продукт в базе
+                    nutrition = None
+                    for key, value in nutrition_db.items():
+                        if key in name:
+                            nutrition = value
+                            break
+
+                    # Если не нашли, используем средние значения
+                    if not nutrition:
+                        ing_type = ingredient.get("type", "")
+                        if "protein" in ing_type:
+                            nutrition = {"calories": 150, "protein": 25, "fat": 5, "carbs": 0}
+                        elif "carb" in ing_type:
+                            nutrition = {"calories": 120, "protein": 3, "fat": 0.5, "carbs": 25}
+                        elif "vegetable" in ing_type:
+                            nutrition = {"calories": 25, "protein": 1, "fat": 0.3, "carbs": 5}
+                        elif "fat" in ing_type:
+                            nutrition = {"calories": 800, "protein": 0, "fat": 90, "carbs": 0}
+                        else:
+                            nutrition = {"calories": 100, "protein": 5, "fat": 3, "carbs": 15}
+
+                    # Рассчитываем КБЖУ для этого ингредиента
+                    total_calories += (nutrition["calories"] * weight) / 100
+                    total_protein += (nutrition["protein"] * weight) / 100
+                    total_fat += (nutrition["fat"] * weight) / 100
+                    total_carbs += (nutrition["carbs"] * weight) / 100
+
+                # Определяем meal_type из category
+                category = data.get("category", "main")
+                meal_type_map = {
+                    "breakfast": "breakfast",
+                    "lunch": "main",
+                    "dinner": "main",
+                    "main": "main",
+                    "salad": "snack",
+                    "side": "side",
+                    "snack": "snack",
+                    "dessert": "dessert",
+                    "soup": "main",
+                    "drink": "drink"
+                }
+                meal_type = meal_type_map.get(category, "main")
+
+                # Форматируем результат
                 return {
                     "intent": "log_food_from_photo",
                     "parameters": {
                         "dish_name": data.get("dish_name", "Неизвестное блюдо"),
-                        "ingredients": data.get("ingredients", []),
-                        "estimated_total_calories": data.get("estimated_total_calories", 0),
-                        "estimated_total_protein": data.get("estimated_total_protein", 0),
-                        "estimated_total_fat": data.get("estimated_total_fat", 0),
-                        "estimated_total_carbs": data.get("estimated_total_carbs", 0),
-                        "meal_type": data.get("meal_type", "unknown"),
+                        "ingredients": ingredients,
+                        "estimated_total_calories": total_calories,
+                        "estimated_total_protein": total_protein,
+                        "estimated_total_fat": total_fat,
+                        "estimated_total_carbs": total_carbs,
+                        "meal_type": meal_type,
                         "confidence": data.get("confidence", 0),
-                        "model_used": result["model_used"],
-                        "tokens_used": result["tokens_used"]
+                        "model_used": result.get("model", "vision"),
+                        "tokens_used": 0
                     },
                     "success": True
                 }
-            
+
             # Другие контексты для фото можно добавить здесь
             return {
                 "intent": "unknown",
@@ -145,7 +235,7 @@ class AIProcessor:
                 },
                 "success": False
             }
-            
+
         except Exception as e:
             logger.error(f"❌ Error processing photo input: {e}")
             return {

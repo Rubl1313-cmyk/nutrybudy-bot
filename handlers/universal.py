@@ -61,34 +61,88 @@ async def universal_message_handler(message: Message, state: FSMContext):
 async def universal_photo_handler(message: Message, state: FSMContext):
     """
     Обработчик фотографий еды
+    Распознаёт еду через Vision модель и сохраняет в БД
     """
     user_id = message.from_user.id
-    
+
     try:
         # Показываем индикатор загрузки
         loading_msg = await message.answer("📸 Анализирую фото...")
-        
+
         # Получаем фото
         photo = message.photo[-1]
         file_info = await message.bot.get_file(photo.file_id)
         photo_data = await message.bot.download_file(file_info.file_path)
+
+        # Распознаём еду через Vision модель (напрямую, без агента)
+        from services.cloudflare_manager import cf_manager
+        from services.ai_processor import ai_processor
         
-        # Получаем агента
-        agent = await get_agent(user_id, state)
-        
-        # Обрабатываем фото
-        result = await agent.process_photo(user_id, photo_data.read(), "photo.jpg")
+        result = await cf_manager.parse_food_image(photo_data.read())
         
         await loading_msg.delete()
-        
-        if result.get('success'):
-            await message.answer(result['message'], reply_markup=get_main_menu(), parse_mode="HTML")
+
+        if result.get("success"):
+            # Обрабатываем результат через ai_processor (расчёт КБЖУ)
+            photo_result = await ai_processor.process_photo_input(
+                photo_data.read(), 
+                user_id
+            )
+            
+            if photo_result.get("success"):
+                # Сохраняем в БД
+                from services.food_save_service import food_save_service
+                from utils.ui_templates import food_entry_card
+                from utils.daily_stats import get_daily_stats
+                from database.db import get_session
+                from database.models import User
+                
+                params = photo_result["parameters"]
+                
+                save_result = await food_save_service.save_food_entry(
+                    user_id=user_id,
+                    food_items=params["ingredients"],
+                    meal_type=params["meal_type"],
+                    description=params["dish_name"]
+                )
+                
+                if save_result.get("success"):
+                    # Получаем статистику и пользователя
+                    daily_stats = await get_daily_stats(user_id)
+                    with get_session() as session:
+                        user = session.query(User).filter(User.telegram_id == user_id).first()
+                    
+                    food_data = {
+                        'description': params["dish_name"],
+                        'total_calories': save_result.get('total_calories', 0),
+                        'total_protein': save_result.get('total_protein', 0),
+                        'total_fat': save_result.get('total_fat', 0),
+                        'total_carbs': save_result.get('total_carbs', 0),
+                        'meal_type': params["meal_type"]
+                    }
+                    
+                    card_text = food_entry_card(food_data, user, daily_stats)
+                    await message.answer(
+                        f"✅ <b>Еда сохранена!</b>\n\n{card_text}",
+                        reply_markup=get_main_menu(),
+                        parse_mode="HTML"
+                    )
+                else:
+                    await message.answer(
+                        f"❌ Ошибка сохранения: {save_result.get('error')}",
+                        reply_markup=get_main_menu()
+                    )
+            else:
+                await message.answer(
+                    "❌ Не удалось распознать еду на фото. Попробуйте отправить другое фото.",
+                    reply_markup=get_main_menu()
+                )
         else:
             await message.answer(
-                "❌ Не удалось распознать еду на фото. Попробуйте отправить другое фото.",
+                f"❌ Ошибка распознавания: {result.get('error')}",
                 reply_markup=get_main_menu()
             )
-        
+
     except Exception as e:
         logger.error(f"Error processing photo: {e}", exc_info=True)
         await message.answer(

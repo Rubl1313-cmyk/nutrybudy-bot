@@ -173,7 +173,7 @@ async def universal_photo_handler(message: Message, state: FSMContext):
 
                 nutrition = None
                 for key, value in nutrition_db.items():
-                    if key in name:
+                    if key.lower() in name or name in key.lower():
                         nutrition = value
                         break
 

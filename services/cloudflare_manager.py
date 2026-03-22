@@ -274,20 +274,24 @@ class CloudflareAIManager:
             # Вариант 2: JSON внутри поля response (текстовый ответ)
             elif isinstance(data, dict) and "response" in data:
                 response_text = data.get("response", "")
-                # Ищем JSON в тексте ответа
-                import re
-                # Ищем JSON блок между { и }
-                json_match = re.search(r'\{[\s\S]*\}', response_text)
-                if json_match:
-                    try:
-                        analysis = json.loads(json_match.group())
-                    except json.JSONDecodeError as e:
-                        logger.error(f"[VISION] Failed to parse JSON from response: {e}")
-                        logger.error(f"[VISION] Response text: {response_text[:500]}")
+                # Проверяем, является ли response уже JSON объектом
+                if isinstance(response_text, dict):
+                    analysis = response_text
                 else:
-                    # Если JSON не найден, парсим текстовый ответ вручную
-                    logger.info(f"[VISION] No JSON found in response, parsing text manually")
-                    analysis = self._parse_text_response(response_text)
+                    # Ищем JSON в тексте ответа
+                    import re
+                    # Ищем JSON блок между { и }
+                    json_match = re.search(r'\{[\s\S]*\}', response_text)
+                    if json_match:
+                        try:
+                            analysis = json.loads(json_match.group())
+                        except json.JSONDecodeError as e:
+                            logger.error(f"[VISION] Failed to parse JSON from response: {e}")
+                            logger.error(f"[VISION] Response text: {response_text[:500]}")
+                    else:
+                        # Если JSON не найден, парсим текстовый ответ вручную
+                        logger.info(f"[VISION] No JSON found in response, parsing text manually")
+                        analysis = self._parse_text_response(response_text)
             # Вариант 3: data является строкой с JSON
             elif isinstance(data, str):
                 import re

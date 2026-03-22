@@ -289,13 +289,48 @@ class CloudflareAIManager:
         )
         
         if result.get("success"):
-            analysis = result.get("data", {})
-            logger.info(f"[VISION] Analysis result: {json.dumps(analysis, ensure_ascii=False, indent=2)}")
-            return {
-                "success": True,
-                "analysis": analysis,
-                "model": self.models["vision"]
-            }
+            data = result.get("data", {})
+            
+            # Cloudflare API может вернуть JSON внутри текстового поля response
+            # Пытаемся извлечь JSON из разных мест
+            analysis = None
+            
+            # Вариант 1: data уже является JSON объектом с нужными полями
+            if isinstance(data, dict) and "dish_name" in data:
+                analysis = data
+            # Вариант 2: JSON внутри поля response (текстовый ответ)
+            elif isinstance(data, dict) and "response" in data:
+                response_text = data.get("response", "")
+                # Ищем JSON в тексте ответа
+                import re
+                json_match = re.search(r'\{[\s\S]*\}', response_text)
+                if json_match:
+                    try:
+                        analysis = json.loads(json_match.group())
+                    except json.JSONDecodeError as e:
+                        logger.error(f"[VISION] Failed to parse JSON from response: {e}")
+                        logger.error(f"[VISION] Response text: {response_text[:500]}")
+            # Вариант 3: data является строкой с JSON
+            elif isinstance(data, str):
+                import re
+                json_match = re.search(r'\{[\s\S]*\}', data)
+                if json_match:
+                    try:
+                        analysis = json.loads(json_match.group())
+                    except json.JSONDecodeError as e:
+                        logger.error(f"[VISION] Failed to parse JSON from string: {e}")
+            
+            if analysis and "dish_name" in analysis:
+                logger.info(f"[VISION] Analysis result: {json.dumps(analysis, ensure_ascii=False, indent=2)}")
+                return {
+                    "success": True,
+                    "analysis": analysis,
+                    "model": self.models["vision"]
+                }
+            else:
+                logger.error(f"[VISION] Could not extract valid analysis from response")
+                logger.error(f"[VISION] Raw data: {json.dumps(data, ensure_ascii=False, indent=2)[:1000]}")
+                return {"success": False, "data": None, "error": "Could not parse vision response"}
         else:
             logger.error(f"❌ Vision analysis failed: {result.get('error')}", exc_info=True)
             return {"success": False, "data": None, "error": result.get("error")}

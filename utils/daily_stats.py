@@ -224,7 +224,7 @@ async def get_period_stats(user_id: int, period: str = "day", user_timezone: str
             
             # Жидкость
             drink_result = await session.execute(
-                select(func.sum(DrinkEntry.volume_ml), func.sum(DrinkEntry.calories)).where(*drink_conditions)
+                select(func.sum(DrinkEntry.amount), func.sum(DrinkEntry.calories)).where(*drink_conditions)
             )
             water_total, calories_drinks = drink_result.first() or (0, 0)
             

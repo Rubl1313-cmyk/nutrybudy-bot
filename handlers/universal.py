@@ -103,77 +103,8 @@ async def universal_photo_handler(message: Message, state: FSMContext):
             
             ingredients_text = "\n".join(ingredients_list) if ingredients_list else ""
 
-            # Рассчитываем КБЖУ на основе ингредиентов
-            nutrition_db = {
-                # Английские названия
-                "chicken": {"calories": 165, "protein": 31, "fat": 3.6, "carbs": 0},
-                "chicken breast": {"calories": 165, "protein": 31, "fat": 3.6, "carbs": 0},
-                "beef": {"calories": 250, "protein": 26, "fat": 15, "carbs": 0},
-                "fish": {"calories": 206, "protein": 22, "fat": 12, "carbs": 0},
-                "salmon": {"calories": 208, "protein": 20, "fat": 13, "carbs": 0},
-                "tuna": {"calories": 144, "protein": 23, "fat": 5, "carbs": 0},
-                "egg": {"calories": 155, "protein": 13, "fat": 11, "carbs": 1.1},
-                "eggs": {"calories": 155, "protein": 13, "fat": 11, "carbs": 1.1},
-                "rice": {"calories": 130, "protein": 2.7, "fat": 0.3, "carbs": 28},
-                "pasta": {"calories": 131, "protein": 5, "fat": 1.1, "carbs": 25},
-                "potato": {"calories": 77, "protein": 2, "fat": 0.1, "carbs": 17},
-                "potatoes": {"calories": 77, "protein": 2, "fat": 0.1, "carbs": 17},
-                "bread": {"calories": 265, "protein": 9, "fat": 3.2, "carbs": 49},
-                "vegetable": {"calories": 25, "protein": 1, "fat": 0.3, "carbs": 5},
-                "vegetables": {"calories": 25, "protein": 1, "fat": 0.3, "carbs": 5},
-                "tomato": {"calories": 18, "protein": 0.9, "fat": 0.2, "carbs": 3.9},
-                "cucumber": {"calories": 15, "protein": 0.7, "fat": 0.1, "carbs": 3.6},
-                "lettuce": {"calories": 15, "protein": 1.4, "fat": 0.2, "carbs": 2.9},
-                "cabbage": {"calories": 25, "protein": 1.3, "fat": 0.1, "carbs": 6},
-                "carrot": {"calories": 41, "protein": 0.9, "fat": 0.2, "carbs": 10},
-                "broccoli": {"calories": 34, "protein": 2.8, "fat": 0.4, "carbs": 7},
-                "oil": {"calories": 884, "protein": 0, "fat": 100, "carbs": 0},
-                "butter": {"calories": 717, "protein": 0.9, "fat": 81, "carbs": 0.1},
-                "cheese": {"calories": 402, "protein": 25, "fat": 33, "carbs": 1.3},
-                "fruit": {"calories": 52, "protein": 0.3, "fat": 0.2, "carbs": 14},
-                "apple": {"calories": 52, "protein": 0.3, "fat": 0.2, "carbs": 14},
-                "banana": {"calories": 89, "protein": 1.1, "fat": 0.3, "carbs": 23},
-                # Русские названия (для Vision модели)
-                "курица": {"calories": 165, "protein": 31, "fat": 3.6, "carbs": 0},
-                "куриная грудка": {"calories": 165, "protein": 31, "fat": 3.6, "carbs": 0},
-                "говядина": {"calories": 250, "protein": 26, "fat": 15, "carbs": 0},
-                "рыба": {"calories": 206, "protein": 22, "fat": 12, "carbs": 0},
-                "лосось": {"calories": 208, "protein": 20, "fat": 13, "carbs": 0},
-                "тунец": {"calories": 144, "protein": 23, "fat": 5, "carbs": 0},
-                "яйцо": {"calories": 155, "protein": 13, "fat": 11, "carbs": 1.1},
-                "яйца": {"calories": 155, "protein": 13, "fat": 11, "carbs": 1.1},
-                "рис": {"calories": 130, "protein": 2.7, "fat": 0.3, "carbs": 28},
-                "паста": {"calories": 131, "protein": 5, "fat": 1.1, "carbs": 25},
-                "картофель": {"calories": 77, "protein": 2, "fat": 0.1, "carbs": 17},
-                "хлеб": {"calories": 265, "protein": 9, "fat": 3.2, "carbs": 49},
-                "овощи": {"calories": 25, "protein": 1, "fat": 0.3, "carbs": 5},
-                "томаты": {"calories": 18, "protein": 0.9, "fat": 0.2, "carbs": 3.9},
-                "помидоры": {"calories": 18, "protein": 0.9, "fat": 0.2, "carbs": 3.9},
-                "огурец": {"calories": 15, "protein": 0.7, "fat": 0.1, "carbs": 3.6},
-                "салат": {"calories": 15, "protein": 1.4, "fat": 0.2, "carbs": 2.9},
-                "капуста": {"calories": 25, "protein": 1.3, "fat": 0.1, "carbs": 6},
-                "морковь": {"calories": 41, "protein": 0.9, "fat": 0.2, "carbs": 10},
-                "брокколи": {"calories": 34, "protein": 2.8, "fat": 0.4, "carbs": 7},
-                "масло": {"calories": 884, "protein": 0, "fat": 100, "carbs": 0},
-                "сливочное масло": {"calories": 717, "protein": 0.9, "fat": 81, "carbs": 0.1},
-                "сыр": {"calories": 402, "protein": 25, "fat": 33, "carbs": 1.3},
-                "фрукты": {"calories": 52, "protein": 0.3, "fat": 0.2, "carbs": 14},
-                "яблоко": {"calories": 52, "protein": 0.3, "fat": 0.2, "carbs": 14},
-                "банан": {"calories": 89, "protein": 1.1, "fat": 0.3, "carbs": 23},
-                "свекла": {"calories": 43, "protein": 1.6, "fat": 0.2, "carbs": 10},
-                "лук": {"calories": 40, "protein": 1.1, "fat": 0.1, "carbs": 9.3},
-                "чеснок": {"calories": 149, "protein": 6.4, "fat": 0.5, "carbs": 33},
-                "сметана": {"calories": 198, "protein": 2.4, "fat": 20, "carbs": 4.6},
-                "мясо": {"calories": 250, "protein": 26, "fat": 15, "carbs": 0},
-                "свинина": {"calories": 265, "protein": 27, "fat": 17, "carbs": 0},
-                "баранина": {"calories": 294, "protein": 25, "fat": 21, "carbs": 0},
-                "репа": {"calories": 28, "protein": 0.9, "fat": 0.1, "carbs": 6},
-                "перец": {"calories": 31, "protein": 1, "fat": 0.3, "carbs": 6},
-                "паприка": {"calories": 282, "protein": 14, "fat": 13, "carbs": 54},
-                "соль": {"calories": 0, "protein": 0, "fat": 0, "carbs": 0},
-                "черный перец": {"calories": 251, "protein": 10, "fat": 3.3, "carbs": 64},
-                "зелень": {"calories": 36, "protein": 3, "fat": 0.8, "carbs": 6},
-            }
+            # Рассчитываем КБЖУ на основе ингредиентов из базы данных dish_db
+            from services.dish_db import INGREDIENT_DATABASE
 
             total_calories = 0
             total_protein = 0
@@ -184,13 +115,15 @@ async def universal_photo_handler(message: Message, state: FSMContext):
                 name = ingredient.get("name", "").lower()
                 weight = ingredient.get("weight_grams", 0)
 
+                # Ищем ингредиент в базе данных dish_db
                 nutrition = None
-                for key, value in nutrition_db.items():
+                for key, value in INGREDIENT_DATABASE.items():
                     if key.lower() in name or name in key.lower():
                         nutrition = value
                         break
 
                 if not nutrition:
+                    # Если не нашли в базе, используем приблизительные значения по типу
                     ing_type = ingredient.get("type", "")
                     if "protein" in ing_type:
                         nutrition = {"calories": 150, "protein": 25, "fat": 5, "carbs": 0}
@@ -382,36 +315,8 @@ async def universal_document_handler(message: Message, state: FSMContext):
             
             ingredients_text = "\n".join(ingredients_list) if ingredients_list else ""
 
-            # Рассчитываем КБЖУ на основе ингредиентов
-            nutrition_db = {
-                "chicken": {"calories": 165, "protein": 31, "fat": 3.6, "carbs": 0},
-                "chicken breast": {"calories": 165, "protein": 31, "fat": 3.6, "carbs": 0},
-                "beef": {"calories": 250, "protein": 26, "fat": 15, "carbs": 0},
-                "fish": {"calories": 206, "protein": 22, "fat": 12, "carbs": 0},
-                "salmon": {"calories": 208, "protein": 20, "fat": 13, "carbs": 0},
-                "tuna": {"calories": 144, "protein": 23, "fat": 5, "carbs": 0},
-                "egg": {"calories": 155, "protein": 13, "fat": 11, "carbs": 1.1},
-                "eggs": {"calories": 155, "protein": 13, "fat": 11, "carbs": 1.1},
-                "rice": {"calories": 130, "protein": 2.7, "fat": 0.3, "carbs": 28},
-                "pasta": {"calories": 131, "protein": 5, "fat": 1.1, "carbs": 25},
-                "potato": {"calories": 77, "protein": 2, "fat": 0.1, "carbs": 17},
-                "potatoes": {"calories": 77, "protein": 2, "fat": 0.1, "carbs": 17},
-                "bread": {"calories": 265, "protein": 9, "fat": 3.2, "carbs": 49},
-                "vegetable": {"calories": 25, "protein": 1, "fat": 0.3, "carbs": 5},
-                "vegetables": {"calories": 25, "protein": 1, "fat": 0.3, "carbs": 5},
-                "tomato": {"calories": 18, "protein": 0.9, "fat": 0.2, "carbs": 3.9},
-                "cucumber": {"calories": 15, "protein": 0.7, "fat": 0.1, "carbs": 3.6},
-                "lettuce": {"calories": 15, "protein": 1.4, "fat": 0.2, "carbs": 2.9},
-                "cabbage": {"calories": 25, "protein": 1.3, "fat": 0.1, "carbs": 6},
-                "carrot": {"calories": 41, "protein": 0.9, "fat": 0.2, "carbs": 10},
-                "broccoli": {"calories": 34, "protein": 2.8, "fat": 0.4, "carbs": 7},
-                "oil": {"calories": 884, "protein": 0, "fat": 100, "carbs": 0},
-                "butter": {"calories": 717, "protein": 0.9, "fat": 81, "carbs": 0.1},
-                "cheese": {"calories": 402, "protein": 25, "fat": 33, "carbs": 1.3},
-                "fruit": {"calories": 52, "protein": 0.3, "fat": 0.2, "carbs": 14},
-                "apple": {"calories": 52, "protein": 0.3, "fat": 0.2, "carbs": 14},
-                "banana": {"calories": 89, "protein": 1.1, "fat": 0.3, "carbs": 23},
-            }
+            # Рассчитываем КБЖУ на основе ингредиентов из базы данных dish_db
+            from services.dish_db import INGREDIENT_DATABASE
 
             total_calories = 0
             total_protein = 0
@@ -422,13 +327,15 @@ async def universal_document_handler(message: Message, state: FSMContext):
                 name = ingredient.get("name", "").lower()
                 weight = ingredient.get("weight_grams", 0)
 
+                # Ищем ингредиент в базе данных dish_db
                 nutrition = None
-                for key, value in nutrition_db.items():
-                    if key in name:
+                for key, value in INGREDIENT_DATABASE.items():
+                    if key.lower() in name or name in key.lower():
                         nutrition = value
                         break
 
                 if not nutrition:
+                    # Если не нашли в базе, используем приблизительные значения по типу
                     ing_type = ingredient.get("type", "")
                     if "protein" in ing_type:
                         nutrition = {"calories": 150, "protein": 25, "fat": 5, "carbs": 0}

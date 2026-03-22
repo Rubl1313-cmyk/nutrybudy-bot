@@ -187,6 +187,10 @@ async def universal_photo_handler(message: Message, state: FSMContext):
                         nutrition = {"calories": 25, "protein": 1, "fat": 0.3, "carbs": 5}
                     elif "fat" in ing_type:
                         nutrition = {"calories": 800, "protein": 0, "fat": 90, "carbs": 0}
+                    elif "herb" in ing_type or "spice" in ing_type or "salt" in ing_type:
+                        nutrition = {"calories": 5, "protein": 0.2, "fat": 0.1, "carbs": 1}
+                    elif "dairy" in ing_type:
+                        nutrition = {"calories": 100, "protein": 5, "fat": 5, "carbs": 5}
                     else:
                         nutrition = {"calories": 100, "protein": 5, "fat": 3, "carbs": 15}
 

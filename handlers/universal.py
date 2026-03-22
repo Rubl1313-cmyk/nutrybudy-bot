@@ -179,7 +179,9 @@ async def universal_photo_handler(message: Message, state: FSMContext):
             from services.dish_db import dish_identifier
 
             # Определяем блюдо по ингредиентам через базу данных
-            dish_result = dish_identifier.identify_dish(ingredients)
+            # Преобразуем список словарей в список строк (названий ингредиентов)
+            ingredient_names = [ing.get("name", "") for ing in ingredients if ing.get("name")]
+            dish_result = dish_identifier.identify_dish(ingredient_names)
             
             if dish_result.get("success"):
                 dish_data = dish_result.get("dish", {})

@@ -27,6 +27,51 @@ async def upgrade():
     logger.info(f"[MIGRATION] DATABASE_URL length: {len(DATABASE_URL)}")
     
     async with engine.begin() as conn:
+        # Сначала проверяем и исправляем таблицу drink_entries если она существует без нужных колонок
+        try:
+            if is_postgresql:
+                # Проверяем существование таблицы drink_entries
+                drink_table_result = await conn.execute(text("""
+                    SELECT table_name FROM information_schema.tables 
+                    WHERE table_schema = 'public' AND table_name = 'drink_entries'
+                """))
+                drink_table_exists = drink_table_result.fetchone()
+                
+                if drink_table_exists:
+                    # Проверяем наличие колонки drink_name
+                    drink_columns_result = await conn.execute(text("""
+                        SELECT column_name FROM information_schema.columns 
+                        WHERE table_name = 'drink_entries'
+                    """))
+                    drink_columns = [row[0] for row in drink_columns_result.fetchall()]
+                    logger.info(f"[MIGRATION] drink_entries columns: {drink_columns}")
+                    
+                    if 'drink_name' not in drink_columns:
+                        logger.info("[MIGRATION] drink_name column missing, recreating table")
+                        # Удаляем таблицу и пересоздаем
+                        await conn.execute(text("DROP TABLE drink_entries"))
+                        drink_table_exists = None
+            else:
+                # SQLite
+                drink_table_result = await conn.execute(text("""
+                    SELECT name FROM sqlite_master 
+                    WHERE type='table' AND name='drink_entries'
+                """))
+                drink_table_exists = drink_table_result.fetchone()
+                
+                if drink_table_exists:
+                    drink_columns_result = await conn.execute(text("PRAGMA table_info(drink_entries)"))
+                    drink_columns = [row[1] for row in drink_columns_result.fetchall()]
+                    logger.info(f"[MIGRATION] drink_entries columns: {drink_columns}")
+                    
+                    if 'drink_name' not in drink_columns:
+                        logger.info("[MIGRATION] drink_name column missing, recreating table")
+                        await conn.execute(text("DROP TABLE drink_entries"))
+                        drink_table_exists = None
+        except Exception as e:
+            logger.warning(f"[MIGRATION] Error checking drink_entries: {e}")
+            drink_table_exists = None
+        
         # Проверяем существование таблицы water_entries (универсальный способ)
         try:
             if is_postgresql:

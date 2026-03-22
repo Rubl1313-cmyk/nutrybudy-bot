@@ -169,14 +169,34 @@ async def universal_photo_handler(message: Message, state: FSMContext):
             from database.models import User
             from services.dish_db import dish_identifier
 
-            # Определяем блюдо по ингредиентам через базу данных
-            # Преобразуем список словарей в список строк (названий ингредиентов)
-            ingredient_names = [ing.get("name", "") for ing in ingredients if ing.get("name")]
-            dish_result = dish_identifier.identify_dish(ingredient_names)
+            # Определяем блюдо через базу данных COMPOSITE_DISHES
+            from services.dish_db import COMPOSITE_DISHES, find_best_match
+            
+            # Сначала пытаемся найти блюдо по названию от Vision
+            dish_result = None
+            dish_name_lower = dish_name.lower()
+            
+            # Ищем точное совпадение по названию
+            for dish_key, dish_data in COMPOSITE_DISHES.items():
+                if dish_key.lower() in dish_name_lower or dish_name_lower in dish_key.lower():
+                    dish_result = {"success": True, "dish": dish_data}
+                    break
+                # Проверяем альтернативные названия
+                for keyword in dish_data.get("keywords", []):
+                    if keyword.lower() in dish_name_lower or dish_name_lower in keyword.lower():
+                        dish_result = {"success": True, "dish": dish_data}
+                        break
+                if dish_result:
+                    break
+            
+            # Если не нашли по названию, ищем по ингредиентам
+            if not dish_result:
+                ingredient_names = [ing.get("name", "") for ing in ingredients if ing.get("name")]
+                dish_result = dish_identifier.identify_dish(ingredient_names)
             
             # Используем красивое название от Vision модели как основное
-            # База данных используется только для уточнения КБЖУ
-            if dish_result.get("success"):
+            # База данных используется для точного КБЖУ
+            if dish_result and dish_result.get("success"):
                 dish_data = dish_result.get("dish", {})
                 nutrition_per_100 = dish_data.get("nutrition_per_100", {})
                 
@@ -377,14 +397,34 @@ async def universal_document_handler(message: Message, state: FSMContext):
             from database.models import User
             from services.dish_db import dish_identifier
 
-            # Определяем блюдо по ингредиентам через базу данных
-            # Преобразуем список словарей в список строк (названий ингредиентов)
-            ingredient_names = [ing.get("name", "") for ing in ingredients if ing.get("name")]
-            dish_result = dish_identifier.identify_dish(ingredient_names)
+            # Определяем блюдо через базу данных COMPOSITE_DISHES
+            from services.dish_db import COMPOSITE_DISHES, find_best_match
+            
+            # Сначала пытаемся найти блюдо по названию от Vision
+            dish_result = None
+            dish_name_lower = dish_name.lower()
+            
+            # Ищем точное совпадение по названию
+            for dish_key, dish_data in COMPOSITE_DISHES.items():
+                if dish_key.lower() in dish_name_lower or dish_name_lower in dish_key.lower():
+                    dish_result = {"success": True, "dish": dish_data}
+                    break
+                # Проверяем альтернативные названия
+                for keyword in dish_data.get("keywords", []):
+                    if keyword.lower() in dish_name_lower or dish_name_lower in keyword.lower():
+                        dish_result = {"success": True, "dish": dish_data}
+                        break
+                if dish_result:
+                    break
+            
+            # Если не нашли по названию, ищем по ингредиентам
+            if not dish_result:
+                ingredient_names = [ing.get("name", "") for ing in ingredients if ing.get("name")]
+                dish_result = dish_identifier.identify_dish(ingredient_names)
             
             # Используем красивое название от Vision модели как основное
-            # База данных используется только для уточнения КБЖУ
-            if dish_result.get("success"):
+            # База данных используется для точного КБЖУ
+            if dish_result and dish_result.get("success"):
                 dish_data = dish_result.get("dish", {})
                 nutrition_per_100 = dish_data.get("nutrition_per_100", {})
                 

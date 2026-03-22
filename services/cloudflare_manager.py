@@ -103,7 +103,7 @@ class CloudflareAIManager:
             logger.error(f"❌ Cloudflare AI exception: {e}", exc_info=True)
             return {"success": False, "data": None, "error": str(e)}
 
-    @with_timeout(30)
+    @with_timeout(60)
     @with_retry(max_attempts=3, delay_seconds=1)
     @ai_circuit_breaker(failure_threshold=5, recovery_timeout=60)
     async def parse_food_image(self, image_data: bytes) -> Dict[str, Any]:

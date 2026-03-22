@@ -251,39 +251,12 @@ class CloudflareAIManager:
             }
         ]
         
-        response_format = {
-            "type": "json_schema",
-            "json_schema": {
-                "name": "food_analysis",
-                "schema": {
-                    "type": "object",
-                    "properties": {
-                        "dish_name": {"type": "string"},
-                        "ingredients": {
-                            "type": "array",
-                            "items": {
-                                "type": "object",
-                                "properties": {
-                                    "name": {"type": "string"},
-                                    "weight_grams": {"type": "number"},
-                                    "type": {"type": "string"}
-                                },
-                                "required": ["name", "weight_grams", "type"]
-                            }
-                        },
-                        "category": {"type": "string"},
-                        "preparation_style": {"type": "string"},
-                        "confidence": {"type": "number"}
-                    },
-                    "required": ["dish_name", "ingredients", "category", "preparation_style", "confidence"]
-                }
-            }
-        }
+        # Не используем response_format чтобы Vision модель возвращала свободный текст
+        # который мы затем парсим через _parse_text_response
         
         result = await self._call(
             model_key="vision",
             messages=messages,
-            response_format=response_format,
             temperature=0.2,
             max_tokens=1500
         )

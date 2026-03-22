@@ -89,6 +89,19 @@ async def universal_photo_handler(message: Message, state: FSMContext):
             # Используем результат напрямую (без повторного вызова parse_food_image)
             data = result.get("analysis", {})
             ingredients = data.get("ingredients", [])
+            
+            # Получаем красивое название блюда от Vision модели
+            dish_name = data.get("dish_name", "Неизвестное блюдо")
+            
+            # Формируем список ингредиентов для отображения
+            ingredients_list = []
+            for ing in ingredients:
+                name = ing.get("name", "")
+                weight = ing.get("weight_grams", 0)
+                if name and weight > 0:
+                    ingredients_list.append(f"• {name} ({weight}г)")
+            
+            ingredients_text = "\n".join(ingredients_list) if ingredients_list else ""
 
             # Рассчитываем КБЖУ на основе ингредиентов
             nutrition_db = {
@@ -228,9 +241,10 @@ async def universal_photo_handler(message: Message, state: FSMContext):
             ingredient_names = [ing.get("name", "") for ing in ingredients if ing.get("name")]
             dish_result = dish_identifier.identify_dish(ingredient_names)
             
+            # Используем красивое название от Vision модели как основное
+            # База данных используется только для уточнения КБЖУ
             if dish_result.get("success"):
                 dish_data = dish_result.get("dish", {})
-                dish_name = dish_data.get("name", data.get("dish_name", "Неизвестное блюдо"))
                 nutrition_per_100 = dish_data.get("nutrition_per_100", {})
                 
                 # Рассчитываем КБЖУ на основе веса
@@ -241,13 +255,6 @@ async def universal_photo_handler(message: Message, state: FSMContext):
                 total_protein = nutrition_per_100.get("protein", 0) * factor
                 total_fat = nutrition_per_100.get("fat", 0) * factor
                 total_carbs = nutrition_per_100.get("carbs", 0) * factor
-            else:
-                # Если не нашли в базе, используем данные от Vision модели
-                dish_name = data.get("dish_name", "Неизвестное блюдо")
-                total_calories = data.get("calories", 0)
-                total_protein = data.get("protein", 0)
-                total_fat = data.get("fat", 0)
-                total_carbs = data.get("carbs", 0)
 
             # Сохраняем в БД с рассчитанными КБЖУ
             save_result = await food_save_service.save_food_to_db(
@@ -258,7 +265,7 @@ async def universal_photo_handler(message: Message, state: FSMContext):
                     "protein": total_protein,
                     "fat": total_fat,
                     "carbs": total_carbs,
-                    "quantity": total_weight if dish_result.get("success") else 100,
+                    "quantity": sum(ing.get("weight_grams", 100) for ing in ingredients),
                     "unit": "г"
                 }],
                 meal_type=meal_type
@@ -271,18 +278,25 @@ async def universal_photo_handler(message: Message, state: FSMContext):
                     user = await session.execute(select(User).where(User.telegram_id == user_id))
                     user = user.scalar_one_or_none()
 
+                # Формируем красивое сообщение с блюдом и ингредиентами
                 food_data = {
-                    'description': data.get("dish_name", "Неизвестное блюдо"),
-                    'total_calories': save_result.get('total_calories', 0),
-                    'total_protein': save_result.get('total_protein', 0),
-                    'total_fat': save_result.get('total_fat', 0),
-                    'total_carbs': save_result.get('total_carbs', 0),
+                    'description': dish_name,
+                    'total_calories': total_calories,
+                    'total_protein': total_protein,
+                    'total_fat': total_fat,
+                    'total_carbs': total_carbs,
                     'meal_type': meal_type
                 }
 
                 card_text = food_entry_card(food_data, user, daily_stats)
+                
+                # Добавляем список ингредиентов
+                full_message = f"✅ <b>Еда сохранена!</b>\n\n{card_text}"
+                if ingredients_text:
+                    full_message += f"\n\n📋 <b>Состав:</b>\n{ingredients_text}"
+                
                 await message.answer(
-                    f"✅ <b>Еда сохранена!</b>\n\n{card_text}",
+                    full_message,
                     reply_markup=get_main_menu(),
                     parse_mode="HTML"
                 )
@@ -354,6 +368,19 @@ async def universal_document_handler(message: Message, state: FSMContext):
             # Используем результат напрямую (без повторного вызова parse_food_image)
             data = result.get("analysis", {})
             ingredients = data.get("ingredients", [])
+            
+            # Получаем красивое название блюда от Vision модели
+            dish_name = data.get("dish_name", "Неизвестное блюдо")
+            
+            # Формируем список ингредиентов для отображения
+            ingredients_list = []
+            for ing in ingredients:
+                name = ing.get("name", "")
+                weight = ing.get("weight_grams", 0)
+                if name and weight > 0:
+                    ingredients_list.append(f"• {name} ({weight}г)")
+            
+            ingredients_text = "\n".join(ingredients_list) if ingredients_list else ""
 
             # Рассчитываем КБЖУ на основе ингредиентов
             nutrition_db = {
@@ -444,11 +471,14 @@ async def universal_document_handler(message: Message, state: FSMContext):
             from services.dish_db import dish_identifier
 
             # Определяем блюдо по ингредиентам через базу данных
-            dish_result = dish_identifier.identify_dish(ingredients)
+            # Преобразуем список словарей в список строк (названий ингредиентов)
+            ingredient_names = [ing.get("name", "") for ing in ingredients if ing.get("name")]
+            dish_result = dish_identifier.identify_dish(ingredient_names)
             
+            # Используем красивое название от Vision модели как основное
+            # База данных используется только для уточнения КБЖУ
             if dish_result.get("success"):
                 dish_data = dish_result.get("dish", {})
-                dish_name = dish_data.get("name", data.get("dish_name", "Неизвестное блюдо"))
                 nutrition_per_100 = dish_data.get("nutrition_per_100", {})
                 
                 # Рассчитываем КБЖУ на основе веса
@@ -459,13 +489,6 @@ async def universal_document_handler(message: Message, state: FSMContext):
                 total_protein = nutrition_per_100.get("protein", 0) * factor
                 total_fat = nutrition_per_100.get("fat", 0) * factor
                 total_carbs = nutrition_per_100.get("carbs", 0) * factor
-            else:
-                # Если не нашли в базе, используем данные от Vision модели
-                dish_name = data.get("dish_name", "Неизвестное блюдо")
-                total_calories = data.get("calories", 0)
-                total_protein = data.get("protein", 0)
-                total_fat = data.get("fat", 0)
-                total_carbs = data.get("carbs", 0)
 
             # Сохраняем в БД с рассчитанными КБЖУ
             save_result = await food_save_service.save_food_to_db(
@@ -476,7 +499,7 @@ async def universal_document_handler(message: Message, state: FSMContext):
                     "protein": total_protein,
                     "fat": total_fat,
                     "carbs": total_carbs,
-                    "quantity": total_weight if dish_result.get("success") else 100,
+                    "quantity": sum(ing.get("weight_grams", 100) for ing in ingredients),
                     "unit": "г"
                 }],
                 meal_type=meal_type
@@ -489,18 +512,25 @@ async def universal_document_handler(message: Message, state: FSMContext):
                     user = await session.execute(select(User).where(User.telegram_id == user_id))
                     user = user.scalar_one_or_none()
 
+                # Формируем красивое сообщение с блюдом и ингредиентами
                 food_data = {
-                    'description': data.get("dish_name", "Неизвестное блюдо"),
-                    'total_calories': save_result.get('total_calories', 0),
-                    'total_protein': save_result.get('total_protein', 0),
-                    'total_fat': save_result.get('total_fat', 0),
-                    'total_carbs': save_result.get('total_carbs', 0),
+                    'description': dish_name,
+                    'total_calories': total_calories,
+                    'total_protein': total_protein,
+                    'total_fat': total_fat,
+                    'total_carbs': total_carbs,
                     'meal_type': meal_type
                 }
 
                 card_text = food_entry_card(food_data, user, daily_stats)
+                
+                # Добавляем список ингредиентов
+                full_message = f"✅ <b>Еда сохранена!</b>\n\n{card_text}"
+                if ingredients_text:
+                    full_message += f"\n\n📋 <b>Состав:</b>\n{ingredients_text}"
+                
                 await message.answer(
-                    f"✅ <b>Еда сохранена!</b>\n\n{card_text}",
+                    full_message,
                     reply_markup=get_main_menu(),
                     parse_mode="HTML"
                 )

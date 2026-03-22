@@ -6,7 +6,7 @@
 import logging
 import re
 from typing import Dict, Any, List, Optional
-from datetime import datetime, timezone
+from datetime import datetime
 from sqlalchemy import select
 
 from database.db import get_session
@@ -94,7 +94,7 @@ class FoodSaveService:
                         meal_type=meal_type,
                         quantity=weight_grams,
                         unit='г',
-                        created_at=datetime.now(timezone.utc)
+                        created_at=datetime.now()
                     )
                     session.add(food_entry)
 

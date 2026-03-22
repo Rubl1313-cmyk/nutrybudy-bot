@@ -303,6 +303,7 @@ class CloudflareAIManager:
                 response_text = data.get("response", "")
                 # Ищем JSON в тексте ответа
                 import re
+                # Ищем JSON блок между { и }
                 json_match = re.search(r'\{[\s\S]*\}', response_text)
                 if json_match:
                     try:
@@ -310,6 +311,10 @@ class CloudflareAIManager:
                     except json.JSONDecodeError as e:
                         logger.error(f"[VISION] Failed to parse JSON from response: {e}")
                         logger.error(f"[VISION] Response text: {response_text[:500]}")
+                else:
+                    # Если JSON не найден, парсим текстовый ответ вручную
+                    logger.info(f"[VISION] No JSON found in response, parsing text manually")
+                    analysis = self._parse_text_response(response_text)
             # Вариант 3: data является строкой с JSON
             elif isinstance(data, str):
                 import re
@@ -595,6 +600,79 @@ RESPONSE STYLE:
             "fallback": "Backup model when others fail"
         }
         return purposes.get(model_key, "Unknown purpose")
+
+    def _parse_text_response(self, text: str) -> Dict[str, Any]:
+        """Parse text response from Vision model when JSON is not found"""
+        import re
+        
+        # Извлекаем название блюда
+        dish_name = "Неизвестное блюдо"
+        dish_match = re.search(r'(?:блюдо|основное блюдо|название)[:\s]*([^\n]+)', text, re.IGNORECASE)
+        if dish_match:
+            dish_name = dish_match.group(1).strip()
+        
+        # Извлекаем ингредиенты
+        ingredients = []
+        # Ищем паттерны типа "Картофель: 150 грамм" или "Картофель 150г"
+        ingredient_patterns = [
+            r'([А-Яа-яёЁ\s]+)[:\s]+(\d+)\s*(?:грамм|г|gram)',
+            r'([А-Яа-яёЁ\s]+)[:\s]+(\d+)\s*г\b',
+            r'([А-Яа-яёЁ\s]+)[:\s]+(\d+)\s*$'
+        ]
+        
+        for pattern in ingredient_patterns:
+            matches = re.findall(pattern, text, re.MULTILINE)
+            for match in matches:
+                name = match[0].strip()
+                weight = int(match[1])
+                if name and weight > 0:
+                    # Определяем тип ингредиента
+                    ing_type = "other"
+                    name_lower = name.lower()
+                    if any(word in name_lower for word in ['курица', 'говядина', 'свинина', 'рыба', 'лосось', 'тунец', 'яйцо', 'мясо']):
+                        ing_type = "protein"
+                    elif any(word in name_lower for word in ['картофель', 'рис', 'паста', 'хлеб', 'макароны', 'лапша']):
+                        ing_type = "carb"
+                    elif any(word in name_lower for word in ['морковь', 'свекла', 'лук', 'капуста', 'томат', 'помидор', 'огурец', 'перец', 'брокколи']):
+                        ing_type = "vegetable"
+                    elif any(word in name_lower for word in ['масло', 'сливочное масло', 'сыр', 'сметана']):
+                        ing_type = "fat"
+                    
+                    ingredients.append({
+                        "name": name,
+                        "weight_grams": weight,
+                        "type": ing_type
+                    })
+        
+        # Определяем категорию
+        category = "main"
+        if any(word in text.lower() for word in ['суп', 'борщ', 'уха', 'солянка']):
+            category = "soup"
+        elif any(word in text.lower() for word in ['салат']):
+            category = "salad"
+        elif any(word in text.lower() for word in ['десерт', 'торт', 'пирог', 'мороженое']):
+            category = "dessert"
+        elif any(word in text.lower() for word in ['напиток', 'сок', 'чай', 'кофе']):
+            category = "drink"
+        
+        # Определяем способ приготовления
+        preparation_style = "boiled"
+        if any(word in text.lower() for word in ['жарен', 'жарка']):
+            preparation_style = "fried"
+        elif any(word in text.lower() for word in ['запечён', 'запекание', 'духовка']):
+            preparation_style = "baked"
+        elif any(word in text.lower() for word in ['гриль', 'гриля']):
+            preparation_style = "grilled"
+        elif any(word in text.lower() for word in ['сырой', 'свежий']):
+            preparation_style = "raw"
+        
+        return {
+            "dish_name": dish_name,
+            "ingredients": ingredients,
+            "category": category,
+            "preparation_style": preparation_style,
+            "confidence": 0.7
+        }
 
 # Global instance
 cloudflare_ai = CloudflareAIManager()

@@ -210,28 +210,16 @@ async def universal_photo_handler(message: Message, state: FSMContext):
                 total_carbs = nutrition_per_100.get("carbs", 0) * factor
 
             # Сохраняем в БД с рассчитанными КБЖУ
-            # ВАЖНО: передаём КБЖУ на 100г, а не общие - food_save_service сам пересчитает на вес
-            total_weight = sum(ing.get("weight_grams", 100) for ing in ingredients)
-            if total_weight > 0:
-                calories_per_100 = (total_calories / total_weight) * 100
-                protein_per_100 = (total_protein / total_weight) * 100
-                fat_per_100 = (total_fat / total_weight) * 100
-                carbs_per_100 = (total_carbs / total_weight) * 100
-            else:
-                calories_per_100 = total_calories
-                protein_per_100 = total_protein
-                fat_per_100 = total_fat
-                carbs_per_100 = total_carbs
-            
+            # ВАЖНО: передаём ОБЩИЕ КБЖУ (не на 100г) и указываем quantity=1, чтобы food_save_service не пересчитывал
             save_result = await food_save_service.save_food_to_db(
                 user_id=user_id,
                 food_items=[{
                     "name": dish_name,
-                    "calories": calories_per_100,
-                    "protein": protein_per_100,
-                    "fat": fat_per_100,
-                    "carbs": carbs_per_100,
-                    "quantity": total_weight,
+                    "calories": total_calories,
+                    "protein": total_protein,
+                    "fat": total_fat,
+                    "carbs": total_carbs,
+                    "quantity": 1,
                     "unit": "г"
                 }],
                 meal_type=meal_type
@@ -451,28 +439,16 @@ async def universal_document_handler(message: Message, state: FSMContext):
                 total_carbs = nutrition_per_100.get("carbs", 0) * factor
 
             # Сохраняем в БД с рассчитанными КБЖУ
-            # ВАЖНО: передаём КБЖУ на 100г, а не общие - food_save_service сам пересчитает на вес
-            total_weight = sum(ing.get("weight_grams", 100) for ing in ingredients)
-            if total_weight > 0:
-                calories_per_100 = (total_calories / total_weight) * 100
-                protein_per_100 = (total_protein / total_weight) * 100
-                fat_per_100 = (total_fat / total_weight) * 100
-                carbs_per_100 = (total_carbs / total_weight) * 100
-            else:
-                calories_per_100 = total_calories
-                protein_per_100 = total_protein
-                fat_per_100 = total_fat
-                carbs_per_100 = total_carbs
-            
+            # ВАЖНО: передаём ОБЩИЕ КБЖУ (не на 100г) и указываем quantity=1, чтобы food_save_service не пересчитывал
             save_result = await food_save_service.save_food_to_db(
                 user_id=user_id,
                 food_items=[{
                     "name": dish_name,
-                    "calories": calories_per_100,
-                    "protein": protein_per_100,
-                    "fat": fat_per_100,
-                    "carbs": carbs_per_100,
-                    "quantity": total_weight,
+                    "calories": total_calories,
+                    "protein": total_protein,
+                    "fat": total_fat,
+                    "carbs": total_carbs,
+                    "quantity": 1,
                     "unit": "г"
                 }],
                 meal_type=meal_type

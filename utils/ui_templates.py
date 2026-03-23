@@ -217,19 +217,33 @@ def food_entry_card(food_data: Dict, user=None, daily_stats: Dict = None) -> str
     # Добавляем информацию о прогрессе, если есть статистика
     if daily_stats and user:
         calorie_goal = getattr(user, 'daily_calorie_goal', 2000) or 2000
-        consumed = daily_stats.get('calories_consumed', 0)
-        progress = min((consumed / calorie_goal) * 100, 100) if calorie_goal > 0 else 0
+        water_goal = getattr(user, 'daily_water_goal', 2000) or 2000
+        
+        # Получаем потребленные калории (исправляем имя ключа)
+        consumed = daily_stats.get('calories', 0)
+        water_consumed = daily_stats.get('water_ml', 0)
+        
+        # Прогресс калорий
+        calorie_progress = min((consumed / calorie_goal) * 100, 100) if calorie_goal > 0 else 0
+        calorie_filled = int(10 * calorie_progress / 100)
+        calorie_bar = '█' * calorie_filled + '░' * (10 - calorie_filled)
+        
+        # Прогресс воды
+        water_progress = min((water_consumed / water_goal) * 100, 100) if water_goal > 0 else 0
+        water_filled = int(10 * water_progress / 100)
+        water_bar = '█' * water_filled + '░' * (10 - water_filled)
         
         lines.append("")
         lines.append(f"📈 <b>Прогресс за день:</b>")
-        lines.append(f"   {consumed:.0f} / {calorie_goal:.0f} ккал ({progress:.0f}%)")
+        lines.append(f"   🔥 Калории: {calorie_bar} <code>{consumed:.0f}</code> / <code>{calorie_goal:.0f}</code> ккал ({calorie_progress:.0f}%)")
+        lines.append(f"   💧 Вода: {water_bar} <code>{water_consumed:.0f}</code> / <code>{water_goal:.0f}</code> мл ({water_progress:.0f}%)")
         
         # Мотивация
-        if progress >= 90:
+        if calorie_progress >= 90:
             lines.append("🏆 <i>Отличная работа! Цель почти достигнута!</i>")
-        elif progress >= 70:
+        elif calorie_progress >= 70:
             lines.append("💪 <i>Хороший прогресс! Продолжайте!</i>")
-        elif progress >= 50:
+        elif calorie_progress >= 50:
             lines.append("👍 <i>Вы на правильном пути!</i>")
         else:
             lines.append("🚀 <i>Продолжайте в том же духе!</i>")
